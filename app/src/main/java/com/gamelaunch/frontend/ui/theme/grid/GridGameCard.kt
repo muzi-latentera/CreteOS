@@ -74,27 +74,33 @@ fun GridGameCard(
         animationSpec = tween(durationMillis = BounceDurationMs, easing = BounceEasing),
         label = "gridGameScale"
     )
-    // Slow, never-ending slight wiggle on the focused card.
-    val wiggle = rememberInfiniteTransition(label = "gridWiggle")
-    val wiggleRot by wiggle.animateFloat(
-        initialValue = -1.6f,
-        targetValue = 1.6f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1900, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "gridWiggleRot"
+    // Gentle, never-ending whimsical idle on the focused card — soft tilt, slow bob and a faint
+    // breathing pulse on off-beat periods so it drifts organically.
+    val idle = rememberInfiniteTransition(label = "gridIdle")
+    val tilt by idle.animateFloat(
+        -1f, 1f, infiniteRepeatable(tween(2300, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "gridTilt"
+    )
+    val bob by idle.animateFloat(
+        -1f, 1f, infiniteRepeatable(tween(1700, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "gridBob"
+    )
+    val breath by idle.animateFloat(
+        -1f, 1f, infiniteRepeatable(tween(2900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "gridBreath"
     )
 
     Box(
         modifier = Modifier
             .zIndex(if (isFocused) 1f else 0f)
             .graphicsLayer {
-                translationY = (1f - enter.value) * 72.dp.toPx()
+                val pulse = if (isFocused) breath * 0.012f else 0f
+                translationY = (1f - enter.value) * 72.dp.toPx() +
+                    (if (isFocused) bob * 3.dp.toPx() else 0f)
                 alpha = enter.value.coerceIn(0f, 1f)
-                scaleX = scale
-                scaleY = scale
-                rotationZ = if (isFocused) wiggleRot else 0f
+                scaleX = scale + pulse
+                scaleY = scale + pulse
+                rotationZ = if (isFocused) tilt * 0.9f else 0f
             }
             .then(
                 if (isFocused)

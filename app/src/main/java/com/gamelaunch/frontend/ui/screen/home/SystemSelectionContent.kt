@@ -220,16 +220,21 @@ private fun SystemCard(
         animationSpec = tween(durationMillis = BounceDurationMs, easing = BounceEasing),
         label = "systemTileScale"
     )
-    // A slow, never-ending slight wiggle so the focused card always reads as "selected".
-    val wiggle = rememberInfiniteTransition(label = "systemWiggle")
-    val wiggleRot by wiggle.animateFloat(
-        initialValue = -1.6f,
-        targetValue = 1.6f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1900, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "systemWiggleRot"
+    // A gentle, never-ending idle so the focused card feels alive — a soft tilt, a slow vertical
+    // bob and a faint "breathing" pulse, each on its own off-beat period so the motion drifts
+    // organically instead of ticking like a metronome.
+    val idle = rememberInfiniteTransition(label = "systemIdle")
+    val tilt by idle.animateFloat(
+        -1f, 1f, infiniteRepeatable(tween(2300, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "systemTilt"
+    )
+    val bob by idle.animateFloat(
+        -1f, 1f, infiniteRepeatable(tween(1700, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "systemBob"
+    )
+    val breath by idle.animateFloat(
+        -1f, 1f, infiniteRepeatable(tween(2900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "systemBreath"
     )
     val darkMode = LocalDarkMode.current
     val textPrimary = if (darkMode) IceWhite else TileText
@@ -241,9 +246,11 @@ private fun SystemCard(
         modifier = modifier
             .zIndex(if (isFocused) 1f else 0f)
             .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                rotationZ = if (isFocused) wiggleRot else 0f
+                val pulse = if (isFocused) breath * 0.012f else 0f
+                scaleX = scale + pulse
+                scaleY = scale + pulse
+                rotationZ = if (isFocused) tilt * 0.9f else 0f
+                translationY = if (isFocused) bob * 4.dp.toPx() else 0f
             }
             .glassTile(shape, color = color, selected = isFocused)
             .clickable(onClick = onClick)
