@@ -3,11 +3,13 @@ package com.gamelaunch.frontend.data.repository
 import android.content.Context
 import com.gamelaunch.frontend.data.db.dao.GameMediaDao
 import com.gamelaunch.frontend.data.db.entity.GameMediaEntity
+import com.gamelaunch.frontend.data.preferences.AppDataStore
 import com.gamelaunch.frontend.domain.model.GameMedia
 import com.gamelaunch.frontend.domain.repository.MediaRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -20,11 +22,26 @@ import javax.inject.Singleton
 class MediaRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val gameMediaDao: GameMediaDao,
+    private val dataStore: AppDataStore,
     private val okHttpClient: OkHttpClient
 ) : MediaRepository {
 
-    private val mediaDir: File
+    private val defaultMediaDir: File
         get() = File(context.filesDir, "media").also { it.mkdirs() }
+
+    /**
+     * Folder where scraped media is written. Uses the user's chosen folder (e.g. an SD card) when
+     * set and writable — an "eor_media" subfolder inside it — otherwise the app's internal default.
+     */
+    private suspend fun mediaDir(): File {
+        val custom = dataStore.mediaStoragePath.first()
+        if (custom.isNotBlank() && !custom.startsWith("content://")) {
+            val dir = File(custom, "eor_media")
+            val ok = runCatching { dir.mkdirs(); dir.exists() && dir.canWrite() }.getOrDefault(false)
+            if (ok) return dir
+        }
+        return defaultMediaDir
+    }
 
     override suspend fun getMediaForGame(gameId: Long): GameMedia? =
         gameMediaDao.getMediaForGame(gameId)?.toDomain()
@@ -60,27 +77,30 @@ class MediaRepositoryImpl @Inject constructor(
     }
 
     override suspend fun downloadAndCacheBoxArt(gameId: Long, url: String): String? =
-        downloadFile(url, File(mediaDir, "boxart/${gameId}.jpg"))?.also { path ->
+        downloadFile(url, File(mediaDir(), "boxart/${gameId}.jpg"))?.also { path ->
             gameMediaDao.updateBoxArtLocalPath(gameId, path)
         }
 
     override suspend fun downloadAndCacheVideo(gameId: Long, url: String): String? =
-        downloadFile(url, File(mediaDir, "videos/${gameId}.mp4"))?.also { path ->
+        downloadFile(url, File(mediaDir(), "videos/${gameId}.mp4"))?.also { path ->
             gameMediaDao.updateVideoLocalPath(gameId, path)
         }
 
     override suspend fun downloadAndCacheScreenshot(gameId: Long, url: String): String? =
-        downloadFile(url, File(mediaDir, "screenshots/${gameId}.jpg"))
+        downloadFile(url, File(mediaDir(), "screenshots/${gameId}.jpg"))
 
     override suspend fun downloadAndCacheWheelLogo(gameId: Long, url: String): String? =
-        downloadFile(url, File(mediaDir, "wheels/${gameId}.png"))
+        downloadFile(url, File(mediaDir(), "wheels/${gameId}.png"))
 
     override suspend fun deleteMediaForGame(gameId: Long) {
         gameMediaDao.deleteMediaForGame(gameId)
-        listOf("boxart", "videos", "screenshots", "wheels").forEach { dir ->
-            File(mediaDir, "$dir/$gameId.*").parentFile?.listFiles()
-                ?.filter { it.nameWithoutExtension == gameId.toString() }
-                ?.forEach { it.delete() }
+        // Media may live in either the current folder or the internal default (if the user moved it).
+        listOf(mediaDir(), defaultMediaDir).distinct().forEach { base ->
+            listOf("boxart", "videos", "screenshots", "wheels").forEach { dir ->
+                File(base, dir).listFiles()
+                    ?.filter { it.nameWithoutExtension == gameId.toString() }
+                    ?.forEach { it.delete() }
+            }
         }
     }
 

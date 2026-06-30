@@ -51,6 +51,7 @@ data class SettingsUiState(
     val lbSyncStatus: LbSyncStatus? = null,
     val lbGameCount: Int = 0,
     val mediaFolderPath: String = "",
+    val mediaStoragePath: String = "",
     val esdeImportStatus: EsdeImportStatus? = null,
     val showRecentlyPlayed: Boolean = true,
     val darkMode: Boolean = false,
@@ -124,6 +125,11 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.mediaFolderPath.collect { path ->
                 _uiState.update { it.copy(mediaFolderPath = path) }
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.mediaStoragePath.collect { path ->
+                _uiState.update { it.copy(mediaStoragePath = path) }
             }
         }
         viewModelScope.launch {
@@ -261,6 +267,14 @@ class SettingsViewModel @Inject constructor(
 
     fun setMediaFolderPath(path: String) {
         viewModelScope.launch { settingsRepository.setMediaFolderPath(path) }
+    }
+
+    fun setMediaStoragePath(path: String) {
+        viewModelScope.launch { settingsRepository.setMediaStoragePath(path) }
+    }
+
+    fun clearMediaStoragePath() {
+        viewModelScope.launch { settingsRepository.setMediaStoragePath("") }
     }
 
     fun importEsdeMedia() {

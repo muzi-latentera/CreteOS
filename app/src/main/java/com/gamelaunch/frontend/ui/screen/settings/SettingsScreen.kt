@@ -141,6 +141,15 @@ fun SettingsScreen(
         }
     }
 
+    val mediaStoragePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        uri?.let {
+            val path = StorageUtils.resolveTreeUriToPath(it) ?: it.toString()
+            viewModel.setMediaStoragePath(path)
+        }
+    }
+
     // L1 / R1 cycle between tabs (with wraparound), mirroring the home screen.
     fun cycleTab(delta: Int) {
         val entries = SettingsTab.entries
@@ -275,6 +284,12 @@ fun SettingsScreen(
                                     else -> MediaImportBody(state, viewModel, onPickMediaFolder = { mediaFolderPicker.launch(null) })
                                 }
                             }
+                            Spacer(Modifier.height(4.dp))
+                            MediaStorageSection(
+                                state,
+                                onPickFolder = { mediaStoragePicker.launch(null) },
+                                onUseDefault = viewModel::clearMediaStoragePath
+                            )
                         }
                         SettingsTab.GAMES -> {
                             RomLibrarySection(
@@ -1028,6 +1043,58 @@ private fun SegmentedTabs(
                     color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = if (isSel) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+// ── Section: Media Storage ────────────────────────────────────────────────
+
+@Composable
+private fun MediaStorageSection(
+    state: SettingsUiState,
+    onPickFolder: () -> Unit,
+    onUseDefault: () -> Unit
+) {
+    SettingsSectionHeader("Media Storage")
+    SettingsCard {
+        Text(
+            "Choose where scraped box art, screenshots and videos are saved — for example your SD card. " +
+            "Optional: if you don't pick a folder, media is kept in the app's internal storage. " +
+            "Changing this only affects newly scraped media.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Default.FolderOpen,
+                contentDescription = null,
+                tint = ElectricBlue,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text  = state.mediaStoragePath.ifBlank { "Default — internal storage" },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GradientFillButton(
+                text     = "Choose Folder",
+                onClick  = onPickFolder,
+                modifier = Modifier.weight(1f)
+            )
+            if (state.mediaStoragePath.isNotBlank()) {
+                GradientOutlineButton(
+                    text     = "Use Default",
+                    onClick  = onUseDefault,
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
