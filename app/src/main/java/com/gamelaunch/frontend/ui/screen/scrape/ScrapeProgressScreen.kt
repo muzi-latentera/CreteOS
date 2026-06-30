@@ -9,13 +9,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -31,11 +34,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gamelaunch.frontend.domain.usecase.ScrapeResult
+import com.gamelaunch.frontend.ui.theme.ThemedScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,7 +49,8 @@ fun ScrapeProgressScreen(
     onBack: () -> Unit,
     viewModel: ScrapeViewModel = hiltViewModel()
 ) {
-    val state by viewModel.uiState.collectAsState()
+    val state        by viewModel.uiState.collectAsState()
+    val hasSsCreds   by viewModel.hasSsCredentials.collectAsState()
 
     LaunchedEffect(Unit) {
         if (!state.isRunning && state.batchState == null) {
@@ -51,13 +58,14 @@ fun ScrapeProgressScreen(
         }
     }
 
+    ThemedScreen {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Scraping Game Data") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -83,6 +91,29 @@ fun ScrapeProgressScreen(
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
+            // ScreenScraper status banner
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+            ) {
+                Icon(
+                    if (hasSsCreds) Icons.Default.Star else Icons.Default.HourglassEmpty,
+                    contentDescription = null,
+                    tint = if (hasSsCreds) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    if (hasSsCreds)
+                        "ScreenScraper active — full art, metadata & video"
+                    else
+                        "No ScreenScraper account — using libretro + LaunchBox fallbacks (add credentials in Settings for best results)",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (hasSsCreds) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = if (hasSsCreds) FontWeight.SemiBold else FontWeight.Normal
+                )
+            }
+
             val batch = state.batchState
             if (batch != null) {
                 val progress = if (batch.total > 0) batch.completed.toFloat() / batch.total else 0f
@@ -112,7 +143,7 @@ fun ScrapeProgressScreen(
                 LazyColumn {
                     items(batch.results.takeLast(50)) { result ->
                         val (icon, label) = when (result) {
-                            is ScrapeResult.Success -> Icons.Default.Check to "Scraped"
+                            is ScrapeResult.Success -> Icons.Default.Check to "Scraped: ${result.title}"
                             is ScrapeResult.NotFound -> Icons.Default.Close to "Not found: ${result.romName}"
                             is ScrapeResult.RateLimited -> Icons.Default.HourglassEmpty to "Rate limited, retrying…"
                             is ScrapeResult.Error -> Icons.Default.Close to "Error: ${result.cause.message}"
@@ -125,5 +156,6 @@ fun ScrapeProgressScreen(
                 }
             }
         }
+    }
     }
 }

@@ -5,11 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.gamelaunch.frontend.data.db.dao.LaunchBoxDao
 import com.gamelaunch.frontend.domain.model.ScraperConfig
 import com.gamelaunch.frontend.domain.repository.EmulatorRepository
+import com.gamelaunch.frontend.domain.repository.RetroAchievementsRepository
 import com.gamelaunch.frontend.domain.repository.ScraperRepository
+import com.gamelaunch.frontend.domain.platform.SystemSort
 import com.gamelaunch.frontend.domain.repository.SettingsRepository
 import com.gamelaunch.frontend.domain.usecase.EsdeImportStatus
 import com.gamelaunch.frontend.domain.usecase.ImportEsdeMediaUseCase
 import com.gamelaunch.frontend.domain.usecase.LbSyncStatus
+import com.gamelaunch.frontend.domain.usecase.ScanAndroidGamesUseCase
 import com.gamelaunch.frontend.domain.usecase.SyncLaunchBoxUseCase
 import com.gamelaunch.frontend.ui.theme.LayoutMode
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,10 +25,18 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class SettingsUiState(
+    val androidScanResult: String? = null,
     val romRootPath: String = "",
     val ssId: String = "",
     val ssPassword: String = "",
+    val raUsername: String = "",
+    val raPassword: String = "",
+    val raApiKey: String = "",
+    val raLoggingIn: Boolean = false,
+    val raLoginResult: String? = null,   // success or error message to surface
+    val raLoggedIn: Boolean = false,     // a token is stored
     val layoutMode: LayoutMode = LayoutMode.CAROUSEL,
+    val scrapeMetadata: Boolean = true,
     val scrapeBoxArt: Boolean = true,
     val scrapeScreenshots: Boolean = true,
     val scrapeWheelLogos: Boolean = true,
@@ -41,7 +52,9 @@ data class SettingsUiState(
     val lbGameCount: Int = 0,
     val mediaFolderPath: String = "",
     val esdeImportStatus: EsdeImportStatus? = null,
-    val showRecentlyPlayed: Boolean = true
+    val showRecentlyPlayed: Boolean = true,
+    val darkMode: Boolean = false,
+    val systemSort: List<SystemSort> = emptyList()
 )
 
 @HiltViewModel
@@ -51,6 +64,8 @@ class SettingsViewModel @Inject constructor(
     private val emulatorRepository: EmulatorRepository,
     private val syncLaunchBoxUseCase: SyncLaunchBoxUseCase,
     private val importEsdeMediaUseCase: ImportEsdeMediaUseCase,
+    private val scanAndroidGamesUseCase: ScanAndroidGamesUseCase,
+    private val raRepository: RetroAchievementsRepository,
     private val launchBoxDao: LaunchBoxDao
 ) : ViewModel() {
 
@@ -71,6 +86,7 @@ class SettingsViewModel @Inject constructor(
                     ssId = config.ssid,
                     ssPassword = config.sspassword,
                     layoutMode = layout,
+                    scrapeMetadata = config.scrapeMetadata,
                     scrapeBoxArt = config.scrapeBoxArt,
                     scrapeScreenshots = config.scrapeScreenshots,
                     scrapeWheelLogos = config.scrapeWheelLogos,
@@ -79,16 +95,23 @@ class SettingsViewModel @Inject constructor(
                     videoDelayMs = delay,
                     videoMuted = muted
                 )
-            }.collect { newState ->
+            }.collect { owned ->
+                // Merge only the fields this combine owns; everything else (darkMode, systemSort,
+                // RA creds, etc.) is collected separately and must be preserved.
                 _uiState.update { current ->
-                    newState.copy(
-                        emulatorDetecting = current.emulatorDetecting,
-                        emulatorDetectResult = current.emulatorDetectResult,
-                        lbSyncStatus = current.lbSyncStatus,
-                        lbGameCount = current.lbGameCount,
-                        mediaFolderPath = current.mediaFolderPath,
-                        esdeImportStatus = current.esdeImportStatus,
-                        showRecentlyPlayed = current.showRecentlyPlayed
+                    current.copy(
+                        romRootPath = owned.romRootPath,
+                        ssId = owned.ssId,
+                        ssPassword = owned.ssPassword,
+                        layoutMode = owned.layoutMode,
+                        scrapeMetadata = owned.scrapeMetadata,
+                        scrapeBoxArt = owned.scrapeBoxArt,
+                        scrapeScreenshots = owned.scrapeScreenshots,
+                        scrapeWheelLogos = owned.scrapeWheelLogos,
+                        scrapeVideos = owned.scrapeVideos,
+                        preferredRegion = owned.preferredRegion,
+                        videoDelayMs = owned.videoDelayMs,
+                        videoMuted = owned.videoMuted
                     )
                 }
             }
@@ -108,10 +131,106 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update { it.copy(showRecentlyPlayed = show) }
             }
         }
+        viewModelScope.launch {
+            settingsRepository.darkMode.collect { dark ->
+                _uiState.update { it.copy(darkMode = dark) }
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.systemSort.collect { sorts ->
+                _uiState.update { it.copy(systemSort = sorts) }
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.raUsername.collect { u ->
+                _uiState.update { it.copy(raUsername = u) }
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.raApiKey.collect { k ->
+                _uiState.update { it.copy(raApiKey = k) }
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.raToken.collect { t ->
+                _uiState.update { it.copy(raLoggedIn = t.isNotBlank()) }
+            }
+        }
     }
 
     fun setShowRecentlyPlayed(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setShowRecentlyPlayed(enabled) }
+    }
+
+    fun setDarkMode(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setDarkMode(enabled) }
+    }
+
+    /** Toggle a system-sort key. Selected keys are an ordered list of up to two (primary first). */
+    fun toggleSystemSort(sort: SystemSort) {
+        val current = _uiState.value.systemSort
+        val next = when {
+            sort in current      -> current - sort
+            current.size < 2     -> current + sort
+            else                 -> current   // already two — deselect one first
+        }
+        viewModelScope.launch { settingsRepository.setSystemSort(next) }
+    }
+
+    fun updateRaUsername(value: String) = _uiState.update { it.copy(raUsername = value, raLoginResult = null) }
+    fun updateRaPassword(value: String) = _uiState.update { it.copy(raPassword = value, raLoginResult = null) }
+    fun updateRaApiKey(value: String) = _uiState.update { it.copy(raApiKey = value, raLoginResult = null) }
+
+    /**
+     * Log in to RetroAchievements with username + password via the Connect API.
+     * On success we persist the username + token (never the raw password) plus the optional
+     * Web API key, which unlocks the full recently-played dashboard.
+     */
+    fun saveRaCredentials() {
+        val s = _uiState.value
+        val username = s.raUsername.trim()
+        val password = s.raPassword
+        if (username.isBlank() || password.isBlank()) {
+            _uiState.update { it.copy(raLoginResult = "Enter both username and password") }
+            return
+        }
+        _uiState.update { it.copy(raLoggingIn = true, raLoginResult = null) }
+        viewModelScope.launch {
+            // Persist the optional Web API key first so the dashboard can use it after login.
+            settingsRepository.setRaApiKey(s.raApiKey.trim())
+
+            val result = raRepository.login(username, password)
+            result.onSuccess { session ->
+                settingsRepository.setRaSession(
+                    username       = session.username,
+                    token          = session.token,
+                    points         = session.points,
+                    softcorePoints = session.softcorePoints
+                )
+                _uiState.update {
+                    it.copy(
+                        raLoggingIn  = false,
+                        raPassword   = "",   // clear from memory once exchanged for a token
+                        raLoginResult = "Signed in as ${session.username}"
+                    )
+                }
+            }.onFailure { e ->
+                _uiState.update {
+                    it.copy(raLoggingIn = false, raLoginResult = e.message ?: "Login failed")
+                }
+            }
+        }
+    }
+
+    fun signOutRa() {
+        viewModelScope.launch {
+            settingsRepository.clearRaCredentials()
+            _uiState.update { it.copy(raPassword = "", raApiKey = "", raLoginResult = null) }
+        }
+    }
+
+    fun clearRaLoginResult() {
+        _uiState.update { it.copy(raLoginResult = null) }
     }
 
     fun updateSsId(value: String) = _uiState.update { it.copy(ssId = value, credentialValid = null) }
@@ -163,6 +282,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setLayoutMode(mode) }
     }
 
+    fun setScrapeMetadata(v: Boolean) = _uiState.update { it.copy(scrapeMetadata = v) }.also { saveOptions() }
     fun setScrapeBoxArt(v: Boolean) = _uiState.update { it.copy(scrapeBoxArt = v) }.also { saveOptions() }
     fun setScrapeScreenshots(v: Boolean) = _uiState.update { it.copy(scrapeScreenshots = v) }.also { saveOptions() }
     fun setScrapeWheelLogos(v: Boolean) = _uiState.update { it.copy(scrapeWheelLogos = v) }.also { saveOptions() }
@@ -171,7 +291,9 @@ class SettingsViewModel @Inject constructor(
     private fun saveOptions() {
         val s = _uiState.value
         viewModelScope.launch {
-            settingsRepository.updateScraperOptions(s.scrapeBoxArt, s.scrapeScreenshots, s.scrapeWheelLogos, s.scrapeVideos)
+            settingsRepository.updateScraperOptions(
+                s.scrapeMetadata, s.scrapeBoxArt, s.scrapeScreenshots, s.scrapeWheelLogos, s.scrapeVideos
+            )
         }
     }
 
@@ -215,6 +337,20 @@ class SettingsViewModel @Inject constructor(
 
     fun dismissLbSyncStatus() {
         _uiState.update { it.copy(lbSyncStatus = null) }
+    }
+
+    fun scanAndroidGames() {
+        viewModelScope.launch {
+            scanAndroidGamesUseCase().collect { progress ->
+                if (progress.scanned == progress.total) {
+                    _uiState.update { it.copy(androidScanResult = "Found ${progress.added} new Android game${if (progress.added != 1) "s" else ""}") }
+                }
+            }
+        }
+    }
+
+    fun clearAndroidScanResult() {
+        _uiState.update { it.copy(androidScanResult = null) }
     }
 
     fun finishSetup() {

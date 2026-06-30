@@ -45,6 +45,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.gamelaunch.frontend.domain.model.EmulatorMapping
 import com.gamelaunch.frontend.domain.model.InstalledEmulator
 import com.gamelaunch.frontend.domain.platform.PlatformDefinitions
+import com.gamelaunch.frontend.ui.theme.ThemedScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,6 +64,7 @@ fun EmulatorConfigScreen(
         }
     }
 
+    ThemedScreen {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -116,6 +118,7 @@ fun EmulatorConfigScreen(
                 )
             }
         }
+    }
     }
 }
 

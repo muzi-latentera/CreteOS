@@ -9,8 +9,11 @@ import com.gamelaunch.frontend.domain.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -32,8 +35,15 @@ class ScrapeViewModel @Inject constructor(
 
     private var scrapeJob: Job? = null
 
+    // Whether the user has ScreenScraper credentials set (best results).
+    // Scraping still runs without them via libretro + LaunchBox fallbacks.
+    val hasSsCredentials: kotlinx.coroutines.flow.StateFlow<Boolean> =
+        settingsRepository.scraperConfig
+            .map { it.isConfigured }
+            .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), false)
+
     init {
-        // Always considered configured — LaunchBox works without credentials
+        // Always considered configured — libretro + LaunchBox work without SS credentials.
         _uiState.update { it.copy(isConfigured = true) }
     }
 

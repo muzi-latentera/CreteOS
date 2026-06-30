@@ -188,6 +188,18 @@ object PlatformDefinitions {
             extensions = listOf(".vpk"),
             folderNames = listOf("psvita", "PSVita", "PS Vita", "Vita"),
             defaultEmulatorPackage = "org.vita3k.emulator"
+        ),
+        Platform(
+            id = "steam", displayName = "PC / Steam", scraperSystemId = 0,
+            extensions = listOf(".lnk", ".url", ".exe"),
+            folderNames = listOf("steam", "Steam", "pc", "PC", "Windows"),
+            defaultEmulatorPackage = "com.gamenative.android"
+        ),
+        Platform(
+            id = "android", displayName = "Android Games", scraperSystemId = 0,
+            extensions = listOf(".apk"),
+            folderNames = listOf("android", "Android", "Android Games"),
+            defaultEmulatorPackage = null
         )
     )
 

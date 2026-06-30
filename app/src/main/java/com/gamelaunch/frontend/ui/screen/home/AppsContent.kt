@@ -37,6 +37,9 @@ import com.gamelaunch.frontend.ui.component.AppIcon
 import com.gamelaunch.frontend.ui.theme.BounceDurationMs
 import com.gamelaunch.frontend.ui.theme.BounceEasing
 import com.gamelaunch.frontend.ui.theme.BrandBlue
+import com.gamelaunch.frontend.ui.theme.IceWhite
+import com.gamelaunch.frontend.ui.theme.LocalDarkMode
+import com.gamelaunch.frontend.ui.theme.SteelGray
 import com.gamelaunch.frontend.ui.theme.TileSub
 import com.gamelaunch.frontend.ui.theme.TileText
 import com.gamelaunch.frontend.ui.theme.glassTile
@@ -59,8 +62,9 @@ fun AppsContent(
         return
     }
     if (apps.isEmpty()) {
+        val darkMode = LocalDarkMode.current
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No apps found", color = TileSub)
+            Text("No apps found", color = if (darkMode) SteelGray else TileSub)
         }
         return
     }
@@ -104,6 +108,7 @@ private fun AppCard(
         animationSpec = tween(durationMillis = BounceDurationMs, easing = BounceEasing),
         label = "appTileScale"
     )
+    val darkMode = LocalDarkMode.current
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -123,7 +128,7 @@ private fun AppCard(
         Text(
             text = app.label,
             style = MaterialTheme.typography.labelMedium,
-            color = TileText,
+            color = if (darkMode) IceWhite else TileText,
             textAlign = TextAlign.Center,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis

@@ -23,7 +23,15 @@ class BatchScrapeUseCase @Inject constructor(
     private val scrapeGameUseCase: ScrapeGameUseCase
 ) {
     operator fun invoke(config: ScraperConfig): Flow<BatchScrapeState> = flow {
-        val games = gameRepository.getUnscrapedGames()
+        // Only scrape games missing something the user has enabled — fully-complete games are
+        // skipped so re-running the scrape doesn't re-fetch everything.
+        val games = gameRepository.getGamesNeedingScrape(
+            needMeta  = config.scrapeMetadata,
+            needBox   = config.scrapeBoxArt,
+            needShot  = config.scrapeScreenshots,
+            needWheel = config.scrapeWheelLogos,
+            needVideo = config.scrapeVideos
+        )
         val total = games.size
         val results = mutableListOf<ScrapeResult>()
         var succeeded = 0

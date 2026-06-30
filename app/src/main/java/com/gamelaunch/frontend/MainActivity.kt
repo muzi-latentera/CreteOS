@@ -12,6 +12,7 @@ import android.view.InputDevice
 import android.view.KeyEvent as AndroidKeyEvent
 import android.view.MotionEvent
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowCompat
@@ -58,7 +59,8 @@ class MainActivity : ComponentActivity() {
         requestAllFilesAccessIfNeeded()
 
         setContent {
-            AppTheme {
+            val darkMode by settingsRepository.darkMode.collectAsState(initial = false)
+            AppTheme(darkMode = darkMode) {
                 val navController = rememberNavController()
                 // Use null as initial so NavHost isn't created until we know the real value.
                 // With initial = true (old code) the NavHost always initialized at Settings,
@@ -77,6 +79,12 @@ class MainActivity : ComponentActivity() {
                             navController    = navController,
                             startDestination = startDestination
                         )
+                        // System Back (the Retroid's B maps to it): pop the nav stack so the
+                        // detail/settings screens return to where they came from. At the launcher
+                        // root nothing pops, so we consume it and stay instead of exiting.
+                        // Focused screens (e.g. the home game grid) handle Back in their own
+                        // onKeyEvent first, so this only runs when nothing else consumed it.
+                        BackHandler { navController.popBackStack() }
                     }
                 }
             }
@@ -96,10 +104,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        // Swallow Back at the launcher root — sub-screens handle it via the nav stack
-    }
 
     /**
      * Convert left-stick and D-pad hat axis motion to discrete DPAD key events so
@@ -128,12 +132,26 @@ class MainActivity : ComponentActivity() {
         return super.dispatchGenericMotionEvent(ev)
     }
 
+    /**
+     * Emit DPAD key events for an axis as it crosses the dead zone. Critically this also injects
+     * ACTION_UP when the axis returns to (or passes through) neutral, so a released D-pad/stick
+     * produces a real KeyUp — without it the hold-to-scroll repeat would never be cancelled and the
+     * UI would scroll forever. A direction flip (e.g. right → left) releases the old direction and
+     * presses the new one in the same step.
+     */
     private fun injectIfCrossed(cur: Float, prev: Float, dead: Float, posCode: Int, negCode: Int) {
+        val curDir  = if (cur  > dead) 1 else if (cur  < -dead) -1 else 0
+        val prevDir = if (prev > dead) 1 else if (prev < -dead) -1 else 0
+        if (curDir == prevDir) return
+
         val now = SystemClock.uptimeMillis()
-        if (cur > dead && prev <= dead)
-            dispatchKeyEvent(AndroidKeyEvent(now, now, AndroidKeyEvent.ACTION_DOWN, posCode, 0))
-        else if (cur < -dead && prev >= -dead)
-            dispatchKeyEvent(AndroidKeyEvent(now, now, AndroidKeyEvent.ACTION_DOWN, negCode, 0))
+        fun send(action: Int, dir: Int) {
+            val code = if (dir > 0) posCode else negCode
+            dispatchKeyEvent(AndroidKeyEvent(now, now, action, code, 0))
+        }
+        // Release whatever direction was held, then press the new one (either may be neutral).
+        if (prevDir != 0) send(AndroidKeyEvent.ACTION_UP, prevDir)
+        if (curDir  != 0) send(AndroidKeyEvent.ACTION_DOWN, curDir)
     }
 
     private fun requestStoragePermissions() {

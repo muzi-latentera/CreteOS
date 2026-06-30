@@ -35,9 +35,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gamelaunch.frontend.ui.theme.ElectricBlue
-import com.gamelaunch.frontend.ui.theme.NavyBg
-import com.gamelaunch.frontend.ui.theme.NavyCard
 import com.gamelaunch.frontend.ui.theme.NeonPurple
+import com.gamelaunch.frontend.ui.theme.ThemedScreen
 
 @Composable
 fun ScanScreen(
@@ -64,10 +63,11 @@ fun ScanScreen(
         if (state.isComplete) onScanComplete()
     }
 
+    ThemedScreen {
     Box(
         Modifier
             .fillMaxSize()
-            .background(NavyBg),
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -98,7 +98,7 @@ fun ScanScreen(
                         progress    = { progress.scanned.toFloat() / progress.total },
                         modifier    = Modifier.fillMaxWidth(),
                         color       = ElectricBlue,
-                        trackColor  = NavyCard
+                        trackColor  = MaterialTheme.colorScheme.surfaceVariant
                     )
                     Spacer(Modifier.height(10.dp))
                     Text(
@@ -125,7 +125,7 @@ fun ScanScreen(
                     LinearProgressIndicator(
                         modifier   = Modifier.fillMaxWidth(),
                         color      = ElectricBlue,
-                        trackColor = NavyCard
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
@@ -150,6 +150,7 @@ fun ScanScreen(
                 GradientButton("Go to Library Anyway", onClick = onScanComplete)
             }
         }
+    }
     }
 }
 

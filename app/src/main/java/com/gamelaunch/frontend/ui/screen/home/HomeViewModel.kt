@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.model.GameMedia
+import com.gamelaunch.frontend.domain.platform.PlatformDefinitions
+import com.gamelaunch.frontend.domain.platform.sortedBySystems
 import com.gamelaunch.frontend.domain.repository.GameRepository
 import com.gamelaunch.frontend.domain.repository.MediaRepository
 import com.gamelaunch.frontend.domain.repository.SettingsRepository
@@ -57,7 +59,6 @@ class HomeViewModel @Inject constructor(
 
     init {
         observePlatforms()
-        observePlatformCounts()
         observeSettings()
         observeAllMedia()
         observeRecentlyPlayed()
@@ -71,26 +72,37 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    private var lastPlatformIdSet: Set<String> = emptySet()
+
     private fun observePlatforms() {
         viewModelScope.launch {
-            gameRepository.getDistinctPlatformIds().collect { platformIds ->
-                _uiState.update { state ->
-                    state.copy(
-                        platforms = platformIds,
-                        selectedPlatform = state.selectedPlatform ?: platformIds.firstOrNull(),
-                        isLoading = false
+            combine(
+                gameRepository.getDistinctPlatformIds(),
+                gameRepository.getPlatformCounts(),
+                settingsRepository.systemSort
+            ) { ids, counts, sorts -> Triple(ids, counts, sorts) }
+                .collect { (ids, counts, sorts) ->
+                    val sorted = ids.sortedBySystems(
+                        sorts = sorts,
+                        displayName = { PlatformDefinitions.byId[it]?.displayName ?: it },
+                        gameCount = { counts[it] ?: 0 }
                     )
+                    _uiState.update { state ->
+                        state.copy(
+                            platforms = sorted,
+                            platformCounts = counts,
+                            selectedPlatform = state.selectedPlatform ?: sorted.firstOrNull(),
+                            isLoading = false
+                        )
+                    }
+                    // Only (re)load the games list when the set of platforms actually changes,
+                    // not on every count tick during a scrape.
+                    val idSet = ids.toSet()
+                    if (idSet != lastPlatformIdSet) {
+                        lastPlatformIdSet = idSet
+                        loadGamesForPlatform(_uiState.value.selectedPlatform)
+                    }
                 }
-                loadGamesForPlatform(_uiState.value.selectedPlatform)
-            }
-        }
-    }
-
-    private fun observePlatformCounts() {
-        viewModelScope.launch {
-            gameRepository.getPlatformCounts().collect { counts ->
-                _uiState.update { it.copy(platformCounts = counts) }
-            }
         }
     }
 
@@ -99,12 +111,22 @@ class HomeViewModel @Inject constructor(
     }
 
     private var previewJob: Job? = null
+    // Art is randomised once per platform per ViewModel lifetime so re-focusing the same
+    // console returns the same list object — LaunchedEffect(previewArt) won't re-trigger
+    // the fan animation and images are already warm in Coil's disk cache.
+    private val previewArtCache = mutableMapOf<String, List<String>>()
 
     /** Load a handful of box-art covers to preview the system the carousel is focused on. */
     fun focusSystem(platformId: String) {
+        val cached = previewArtCache[platformId]
+        if (cached != null) {
+            _uiState.update { it.copy(systemPreviewArt = cached) }
+            return
+        }
         previewJob?.cancel()
         previewJob = viewModelScope.launch {
             val art = mediaRepository.boxArtSampleForPlatform(platformId, 8)
+            previewArtCache[platformId] = art
             _uiState.update { it.copy(systemPreviewArt = art) }
         }
     }
