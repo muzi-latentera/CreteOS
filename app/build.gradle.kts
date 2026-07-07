@@ -1,4 +1,6 @@
 import java.util.Properties
+import java.net.URL
+import java.util.zip.ZipFile
 
 plugins {
     alias(libs.plugins.android.application)
@@ -21,8 +23,8 @@ android {
         applicationId = "com.gamelaunch.frontend"
         minSdk = 26
         targetSdk = 34
-        versionCode = 18
-        versionName = "1.5.0"
+        versionCode = 19
+        versionName = "1.6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -51,6 +53,18 @@ android {
         compose = true
         buildConfig = true
     }
+
+    // The bundled Syncthing daemon (jniLibs/*/libsyncthing.so) must be extracted to a real file in
+    // nativeLibraryDir so it can be exec'd — modern AGP otherwise keeps .so files compressed in the APK.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
+    // The Syncthing daemon is fetched at build time (see the fetchSyncthing task) into this generated
+    // jniLibs dir rather than committed to the repo.
+    sourceSets["main"].jniLibs.srcDir(layout.buildDirectory.dir("syncthing-jni"))
 
 }
 
@@ -92,6 +106,10 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging.interceptor)
 
+    // QR generation + camera scanning for Save Sync device pairing
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
     // Media3 / ExoPlayer
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
@@ -118,3 +136,34 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
 }
+
+// ── Save Sync: fetch the official Syncthing daemon at build time (not committed to git) ──
+// Extracts libsyncthing.so from the official syncthing/syncthing-android release APK into a
+// generated jniLibs dir. Keeps the ~26 MB binary out of the repo; provenance is explicit here.
+val syncthingVersion = "1.28.1"
+val syncthingJniDir = layout.buildDirectory.dir("syncthing-jni").get().asFile
+
+val fetchSyncthing = tasks.register("fetchSyncthing") {
+    // Capture everything into task-local vals at configuration time so the action closure holds no
+    // references to script objects (required by the Gradle configuration cache).
+    val out = File(syncthingJniDir, "arm64-v8a/libsyncthing.so")
+    val url = "https://github.com/syncthing/syncthing-android/releases/download/$syncthingVersion/app-release.apk"
+    val version = syncthingVersion
+    val tmpDir = temporaryDir
+    outputs.file(out)
+    doLast {
+        if (out.exists() && out.length() > 1_000_000L) return@doLast
+        out.parentFile.mkdirs()
+        val apk = File(tmpDir, "syncthing-android.apk")
+        println("Fetching Syncthing $version daemon…")
+        URL(url).openStream().use { input -> apk.outputStream().use { output -> input.copyTo(output) } }
+        ZipFile(apk).use { zip ->
+            val entry = zip.getEntry("lib/arm64-v8a/libsyncthing.so")
+                ?: error("libsyncthing.so not found in $url")
+            zip.getInputStream(entry).use { input -> out.outputStream().use { output -> input.copyTo(output) } }
+        }
+        println("Syncthing daemon ready (${out.length()} bytes)")
+    }
+}
+
+tasks.named("preBuild") { dependsOn(fetchSyncthing) }
