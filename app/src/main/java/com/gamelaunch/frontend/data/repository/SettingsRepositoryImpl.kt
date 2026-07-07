@@ -56,6 +56,9 @@ class SettingsRepositoryImpl @Inject constructor(
     override val backgroundImagePath: Flow<String> = dataStore.backgroundImagePath
     override val backgroundImageMode: Flow<String> = dataStore.backgroundImageMode
     override val backgroundImageOpacity: Flow<Float> = dataStore.backgroundImageOpacity
+    override val saveSyncEnabled: Flow<Boolean> = dataStore.saveSyncEnabled
+    override val syncWifiOnly: Flow<Boolean> = dataStore.syncWifiOnly
+    override val syncChargingOnly: Flow<Boolean> = dataStore.syncChargingOnly
     override val systemSort: Flow<List<SystemSort>> =
         dataStore.systemSort.map { names -> names.mapNotNull { SystemSort.fromName(it) } }
     override val raUsername: Flow<String> = dataStore.raUsername
@@ -99,6 +102,9 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setBackgroundImagePath(path: String) { dataStore.setBackgroundImagePath(path) }
     override suspend fun setBackgroundImageMode(mode: String) { dataStore.setBackgroundImageMode(mode) }
     override suspend fun setBackgroundImageOpacity(opacity: Float) { dataStore.setBackgroundImageOpacity(opacity) }
+    override suspend fun setSaveSyncEnabled(enabled: Boolean) { dataStore.setSaveSyncEnabled(enabled) }
+    override suspend fun setSyncWifiOnly(v: Boolean) { dataStore.setSyncWifiOnly(v) }
+    override suspend fun setSyncChargingOnly(v: Boolean) { dataStore.setSyncChargingOnly(v) }
     override suspend fun clearBackgroundImage() { dataStore.clearBackgroundImage() }
     override suspend fun setSystemSort(keys: List<SystemSort>) { dataStore.setSystemSort(keys.map { it.name }) }
     override suspend fun setRaApiKey(apiKey: String) { dataStore.setRaApiKey(apiKey) }

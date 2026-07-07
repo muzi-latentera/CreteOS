@@ -75,6 +75,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var gameRepository: GameRepository
     @Inject lateinit var mediaRepository: MediaRepository
     @Inject lateinit var checkForUpdateUseCase: CheckForUpdateUseCase
+    @Inject lateinit var syncthingController: com.gamelaunch.frontend.data.sync.SyncthingController
 
     // Set when a newer GitHub release is found; drives the in-app update banner.
     private val updateState = mutableStateOf<AppUpdate?>(null)
@@ -111,6 +112,7 @@ class MainActivity : ComponentActivity() {
         requestStoragePermissions()
         requestAllFilesAccessIfNeeded()
         checkForUpdate()
+        startSaveSyncIfEnabled()
 
         setContent {
             val darkMode by settingsRepository.darkMode.collectAsState(initial = false)
@@ -250,6 +252,15 @@ class MainActivity : ComponentActivity() {
             ?.toBitmap(width = 512, height = 512)
             ?.asImageBitmap()
     }.getOrNull()
+
+    /** If the user left Save Sync on, bring the Syncthing daemon back up when eOr launches. */
+    private fun startSaveSyncIfEnabled() {
+        lifecycleScope.launch {
+            if (settingsRepository.saveSyncEnabled.first() && syncthingController.isSupported()) {
+                com.gamelaunch.frontend.data.sync.SyncthingService.start(this@MainActivity)
+            }
+        }
+    }
 
     /**
      * On launch, ask GitHub whether a newer release exists. If so, surface an in-app banner and —

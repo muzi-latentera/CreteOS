@@ -21,6 +21,9 @@ interface SettingsRepository {
     val backgroundImagePath: Flow<String>
     val backgroundImageMode: Flow<String>
     val backgroundImageOpacity: Flow<Float>
+    val saveSyncEnabled: Flow<Boolean>
+    val syncWifiOnly: Flow<Boolean>
+    val syncChargingOnly: Flow<Boolean>
     val systemSort: Flow<List<SystemSort>>
     val raUsername: Flow<String>
     val raApiKey: Flow<String>
@@ -51,6 +54,9 @@ interface SettingsRepository {
     suspend fun setBackgroundImagePath(path: String)
     suspend fun setBackgroundImageMode(mode: String)
     suspend fun setBackgroundImageOpacity(opacity: Float)
+    suspend fun setSaveSyncEnabled(enabled: Boolean)
+    suspend fun setSyncWifiOnly(v: Boolean)
+    suspend fun setSyncChargingOnly(v: Boolean)
     suspend fun clearBackgroundImage()
     suspend fun setSystemSort(keys: List<SystemSort>)
     suspend fun setRaApiKey(apiKey: String)

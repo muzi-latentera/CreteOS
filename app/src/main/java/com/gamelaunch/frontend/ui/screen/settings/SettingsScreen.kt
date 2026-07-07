@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PermMedia
@@ -83,6 +84,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.gamelaunch.frontend.domain.sync.EmulatorSyncStatus
+import com.gamelaunch.frontend.domain.sync.SyncReadiness
+import com.gamelaunch.frontend.ui.component.QrCode
 import com.gamelaunch.frontend.domain.usecase.EsdeImportStatus
 import com.gamelaunch.frontend.domain.usecase.LbSyncStatus
 import com.gamelaunch.frontend.ui.input.GamepadL1
@@ -92,6 +96,8 @@ import com.gamelaunch.frontend.ui.theme.LayoutMode
 import com.gamelaunch.frontend.ui.theme.NeonPurple
 import com.gamelaunch.frontend.ui.theme.ThemedScreen
 import com.gamelaunch.frontend.util.StorageUtils
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import kotlin.math.roundToInt
 
 private val gradientBrush = Brush.horizontalGradient(listOf(ElectricBlue, NeonPurple))
@@ -100,7 +106,8 @@ private enum class SettingsTab(val label: String, val icon: ImageVector) {
     GENERAL("General", Icons.Default.Tune),
     MEDIA("Media", Icons.Default.PermMedia),
     GAMES("Games", Icons.Default.VideogameAsset),
-    RETRO_ACHIEVEMENTS("RetroAchievements", Icons.Default.EmojiEvents)
+    RETRO_ACHIEVEMENTS("RetroAchievements", Icons.Default.EmojiEvents),
+    SAVE_SYNC("Save Sync", Icons.Default.Sync)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -316,6 +323,7 @@ fun SettingsScreen(
                             EmulatorsSection(state, viewModel, onEmulatorConfigClick)
                         }
                         SettingsTab.RETRO_ACHIEVEMENTS -> RetroAchievementsSection(state, viewModel)
+                        SettingsTab.SAVE_SYNC -> SaveSyncSection()
                     }
                     Spacer(Modifier.height(24.dp))
                 }
@@ -456,6 +464,261 @@ private fun SystemSortSection(state: SettingsUiState, viewModel: SettingsViewMod
                 }
             }
         }
+    }
+}
+
+// ── Section: Save Sync ─────────────────────────────────────────────────────
+
+@Composable
+private fun SaveSyncSection() {
+    val vm: SaveSyncViewModel = hiltViewModel()
+    val ui by vm.uiState.collectAsState()
+    SettingsSectionHeader("Save Sync")
+    SyncEngineCard(
+        ui,
+        onToggle = vm::setEnabled,
+        onLink = vm::linkDevice,
+        onWifiOnly = vm::setWifiOnly,
+        onChargingOnly = vm::setChargingOnly,
+        onResolveConflict = vm::resolveConflict
+    )
+    Spacer(Modifier.height(8.dp))
+    SettingsCard {
+        Text(
+            "Sync your emulator saves across devices. This shows which installed emulators eOr can " +
+                "sync on this device — Android blocks access to some emulators' private storage.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(12.dp))
+        when {
+            ui.loading ->
+                LoadingStatusRow("Scanning emulators…", MaterialTheme.colorScheme.onSurfaceVariant)
+            ui.statuses.isEmpty() ->
+                Text(
+                    "No known emulators detected.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            else -> ui.statuses.forEachIndexed { i, st ->
+                if (i > 0) {
+                    Spacer(Modifier.height(6.dp)); CardDivider(); Spacer(Modifier.height(6.dp))
+                }
+                SaveSyncRow(st)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SyncEngineCard(
+    ui: SaveSyncViewModel.UiState,
+    onToggle: (Boolean) -> Unit,
+    onLink: (String) -> Unit,
+    onWifiOnly: (Boolean) -> Unit,
+    onChargingOnly: (Boolean) -> Unit,
+    onResolveConflict: (com.gamelaunch.frontend.data.sync.ConflictFile, Boolean) -> Unit
+) {
+    SettingsCard {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Save Sync",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    when {
+                        !ui.enabled       -> "Off"
+                        ui.engineStarting -> "Starting…"
+                        ui.engineRunning  -> "Running"
+                        else              -> "Enabled"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = ui.enabled,
+                onCheckedChange = onToggle,
+                enabled = ui.engineSupported,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor  = Color.White,
+                    checkedTrackColor  = ElectricBlue,
+                    uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            )
+        }
+        if (!ui.engineSupported) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Not available for this device's processor.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        ui.engineError?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+        }
+
+        // Run conditions + backup status — shown whenever the feature is enabled.
+        if (ui.enabled) {
+            Spacer(Modifier.height(10.dp))
+            CardDivider()
+            Spacer(Modifier.height(4.dp))
+            CardSwitchRow("Only sync on Wi-Fi", ui.wifiOnly, onWifiOnly)
+            CardSwitchRow("Only sync while charging", ui.chargingOnly, onChargingOnly)
+            if (ui.backupCount >= 0) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (ui.backupCount > 0)
+                        "Backed up ${ui.backupCount} save folder${if (ui.backupCount != 1) "s" else ""} before first sync."
+                    else "No existing saves needed backing up.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        // Conflicts — Syncthing keeps a copy when the same save diverges on two devices.
+        if (ui.conflicts.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            CardDivider()
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Conflicts to resolve",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold
+            )
+            ui.conflicts.forEach { conflict ->
+                Spacer(Modifier.height(8.dp))
+                Text(conflict.name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
+                Text(conflict.folderLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GradientOutlineButton("Keep this", onClick = { onResolveConflict(conflict, true) }, modifier = Modifier.weight(1f))
+                    GradientOutlineButton("Discard", onClick = { onResolveConflict(conflict, false) }, modifier = Modifier.weight(1f))
+                }
+            }
+        }
+
+        // Pairing — shown once the engine is up and reporting this device's ID.
+        if (ui.enabled && ui.deviceId != null) {
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "Link a device",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                "On your other device, open Save Sync and scan this code (or paste its ID below).",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                QrCode(ui.deviceId, size = 190.dp)
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                ui.deviceId,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+                result.contents?.let(onLink)
+            }
+            GradientFillButton(
+                text = "Scan a device's QR",
+                onClick = {
+                    scanLauncher.launch(
+                        ScanOptions().apply {
+                            setOrientationLocked(false)
+                            setBeepEnabled(false)
+                            setPrompt("Point at the other eOr device's QR")
+                        }
+                    )
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "or paste its ID",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(6.dp))
+            var peer by remember { mutableStateOf("") }
+            OutlinedTextField(
+                value = peer,
+                onValueChange = { peer = it },
+                label = { Text("Other device's ID") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = ElectricBlue,
+                    cursorColor = ElectricBlue
+                )
+            )
+            Spacer(Modifier.height(8.dp))
+            GradientFillButton(
+                text = "Link device",
+                onClick = { onLink(peer); peer = "" },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = peer.isNotBlank()
+            )
+            ui.linkResult?.let {
+                Spacer(Modifier.height(6.dp))
+                Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SaveSyncRow(status: EmulatorSyncStatus) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                status.spec.displayName,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                status.message,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        SyncStatusChip(status.readiness)
+    }
+}
+
+@Composable
+private fun SyncStatusChip(readiness: SyncReadiness) {
+    val (label, color) = when (readiness) {
+        SyncReadiness.READY       -> "Ready" to Color(0xFF3FD3A6)
+        SyncReadiness.NEEDS_SETUP -> "Needs setup" to Color(0xFFFFC04D)
+        SyncReadiness.BLOCKED     -> "Blocked" to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(color.copy(alpha = 0.18f))
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.SemiBold)
     }
 }
 

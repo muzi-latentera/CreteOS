@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The embedded Syncthing daemon exposes its REST API over cleartext HTTP on localhost only.
+  Apps targeting API 28+ block cleartext by default, so allow it just for the loopback address.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>
