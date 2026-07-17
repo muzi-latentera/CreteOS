@@ -108,28 +108,41 @@ class ScanRomsUseCase @Inject constructor(
                 while (entry != null) {
                     if (!entry.isDirectory) {
                         foundFile = true
-                        val buffer = ByteArray(512 * 1024)
-                        val read = zip.read(buffer)
-                        if (read > 0) md.update(buffer, 0, read)
+                        updateWithPartial(md, zip)
                         break
                     }
                     entry = zip.nextEntry
                 }
                 if (!foundFile) {
-                    file.inputStream().use { stream ->
-                        val buffer = ByteArray(512 * 1024)
-                        val read = stream.read(buffer)
-                        if (read > 0) md.update(buffer, 0, read)
-                    }
+                    file.inputStream().use { stream -> updateWithPartial(md, stream) }
                 }
             }
         } else {
-            file.inputStream().use { stream ->
-                val buffer = ByteArray(512 * 1024)
-                val read = stream.read(buffer)
-                if (read > 0) md.update(buffer, 0, read)
-            }
+            file.inputStream().use { stream -> updateWithPartial(md, stream) }
         }
         md.digest().joinToString("") { "%02x".format(it) }
     }.getOrNull()
+
+    /**
+     * Feeds up to [PARTIAL_HASH_BYTES] of [stream] into [md]. A single
+     * [java.io.InputStream.read] is not guaranteed to fill the buffer — this is
+     * especially true for decompressing streams like [ZipInputStream], where one
+     * read typically returns only a small inflate chunk. Looping until the window
+     * is filled (or EOF) makes the hashed byte count deterministic and consistent
+     * between raw and zipped ROMs.
+     */
+    private fun updateWithPartial(md: MessageDigest, stream: java.io.InputStream) {
+        val buffer = ByteArray(PARTIAL_HASH_BYTES)
+        var off = 0
+        while (off < buffer.size) {
+            val n = stream.read(buffer, off, buffer.size - off)
+            if (n < 0) break
+            off += n
+        }
+        if (off > 0) md.update(buffer, 0, off)
+    }
+
+    private companion object {
+        const val PARTIAL_HASH_BYTES = 512 * 1024 // 512 KB — first-window hash, keeps memory bounded
+    }
 }

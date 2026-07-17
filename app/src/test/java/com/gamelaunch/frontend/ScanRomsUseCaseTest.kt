@@ -124,4 +124,37 @@ class ScanRomsUseCaseTest {
 
         assertEquals(expectedMd5, gameCaptor.firstValue.md5)
     }
+
+    /**
+     * A single ZipInputStream.read() returns only the first inflate chunk, not the
+     * whole entry. For an inner ROM that is larger than one chunk but still under the
+     * 512 KB partial-hash window, the hash must cover the ENTIRE inner file so it
+     * equals the ROM's full-file md5 (what ScreenScraper matches on). Uses pseudo-random,
+     * poorly-compressible data so the inner stream spans several inflate reads.
+     */
+    @Test fun `hashes full inner rom when it spans multiple inflate chunks`() = runTest {
+        val innerRom = ByteArray(200 * 1024).also { java.util.Random(42).nextBytes(it) }
+
+        val snesDir = tmpFolder.newFolder("SNES")
+        val zipFile = File(snesDir, "big.zip")
+        ZipOutputStream(zipFile.outputStream()).use { zos ->
+            zos.putNextEntry(ZipEntry("inner.sfc"))
+            zos.write(innerRom)
+            zos.closeEntry()
+        }
+
+        whenever(gameRepository.insertGame(any())).thenReturn(1L)
+        whenever(gameRepository.deleteGamesNotInPaths(any())).thenReturn(0)
+
+        useCase(tmpFolder.root.absolutePath).toList()
+
+        val gameCaptor = argumentCaptor<Game>()
+        verify(gameRepository).insertGame(gameCaptor.capture())
+
+        val expectedMd5 = MessageDigest.getInstance("MD5")
+            .digest(innerRom)
+            .joinToString("") { "%02x".format(it) }
+
+        assertEquals(expectedMd5, gameCaptor.firstValue.md5)
+    }
 }
