@@ -62,8 +62,8 @@ class DetectRomFolderUseCase @Inject constructor(
             "Emulation/roms"
         )
         val SKIP_EXTENSIONS = setOf(
-            ".txt", ".xml", ".cue", ".nfo", ".jpg", ".jpeg", ".png", ".mp4", ".rar",
-            ".sav", ".srm", ".state", ".m3u", ".dat", ".db"
+            ".txt", ".xml", ".nfo", ".jpg", ".jpeg", ".png", ".mp4", ".rar",
+            ".sav", ".srm", ".state", ".dat", ".db"
         )
         // Emulator-data + OS folders that never contain ROMs (mirrors ScanRomsUseCase).
         val SKIP_FOLDERS = setOf(
