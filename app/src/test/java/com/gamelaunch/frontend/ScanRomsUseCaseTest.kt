@@ -157,4 +157,54 @@ class ScanRomsUseCaseTest {
 
         assertEquals(expectedMd5, gameCaptor.firstValue.md5)
     }
+
+    @Test fun `detects ps1 cue file and filters out bin files referenced by cue`() = runTest {
+        val ps1Dir = tmpFolder.newFolder("PS1")
+        val cueFile = File(ps1Dir, "game.cue")
+        cueFile.writeText("""
+            FILE "game (Track 1).bin" BINARY
+            FILE "game (Track 2).bin" BINARY
+        """.trimIndent())
+
+        File(ps1Dir, "game (Track 1).bin").createNewFile()
+        File(ps1Dir, "game (Track 2).bin").createNewFile()
+
+        whenever(gameRepository.insertGame(any())).thenReturn(1L)
+        whenever(gameRepository.deleteGamesNotInPaths(any())).thenReturn(0)
+
+        val results = useCase(tmpFolder.root.absolutePath).toList()
+        val final = results.last()
+
+        // Only the .cue file should be counted and added, the .bin files are filtered out
+        assertEquals(1, final.total)
+        assertEquals(1, final.added)
+    }
+
+    @Test fun `detects ps1 m3u file and filters out cue and bin files referenced by m3u and cue`() = runTest {
+        val ps1Dir = tmpFolder.newFolder("PS1")
+
+        val m3uFile = File(ps1Dir, "game.m3u")
+        m3uFile.writeText("""
+            game (Disc 1).cue
+            game (Disc 2).cue
+        """.trimIndent())
+
+        val cue1 = File(ps1Dir, "game (Disc 1).cue")
+        cue1.writeText("FILE \"game (Disc 1) (Track 1).bin\" BINARY")
+        File(ps1Dir, "game (Disc 1) (Track 1).bin").createNewFile()
+
+        val cue2 = File(ps1Dir, "game (Disc 2).cue")
+        cue2.writeText("FILE \"game (Disc 2) (Track 1).bin\" BINARY")
+        File(ps1Dir, "game (Disc 2) (Track 1).bin").createNewFile()
+
+        whenever(gameRepository.insertGame(any())).thenReturn(1L)
+        whenever(gameRepository.deleteGamesNotInPaths(any())).thenReturn(0)
+
+        val results = useCase(tmpFolder.root.absolutePath).toList()
+        val final = results.last()
+
+        // Only the .m3u file should be counted and added, cues and bins are filtered out
+        assertEquals(1, final.total)
+        assertEquals(1, final.added)
+    }
 }

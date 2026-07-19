@@ -50,7 +50,7 @@ object PlatformDefinitions {
         ),
         Platform(
             id = "ps1", displayName = "PlayStation", scraperSystemId = 57,
-            extensions = listOf(".bin", ".cue", ".iso", ".pbp", ".chd", ".img"),
+            extensions = listOf(".bin", ".cue", ".iso", ".pbp", ".chd", ".img", ".m3u"),
             folderNames = listOf("PS1", "ps1", "PSX", "psx", "PlayStation", "PS"),
             defaultEmulatorPackage = "com.github.stenzek.duckstation",
             defaultCoreForRetroArch = "pcsx_rearmed_libretro.so"
@@ -70,7 +70,7 @@ object PlatformDefinitions {
         ),
         Platform(
             id = "dc", displayName = "Dreamcast", scraperSystemId = 23,
-            extensions = listOf(".cdi", ".gdi", ".chd", ".cue"),
+            extensions = listOf(".cdi", ".gdi", ".chd", ".cue", ".m3u"),
             folderNames = listOf("DC", "Dreamcast", "dreamcast", "Sega Dreamcast"),
             defaultEmulatorPackage = "com.flycast.emulator",
             defaultCoreForRetroArch = "flycast_libretro.so"
@@ -95,7 +95,7 @@ object PlatformDefinitions {
         ),
         Platform(
             id = "saturn", displayName = "Sega Saturn", scraperSystemId = 22,
-            extensions = listOf(".cue", ".iso", ".chd", ".ccd"),
+            extensions = listOf(".cue", ".iso", ".chd", ".ccd", ".m3u"),
             folderNames = listOf("Saturn", "Sega Saturn", "saturn"),
             defaultCoreForRetroArch = "mednafen_saturn_libretro.so"
         ),
@@ -167,19 +167,19 @@ object PlatformDefinitions {
         ),
         Platform(
             id = "pcengine", displayName = "PC Engine / TurboGrafx-16", scraperSystemId = 31,
-            extensions = listOf(".pce", ".sgx", ".cue", ".chd"),
+            extensions = listOf(".pce", ".sgx", ".cue", ".chd", ".m3u"),
             folderNames = listOf("pcengine", "PCEngine", "tg16", "TG16", "TurboGrafx-16", "pce"),
             defaultCoreForRetroArch = "mednafen_pce_fast_libretro.so"
         ),
         Platform(
             id = "segacd", displayName = "Sega CD / Mega-CD", scraperSystemId = 20,
-            extensions = listOf(".chd", ".cue", ".iso"),
+            extensions = listOf(".chd", ".cue", ".iso", ".m3u"),
             folderNames = listOf("segacd", "SegaCD", "Sega CD", "megacd", "MegaCD", "Mega CD"),
             defaultCoreForRetroArch = "genesis_plus_gx_libretro.so"
         ),
         Platform(
             id = "3do", displayName = "Panasonic 3DO", scraperSystemId = 29,
-            extensions = listOf(".iso", ".chd", ".cue", ".bin"),
+            extensions = listOf(".iso", ".chd", ".cue", ".bin", ".m3u"),
             folderNames = listOf("3do", "3DO", "Panasonic 3DO"),
             defaultCoreForRetroArch = "opera_libretro.so"
         ),

@@ -28,8 +28,8 @@ class ScanRomsUseCase @Inject constructor(
     private val settingsRepository: SettingsRepository
 ) {
     private val skipExtensions = setOf(
-        ".txt", ".xml", ".cue", ".nfo", ".jpg", ".png", ".mp4", ".rar",
-        ".sav", ".srm", ".state", ".m3u"
+        ".txt", ".xml", ".nfo", ".jpg", ".png", ".mp4", ".rar",
+        ".sav", ".srm", ".state"
     )
 
     // Emulator data sub-folders (saves, shaders, system files…) that hold no ROMs. Pruning
@@ -62,11 +62,29 @@ class ScanRomsUseCase @Inject constructor(
             .filterNot { it.absolutePath in excludedPaths }
             .toList()
 
+        val referencedPaths = mutableSetOf<String>()
+        romFiles.forEach { file ->
+            val ext = file.extension.lowercase()
+            if (ext == "cue") {
+                parseCueReferencedFiles(file).forEach { refFile ->
+                    referencedPaths.add(getNormalizedPath(refFile))
+                }
+            } else if (ext == "m3u") {
+                parseM3uReferencedFiles(file).forEach { refFile ->
+                    referencedPaths.add(getNormalizedPath(refFile))
+                }
+            }
+        }
+
+        val filteredRomFiles = romFiles.filterNot { file ->
+            getNormalizedPath(file) in referencedPaths
+        }
+
         val validPaths = mutableListOf<String>()
         var added = 0
 
-        romFiles.forEachIndexed { index, file ->
-            emit(ScanProgress(index, romFiles.size, file.name, added))
+        filteredRomFiles.forEachIndexed { index, file ->
+            emit(ScanProgress(index, filteredRomFiles.size, file.name, added))
 
             val platform = platformDetector.detect(file, file.parentFile?.name ?: "") ?: return@forEachIndexed
 
@@ -96,8 +114,62 @@ class ScanRomsUseCase @Inject constructor(
             gameRepository.deleteGamesNotInPaths(validPaths)
         }
 
-        emit(ScanProgress(romFiles.size, romFiles.size, added = added))
+        emit(ScanProgress(filteredRomFiles.size, filteredRomFiles.size, added = added))
     }.flowOn(Dispatchers.IO) // move all file I/O and hashing off the main thread
+
+    private fun parseCueReferencedFiles(cueFile: File): List<File> {
+        val referencedFiles = mutableListOf<File>()
+        val parentDir = cueFile.parentFile ?: return emptyList()
+        runCatching {
+            cueFile.forEachLine { line ->
+                val trimmed = line.trim()
+                if (trimmed.startsWith("FILE", ignoreCase = true)) {
+                    val quoteStart = trimmed.indexOf('"')
+                    val filename = if (quoteStart >= 0) {
+                        val quoteEnd = trimmed.indexOf('"', quoteStart + 1)
+                        if (quoteEnd > quoteStart) {
+                            trimmed.substring(quoteStart + 1, quoteEnd)
+                        } else {
+                            trimmed.substring(quoteStart + 1)
+                        }
+                    } else {
+                        val parts = trimmed.split(Regex("\\s+"))
+                        if (parts.size >= 2) {
+                            if (parts.size >= 3) {
+                                parts.subList(1, parts.size - 1).joinToString(" ")
+                            } else {
+                                parts[1]
+                            }
+                        } else {
+                            ""
+                        }
+                    }
+                    if (filename.isNotEmpty()) {
+                        referencedFiles.add(File(parentDir, filename))
+                    }
+                }
+            }
+        }
+        return referencedFiles
+    }
+
+    private fun parseM3uReferencedFiles(m3uFile: File): List<File> {
+        val referencedFiles = mutableListOf<File>()
+        val parentDir = m3uFile.parentFile ?: return emptyList()
+        runCatching {
+            m3uFile.forEachLine { line ->
+                val trimmed = line.trim()
+                if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
+                    referencedFiles.add(File(parentDir, trimmed))
+                }
+            }
+        }
+        return referencedFiles
+    }
+
+    private fun getNormalizedPath(file: File): String {
+        return runCatching { file.canonicalFile.absolutePath }.getOrDefault(file.absolutePath)
+    }
 
     private fun computeMd5Partial(file: File): String? = runCatching {
         val md = MessageDigest.getInstance("MD5")
