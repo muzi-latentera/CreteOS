@@ -2,6 +2,7 @@ package com.gamelaunch.frontend.ui.screen.friends
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gamelaunch.frontend.data.friends.NearbyBeacon
 import com.gamelaunch.frontend.domain.friends.Friend
 import com.gamelaunch.frontend.domain.friends.FriendCode
 import com.gamelaunch.frontend.domain.friends.FriendStatus
@@ -26,7 +27,8 @@ import javax.inject.Inject
 class FriendsViewModel @Inject constructor(
     private val friendRepository: FriendRepository,
     private val settingsRepository: SettingsRepository,
-    private val pendingFriendLink: PendingFriendLink
+    private val pendingFriendLink: PendingFriendLink,
+    private val nearbyBeacon: NearbyBeacon
 ) : ViewModel() {
 
     data class UiState(
@@ -40,7 +42,9 @@ class FriendsViewModel @Inject constructor(
         val incoming: List<Friend> = emptyList(),
         val outgoing: List<Friend> = emptyList(),
         val status: String? = null,
-        val pendingLink: FriendCode.Parsed? = null
+        val pendingLink: FriendCode.Parsed? = null,
+        val scanningNearby: Boolean = false,
+        val nearby: List<NearbyBeacon.NearbyPeer> = emptyList()
     )
 
     private val _uiState = MutableStateFlow(UiState(engineSupported = friendRepository.engineSupported()))
@@ -71,6 +75,10 @@ class FriendsViewModel @Inject constructor(
 
         pendingFriendLink.pending
             .onEach { parsed -> _uiState.update { it.copy(pendingLink = parsed) } }
+            .launchIn(viewModelScope)
+
+        nearbyBeacon.peers
+            .onEach { peers -> _uiState.update { it.copy(nearby = peers) } }
             .launchIn(viewModelScope)
 
         viewModelScope.launch {
@@ -124,6 +132,30 @@ class FriendsViewModel @Inject constructor(
     fun removeFriend(deviceId: String) = viewModelScope.launch { friendRepository.removeFriend(deviceId) }
 
     fun refresh() = viewModelScope.launch { friendRepository.refreshFriends() }
+
+    /** Start broadcasting/listening on the LAN so nearby devices can be tapped to add. */
+    fun startNearby() {
+        if (_uiState.value.scanningNearby) return
+        viewModelScope.launch {
+            val id = friendRepository.myDeviceId() ?: return@launch
+            nearbyBeacon.start(id, friendRepository.myDisplayName())
+            _uiState.update { it.copy(scanningNearby = true) }
+        }
+    }
+
+    fun stopNearby() {
+        nearbyBeacon.stop()
+        _uiState.update { it.copy(scanningNearby = false, nearby = emptyList()) }
+    }
+
+    fun addNearby(peer: NearbyBeacon.NearbyPeer) {
+        addFriend(peer.deviceId)
+    }
+
+    override fun onCleared() {
+        nearbyBeacon.stop()
+        super.onCleared()
+    }
 
     fun confirmPendingLink() {
         val parsed = _uiState.value.pendingLink ?: return

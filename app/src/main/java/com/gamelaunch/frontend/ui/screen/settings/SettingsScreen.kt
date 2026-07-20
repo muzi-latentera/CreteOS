@@ -66,6 +66,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -1767,6 +1768,44 @@ private fun FriendsSettingsSection() {
         ui.status?.let {
             Spacer(Modifier.height(8.dp))
             Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+
+    Spacer(Modifier.height(12.dp))
+
+    // Add nearby (same Wi-Fi) — stop the beacon when this section leaves the screen.
+    DisposableEffect(Unit) { onDispose { vm.stopNearby() } }
+    SettingsSectionHeader("Add nearby")
+    SettingsCard {
+        Text(
+            "On the same Wi-Fi? Both of you open this, then tap each other to connect — no code needed.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+        if (!ui.scanningNearby) {
+            GradientFillButton("Find nearby friends", onClick = { vm.startNearby() }, modifier = Modifier.fillMaxWidth())
+        } else {
+            GradientOutlineButton("Stop searching", onClick = { vm.stopNearby() }, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
+            if (ui.nearby.isEmpty()) {
+                LoadingStatusRow("Searching for nearby players…", MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                ui.nearby.forEachIndexed { i, peer ->
+                    if (i > 0) CardDivider()
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { vm.addNearby(peer) }
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(peer.displayName, style = MaterialTheme.typography.bodyMedium)
+                        Text("Tap to add", style = MaterialTheme.typography.labelSmall, color = ElectricBlue)
+                    }
+                }
+            }
         }
     }
 
