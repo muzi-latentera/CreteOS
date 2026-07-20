@@ -56,4 +56,16 @@ class PlatformDetectorTest {
         val file = File(dir, "game.iso").also { it.createNewFile() }
         assertEquals("psp", detector.detect(file, "PSP")?.id)
     }
+
+    @Test fun `ps1 m3u detected via PS1 folder`() {
+        val dir = tmpFolder.newFolder("PS1")
+        val file = File(dir, "game.m3u").also { it.createNewFile() }
+        assertEquals("ps1", detector.detect(file, "PS1")?.id)
+    }
+
+    @Test fun `m3u outside platform folder is ignored as ambiguous`() {
+        val dir = tmpFolder.newFolder("misc")
+        val file = File(dir, "game.m3u").also { it.createNewFile() }
+        assertNull(detector.detect(file, "misc"))
+    }
 }

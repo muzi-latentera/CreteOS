@@ -11,7 +11,7 @@ class PlatformDetector @Inject constructor() {
     // Extensions used by lots of non-game data files (saves, dumps, disc tracks, system files).
     // For these we never trust the extension alone — the file must live inside a recognised
     // platform folder AND the extension must be valid for that platform.
-    private val ambiguousExtensions = setOf(".bin", ".iso", ".img", ".chd", ".cso", ".cue", ".zip", ".7z")
+    private val ambiguousExtensions = setOf(".bin", ".iso", ".img", ".chd", ".cso", ".cue", ".zip", ".7z", ".m3u")
 
     // Archive formats that most libretro cores load directly. When a file already sits inside a
     // recognised system folder the folder tells us the platform, so a zipped ROM there is a game
