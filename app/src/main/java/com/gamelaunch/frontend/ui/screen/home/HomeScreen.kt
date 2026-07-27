@@ -65,6 +65,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.gamelaunch.frontend.R
 import com.gamelaunch.frontend.ui.component.boxArtAspectRatio
 import com.gamelaunch.frontend.ui.component.platformDisplayName
+import com.gamelaunch.frontend.ui.dualscreen.LocalDualScreenActive
 import kotlin.math.roundToInt
 import com.gamelaunch.frontend.ui.input.GamepadA
 import com.gamelaunch.frontend.ui.input.GamepadB
@@ -99,6 +100,10 @@ fun HomeScreen(
 ) {
     val state     by viewModel.uiState.collectAsState()
     val appsState by appsViewModel.uiState.collectAsState()
+
+    // On dual-screen devices the game artwork/video is rendered on the top panel (ArtworkPresentation),
+    // so the interactive content here drops its own full-screen backdrop.
+    val dualScreen = LocalDualScreenActive.current
 
     val darkMode      = LocalDarkMode.current
     val textPrimary   = if (darkMode) IceWhite else TileText
@@ -155,6 +160,16 @@ fun HomeScreen(
     LaunchedEffect(state.recentlyPlayed.size) {
         if (state.recentlyPlayed.isNotEmpty())
             recentFocusIndex = recentFocusIndex.coerceAtMost(state.recentlyPlayed.size - 1)
+    }
+    // Dual-screen: the grid layout tracks focus in local state (gridFocusIndex) and doesn't drive
+    // the shared selection the way the carousel does, so mirror it into the ViewModel to keep the
+    // artwork (top) screen in sync. No effect on single-screen devices (grid draws no backdrop).
+    if (dualScreen) {
+        LaunchedEffect(gridFocusIndex, state.gameViewActive, state.layoutMode) {
+            if (state.gameViewActive && state.layoutMode == LayoutMode.GRID) {
+                viewModel.onGameSelected(gridFocusIndex)
+            }
+        }
     }
 
     fun cyclePlatform(delta: Int) {
@@ -486,7 +501,8 @@ fun HomeScreen(
                                 previewArt      = state.systemPreviewArt,
                                 onSystemFocused = viewModel::focusSystem,
                                 onSystemClick   = { gridFocusIndex = 0; viewModel.enterSystem(it) },
-                                modifier        = Modifier.fillMaxSize()
+                                modifier        = Modifier.fillMaxSize(),
+                                showPreviewArt  = !dualScreen
                             )
 
                         state.topTab == TopTab.GAMES -> {
@@ -501,7 +517,8 @@ fun HomeScreen(
                                     onGameSelected    = viewModel::onGameSelected,
                                     onGameClick       = onGameClick,
                                     onMuteToggle      = viewModel::toggleMute,
-                                    modifier          = Modifier.fillMaxSize()
+                                    modifier          = Modifier.fillMaxSize(),
+                                    showBackgroundArtwork = !dualScreen
                                 )
                             } else {
                                 GridHomeContent(

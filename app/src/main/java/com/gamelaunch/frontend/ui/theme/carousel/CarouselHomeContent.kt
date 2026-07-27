@@ -53,7 +53,10 @@ fun CarouselHomeContent(
     onGameSelected: (Int) -> Unit,
     onGameClick: (Long) -> Unit,
     onMuteToggle: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // When false (dual-screen: artwork lives on the top panel), skip the full-screen video/art
+    // backdrop and its darkening gradient here so the bottom panel is just the menu.
+    showBackgroundArtwork: Boolean = true
 ) {
     val listState   = rememberLazyListState()
     val snapBehavior = rememberSnapFlingBehavior(lazyListState = listState)
@@ -75,40 +78,43 @@ fun CarouselHomeContent(
     val selectedGame = games.getOrNull(selectedIndex)
 
     Box(modifier = modifier) {
-        // Background fill: video or stretched box art
-        if (shouldPlayVideo && selectedGameMedia?.effectiveVideo != null) {
-            VideoPlayer(
-                videoPath  = selectedGameMedia.effectiveVideo,
-                shouldPlay = true,
-                isMuted    = videoMuted,
-                modifier   = Modifier.fillMaxSize()
-            )
-        } else {
-            AsyncGameArtwork(
-                localPath = selectedGameMedia?.screenshotLocalPath
-                    ?: selectedGameMedia?.backgroundLocalPath
-                    ?: selectedGameMedia?.boxArtLocalPath,
-                remoteUrl = selectedGameMedia?.screenshotRemoteUrl
-                    ?: selectedGameMedia?.effectiveBackground
-                    ?: selectedGameMedia?.boxArtRemoteUrl,
-                contentDescription = null,
-                modifier           = Modifier.fillMaxSize(),
-                packageName        = if (selectedGame?.platformId == "android") selectedGame.romFilename else null
+        // Background fill: video or stretched box art. On dual-screen devices this whole layer moves
+        // to the top panel (see ArtworkPresentation), so we skip it here.
+        if (showBackgroundArtwork) {
+            if (shouldPlayVideo && selectedGameMedia?.effectiveVideo != null) {
+                VideoPlayer(
+                    videoPath  = selectedGameMedia.effectiveVideo,
+                    shouldPlay = true,
+                    isMuted    = videoMuted,
+                    modifier   = Modifier.fillMaxSize()
+                )
+            } else {
+                AsyncGameArtwork(
+                    localPath = selectedGameMedia?.screenshotLocalPath
+                        ?: selectedGameMedia?.backgroundLocalPath
+                        ?: selectedGameMedia?.boxArtLocalPath,
+                    remoteUrl = selectedGameMedia?.screenshotRemoteUrl
+                        ?: selectedGameMedia?.effectiveBackground
+                        ?: selectedGameMedia?.boxArtRemoteUrl,
+                    contentDescription = null,
+                    modifier           = Modifier.fillMaxSize(),
+                    packageName        = if (selectedGame?.platformId == "android") selectedGame.romFilename else null
+                )
+            }
+
+            // Deep gradient — near-black at bottom, subtle tint at top
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0.0f to Color.Black.copy(alpha = 0.15f),
+                            0.45f to Color.Black.copy(alpha = 0.30f),
+                            1.0f to Color.Black.copy(alpha = 0.90f)
+                        )
+                    )
             )
         }
-
-        // Deep gradient — near-black at bottom, subtle tint at top
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        0.0f to Color.Black.copy(alpha = 0.15f),
-                        0.45f to Color.Black.copy(alpha = 0.30f),
-                        1.0f to Color.Black.copy(alpha = 0.90f)
-                    )
-                )
-        )
 
         // Title + genre block
         games.getOrNull(selectedIndex)?.let { game ->

@@ -41,6 +41,10 @@ class AppDataStore @Inject constructor(@ApplicationContext private val context: 
         val SHOW_RECENTLY_PLAYED = booleanPreferencesKey("show_recently_played")
         val SHOW_RETRO_ACHIEVEMENTS = booleanPreferencesKey("show_retro_achievements")
         val DARK_MODE = booleanPreferencesKey("dark_mode")
+        // Dual-screen (Anbernic RG DS / AYN Thor): auto-detect a second display and split the UI.
+        val DUAL_SCREEN_ENABLED = booleanPreferencesKey("dual_screen_enabled")
+        // Manual override that flips the top/bottom (artwork/menu) assignment on unknown devices.
+        val DUAL_SCREEN_SWAP = booleanPreferencesKey("dual_screen_swap")
         val BG_IMAGE_ENABLED = booleanPreferencesKey("background_image_enabled")
         val BG_IMAGE_PATH = stringPreferencesKey("background_image_path")
         val BG_IMAGE_MODE = stringPreferencesKey("background_image_mode")
@@ -87,6 +91,9 @@ class AppDataStore @Inject constructor(@ApplicationContext private val context: 
     val showRecentlyPlayed: Flow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_RECENTLY_PLAYED] ?: true }
     val showRetroAchievements: Flow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_RETRO_ACHIEVEMENTS] ?: true }
     val darkMode: Flow<Boolean> = context.dataStore.data.map { it[Keys.DARK_MODE] ?: false }
+    // Dual-screen is on by default: it only ever activates when a second display is actually present.
+    val dualScreenEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.DUAL_SCREEN_ENABLED] ?: true }
+    val dualScreenSwap: Flow<Boolean> = context.dataStore.data.map { it[Keys.DUAL_SCREEN_SWAP] ?: false }
     // Optional user-supplied branded background. Path points at the processed single-colour
     // mask PNG in filesDir; mode is FILL (one full-width silhouette) or TILE (repeating pattern).
     val backgroundImageEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.BG_IMAGE_ENABLED] ?: false }
@@ -138,6 +145,8 @@ class AppDataStore @Inject constructor(@ApplicationContext private val context: 
     suspend fun setShowRecentlyPlayed(enabled: Boolean) = context.dataStore.edit { it[Keys.SHOW_RECENTLY_PLAYED] = enabled }
     suspend fun setShowRetroAchievements(enabled: Boolean) = context.dataStore.edit { it[Keys.SHOW_RETRO_ACHIEVEMENTS] = enabled }
     suspend fun setDarkMode(enabled: Boolean) = context.dataStore.edit { it[Keys.DARK_MODE] = enabled }
+    suspend fun setDualScreenEnabled(enabled: Boolean) = context.dataStore.edit { it[Keys.DUAL_SCREEN_ENABLED] = enabled }
+    suspend fun setDualScreenSwap(swap: Boolean) = context.dataStore.edit { it[Keys.DUAL_SCREEN_SWAP] = swap }
     suspend fun setBackgroundImageEnabled(enabled: Boolean) = context.dataStore.edit { it[Keys.BG_IMAGE_ENABLED] = enabled }
     suspend fun setBackgroundImagePath(path: String) = context.dataStore.edit { it[Keys.BG_IMAGE_PATH] = path }
     suspend fun setBackgroundImageMode(mode: String) = context.dataStore.edit { it[Keys.BG_IMAGE_MODE] = mode }

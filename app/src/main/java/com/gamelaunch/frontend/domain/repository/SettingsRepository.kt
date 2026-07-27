@@ -18,6 +18,8 @@ interface SettingsRepository {
     val showRecentlyPlayed: Flow<Boolean>
     val showRetroAchievements: Flow<Boolean>
     val darkMode: Flow<Boolean>
+    val dualScreenEnabled: Flow<Boolean>
+    val dualScreenSwap: Flow<Boolean>
     val backgroundImageEnabled: Flow<Boolean>
     val backgroundImagePath: Flow<String>
     val backgroundImageMode: Flow<String>
@@ -59,6 +61,8 @@ interface SettingsRepository {
     suspend fun setShowRecentlyPlayed(enabled: Boolean)
     suspend fun setShowRetroAchievements(enabled: Boolean)
     suspend fun setDarkMode(enabled: Boolean)
+    suspend fun setDualScreenEnabled(enabled: Boolean)
+    suspend fun setDualScreenSwap(swap: Boolean)
     suspend fun setBackgroundImageEnabled(enabled: Boolean)
     suspend fun setBackgroundImagePath(path: String)
     suspend fun setBackgroundImageMode(mode: String)
