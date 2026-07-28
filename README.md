@@ -14,6 +14,8 @@
 
 </div>
 
+> 🖥️ **Coming soon: Dual-screen support** — on dual-screen handhelds like the **Anbernic RG DS** and **AYN Thor**, eOr will automatically detect the second display and split itself in two: the menu on the bottom screen, live game artwork and video previews on the top. No setup required.
+
 ---
 
 ## ✨ Why eOr?

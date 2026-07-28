@@ -14,6 +14,9 @@ import com.gamelaunch.frontend.domain.platform.sortedBySystems
 import com.gamelaunch.frontend.domain.repository.GameRepository
 import com.gamelaunch.frontend.domain.repository.MediaRepository
 import com.gamelaunch.frontend.domain.repository.SettingsRepository
+import com.gamelaunch.frontend.ui.dualscreen.ArtworkBus
+import com.gamelaunch.frontend.ui.dualscreen.ArtworkMode
+import com.gamelaunch.frontend.ui.dualscreen.ArtworkUiState
 import com.gamelaunch.frontend.ui.theme.LayoutMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -61,7 +64,8 @@ class HomeViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val gameRepository: GameRepository,
     private val mediaRepository: MediaRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val artworkBus: ArtworkBus
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -75,6 +79,35 @@ class HomeViewModel @Inject constructor(
         observeGameViewPrefs()
         observeAllMedia()
         observeRecentlyPlayed()
+        publishArtwork()
+    }
+
+    /**
+     * Mirror the current selection/media into [ArtworkBus] so the second (artwork) screen on
+     * dual-screen devices stays in sync. Harmless on single-screen devices — nothing observes the
+     * bus there. One collector covers every selection change, so no per-action wiring is needed.
+     */
+    private fun publishArtwork() {
+        viewModelScope.launch {
+            _uiState.collect { state ->
+                val selectedGame = state.games.getOrNull(state.selectedGameIndex)
+                val mode = when {
+                    state.topTab != TopTab.GAMES -> ArtworkMode.IDLE
+                    !state.gameViewActive -> ArtworkMode.SYSTEM_GRID
+                    else -> ArtworkMode.GAME
+                }
+                artworkBus.publish(
+                    ArtworkUiState(
+                        mode = mode,
+                        media = state.selectedGameMedia,
+                        shouldPlayVideo = state.shouldPlayVideo,
+                        videoMuted = state.videoMuted,
+                        systemPreviewArt = state.systemPreviewArt,
+                        title = selectedGame?.title
+                    )
+                )
+            }
+        }
     }
 
     /** The Select-menu options (game sort + fixed column count) for the game grid. */

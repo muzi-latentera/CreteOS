@@ -70,7 +70,10 @@ fun SystemSelectionContent(
     previewArt: List<String> = emptyList(),
     onSystemFocused: (String) -> Unit = {},
     onSystemClick: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // When false (dual-screen: the focused system's art shows on the top panel), hide the preview
+    // fan here so the system carousel is the whole bottom panel.
+    showPreviewArt: Boolean = true
 ) {
     if (platforms.isEmpty()) {
         val darkMode = LocalDarkMode.current
@@ -79,7 +82,7 @@ fun SystemSelectionContent(
         }
         return
     }
-    SystemCarousel(platforms, counts, focusedIndex, previewArt, onSystemFocused, onSystemClick, modifier)
+    SystemCarousel(platforms, counts, focusedIndex, previewArt, onSystemFocused, onSystemClick, modifier, showPreviewArt)
 }
 
 @Composable
@@ -90,7 +93,8 @@ private fun SystemCarousel(
     previewArt: List<String>,
     onSystemFocused: (String) -> Unit,
     onSystemClick: (String) -> Unit,
-    modifier: Modifier
+    modifier: Modifier,
+    showPreviewArt: Boolean
 ) {
     val focused = platforms.getOrNull(focusedIndex)
 
@@ -128,6 +132,10 @@ private fun SystemCarousel(
         Column(Modifier.fillMaxSize()) {
 
             // ── Preview (top): covers rise from the bottom and fan out, centre largest ──
+            // On dual-screen devices this band is empty (the focused system's art is on the top panel).
+            if (!showPreviewArt) {
+                Spacer(Modifier.weight(1f))
+            } else
             Box(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentAlignment = Alignment.Center

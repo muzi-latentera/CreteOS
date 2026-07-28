@@ -1,10 +1,12 @@
 package com.gamelaunch.frontend
 
 import android.Manifest
+import android.app.ActivityOptions
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.view.Display
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -28,6 +30,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +54,9 @@ import com.gamelaunch.frontend.domain.usecase.AppUpdate
 import com.gamelaunch.frontend.domain.usecase.CheckForUpdateUseCase
 import com.gamelaunch.frontend.ui.component.LoadingScreen
 import com.gamelaunch.frontend.ui.component.UpdateBanner
+import com.gamelaunch.frontend.platform.display.DualScreenManager
+import com.gamelaunch.frontend.ui.dualscreen.ArtworkBus
+import com.gamelaunch.frontend.ui.dualscreen.LocalDualScreenActive
 import com.gamelaunch.frontend.ui.navigation.AppNavGraph
 import com.gamelaunch.frontend.ui.navigation.Screen
 import com.gamelaunch.frontend.ui.navigation.backOrHome
@@ -63,6 +69,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -81,6 +88,12 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var syncEngineManager: com.gamelaunch.frontend.data.sync.SyncEngineManager
     @Inject lateinit var friendRepository: com.gamelaunch.frontend.domain.repository.FriendRepository
     @Inject lateinit var pendingFriendLink: com.gamelaunch.frontend.domain.friends.PendingFriendLink
+    @Inject lateinit var artworkBus: ArtworkBus
+
+    // Drives the second (artwork) screen on dual-screen handhelds; a no-op on single-screen devices.
+    private lateinit var dualScreenManager: DualScreenManager
+    // Latest dark-mode choice, read by the artwork Presentation when it's (re)shown.
+    @Volatile private var currentDarkMode = false
 
     // Set when a newer GitHub release is found; drives the in-app update banner.
     private val updateState = mutableStateOf<AppUpdate?>(null)
@@ -106,6 +119,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        dualScreenManager = DualScreenManager(this, artworkBus) { currentDarkMode }
+
+        // On top-primary dual-screen devices (e.g. AYN Thor) the interactive menu belongs on the
+        // *secondary* display, so relaunch there once before any UI setup. This is a no-op on the
+        // Anbernic RG DS and on every single-screen device (requiredMenuDisplayId() == DEFAULT_DISPLAY),
+        // and a one-shot intent guard prevents any relaunch loop.
+        if (relaunchOnMenuDisplayIfNeeded()) return
+
+        observeDualScreenPreferences()
 
         // No SplashScreen API: on API 31+ it forces the system splash (which doesn't render on some
         // devices, e.g. the Retroid) and suppresses the window's starting background. Instead the
@@ -153,7 +176,10 @@ class MainActivity : ComponentActivity() {
                 opacity = bgOpacity
             )
 
+            val dualScreenActive by dualScreenManager.active.collectAsState()
+
             AppTheme(darkMode = darkMode, branding = branding) {
+              CompositionLocalProvider(LocalDualScreenActive provides dualScreenActive) {
                 Box(Modifier.fillMaxSize()) {
                 val navController = rememberNavController()
                 // Use null as initial so NavHost isn't created until we know the real value.
@@ -201,6 +227,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 }
+              }
             }
         }
     }
@@ -269,6 +296,46 @@ class MainActivity : ComponentActivity() {
             ?.asImageBitmap()
     }.getOrNull()
 
+    /** Feed the persisted dual-screen prefs (enable + manual swap) and dark-mode into the manager. */
+    private fun observeDualScreenPreferences() {
+        lifecycleScope.launch {
+            combine(
+                settingsRepository.dualScreenEnabled,
+                settingsRepository.dualScreenSwap
+            ) { enabled, swap -> enabled to swap }
+                .collect { (enabled, swap) -> dualScreenManager.setPreferences(enabled, swap) }
+        }
+        lifecycleScope.launch {
+            settingsRepository.darkMode.collect { currentDarkMode = it }
+        }
+    }
+
+    /**
+     * MENU_ON_SECONDARY devices (e.g. AYN Thor): move the interactive Activity onto the secondary
+     * (bottom) display once, so the menu ends up on the bottom panel and artwork on the top. Returns
+     * true if a relaunch was started (the caller must then abort the rest of onCreate).
+     *
+     * Safe by construction: [DualScreenManager.requiredMenuDisplayId] returns DEFAULT_DISPLAY on the
+     * RG DS and on every single-screen device, and a one-shot intent extra prevents any relaunch
+     * loop. NOTE: implemented but not yet validated on real Thor hardware.
+     */
+    private fun relaunchOnMenuDisplayIfNeeded(): Boolean {
+        if (intent.getBooleanExtra(EXTRA_DS_RELAUNCHED, false)) return false
+        val target = dualScreenManager.requiredMenuDisplayId()
+        if (target == Display.DEFAULT_DISPLAY) return false
+        if (DualScreenManager.currentDisplayId(this) == target) return false
+        return runCatching {
+            val options = ActivityOptions.makeBasic().setLaunchDisplayId(target)
+            val relaunch = Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                putExtra(EXTRA_DS_RELAUNCHED, true)
+            }
+            startActivity(relaunch, options.toBundle())
+            finish()
+            true
+        }.getOrDefault(false)
+    }
+
     /** If the user left Save Sync on, bring the Syncthing daemon back up when eOr launches. */
     private fun startSaveSyncIfEnabled() {
         lifecycleScope.launch {
@@ -304,6 +371,16 @@ class MainActivity : ComponentActivity() {
         // Re-check for updates whenever the app comes to the foreground (cold start included), so a
         // release published while the app is open/backgrounded surfaces without a force-close.
         checkForUpdate()
+        // Attach the artwork screen (if a second display is present). Skipped on the finishing
+        // instance during a MENU_ON_SECONDARY relaunch.
+        if (::dualScreenManager.isInitialized && !isFinishing) dualScreenManager.start()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Release the second screen while eOr is backgrounded (e.g. a game/emulator launched) so it
+        // can take over the top panel; re-attached in onStart.
+        if (::dualScreenManager.isInitialized) dualScreenManager.stop()
     }
 
     private fun checkForUpdate() {
@@ -459,5 +536,7 @@ class MainActivity : ComponentActivity() {
         // Minimum gap between foreground update checks. Long enough to spare GitHub's API during
         // rapid game-launch/return cycles, short enough to notice a new release soon after returning.
         private const val UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000L
+        // One-shot guard so a MENU_ON_SECONDARY relaunch (Thor) can never loop.
+        private const val EXTRA_DS_RELAUNCHED = "dual_screen_relaunched"
     }
 }

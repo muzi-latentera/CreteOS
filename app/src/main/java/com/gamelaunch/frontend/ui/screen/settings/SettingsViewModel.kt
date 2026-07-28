@@ -63,6 +63,8 @@ data class SettingsUiState(
     val showRetroAchievements: Boolean = true,
     val friendsEnabled: Boolean = false,
     val darkMode: Boolean = false,
+    val dualScreenEnabled: Boolean = true,
+    val dualScreenSwap: Boolean = false,
     val backgroundImageEnabled: Boolean = false,
     val backgroundImagePath: String = "",
     val backgroundImageMode: String = "FILL",
@@ -177,6 +179,16 @@ class SettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            settingsRepository.dualScreenEnabled.collect { on ->
+                _uiState.update { it.copy(dualScreenEnabled = on) }
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.dualScreenSwap.collect { swap ->
+                _uiState.update { it.copy(dualScreenSwap = swap) }
+            }
+        }
+        viewModelScope.launch {
             settingsRepository.systemSort.collect { sorts ->
                 _uiState.update { it.copy(systemSort = sorts) }
             }
@@ -248,6 +260,14 @@ class SettingsViewModel @Inject constructor(
      *  profile sharing are brought up or fully torn down. */
     fun setFriendsEnabled(enabled: Boolean) {
         viewModelScope.launch { friendRepository.setEnabled(enabled) }
+    }
+
+    fun setDualScreenEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setDualScreenEnabled(enabled) }
+    }
+
+    fun setDualScreenSwap(swap: Boolean) {
+        viewModelScope.launch { settingsRepository.setDualScreenSwap(swap) }
     }
 
     fun setDarkMode(enabled: Boolean) {

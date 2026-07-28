@@ -53,6 +53,8 @@ class SettingsRepositoryImpl @Inject constructor(
     override val showRecentlyPlayed: Flow<Boolean> = dataStore.showRecentlyPlayed
     override val showRetroAchievements: Flow<Boolean> = dataStore.showRetroAchievements
     override val darkMode: Flow<Boolean> = dataStore.darkMode
+    override val dualScreenEnabled: Flow<Boolean> = dataStore.dualScreenEnabled
+    override val dualScreenSwap: Flow<Boolean> = dataStore.dualScreenSwap
     override val backgroundImageEnabled: Flow<Boolean> = dataStore.backgroundImageEnabled
     override val backgroundImagePath: Flow<String> = dataStore.backgroundImagePath
     override val backgroundImageMode: Flow<String> = dataStore.backgroundImageMode
@@ -107,6 +109,8 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setShowRecentlyPlayed(enabled: Boolean) { dataStore.setShowRecentlyPlayed(enabled) }
     override suspend fun setShowRetroAchievements(enabled: Boolean) { dataStore.setShowRetroAchievements(enabled) }
     override suspend fun setDarkMode(enabled: Boolean) { dataStore.setDarkMode(enabled) }
+    override suspend fun setDualScreenEnabled(enabled: Boolean) { dataStore.setDualScreenEnabled(enabled) }
+    override suspend fun setDualScreenSwap(swap: Boolean) { dataStore.setDualScreenSwap(swap) }
     override suspend fun setBackgroundImageEnabled(enabled: Boolean) { dataStore.setBackgroundImageEnabled(enabled) }
     override suspend fun setBackgroundImagePath(path: String) { dataStore.setBackgroundImagePath(path) }
     override suspend fun setBackgroundImageMode(mode: String) { dataStore.setBackgroundImageMode(mode) }

@@ -1,6 +1,9 @@
 package com.gamelaunch.frontend.ui.screen.settings
 
+import android.content.Context
 import android.content.Intent
+import android.hardware.display.DisplayManager
+import android.view.Display
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -296,6 +299,7 @@ fun SettingsScreen(
                         SettingsTab.GENERAL -> {
                             DisplaySection(state, viewModel)
                             Spacer(Modifier.height(4.dp))
+                            DualScreenSection(state, viewModel)
                             SystemSortSection(state, viewModel)
                             Spacer(Modifier.height(4.dp))
                             HideSystemsSection(state, viewModel)
@@ -454,6 +458,46 @@ private fun DisplaySection(state: SettingsUiState, viewModel: SettingsViewModel)
         Spacer(Modifier.height(8.dp))
         ThemePicker(selectedDark = state.darkMode, onSelect = viewModel::setDarkMode)
     }
+}
+
+// ── Section: Dual Screen ──────────────────────────────────────────────────
+
+/**
+ * Only shown on dual-screen handhelds (a second physical display is present). Lets the user turn
+ * the split layout off and manually swap which panel shows the menu vs artwork if auto-detection
+ * guessed wrong for an unrecognised device.
+ */
+@Composable
+private fun DualScreenSection(state: SettingsUiState, viewModel: SettingsViewModel) {
+    val context = LocalContext.current
+    val hasSecondScreen = remember {
+        val dm = context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
+        dm?.displays?.any { it.displayId != Display.DEFAULT_DISPLAY && it.state == Display.STATE_ON } == true
+    }
+    if (!hasSecondScreen) return
+
+    SettingsSectionHeader("Dual Screen")
+    SettingsCard {
+        Text(
+            "Two screens detected. eOr shows the menu on the bottom panel and game artwork on the top.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+        CardSwitchRow(
+            label           = "Use both screens",
+            checked         = state.dualScreenEnabled,
+            onCheckedChange = viewModel::setDualScreenEnabled
+        )
+        if (state.dualScreenEnabled) {
+            CardSwitchRow(
+                label           = "Swap screens",
+                checked         = state.dualScreenSwap,
+                onCheckedChange = viewModel::setDualScreenSwap
+            )
+        }
+    }
+    Spacer(Modifier.height(4.dp))
 }
 
 // ── Section: Sort Systems ─────────────────────────────────────────────────
