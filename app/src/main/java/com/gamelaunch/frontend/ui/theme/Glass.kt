@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.gamelaunch.frontend.ui.perf.LocalReduceMotion
 
 /** Provided at the root by AppTheme; read anywhere in the tree to choose light vs. dark colours. */
 val LocalDarkMode = compositionLocalOf { false }
@@ -227,10 +228,14 @@ fun Modifier.glassTile(
     val borderTop    = Color.White.copy(alpha = if (dark) 0.18f else 0.5f)
     val borderBottom = Color.White.copy(alpha = if (dark) 0.04f else 0.1f)
     val restShadow   = if (dark) Color(0xFF000820) else Color(0xFF2A3550)
+    // Elevation shadows are GPU-costly; soften them when running reduced (lite / performance mode).
+    val reduce       = LocalReduceMotion.current
+    val selElevation  = if (reduce) 10.dp else 18.dp
+    val restElevation = if (reduce) 4.dp else 7.dp
 
     return this
         .shadow(
-            elevation = if (selected) 18.dp else 7.dp,
+            elevation = if (selected) selElevation else restElevation,
             shape = shape,
             ambientColor = if (selected) color else restShadow,
             spotColor = if (selected) color else restShadow,
@@ -264,9 +269,10 @@ fun Modifier.glassChip(
     else
         listOf(Color(0xFFFFFFFF), Color(0xFFEDF0F7))
     val shadowColor = if (selected) accent else if (dark) Color(0xFF000820) else Color(0xFF2A3550)
+    val reduce = LocalReduceMotion.current
     return this
         .shadow(
-            elevation = if (selected) 10.dp else 3.dp,
+            elevation = if (selected) (if (reduce) 6.dp else 10.dp) else (if (reduce) 2.dp else 3.dp),
             shape = shape,
             ambientColor = shadowColor,
             spotColor = shadowColor,

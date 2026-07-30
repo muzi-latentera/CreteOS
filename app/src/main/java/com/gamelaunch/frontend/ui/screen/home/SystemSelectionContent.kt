@@ -2,11 +2,7 @@ package com.gamelaunch.frontend.ui.screen.home
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -52,6 +48,9 @@ import com.gamelaunch.frontend.ui.component.boxArtAspectRatio
 import com.gamelaunch.frontend.ui.component.platformDisplayName
 import com.gamelaunch.frontend.ui.component.platformIcon
 import com.gamelaunch.frontend.ui.component.platformPadIcon
+import com.gamelaunch.frontend.ui.perf.IdleMotion
+import com.gamelaunch.frontend.ui.perf.LocalReduceMotion
+import com.gamelaunch.frontend.ui.perf.rememberIdleMotion
 import com.gamelaunch.frontend.ui.theme.BounceDurationMs
 import com.gamelaunch.frontend.ui.theme.BounceEasing
 import com.gamelaunch.frontend.ui.theme.IceWhite
@@ -238,22 +237,11 @@ private fun SystemCard(
         animationSpec = tween(durationMillis = BounceDurationMs, easing = BounceEasing),
         label = "systemTileScale"
     )
-    // A gentle, never-ending idle so the focused card feels alive — a soft tilt, a slow vertical
-    // bob and a faint "breathing" pulse, each on its own off-beat period so the motion drifts
-    // organically instead of ticking like a metronome.
-    val idle = rememberInfiniteTransition(label = "systemIdle")
-    val tilt by idle.animateFloat(
-        -1f, 1f, infiniteRepeatable(tween(2300, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "systemTilt"
-    )
-    val bob by idle.animateFloat(
-        -1f, 1f, infiniteRepeatable(tween(1700, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "systemBob"
-    )
-    val breath by idle.animateFloat(
-        -1f, 1f, infiniteRepeatable(tween(2900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "systemBreath"
-    )
+    // A gentle, never-ending idle so the focused card feels alive — but only on the focused card,
+    // and never when running reduced (lite build / performance mode). Previously every system card
+    // kept its own animation clock ticking; now at most one runs.
+    val reduceMotion = LocalReduceMotion.current
+    val idle = if (isFocused && !reduceMotion) rememberIdleMotion() else IdleMotion.None
     val darkMode = LocalDarkMode.current
     val textPrimary = if (darkMode) IceWhite else TileText
     val textSecondary = if (darkMode) SteelGray else TileSub
@@ -264,11 +252,11 @@ private fun SystemCard(
         modifier = modifier
             .zIndex(if (isFocused) 1f else 0f)
             .graphicsLayer {
-                val pulse = if (isFocused) breath * 0.012f else 0f
+                val pulse = if (isFocused) idle.breath * 0.012f else 0f
                 scaleX = scale + pulse
                 scaleY = scale + pulse
-                rotationZ = if (isFocused) tilt * 0.9f else 0f
-                translationY = if (isFocused) bob * 2.5.dp.toPx() else 0f
+                rotationZ = if (isFocused) idle.tilt * 0.9f else 0f
+                translationY = if (isFocused) idle.bob * 2.5.dp.toPx() else 0f
             }
             .glassTile(shape, color = color, selected = isFocused)
             .clickable(onClick = onClick)

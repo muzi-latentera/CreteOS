@@ -1,13 +1,8 @@
 package com.gamelaunch.frontend.ui.theme.grid
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -41,6 +36,9 @@ import com.gamelaunch.frontend.ui.component.AsyncGameArtwork
 import com.gamelaunch.frontend.ui.component.boxArtAspectRatio
 import com.gamelaunch.frontend.ui.theme.BounceDurationMs
 import com.gamelaunch.frontend.ui.theme.BounceEasing
+import com.gamelaunch.frontend.ui.perf.IdleMotion
+import com.gamelaunch.frontend.ui.perf.LocalReduceMotion
+import com.gamelaunch.frontend.ui.perf.rememberIdleMotion
 import com.gamelaunch.frontend.ui.theme.ElectricBlue
 import com.gamelaunch.frontend.ui.theme.NeonPurple
 import kotlinx.coroutines.delay
@@ -78,37 +76,31 @@ fun GridGameCard(
         animationSpec = tween(durationMillis = BounceDurationMs, easing = BounceEasing),
         label = "gridGameScale"
     )
-    // Gentle, never-ending whimsical idle on the focused card — soft tilt, slow bob and a faint
-    // breathing pulse on off-beat periods so it drifts organically.
-    val idle = rememberInfiniteTransition(label = "gridIdle")
-    val tilt by idle.animateFloat(
-        -1f, 1f, infiniteRepeatable(tween(2300, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "gridTilt"
-    )
-    val bob by idle.animateFloat(
-        -1f, 1f, infiniteRepeatable(tween(1700, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "gridBob"
-    )
-    val breath by idle.animateFloat(
-        -1f, 1f, infiniteRepeatable(tween(2900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "gridBreath"
-    )
+    // Gentle, never-ending whimsical idle — but only on the focused card, and never when running
+    // reduced (lite build / performance mode). Non-focused cards no longer keep an animation clock.
+    val reduceMotion = LocalReduceMotion.current
+    val idle = if (isFocused && !reduceMotion) rememberIdleMotion() else IdleMotion.None
 
     Box(
         modifier = Modifier
             .zIndex(if (isFocused) 1f else 0f)
             .graphicsLayer {
-                val pulse = if (isFocused) breath * 0.012f else 0f
+                val pulse = if (isFocused) idle.breath * 0.012f else 0f
                 translationY = (1f - enter.value) * 72.dp.toPx() +
-                    (if (isFocused) bob * 1.8.dp.toPx() else 0f)
+                    (if (isFocused) idle.bob * 1.8.dp.toPx() else 0f)
                 alpha = enter.value.coerceIn(0f, 1f)
                 scaleX = scale + pulse
                 scaleY = scale + pulse
-                rotationZ = if (isFocused) tilt * 0.9f else 0f
+                rotationZ = if (isFocused) idle.tilt * 0.9f else 0f
             }
             .then(
                 if (isFocused)
-                    Modifier.shadow(28.dp, shape, spotColor = ElectricBlue, ambientColor = NeonPurple.copy(alpha = 0.5f))
+                    Modifier.shadow(
+                        if (reduceMotion) 10.dp else 28.dp,
+                        shape,
+                        spotColor = ElectricBlue,
+                        ambientColor = NeonPurple.copy(alpha = 0.5f)
+                    )
                 else
                     Modifier.shadow(8.dp, shape)
             )

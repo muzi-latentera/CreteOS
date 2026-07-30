@@ -40,6 +40,22 @@ android {
         }
     }
 
+    // Two builds from one codebase: `full` (everything) and `lite` (a lighter runtime for weak
+    // chipsets like the RG DS's RK3568). Same applicationId — a user installs whichever fits their
+    // device; one replaces the other. The only difference is the LOW_POWER flag, which forces the
+    // reduced-motion / delayed-video path on in the lite build (see PerformanceState).
+    flavorDimensions += "power"
+    productFlavors {
+        create("full") {
+            dimension = "power"
+            buildConfigField("boolean", "LOW_POWER", "false")
+        }
+        create("lite") {
+            dimension = "power"
+            buildConfigField("boolean", "LOW_POWER", "true")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

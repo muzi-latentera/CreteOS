@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.view.Display
+import com.gamelaunch.frontend.BuildConfig
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -457,6 +458,27 @@ private fun DisplaySection(state: SettingsUiState, viewModel: SettingsViewModel)
         )
         Spacer(Modifier.height(8.dp))
         ThemePicker(selectedDark = state.darkMode, onSelect = viewModel::setDarkMode)
+
+        Spacer(Modifier.height(10.dp))
+        if (BuildConfig.LOW_POWER) {
+            // The lite build always runs reduced; there's nothing to toggle.
+            Text(
+                "Low-power build — performance optimizations are always on.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            CardSwitchRow(
+                label           = "Performance mode",
+                checked         = state.performanceMode,
+                onCheckedChange = viewModel::setPerformanceMode
+            )
+            Text(
+                "Reduces animations and delays video previews — recommended on low-power handhelds. (Auto-on with dual screens.)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

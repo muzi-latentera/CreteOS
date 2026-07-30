@@ -17,6 +17,7 @@ import com.gamelaunch.frontend.domain.repository.SettingsRepository
 import com.gamelaunch.frontend.ui.dualscreen.ArtworkBus
 import com.gamelaunch.frontend.ui.dualscreen.ArtworkMode
 import com.gamelaunch.frontend.ui.dualscreen.ArtworkUiState
+import com.gamelaunch.frontend.ui.perf.PerformanceState
 import com.gamelaunch.frontend.ui.theme.LayoutMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -65,7 +66,8 @@ class HomeViewModel @Inject constructor(
     private val gameRepository: GameRepository,
     private val mediaRepository: MediaRepository,
     private val settingsRepository: SettingsRepository,
-    private val artworkBus: ArtworkBus
+    private val artworkBus: ArtworkBus,
+    private val performanceState: PerformanceState
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -352,10 +354,21 @@ class HomeViewModel @Inject constructor(
         val media = _uiState.value.mediaForGames[games[index].id]
         _uiState.update { it.copy(selectedGameIndex = index, shouldPlayVideo = false, selectedGameMedia = media) }
 
+        // When running reduced (lite build / performance mode / dual-screen), wait longer before the
+        // preview video kicks in, so quick browsing stays smooth and video only starts if the user
+        // lingers — instead of decoding a stream on every selection.
+        val delayMs =
+            if (performanceState.reduced.value) maxOf(_uiState.value.videoDelayMs, PERF_VIDEO_DELAY_MS)
+            else _uiState.value.videoDelayMs
         videoDelayJob = viewModelScope.launch {
-            delay(_uiState.value.videoDelayMs)
+            delay(delayMs)
             _uiState.update { it.copy(shouldPlayVideo = true) }
         }
+    }
+
+    private companion object {
+        /** Minimum delay before preview video autoplays while running reduced. */
+        const val PERF_VIDEO_DELAY_MS = 4000L
     }
 
     fun toggleLayoutMode() {
