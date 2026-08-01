@@ -51,6 +51,7 @@ object PlatformMetadata {
         "mame"      to PlatformMeta(1980, "Arcade", ConsoleKind.ARCADE),
         "fbneo"     to PlatformMeta(1980, "Arcade", ConsoleKind.ARCADE),
         "steam"     to PlatformMeta(2003, "PC", ConsoleKind.COMPUTER),
+        "xbox360"   to PlatformMeta(2005, "Microsoft", ConsoleKind.CONSOLE),
         "android"   to PlatformMeta(2008, "Android", ConsoleKind.MOBILE),
     )
 
