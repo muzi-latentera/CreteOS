@@ -64,6 +64,8 @@
         <package android:name="com.explusalpha.Snes9xEmu" />
         <!-- Other -->
         <package android:name="ru.playsoftware.j2meloader" />
+        <!-- Xbox 360 -->
+        <package android:name="com.xenia.android" />
     </queries>
 
     <application

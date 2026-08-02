@@ -44,6 +44,7 @@ class ImportEsdeMediaUseCase @Inject constructor(
         "switch"    to listOf("switch"),
         "atari2600" to listOf("atari2600"),
         "mame"      to listOf("mame", "arcade"),
+        "xbox360"   to listOf("xbox360", "xbox 360"),
     )
 
     operator fun invoke(mediaFolderPath: String): Flow<EsdeImportStatus> = flow {
