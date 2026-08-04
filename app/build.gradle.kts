@@ -37,8 +37,8 @@ android {
         applicationId = "com.gamelaunch.frontend"
         minSdk = 26
         targetSdk = 34
-        versionCode = 32
-        versionName = "2.0.0"
+        versionCode = 33
+        versionName = "2.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
