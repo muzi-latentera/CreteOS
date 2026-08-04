@@ -183,12 +183,17 @@ fun SystemPreviewFan(
             // Shape the fan cards like the focused system's real box art so covers aren't cropped.
             val coverAspect = boxArtAspectRatio(focusedPlatformId ?: "")
             // Fill most of the height; cap width for landscape boxes and shrink height to match.
-            val coverHeight = (maxH * 0.72f).coerceIn(120.dp, 320.dp)
+            val coverHeight = (maxH * 0.84f).coerceIn(120.dp, 340.dp)
             val maxCoverW = maxW * 0.42f
             val coverH =
                 if (coverHeight * coverAspect > maxCoverW) maxCoverW / coverAspect else coverHeight
-            // Fan spread scales with horizontal room.
-            val spreadDp = (maxW.value * 0.13f).coerceIn(46f, 120f)
+            // Spacing: offset each fan card by a fraction of the *cover's own width*, so the overlap
+            // looks the same for narrow (vertical) and wide (landscape) box art. Then clamp so the
+            // whole fan still fits the panel width regardless of aspect ratio.
+            val coverW = coverH.value * coverAspect
+            val idealSpread = coverW * 0.58f
+            val fitSpread = if (n > 1) (maxW.value * 0.92f - coverW) / (n - 1) else idealSpread
+            val spreadDp = idealSpread.coerceAtMost(fitSpread).coerceIn(26f, 150f)
             // one progress per cover-set; cards rise + fan as it goes 0 -> 1
             val progress = remember { Animatable(1f) }
             LaunchedEffect(previewArt) {

@@ -178,10 +178,13 @@ fun HomeScreen(
         next?.let { viewModel.selectPlatform(it) }
     }
 
-    // Recently Played and RetroAchievements tabs each appear only when enabled in settings.
+    // Recently Played, RetroAchievements and Friends tabs each appear only when enabled in settings.
+    // This list also drives L1/R1 tab cycling, so an omitted filter here lets a disabled tab still be
+    // reached with the bumpers (the Friends bug).
     val visibleTabs = TopTab.entries.filter {
-        (it != TopTab.RECENTLY_PLAYED  || state.showRecentlyPlayed) &&
-        (it != TopTab.RETROACHIEVEMENTS || state.showRetroAchievements)
+        (it != TopTab.RECENTLY_PLAYED   || state.showRecentlyPlayed) &&
+        (it != TopTab.RETROACHIEVEMENTS || state.showRetroAchievements) &&
+        (it != TopTab.FRIENDS           || state.showFriends)
     }
 
     fun cycleTab(delta: Int) {
