@@ -158,6 +158,12 @@ class EmulatorLauncher @Inject constructor(
         // PSP — PPSSPP reads getData().
         "org.ppsspp.ppsspp"     to LaunchSpec("org.ppsspp.ppsspp.PpssppActivity"),
         "org.ppsspp.ppssppgold" to LaunchSpec("org.ppsspp.ppsspp.PpssppActivity"),
+        // NDS — DraStic boots a game when its DraSticActivity receives a "GAMEPATH" string extra; it
+        // then forwards to DraSticEmuActivity. Verified on the Anbernic RG DS build (r2.5.2.2a). This
+        // is the standard package for both the Play Store and Anbernic builds.
+        "com.dsemu.drastic" to
+            LaunchSpec("com.dsemu.drastic.DraSticActivity",
+                       romExtraKey = "GAMEPATH", action = Intent.ACTION_MAIN),
         // NDS — melonDS's EmulatorActivity crashes (ConcurrentModificationException) when launched
         // cold from outside, and the warm-then-launch workaround is blocked by Android's
         // background-activity-start policy. Open its ROM list instead so it never crashes; the

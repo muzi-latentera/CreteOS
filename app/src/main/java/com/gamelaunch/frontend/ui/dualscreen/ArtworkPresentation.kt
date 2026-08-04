@@ -8,7 +8,6 @@ import android.view.Display
 import android.view.View
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -27,8 +26,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.gamelaunch.frontend.domain.model.GameMedia
 import com.gamelaunch.frontend.ui.component.AsyncGameArtwork
 import com.gamelaunch.frontend.ui.component.VideoPlayer
+import com.gamelaunch.frontend.ui.screen.home.SystemPreviewFan
+import com.gamelaunch.frontend.ui.theme.AmbientBackground
 import com.gamelaunch.frontend.ui.theme.AppTheme
 
 /**
@@ -83,12 +85,9 @@ class ArtworkPresentation(
 private fun ArtworkScreen(artworkBus: ArtworkBus) {
     val state by artworkBus.state.collectAsState()
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color.Black),
-        contentAlignment = Alignment.Center
-    ) {
+    // Continue the app's ambient gradient onto this screen so both panels read as one surface,
+    // instead of a flat black fill.
+    AmbientBackground(Modifier.fillMaxSize()) {
         when (state.mode) {
             ArtworkMode.GAME -> {
                 val media = state.media
@@ -100,14 +99,13 @@ private fun ArtworkScreen(artworkBus: ArtworkBus) {
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {
+                    // Prefer the gameplay screenshot by *category* (screenshot → background → box
+                    // art), even when it's only a remote URL and the box art happens to be cached
+                    // locally — otherwise a local cover would preempt a remote gameplay shot.
+                    val img = gameplayImage(media)
                     AsyncGameArtwork(
-                        // Same priority order the single-screen background uses.
-                        localPath = media?.screenshotLocalPath
-                            ?: media?.backgroundLocalPath
-                            ?: media?.boxArtLocalPath,
-                        remoteUrl = media?.screenshotRemoteUrl
-                            ?: media?.effectiveBackground
-                            ?: media?.boxArtRemoteUrl,
+                        localPath = img?.takeUnless { it.startsWith("http") },
+                        remoteUrl = img?.takeIf { it.startsWith("http") },
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
@@ -115,26 +113,34 @@ private fun ArtworkScreen(artworkBus: ArtworkBus) {
                 }
             }
 
-            ArtworkMode.SYSTEM_GRID -> {
-                val art = state.systemPreviewArt.firstOrNull()
-                if (art != null) {
-                    AsyncGameArtwork(
-                        localPath = art,
-                        remoteUrl = art,
-                        contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(24.dp)
-                    )
-                } else {
-                    BrandPlaceholder()
-                }
-            }
+            // The fanned box-art preview for the focused system — the same one the single-screen
+            // menu shows, now given the whole top panel.
+            ArtworkMode.SYSTEM_GRID -> SystemPreviewFan(
+                previewArt = state.systemPreviewArt,
+                focusedPlatformId = state.focusedPlatformId,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp)
+            )
 
-            ArtworkMode.IDLE -> BrandPlaceholder()
+            ArtworkMode.IDLE -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                BrandPlaceholder()
+            }
         }
     }
+}
+
+/**
+ * The best **locally stored** image for the top screen, by category priority: an in-game screenshot
+ * first, then a fanart background, then the box-art cover. Only local files are used — never a remote
+ * URL — so the top screen never streams over the network (important on low-power/dual-screen).
+ */
+private fun gameplayImage(media: GameMedia?): String? = media?.let { m ->
+    listOfNotNull(
+        m.screenshotLocalPath,
+        m.backgroundLocalPath,
+        m.boxArtLocalPath
+    ).firstOrNull { it.isNotBlank() }
 }
 
 @Composable

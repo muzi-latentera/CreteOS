@@ -65,6 +65,7 @@ data class SettingsUiState(
     val darkMode: Boolean = false,
     val dualScreenEnabled: Boolean = true,
     val dualScreenSwap: Boolean = false,
+    val performanceMode: Boolean = false,
     val backgroundImageEnabled: Boolean = false,
     val backgroundImagePath: String = "",
     val backgroundImageMode: String = "FILL",
@@ -189,6 +190,11 @@ class SettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            settingsRepository.performanceMode.collect { on ->
+                _uiState.update { it.copy(performanceMode = on) }
+            }
+        }
+        viewModelScope.launch {
             settingsRepository.systemSort.collect { sorts ->
                 _uiState.update { it.copy(systemSort = sorts) }
             }
@@ -268,6 +274,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setDualScreenSwap(swap: Boolean) {
         viewModelScope.launch { settingsRepository.setDualScreenSwap(swap) }
+    }
+
+    fun setPerformanceMode(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setPerformanceMode(enabled) }
     }
 
     fun setDarkMode(enabled: Boolean) {

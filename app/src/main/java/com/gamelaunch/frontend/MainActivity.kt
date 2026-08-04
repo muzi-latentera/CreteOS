@@ -57,6 +57,8 @@ import com.gamelaunch.frontend.ui.component.UpdateBanner
 import com.gamelaunch.frontend.platform.display.DualScreenManager
 import com.gamelaunch.frontend.ui.dualscreen.ArtworkBus
 import com.gamelaunch.frontend.ui.dualscreen.LocalDualScreenActive
+import com.gamelaunch.frontend.ui.perf.LocalReduceMotion
+import com.gamelaunch.frontend.ui.perf.PerformanceState
 import com.gamelaunch.frontend.ui.navigation.AppNavGraph
 import com.gamelaunch.frontend.ui.navigation.Screen
 import com.gamelaunch.frontend.ui.navigation.backOrHome
@@ -89,6 +91,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var friendRepository: com.gamelaunch.frontend.domain.repository.FriendRepository
     @Inject lateinit var pendingFriendLink: com.gamelaunch.frontend.domain.friends.PendingFriendLink
     @Inject lateinit var artworkBus: ArtworkBus
+    @Inject lateinit var performanceState: PerformanceState
 
     // Drives the second (artwork) screen on dual-screen handhelds; a no-op on single-screen devices.
     private lateinit var dualScreenManager: DualScreenManager
@@ -177,9 +180,13 @@ class MainActivity : ComponentActivity() {
             )
 
             val dualScreenActive by dualScreenManager.active.collectAsState()
+            val reduceMotion by performanceState.reduced.collectAsState()
 
             AppTheme(darkMode = darkMode, branding = branding) {
-              CompositionLocalProvider(LocalDualScreenActive provides dualScreenActive) {
+              CompositionLocalProvider(
+                  LocalDualScreenActive provides dualScreenActive,
+                  LocalReduceMotion provides reduceMotion
+              ) {
                 Box(Modifier.fillMaxSize()) {
                 val navController = rememberNavController()
                 // Use null as initial so NavHost isn't created until we know the real value.
@@ -307,6 +314,15 @@ class MainActivity : ComponentActivity() {
         }
         lifecycleScope.launch {
             settingsRepository.darkMode.collect { currentDarkMode = it }
+        }
+        // "Run lighter" signal: the lite build (LOW_POWER) is always reduced; the full build reduces
+        // when the user enables Performance mode or when a second screen is present.
+        lifecycleScope.launch {
+            combine(
+                settingsRepository.performanceMode,
+                dualScreenManager.active
+            ) { pref, dualScreen -> BuildConfig.LOW_POWER || pref || dualScreen }
+                .collect { performanceState.set(it) }
         }
     }
 

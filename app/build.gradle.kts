@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.Properties
 import java.net.URL
 import java.util.zip.ZipFile
@@ -15,6 +16,19 @@ val localProperties = Properties().apply {
     if (f.exists()) load(f.inputStream())
 }
 
+// Obfuscate the ScreenScraper *developer* API credentials so they're not sitting in the APK as
+// plaintext (defeats a trivial `strings` grab). XOR + Base64; decoded at runtime by Secrets.kt with
+// the SAME key. NOTE: this is obfuscation, not encryption — a determined reader of the (public)
+// source can still reverse it. The only theft-proof option is a server-side proxy.
+val ssObfKey = "e0r-ss-obf-2026"
+fun obfuscateSecret(value: String): String {
+    if (value.isEmpty()) return ""
+    val k = ssObfKey.toByteArray(Charsets.UTF_8)
+    val v = value.toByteArray(Charsets.UTF_8)
+    val out = ByteArray(v.size) { i -> (v[i].toInt() xor k[i % k.size].toInt()).toByte() }
+    return Base64.getEncoder().encodeToString(out)
+}
+
 android {
     namespace = "com.gamelaunch.frontend"
     compileSdk = 34
@@ -23,20 +37,37 @@ android {
         applicationId = "com.gamelaunch.frontend"
         minSdk = 26
         targetSdk = 34
-        versionCode = 30
-        versionName = "1.9.1"
+        versionCode = 32
+        versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // ScreenScraper dev credentials — set in local.properties
-        buildConfigField("String", "SS_DEV_ID",       "\"${localProperties["SS_DEV_ID"] ?: ""}\"")
-        buildConfigField("String", "SS_DEV_PASSWORD",  "\"${localProperties["SS_DEV_PASSWORD"] ?: ""}\"")
+        // ScreenScraper dev credentials — set in local.properties, obfuscated into the APK (see
+        // obfuscateSecret above) and decoded at runtime by Secrets.reveal().
+        buildConfigField("String", "SS_DEV_ID",       "\"${obfuscateSecret((localProperties["SS_DEV_ID"] as String?) ?: "")}\"")
+        buildConfigField("String", "SS_DEV_PASSWORD",  "\"${obfuscateSecret((localProperties["SS_DEV_PASSWORD"] as String?) ?: "")}\"")
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+
+    // Two builds from one codebase: `full` (everything) and `lite` (a lighter runtime for weak
+    // chipsets like the RG DS's RK3568). Same applicationId — a user installs whichever fits their
+    // device; one replaces the other. The only difference is the LOW_POWER flag, which forces the
+    // reduced-motion / delayed-video path on in the lite build (see PerformanceState).
+    flavorDimensions += "power"
+    productFlavors {
+        create("full") {
+            dimension = "power"
+            buildConfigField("boolean", "LOW_POWER", "false")
+        }
+        create("lite") {
+            dimension = "power"
+            buildConfigField("boolean", "LOW_POWER", "true")
         }
     }
 

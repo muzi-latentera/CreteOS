@@ -45,7 +45,7 @@ object PlatformDefinitions {
             id = "nds", displayName = "Nintendo DS", scraperSystemId = 15,
             extensions = listOf(".nds"),
             folderNames = listOf("NDS", "nds", "Nintendo DS", "DS"),
-            defaultEmulatorPackage = "com.drastic.ds",
+            defaultEmulatorPackage = "com.dsemu.drastic",
             defaultCoreForRetroArch = "desmume2015_libretro.so"
         ),
         Platform(

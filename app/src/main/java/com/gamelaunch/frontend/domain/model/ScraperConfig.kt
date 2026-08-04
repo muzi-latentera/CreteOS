@@ -1,12 +1,14 @@
 package com.gamelaunch.frontend.domain.model
 
 import com.gamelaunch.frontend.BuildConfig
+import com.gamelaunch.frontend.data.network.Secrets
 
 data class ScraperConfig(
     val ssid: String = "",
     val sspassword: String = "",
-    val devid: String = BuildConfig.SS_DEV_ID,
-    val devpassword: String = BuildConfig.SS_DEV_PASSWORD,
+    // Developer API credentials are obfuscated in BuildConfig; decode them at use time.
+    val devid: String = Secrets.reveal(BuildConfig.SS_DEV_ID),
+    val devpassword: String = Secrets.reveal(BuildConfig.SS_DEV_PASSWORD),
     val softname: String = "eOr",
     val preferredRegion: String = "us",
     val scrapeMetadata: Boolean = true,
