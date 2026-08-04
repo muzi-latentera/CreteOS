@@ -122,6 +122,7 @@ private val iconByKey: Map<String, Int> = mapOf(
         "wiiu" to R.drawable.ic_sys_wiiu,
         "gamecube" to R.drawable.ic_sys_gamecube,
         "3do" to R.drawable.ic_sys_3do,
+        "xbox360" to R.drawable.ic_sys_xbox360,
         "steam" to R.drawable.ic_sys_steam,
         "android" to R.drawable.ic_sys_android,
 )

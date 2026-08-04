@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Microsoft Xbox 360 — white console with a concave waist and the green "ring of light", flat-style. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="600" android:viewportHeight="600">
+
+    <!-- Console body: white slab with a gently concave waist -->
+    <path android:fillColor="#ECEDEF"
+          android:pathData="M135,205 L465,205 Q470,205 470,215 Q432,300 470,385 Q470,395 465,395 L135,395 Q130,395 130,385 Q168,300 130,215 Q130,205 135,205 Z"/>
+    <!-- Top glossy highlight -->
+    <path android:fillColor="#FFFFFF"
+          android:pathData="M150,218 L450,218 Q456,244 446,262 L154,262 Q144,244 150,218 Z"/>
+    <!-- Disc slot -->
+    <path android:fillColor="#C4C7CB"
+          android:pathData="M165,298 L300,298 L300,311 L165,311 Z"/>
+    <!-- Side vent -->
+    <path android:fillColor="#D4D7DB"
+          android:pathData="M165,333 L245,333 L245,343 L165,343 Z"/>
+
+    <!-- Green power ring (the 360 "ring of light"): outer ring via even-odd hole -->
+    <path android:fillColor="#107C10"
+          android:fillType="evenOdd"
+          android:pathData="M388,300 m-50,0 a50,50 0 1 0 100,0 a50,50 0 1 0 -100,0 Z
+                            M388,300 m-32,0 a32,32 0 1 0 64,0 a32,32 0 1 0 -64,0 Z"/>
+    <!-- Center power dot -->
+    <path android:fillColor="#107C10"
+          android:pathData="M388,300 m-15,0 a15,15 0 1 0 30,0 a15,15 0 1 0 -30,0"/>
+</vector>

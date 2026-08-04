@@ -131,6 +131,12 @@ object SaveLocationRegistry {
             storageClass = SaveStorageClass.APP_PRIVATE,
             note = "Saves in Android/data — not directly syncable on this Android version."
         ),
+        EmulatorSaveSpec(
+            packages = listOf("com.xenia.android"),
+            displayName = "Xenia (Xbox 360)",
+            storageClass = SaveStorageClass.APP_PRIVATE,
+            note = "Saves in Android/data — not directly syncable on this Android version."
+        ),
     )
 
     fun specForPackage(pkg: String): EmulatorSaveSpec? = specs.firstOrNull { pkg in it.packages }
