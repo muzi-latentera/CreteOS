@@ -56,6 +56,7 @@ import com.gamelaunch.frontend.ui.component.LoadingScreen
 import com.gamelaunch.frontend.ui.component.UpdateBanner
 import com.gamelaunch.frontend.platform.display.DualScreenManager
 import com.gamelaunch.frontend.ui.dualscreen.ArtworkBus
+import com.gamelaunch.frontend.ui.dualscreen.GameSessionState
 import com.gamelaunch.frontend.ui.dualscreen.LocalDualScreenActive
 import com.gamelaunch.frontend.ui.perf.LocalReduceMotion
 import com.gamelaunch.frontend.ui.perf.PerformanceState
@@ -92,6 +93,11 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var pendingFriendLink: com.gamelaunch.frontend.domain.friends.PendingFriendLink
     @Inject lateinit var artworkBus: ArtworkBus
     @Inject lateinit var performanceState: PerformanceState
+    @Inject lateinit var gameSessionState: GameSessionState
+
+    // True after a game was launched on the top panel and eOr lost focus to it; the next focus
+    // regain means the user quit back to eOr, so we restore the artwork screen.
+    private var awaitingGameReturn = false
 
     // Drives the second (artwork) screen on dual-screen handhelds; a no-op on single-screen devices.
     private lateinit var dualScreenManager: DualScreenManager
@@ -324,6 +330,13 @@ class MainActivity : ComponentActivity() {
             ) { pref, dualScreen -> BuildConfig.LOW_POWER || pref || dualScreen }
                 .collect { performanceState.set(it) }
         }
+        // Hide the top artwork overlay while a game is running on the top panel so it doesn't cover
+        // the game; it's restored when the user returns (see onWindowFocusChanged).
+        lifecycleScope.launch {
+            gameSessionState.launchedOnTop.collect { onTop ->
+                dualScreenManager.setArtworkSuspended(onTop)
+            }
+        }
     }
 
     /**
@@ -447,10 +460,18 @@ class MainActivity : ComponentActivity() {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
             hideSystemBars()
+            // Returned from a game that was on the top panel → restore the artwork screen.
+            if (awaitingGameReturn) {
+                awaitingGameReturn = false
+                gameSessionState.end()
+            }
         } else {
             // Reset joystick tracking when we lose focus (e.g. launching a game) so a stale
             // non-neutral axis value can't leave a synthesized DPAD direction "held" on return.
             lastAxisX = 0f; lastAxisY = 0f; lastHatX = 0f; lastHatY = 0f
+            // If a game was just placed on the top panel, this focus-loss is it taking over — arm
+            // the return detector so the next focus regain restores the artwork.
+            if (gameSessionState.launchedOnTop.value) awaitingGameReturn = true
         }
     }
 

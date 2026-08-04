@@ -21,6 +21,7 @@ interface SettingsRepository {
     val dualScreenEnabled: Flow<Boolean>
     val dualScreenSwap: Flow<Boolean>
     val performanceMode: Flow<Boolean>
+    val gameLaunchOnTop: Flow<Boolean>
     val backgroundImageEnabled: Flow<Boolean>
     val backgroundImagePath: Flow<String>
     val backgroundImageMode: Flow<String>
@@ -65,6 +66,7 @@ interface SettingsRepository {
     suspend fun setDualScreenEnabled(enabled: Boolean)
     suspend fun setDualScreenSwap(swap: Boolean)
     suspend fun setPerformanceMode(enabled: Boolean)
+    suspend fun setGameLaunchOnTop(enabled: Boolean)
     suspend fun setBackgroundImageEnabled(enabled: Boolean)
     suspend fun setBackgroundImagePath(path: String)
     suspend fun setBackgroundImageMode(mode: String)

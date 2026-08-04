@@ -65,6 +65,7 @@ data class SettingsUiState(
     val darkMode: Boolean = false,
     val dualScreenEnabled: Boolean = true,
     val dualScreenSwap: Boolean = false,
+    val gameLaunchOnTop: Boolean = true,
     val performanceMode: Boolean = false,
     val backgroundImageEnabled: Boolean = false,
     val backgroundImagePath: String = "",
@@ -195,6 +196,11 @@ class SettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            settingsRepository.gameLaunchOnTop.collect { on ->
+                _uiState.update { it.copy(gameLaunchOnTop = on) }
+            }
+        }
+        viewModelScope.launch {
             settingsRepository.systemSort.collect { sorts ->
                 _uiState.update { it.copy(systemSort = sorts) }
             }
@@ -278,6 +284,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setPerformanceMode(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setPerformanceMode(enabled) }
+    }
+
+    fun setGameLaunchOnTop(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setGameLaunchOnTop(enabled) }
     }
 
     fun setDarkMode(enabled: Boolean) {

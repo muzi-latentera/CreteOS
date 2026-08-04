@@ -37,6 +37,8 @@ class DualScreenManager(
     private var enabled = true
     private var swap = false
     private var started = false
+    // While a game is on the top panel, keep the artwork overlay dismissed so it doesn't cover it.
+    private var artworkSuspended = false
 
     private val listener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = refresh()
@@ -91,9 +93,19 @@ class DualScreenManager(
             it.displayId != Display.DEFAULT_DISPLAY && it.state == Display.STATE_ON
         }
 
+    /**
+     * Suspend/restore the artwork overlay. Called when a game launches on (or leaves) the top panel:
+     * while suspended the Presentation is dismissed and won't be re-shown, so the game is visible.
+     */
+    fun setArtworkSuspended(suspended: Boolean) {
+        if (artworkSuspended == suspended) return
+        artworkSuspended = suspended
+        if (started) refresh()
+    }
+
     /** Re-evaluate which display (if any) should show artwork and (re)attach the Presentation. */
     fun refresh() {
-        val secondary = if (enabled) secondaryDisplay() else null
+        val secondary = if (enabled && !artworkSuspended) secondaryDisplay() else null
         if (secondary == null) {
             dismiss()
             _active.value = false
@@ -138,6 +150,23 @@ class DualScreenManager(
 
     companion object {
         private const val TAG = "DualScreenManager"
+
+        /**
+         * The physical **top** (artwork) panel's display id on a dual-screen device, or null if
+         * there's no second screen. This is where single-screen games should launch. Mirrors
+         * [refresh]'s artwork-display logic so it stays consistent. [swap] applies the manual override.
+         */
+        fun artworkDisplayId(context: Context, swap: Boolean): Int? {
+            val dm = context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager ?: return null
+            val secondary = dm.displays.firstOrNull {
+                it.displayId != Display.DEFAULT_DISPLAY && it.state == Display.STATE_ON
+            } ?: return null
+            val layout = DualScreenDevices.layoutFor().let { if (swap) it.flipped() else it }
+            return when (layout) {
+                DualScreenDevices.Layout.ARTWORK_ON_SECONDARY -> secondary.displayId
+                DualScreenDevices.Layout.MENU_ON_SECONDARY -> Display.DEFAULT_DISPLAY
+            }
+        }
 
         /**
          * The display id the Activity currently occupies. Used by MainActivity to decide whether a

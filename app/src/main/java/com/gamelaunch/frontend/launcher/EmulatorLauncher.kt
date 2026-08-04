@@ -1,12 +1,18 @@
 package com.gamelaunch.frontend.launcher
 
+import android.app.ActivityOptions
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import com.gamelaunch.frontend.domain.model.EmulatorMapping
 import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.repository.EmulatorRepository
+import com.gamelaunch.frontend.domain.repository.SettingsRepository
+import com.gamelaunch.frontend.platform.display.DualScreenManager
+import com.gamelaunch.frontend.ui.dualscreen.GameSessionState
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.first
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -15,37 +21,62 @@ import javax.inject.Singleton
 class EmulatorLauncher @Inject constructor(
     @ApplicationContext private val context: Context,
     private val emulatorRepository: EmulatorRepository,
-    private val packageManagerHelper: PackageManagerHelper
+    private val packageManagerHelper: PackageManagerHelper,
+    private val settingsRepository: SettingsRepository,
+    private val gameSessionState: GameSessionState
 ) {
     suspend fun launch(game: Game): Result<Unit> {
+        // Dual-screen: single-screen games open on the top panel when configured (see resolver).
+        val options = resolveLaunchOptions(game)
+
         // Android game: romPath is "package:<pkg>" — launch the app directly.
-        if (game.romPath.startsWith("package:")) {
+        val result = if (game.romPath.startsWith("package:")) {
             val pkg = game.romPath.removePrefix("package:")
             val intent = context.packageManager.getLaunchIntentForPackage(pkg)
-                ?: return Result.failure(Exception("App not installed: $pkg"))
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            return tryStartActivity(intent)
-        }
-
-        var mapping = emulatorRepository.getMappingForPlatform(game.platformId)
-            ?: return Result.failure(NoEmulatorConfiguredException(game.platformId))
-
-        // If the saved package is no longer installed (e.g. stale DB after package name fix),
-        // run auto-detect once to update the mapping before trying to launch.
-        if (!packageManagerHelper.isPackageInstalled(mapping.packageName)) {
-            emulatorRepository.autoDetectAndAssign()
-            mapping = emulatorRepository.getMappingForPlatform(game.platformId)
-                ?: return Result.failure(NoEmulatorConfiguredException(game.platformId))
-        }
-
-        return if (mapping.isRetroArch) {
-            launchRetroArch(game, mapping)
+            if (intent == null) {
+                Result.failure(Exception("App not installed: $pkg"))
+            } else {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                tryStartActivity(intent, options)
+            }
         } else {
-            launchStandalone(game, mapping)
+            var mapping = emulatorRepository.getMappingForPlatform(game.platformId)
+            // If the saved package is no longer installed (e.g. stale DB after package name fix),
+            // run auto-detect once to update the mapping before trying to launch.
+            if (mapping != null && !packageManagerHelper.isPackageInstalled(mapping.packageName)) {
+                emulatorRepository.autoDetectAndAssign()
+                mapping = emulatorRepository.getMappingForPlatform(game.platformId)
+            }
+            when {
+                mapping == null -> Result.failure(NoEmulatorConfiguredException(game.platformId))
+                mapping.isRetroArch -> launchRetroArch(game, mapping, options)
+                else -> launchStandalone(game, mapping, options)
+            }
         }
+
+        // When we placed the game on the top panel, hide the artwork overlay so the game is visible
+        // (eOr stays resumed on the bottom, so the overlay isn't torn down by onStop). Restored when
+        // the user returns — see MainActivity.onWindowFocusChanged.
+        if (options != null && result.isSuccess) gameSessionState.begin()
+        return result
     }
 
-    private fun launchRetroArch(game: Game, mapping: EmulatorMapping): Result<Unit> {
+    /**
+     * ActivityOptions that place a single-screen game on the top panel, or null to launch on the
+     * default display. Only kicks in when dual-screen is enabled, the "launch on top" setting is on,
+     * and a second screen is actually present. Dual-screen games (NDS/3DS) render both panels
+     * themselves, so they always launch on the default display.
+     */
+    private suspend fun resolveLaunchOptions(game: Game): Bundle? {
+        if (!settingsRepository.dualScreenEnabled.first()) return null
+        if (!settingsRepository.gameLaunchOnTop.first()) return null
+        if (game.platformId in DUAL_SCREEN_PLATFORMS) return null
+        val swap = settingsRepository.dualScreenSwap.first()
+        val displayId = DualScreenManager.artworkDisplayId(context, swap) ?: return null
+        return ActivityOptions.makeBasic().setLaunchDisplayId(displayId).toBundle()
+    }
+
+    private fun launchRetroArch(game: Game, mapping: EmulatorMapping, options: Bundle?): Result<Unit> {
         val pkg = mapping.packageName
         // RetroArch's content-loading activity. Launching MainMenuActivity (the package's
         // default launch intent) only opens the menu; RetroActivityFuture with ROM/LIBRETRO/
@@ -69,17 +100,17 @@ class EmulatorLauncher @Inject constructor(
         }
         // Fall back to the plain launch intent (opens the menu) if the content activity
         // can't be started for some reason — better than a hard failure.
-        return tryStartActivity(intent).recoverCatching {
+        return tryStartActivity(intent, options).recoverCatching {
             val launch = context.packageManager.getLaunchIntentForPackage(pkg)
                 ?: throw it
             launch.putExtra("ROM", game.romPath)
             corePath?.let { c -> launch.putExtra("LIBRETRO", c) }
             launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(launch)
+            context.startActivity(launch, options)
         }
     }
 
-    private fun launchStandalone(game: Game, mapping: EmulatorMapping): Result<Unit> {
+    private fun launchStandalone(game: Game, mapping: EmulatorMapping, options: Bundle?): Result<Unit> {
         val pkg  = mapping.packageName
         val spec = launchSpecs[pkg]
         val file = File(game.romPath)
@@ -101,14 +132,14 @@ class EmulatorLauncher @Inject constructor(
             }
             // If the hard-coded activity name is wrong for this build, fall back to a generic
             // VIEW intent, and finally to just opening the emulator's own game list.
-            return tryStartActivity(intent)
-                .recoverCatching { context.startActivity(genericViewIntent(pkg, file, mapping)) }
-                .recoverCatching { context.startActivity(openAppIntent(pkg) ?: throw it) }
+            return tryStartActivity(intent, options)
+                .recoverCatching { context.startActivity(genericViewIntent(pkg, file, mapping), options) }
+                .recoverCatching { context.startActivity(openAppIntent(pkg) ?: throw it, options) }
         }
 
         // Unknown emulator: generic VIEW by package, else just open the emulator.
-        return tryStartActivity(genericViewIntent(pkg, file, mapping))
-            .recoverCatching { context.startActivity(openAppIntent(pkg) ?: throw it) }
+        return tryStartActivity(genericViewIntent(pkg, file, mapping), options)
+            .recoverCatching { context.startActivity(openAppIntent(pkg) ?: throw it, options) }
     }
 
     /** Last-resort: open the emulator's own UI (its game list) when it can't be booted directly. */
@@ -122,8 +153,8 @@ class EmulatorLauncher @Inject constructor(
             mapping.intentExtras.forEach { (k, v) -> putExtra(k, v) }
         }
 
-    private fun tryStartActivity(intent: Intent): Result<Unit> = runCatching {
-        context.startActivity(intent)
+    private fun tryStartActivity(intent: Intent, options: Bundle? = null): Result<Unit> = runCatching {
+        context.startActivity(intent, options)
     }
 
     /** How to hand a ROM to a specific standalone emulator (all verified on a Retroid Pocket 4). */
@@ -133,6 +164,10 @@ class EmulatorLauncher @Inject constructor(
         val action: String = Intent.ACTION_VIEW,
         val mimeType: String? = null
     )
+
+    // Platforms whose emulator renders both panels itself (Nintendo DS, 3DS) — never force these
+    // onto a single display; they use the whole dual-screen device.
+    private val DUAL_SCREEN_PLATFORMS = setOf("nds", "3ds")
 
     private val launchSpecs: Map<String, LaunchSpec> = mapOf(
         // PS1 — DuckStation reads the ROM from a "bootPath" extra, not VIEW data.

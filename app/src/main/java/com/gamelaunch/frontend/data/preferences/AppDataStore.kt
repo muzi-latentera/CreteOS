@@ -47,6 +47,8 @@ class AppDataStore @Inject constructor(@ApplicationContext private val context: 
         val DUAL_SCREEN_SWAP = booleanPreferencesKey("dual_screen_swap")
         // Full build only: reduce animations + delay preview video for smoother browsing on weak chips.
         val PERFORMANCE_MODE = booleanPreferencesKey("performance_mode")
+        // Dual-screen: launch single-screen games on the top panel (vs the default/bottom display).
+        val GAME_LAUNCH_ON_TOP = booleanPreferencesKey("game_launch_on_top")
         val BG_IMAGE_ENABLED = booleanPreferencesKey("background_image_enabled")
         val BG_IMAGE_PATH = stringPreferencesKey("background_image_path")
         val BG_IMAGE_MODE = stringPreferencesKey("background_image_mode")
@@ -97,6 +99,8 @@ class AppDataStore @Inject constructor(@ApplicationContext private val context: 
     val dualScreenEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.DUAL_SCREEN_ENABLED] ?: true }
     val dualScreenSwap: Flow<Boolean> = context.dataStore.data.map { it[Keys.DUAL_SCREEN_SWAP] ?: false }
     val performanceMode: Flow<Boolean> = context.dataStore.data.map { it[Keys.PERFORMANCE_MODE] ?: false }
+    // Default true: in dual-screen mode single-screen games open on the top panel.
+    val gameLaunchOnTop: Flow<Boolean> = context.dataStore.data.map { it[Keys.GAME_LAUNCH_ON_TOP] ?: true }
     // Optional user-supplied branded background. Path points at the processed single-colour
     // mask PNG in filesDir; mode is FILL (one full-width silhouette) or TILE (repeating pattern).
     val backgroundImageEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.BG_IMAGE_ENABLED] ?: false }
@@ -151,6 +155,7 @@ class AppDataStore @Inject constructor(@ApplicationContext private val context: 
     suspend fun setDualScreenEnabled(enabled: Boolean) = context.dataStore.edit { it[Keys.DUAL_SCREEN_ENABLED] = enabled }
     suspend fun setDualScreenSwap(swap: Boolean) = context.dataStore.edit { it[Keys.DUAL_SCREEN_SWAP] = swap }
     suspend fun setPerformanceMode(enabled: Boolean) = context.dataStore.edit { it[Keys.PERFORMANCE_MODE] = enabled }
+    suspend fun setGameLaunchOnTop(enabled: Boolean) = context.dataStore.edit { it[Keys.GAME_LAUNCH_ON_TOP] = enabled }
     suspend fun setBackgroundImageEnabled(enabled: Boolean) = context.dataStore.edit { it[Keys.BG_IMAGE_ENABLED] = enabled }
     suspend fun setBackgroundImagePath(path: String) = context.dataStore.edit { it[Keys.BG_IMAGE_PATH] = path }
     suspend fun setBackgroundImageMode(mode: String) = context.dataStore.edit { it[Keys.BG_IMAGE_MODE] = mode }

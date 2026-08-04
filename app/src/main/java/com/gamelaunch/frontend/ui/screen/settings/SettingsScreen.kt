@@ -517,6 +517,16 @@ private fun DualScreenSection(state: SettingsUiState, viewModel: SettingsViewMod
                 checked         = state.dualScreenSwap,
                 onCheckedChange = viewModel::setDualScreenSwap
             )
+            CardSwitchRow(
+                label           = "Launch games on top screen",
+                checked         = state.gameLaunchOnTop,
+                onCheckedChange = viewModel::setGameLaunchOnTop
+            )
+            Text(
+                "Single-screen games (PlayStation, Game Boy, etc.) open on the top panel. DS/3DS games always use both screens.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
     Spacer(Modifier.height(4.dp))

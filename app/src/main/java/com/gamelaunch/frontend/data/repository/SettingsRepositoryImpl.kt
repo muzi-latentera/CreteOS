@@ -56,6 +56,7 @@ class SettingsRepositoryImpl @Inject constructor(
     override val dualScreenEnabled: Flow<Boolean> = dataStore.dualScreenEnabled
     override val dualScreenSwap: Flow<Boolean> = dataStore.dualScreenSwap
     override val performanceMode: Flow<Boolean> = dataStore.performanceMode
+    override val gameLaunchOnTop: Flow<Boolean> = dataStore.gameLaunchOnTop
     override val backgroundImageEnabled: Flow<Boolean> = dataStore.backgroundImageEnabled
     override val backgroundImagePath: Flow<String> = dataStore.backgroundImagePath
     override val backgroundImageMode: Flow<String> = dataStore.backgroundImageMode
@@ -113,6 +114,7 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setDualScreenEnabled(enabled: Boolean) { dataStore.setDualScreenEnabled(enabled) }
     override suspend fun setDualScreenSwap(swap: Boolean) { dataStore.setDualScreenSwap(swap) }
     override suspend fun setPerformanceMode(enabled: Boolean) { dataStore.setPerformanceMode(enabled) }
+    override suspend fun setGameLaunchOnTop(enabled: Boolean) { dataStore.setGameLaunchOnTop(enabled) }
     override suspend fun setBackgroundImageEnabled(enabled: Boolean) { dataStore.setBackgroundImageEnabled(enabled) }
     override suspend fun setBackgroundImagePath(path: String) { dataStore.setBackgroundImagePath(path) }
     override suspend fun setBackgroundImageMode(mode: String) { dataStore.setBackgroundImageMode(mode) }
