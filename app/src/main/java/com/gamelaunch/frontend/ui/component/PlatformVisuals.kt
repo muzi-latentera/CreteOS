@@ -14,6 +14,7 @@ private val platformLabels = mapOf(
     "pce"      to "PCE",    "neogeo"  to "Neo·Geo", "arcade" to "Arcade",
     "msx"      to "MSX",    "lynx"    to "Lynx",    "atari"  to "Atari",
     "steam"    to "Steam",
+    "xbox360"  to "360",
     "android"  to "Android"
 )
 

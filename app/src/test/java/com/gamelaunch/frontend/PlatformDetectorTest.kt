@@ -68,4 +68,16 @@ class PlatformDetectorTest {
         val file = File(dir, "game.m3u").also { it.createNewFile() }
         assertNull(detector.detect(file, "misc"))
     }
+
+    @Test fun `xbox360 xex detected via xbox360 folder`() {
+        val dir = tmpFolder.newFolder("xbox360")
+        val file = File(dir, "default.xex").also { it.createNewFile() }
+        assertEquals("xbox360", detector.detect(file, "xbox360")?.id)
+    }
+
+    @Test fun `xbox360 stfs detected via 360 folder`() {
+        val dir = tmpFolder.newFolder("360")
+        val file = File(dir, "game.stfs").also { it.createNewFile() }
+        assertEquals("xbox360", detector.detect(file, "360")?.id)
+    }
 }

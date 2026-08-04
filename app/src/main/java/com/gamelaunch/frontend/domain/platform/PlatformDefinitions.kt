@@ -196,6 +196,12 @@ object PlatformDefinitions {
             defaultEmulatorPackage = "com.gamenative.android"
         ),
         Platform(
+            id = "xbox360", displayName = "Xbox 360", scraperSystemId = 33,
+            extensions = listOf(".iso", ".xex", ".stfs"),
+            folderNames = listOf("xbox360", "Xbox 360", "x360", "360"),
+            defaultEmulatorPackage = "com.xenia.android"
+        ),
+        Platform(
             id = "android", displayName = "Android Games", scraperSystemId = 0,
             extensions = listOf(".apk"),
             folderNames = listOf("android", "Android", "Android Games"),

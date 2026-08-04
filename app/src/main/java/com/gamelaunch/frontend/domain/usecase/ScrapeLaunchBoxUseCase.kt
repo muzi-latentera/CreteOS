@@ -92,7 +92,8 @@ class ScrapeLaunchBoxUseCase @Inject constructor(
             "saturn"    to "Sega Saturn",
             "32x"       to "Sega 32X",
             "atari2600" to "Atari 2600",
-            "mame"      to "Arcade"
+            "mame"      to "Arcade",
+            "xbox360"   to "Microsoft Xbox 360"
         )
     }
 }
