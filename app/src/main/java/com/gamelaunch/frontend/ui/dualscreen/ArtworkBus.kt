@@ -41,7 +41,18 @@ class ArtworkBus @Inject constructor() {
     private val _state = MutableStateFlow(ArtworkUiState())
     val state: StateFlow<ArtworkUiState> = _state.asStateFlow()
 
+    // Light/dark is tracked separately from [state] because it's driven by the Activity's own
+    // settings collector (which stays alive while the user is in Settings toggling the theme),
+    // not by the HomeViewModel selection stream that fills [state]. The artwork Presentation reads
+    // both so the top-screen gradient re-themes live without tearing down the Presentation.
+    private val _darkMode = MutableStateFlow(false)
+    val darkMode: StateFlow<Boolean> = _darkMode.asStateFlow()
+
     fun publish(state: ArtworkUiState) {
         _state.value = state
+    }
+
+    fun setDarkMode(dark: Boolean) {
+        _darkMode.value = dark
     }
 }

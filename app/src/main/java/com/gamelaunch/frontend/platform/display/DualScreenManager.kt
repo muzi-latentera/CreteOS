@@ -22,8 +22,7 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class DualScreenManager(
     private val activity: ComponentActivity,
-    private val artworkBus: ArtworkBus,
-    private val darkModeProvider: () -> Boolean
+    private val artworkBus: ArtworkBus
 ) {
     private val displayManager =
         activity.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
@@ -135,8 +134,7 @@ class DualScreenManager(
         val next = ArtworkPresentation(
             activity = activity,
             display = display,
-            artworkBus = artworkBus,
-            darkMode = darkModeProvider()
+            artworkBus = artworkBus
         )
         runCatching { next.show() }
             .onSuccess { presentation = next }

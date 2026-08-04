@@ -14,23 +14,32 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.gamelaunch.frontend.domain.model.GameMedia
-import com.gamelaunch.frontend.ui.component.AsyncGameArtwork
 import com.gamelaunch.frontend.ui.screen.home.SystemPreviewFan
 import com.gamelaunch.frontend.ui.theme.AmbientBackground
 import com.gamelaunch.frontend.ui.theme.AppTheme
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import java.io.File
 
 /**
  * A [Presentation] that renders eOr's game artwork full-bleed on a second physical display (the
@@ -44,8 +53,7 @@ import com.gamelaunch.frontend.ui.theme.AppTheme
 class ArtworkPresentation(
     private val activity: ComponentActivity,
     display: Display,
-    private val artworkBus: ArtworkBus,
-    private val darkMode: Boolean
+    private val artworkBus: ArtworkBus
 ) : Presentation(activity, display) {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,9 +79,7 @@ class ArtworkPresentation(
             setViewTreeViewModelStoreOwner(activity)
             setViewTreeSavedStateRegistryOwner(activity)
             setContent {
-                AppTheme(darkMode = darkMode) {
-                    ArtworkScreen(artworkBus)
-                }
+                ArtworkScreen(artworkBus)
             }
         }
         setContentView(composeView)
@@ -83,53 +89,85 @@ class ArtworkPresentation(
 @Composable
 private fun ArtworkScreen(artworkBus: ArtworkBus) {
     val state by artworkBus.state.collectAsState()
+    // Live light/dark so the ambient gradient below re-themes when the user flips the setting,
+    // without rebuilding the Presentation. AppTheme lives inside the observed scope for that reason.
+    val darkMode by artworkBus.darkMode.collectAsState()
 
-    // Continue the app's ambient gradient onto this screen so both panels read as one surface,
-    // instead of a flat black fill.
-    AmbientBackground(Modifier.fillMaxSize()) {
-        when (state.mode) {
-            // Game select + game detail: the top screen shows a still image only — never the
-            // preview video — so it stays a calm screenshot. (Video previews still play on the
-            // single-screen carousel background.)
-            ArtworkMode.GAME -> {
-                val img = gameplayImage(state.media)
-                AsyncGameArtwork(
-                    localPath = img?.takeUnless { it.startsWith("http") },
-                    remoteUrl = img?.takeIf { it.startsWith("http") },
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
+    AppTheme(darkMode = darkMode) {
+        // Continue the app's ambient gradient onto this screen so both panels read as one surface,
+        // instead of a flat black fill.
+        AmbientBackground(Modifier.fillMaxSize()) {
+            when (state.mode) {
+                // Game select + game detail: show the game's marquee (wheel-logo) art centred over
+                // the gradient, so the top panel reads as branded title art rather than a raw
+                // screenshot. Falls back to the game title text when no marquee is available.
+                ArtworkMode.GAME -> MarqueeArtwork(
+                    marquee = marqueeImage(state.media),
+                    title = state.title,
                     modifier = Modifier.fillMaxSize()
                 )
-            }
 
-            // The fanned box-art preview for the focused system — the same one the single-screen
-            // menu shows, now given the whole top panel.
-            ArtworkMode.SYSTEM_GRID -> SystemPreviewFan(
-                previewArt = state.systemPreviewArt,
-                focusedPlatformId = state.focusedPlatformId,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp)
-            )
+                // The fanned box-art preview for the focused system — the same one the single-screen
+                // menu shows, now given the whole top panel.
+                ArtworkMode.SYSTEM_GRID -> SystemPreviewFan(
+                    previewArt = state.systemPreviewArt,
+                    focusedPlatformId = state.focusedPlatformId,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp)
+                )
 
-            ArtworkMode.IDLE -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                BrandPlaceholder()
+                ArtworkMode.IDLE -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    BrandPlaceholder()
+                }
             }
         }
     }
 }
 
 /**
- * The best **locally stored** image for the top screen, by category priority: an in-game screenshot
- * first, then a fanart background, then the box-art cover. Only local files are used — never a remote
- * URL — so the top screen never streams over the network (important on low-power/dual-screen).
+ * The game's marquee (a.k.a. wheel logo) rendered centred over the ambient gradient, or the game
+ * title as text when no marquee is on disk. Only a local file is used — never a remote URL — so the
+ * top panel never streams over the network (important on low-power/dual-screen).
  */
-private fun gameplayImage(media: GameMedia?): String? = media?.let { m ->
-    listOfNotNull(
-        m.screenshotLocalPath,
-        m.backgroundLocalPath,
-        m.boxArtLocalPath
-    ).firstOrNull { it.isNotBlank() }
+@Composable
+private fun MarqueeArtwork(marquee: String?, title: String?, modifier: Modifier = Modifier) {
+    Box(modifier.padding(32.dp), contentAlignment = Alignment.Center) {
+        if (marquee != null) {
+            // A local file when imported/cached, or a remote URL (small logo PNG) as a fallback.
+            val data: Any = if (marquee.startsWith("http")) marquee else File(marquee)
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(data)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else if (!title.isNullOrBlank()) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineLarge.copy(
+                    shadow = Shadow(Color.Black.copy(alpha = 0.6f), Offset(0f, 3f), 12f)
+                ),
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+/**
+ * The game's marquee (a.k.a. wheel logo): the local file if it's on disk, otherwise the remote URL
+ * as a fallback. ES-DE's `downloaded_media/marquees` and ScreenScraper's `wheel` both feed
+ * [GameMedia.wheelLogoLocalPath]/[GameMedia.wheelLogoRemoteUrl].
+ */
+private fun marqueeImage(media: GameMedia?): String? {
+    val m = media ?: return null
+    val local = m.wheelLogoLocalPath
+        ?.takeIf { it.isNotBlank() && File(it).let { f -> f.exists() && f.length() > 0 } }
+    return local ?: m.wheelLogoRemoteUrl?.takeIf { it.isNotBlank() }
 }
 
 @Composable

@@ -105,7 +105,11 @@ class ImportEsdeMediaUseCase @Inject constructor(
                 video      = video      ?: index[Triple(dir, "videos",       nameKey)]
                 background = background ?: index[Triple(dir, "fanart",       nameKey)]
                                         ?: index[Triple(dir, "backgrounds",  nameKey)]
-                wheelLogo  = wheelLogo  ?: index[Triple(dir, "marquee",      nameKey)]
+                // ES-DE stores the wheel/logo art in `marquees` (plural). Older ES-DE builds and
+                // other frontends use `marquee`/`wheel`/`logos`, so try those too.
+                wheelLogo  = wheelLogo  ?: index[Triple(dir, "marquees",     nameKey)]
+                                        ?: index[Triple(dir, "marquee",      nameKey)]
+                                        ?: index[Triple(dir, "wheel",        nameKey)]
                                         ?: index[Triple(dir, "logos",        nameKey)]
                 if (boxArt != null && screenshot != null && video != null &&
                     background != null && wheelLogo != null) break
