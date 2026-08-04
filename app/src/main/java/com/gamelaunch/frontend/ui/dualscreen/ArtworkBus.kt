@@ -24,6 +24,8 @@ data class ArtworkUiState(
     val shouldPlayVideo: Boolean = false,
     val videoMuted: Boolean = true,
     val systemPreviewArt: List<String> = emptyList(),
+    /** The focused system id in SYSTEM_GRID mode, so the preview fan uses the right box aspect. */
+    val focusedPlatformId: String? = null,
     val title: String? = null
 )
 

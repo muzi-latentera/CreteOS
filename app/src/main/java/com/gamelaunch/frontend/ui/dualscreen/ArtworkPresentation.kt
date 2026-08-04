@@ -8,7 +8,6 @@ import android.view.Display
 import android.view.View
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -29,6 +28,8 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.gamelaunch.frontend.ui.component.AsyncGameArtwork
 import com.gamelaunch.frontend.ui.component.VideoPlayer
+import com.gamelaunch.frontend.ui.screen.home.SystemPreviewFan
+import com.gamelaunch.frontend.ui.theme.AmbientBackground
 import com.gamelaunch.frontend.ui.theme.AppTheme
 
 /**
@@ -83,12 +84,9 @@ class ArtworkPresentation(
 private fun ArtworkScreen(artworkBus: ArtworkBus) {
     val state by artworkBus.state.collectAsState()
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color.Black),
-        contentAlignment = Alignment.Center
-    ) {
+    // Continue the app's ambient gradient onto this screen so both panels read as one surface,
+    // instead of a flat black fill.
+    AmbientBackground(Modifier.fillMaxSize()) {
         when (state.mode) {
             ArtworkMode.GAME -> {
                 val media = state.media
@@ -115,24 +113,19 @@ private fun ArtworkScreen(artworkBus: ArtworkBus) {
                 }
             }
 
-            ArtworkMode.SYSTEM_GRID -> {
-                val art = state.systemPreviewArt.firstOrNull()
-                if (art != null) {
-                    AsyncGameArtwork(
-                        localPath = art,
-                        remoteUrl = art,
-                        contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(24.dp)
-                    )
-                } else {
-                    BrandPlaceholder()
-                }
-            }
+            // The fanned box-art preview for the focused system — the same one the single-screen
+            // menu shows, now given the whole top panel.
+            ArtworkMode.SYSTEM_GRID -> SystemPreviewFan(
+                previewArt = state.systemPreviewArt,
+                focusedPlatformId = state.focusedPlatformId,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp)
+            )
 
-            ArtworkMode.IDLE -> BrandPlaceholder()
+            ArtworkMode.IDLE -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                BrandPlaceholder()
+            }
         }
     }
 }

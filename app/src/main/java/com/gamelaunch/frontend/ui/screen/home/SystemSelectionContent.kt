@@ -119,91 +119,33 @@ private fun SystemCarousel(
         val maxH = maxHeight
         val isWide = maxW > maxH
 
-        // Carousel cards: a fraction of the shorter dimension, clamped to sane bounds.
-        val cardSize = (minOf(maxW, maxH) * 0.34f).coerceIn(108.dp, 150.dp)
-        // Preview covers: fill most of the band above the carousel, leaving room for the cards.
-        val previewBandH = maxH - cardSize - 44.dp
-        val coverHeight = (previewBandH * 0.94f).coerceIn(120.dp, 280.dp)
-        // Fan spread scales a little with horizontal room — wide enough that the larger covers
-        // still reveal plenty of each, without spreading across the whole screen.
-        val spreadDp = (maxW.value * 0.115f).coerceIn(46f, 92f)
+        // Carousel cards: normally a fraction of the shorter dimension. On dual-screen the fan lives
+        // on the top panel, so the carousel is the whole bottom panel — grow the cards to fill it.
+        val cardSize =
+            if (showPreviewArt) (minOf(maxW, maxH) * 0.34f).coerceIn(108.dp, 150.dp)
+            else (minOf(maxW, maxH) * 0.62f).coerceIn(150.dp, 320.dp)
 
         Column(Modifier.fillMaxSize()) {
 
-            // ── Preview (top): covers rise from the bottom and fan out, centre largest ──
-            // On dual-screen devices this band is empty (the focused system's art is on the top panel).
-            if (!showPreviewArt) {
-                Spacer(Modifier.weight(1f))
-            } else
-            Box(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                val covers = previewArt.take(5)
-                val n = covers.size
-                // Shape the fan cards like the focused system's real box art (GameCube tall,
-                // Game Boy near-square, SNES/N64 landscape, …) so covers aren't cropped.
-                val coverAspect = boxArtAspectRatio(focused ?: "")
-                // Landscape boxes would otherwise grow very wide at full band height; cap the
-                // card width to a fraction of the screen and shrink the height to match.
-                val maxCoverW = maxW * 0.40f
-                val coverH =
-                    if (coverHeight * coverAspect > maxCoverW) maxCoverW / coverAspect
-                    else coverHeight
-                // one progress per cover-set; cards rise + fan as it goes 0 -> 1
-                val progress = remember { Animatable(1f) }
-                LaunchedEffect(previewArt) {
-                    progress.snapTo(0f)
-                    progress.animateTo(1f, tween(durationMillis = 640, easing = FastOutSlowInEasing))
-                }
-                // small hand-placed jitter so the fan doesn't look mechanical
-                val jitter = listOf(-2.2f, 1.6f, -0.7f, 1.9f, -1.4f)
-                covers.forEachIndexed { i, art ->
-                    val rel = i - (n - 1) / 2f
-                    val absRel = kotlin.math.abs(rel)
-                    // stagger: centre leads, outer cards follow as it fans out
-                    val stagger = 0.13f
-                    val maxDelay = ((n - 1) / 2f) * stagger
-                    val cp = ((progress.value - absRel * stagger) / (1f - maxDelay)).coerceIn(0f, 1f)
-                    val perspective = 1f - absRel * 0.08f   // centre card biggest -> depth
-                    Box(
-                        modifier = Modifier
-                            .zIndex(n - absRel)
-                            .graphicsLayer {
-                                transformOrigin = TransformOrigin(0.5f, 1.3f)
-                                // fan opens out (rotation + horizontal spread) as the card rises
-                                rotationZ = (rel * 7f + jitter[i % jitter.size]) * cp
-                                translationX = rel * spreadDp.dp.toPx() * cp
-                                // rise up from below to a slightly-lifted resting arc
-                                val restY = (absRel * 10f - 12f).dp.toPx()
-                                val startY = 130.dp.toPx()
-                                translationY = startY + (restY - startY) * cp
-                                scaleX = perspective
-                                scaleY = perspective
-                                alpha = (cp * 1.5f).coerceAtMost(1f)
-                            }
-                    ) {
-                        AsyncGameArtwork(
-                            localPath = art,
-                            remoteUrl = art,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .height(coverH)
-                                .aspectRatio(coverAspect)
-                                .shadow(14.dp, RoundedCornerShape(10.dp))
-                                .clip(RoundedCornerShape(10.dp))
-                        )
-                    }
-                }
+            // ── Preview (top): the fanned box art. On dual-screen it's rendered on the top panel
+            // (see ArtworkPresentation) instead of here. ──
+            if (showPreviewArt) {
+                SystemPreviewFan(
+                    previewArt        = previewArt,
+                    focusedPlatformId = focused,
+                    modifier          = Modifier.weight(1f).fillMaxWidth()
+                )
             }
 
-            // ── System carousel (bottom) — smaller cards ──
+            // ── System carousel ── small band at the bottom normally; the whole (centred) panel on
+            // dual-screen so it fills the space the fan used to take.
             LazyRow(
                 state = listState,
                 contentPadding = PaddingValues(horizontal = if (isWide) 40.dp else 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 22.dp)
+                modifier = if (showPreviewArt) Modifier.fillMaxWidth().padding(bottom = 22.dp)
+                           else Modifier.weight(1f).fillMaxWidth()
             ) {
                 itemsIndexed(platforms, key = { _, id -> id }) { index, platformId ->
                     SystemCard(
@@ -214,6 +156,81 @@ private fun SystemCarousel(
                         modifier = Modifier.width(cardSize).height(cardSize),
                         iconSize = 38,
                         onClick = { onSystemClick(platformId) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The signature fanned box-art preview for the focused system — covers rise from the bottom and fan
+ * out, centre largest. Fills whatever box it's given: the preview band on single-screen, or the
+ * whole top panel on dual-screen devices (via ArtworkPresentation).
+ */
+@Composable
+fun SystemPreviewFan(
+    previewArt: List<String>,
+    focusedPlatformId: String?,
+    modifier: Modifier = Modifier
+) {
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val maxW = maxWidth
+        val maxH = maxHeight
+        val covers = previewArt.take(5)
+        val n = covers.size
+        if (n > 0) {
+            // Shape the fan cards like the focused system's real box art so covers aren't cropped.
+            val coverAspect = boxArtAspectRatio(focusedPlatformId ?: "")
+            // Fill most of the height; cap width for landscape boxes and shrink height to match.
+            val coverHeight = (maxH * 0.72f).coerceIn(120.dp, 320.dp)
+            val maxCoverW = maxW * 0.42f
+            val coverH =
+                if (coverHeight * coverAspect > maxCoverW) maxCoverW / coverAspect else coverHeight
+            // Fan spread scales with horizontal room.
+            val spreadDp = (maxW.value * 0.13f).coerceIn(46f, 120f)
+            // one progress per cover-set; cards rise + fan as it goes 0 -> 1
+            val progress = remember { Animatable(1f) }
+            LaunchedEffect(previewArt) {
+                progress.snapTo(0f)
+                progress.animateTo(1f, tween(durationMillis = 640, easing = FastOutSlowInEasing))
+            }
+            // small hand-placed jitter so the fan doesn't look mechanical
+            val jitter = listOf(-2.2f, 1.6f, -0.7f, 1.9f, -1.4f)
+            covers.forEachIndexed { i, art ->
+                val rel = i - (n - 1) / 2f
+                val absRel = kotlin.math.abs(rel)
+                // stagger: centre leads, outer cards follow as it fans out
+                val stagger = 0.13f
+                val maxDelay = ((n - 1) / 2f) * stagger
+                val cp = ((progress.value - absRel * stagger) / (1f - maxDelay)).coerceIn(0f, 1f)
+                val perspective = 1f - absRel * 0.08f   // centre card biggest -> depth
+                Box(
+                    modifier = Modifier
+                        .zIndex(n - absRel)
+                        .graphicsLayer {
+                            transformOrigin = TransformOrigin(0.5f, 1.3f)
+                            // fan opens out (rotation + horizontal spread) as the card rises
+                            rotationZ = (rel * 7f + jitter[i % jitter.size]) * cp
+                            translationX = rel * spreadDp.dp.toPx() * cp
+                            // rise up from below to a slightly-lifted resting arc
+                            val restY = (absRel * 10f - 12f).dp.toPx()
+                            val startY = 130.dp.toPx()
+                            translationY = startY + (restY - startY) * cp
+                            scaleX = perspective
+                            scaleY = perspective
+                            alpha = (cp * 1.5f).coerceAtMost(1f)
+                        }
+                ) {
+                    AsyncGameArtwork(
+                        localPath = art,
+                        remoteUrl = art,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .height(coverH)
+                            .aspectRatio(coverAspect)
+                            .shadow(14.dp, RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(10.dp))
                     )
                 }
             }

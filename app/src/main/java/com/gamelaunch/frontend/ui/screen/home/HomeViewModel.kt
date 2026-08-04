@@ -42,6 +42,7 @@ data class HomeUiState(
     val platforms: List<String> = emptyList(),
     val platformCounts: Map<String, Int> = emptyMap(),
     val systemPreviewArt: List<String> = emptyList(),  // box art for the focused system card
+    val previewPlatformId: String? = null,             // which system the preview art belongs to
     val selectedPlatform: String? = null,
     val showRecentlyPlayed: Boolean = true,
     val showRetroAchievements: Boolean = true,
@@ -105,6 +106,7 @@ class HomeViewModel @Inject constructor(
                         shouldPlayVideo = state.shouldPlayVideo,
                         videoMuted = state.videoMuted,
                         systemPreviewArt = state.systemPreviewArt,
+                        focusedPlatformId = state.previewPlatformId,
                         title = selectedGame?.title
                     )
                 )
@@ -191,14 +193,14 @@ class HomeViewModel @Inject constructor(
     fun focusSystem(platformId: String) {
         val cached = previewArtCache[platformId]
         if (cached != null) {
-            _uiState.update { it.copy(systemPreviewArt = cached) }
+            _uiState.update { it.copy(systemPreviewArt = cached, previewPlatformId = platformId) }
             prefetchNeighbours(platformId)
             return
         }
         previewJob?.cancel()
         previewJob = viewModelScope.launch {
             val art = artForSystem(platformId)
-            _uiState.update { it.copy(systemPreviewArt = art) }
+            _uiState.update { it.copy(systemPreviewArt = art, previewPlatformId = platformId) }
             prefetchNeighbours(platformId)
         }
     }
