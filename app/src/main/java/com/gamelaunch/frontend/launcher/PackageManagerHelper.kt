@@ -36,7 +36,7 @@ class PackageManagerHelper @Inject constructor(
         "info.cemu.cemu"                     to "Cemu (Wii U)",                 // lowercase pkg name
         // NDS / 3DS
         "me.magnum.melonds"                  to "melonDS (NDS)",
-        "com.drastic.ds"                     to "DraStic (NDS)",
+        "com.dsemu.drastic"                  to "DraStic (NDS)",
         "org.azahar_emu.azahar"              to "Azahar (3DS)",
         "org.citra.emu"                      to "Citra (3DS)",                  // Retroid Pocket build
         "com.weihuoya.citra"                 to "Citra MMJ (3DS)",
@@ -87,7 +87,7 @@ class PackageManagerHelper @Inject constructor(
         "gb"        to listOf("com.explusalpha.GbcEmu", "com.retroarch.aarch64", "org.libretro.retroarch"),
         "gbc"       to listOf("com.explusalpha.GbcEmu", "com.retroarch.aarch64", "org.libretro.retroarch"),
         "gba"       to listOf("com.explusalpha.GbaEmu", "com.retroarch.aarch64", "org.libretro.retroarch"),
-        "nds"       to listOf("com.drastic.ds", "me.magnum.melonds", "com.retroarch.aarch64", "org.libretro.retroarch"),
+        "nds"       to listOf("com.dsemu.drastic", "me.magnum.melonds", "com.retroarch.aarch64", "org.libretro.retroarch"),
         "3ds"       to listOf("org.azahar_emu.azahar", "org.citra.emu", "com.weihuoya.citra", "org.citra_emu.citra", "com.retroarch.aarch64", "org.libretro.retroarch"),
         "switch"    to listOf("dev.eden.eden_emulator", "dev.eden.emulator", "org.sudachi.sudachi_emu", "org.yuzu.yuzu_emu"),
         "ps1"       to listOf("com.github.stenzek.duckstation", "com.retroarch.aarch64", "org.libretro.retroarch"),

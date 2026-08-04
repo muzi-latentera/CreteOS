@@ -41,7 +41,7 @@
         <package android:name="org.dolphinemu.dolphinemu" />
         <package android:name="info.cemu.cemu" />
         <!-- NDS / 3DS -->
-        <package android:name="com.drastic.ds" />
+        <package android:name="com.dsemu.drastic" />
         <package android:name="me.magnum.melonds" />
         <package android:name="org.azahar_emu.azahar" />
         <package android:name="org.citra.emu" />
