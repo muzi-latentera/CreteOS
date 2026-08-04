@@ -1,5 +1,6 @@
 package com.gamelaunch.frontend.ui.dualscreen
 
+import androidx.compose.runtime.staticCompositionLocalOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,3 +26,9 @@ class GameSessionState @Inject constructor() {
     /** The game session ended (user returned to eOr) — restore the artwork screen. */
     fun end() { _launchedOnTop.value = false }
 }
+
+/**
+ * True while a game is running on the top panel. Read by the bottom-screen UI (e.g. the game-detail
+ * preview video) to pause playback while the game is up. Provided at the root by [MainActivity].
+ */
+val LocalGameSessionActive = staticCompositionLocalOf { false }

@@ -68,6 +68,7 @@ import com.gamelaunch.frontend.ui.component.AsyncGameArtwork
 import com.gamelaunch.frontend.ui.component.boxArtAspectRatio
 import com.gamelaunch.frontend.ui.component.platformDisplayName
 import com.gamelaunch.frontend.ui.component.VideoPlayer
+import com.gamelaunch.frontend.ui.dualscreen.LocalGameSessionActive
 import com.gamelaunch.frontend.ui.theme.AmbientBackground
 import com.gamelaunch.frontend.ui.theme.ElectricBlue
 import com.gamelaunch.frontend.ui.theme.NeonPurple
@@ -253,7 +254,8 @@ fun GameDetailScreen(
                         if (media?.effectiveVideo != null) {
                             VideoPlayer(
                                 videoPath  = media.effectiveVideo,
-                                shouldPlay = state.shouldPlayVideo,
+                                // Pause while a game is running on the top panel (DS mode).
+                                shouldPlay = state.shouldPlayVideo && !LocalGameSessionActive.current,
                                 isMuted    = state.videoMuted,
                                 modifier   = Modifier.fillMaxSize()
                             )

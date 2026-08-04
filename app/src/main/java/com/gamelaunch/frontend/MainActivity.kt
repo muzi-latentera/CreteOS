@@ -58,6 +58,7 @@ import com.gamelaunch.frontend.platform.display.DualScreenManager
 import com.gamelaunch.frontend.ui.dualscreen.ArtworkBus
 import com.gamelaunch.frontend.ui.dualscreen.GameSessionState
 import com.gamelaunch.frontend.ui.dualscreen.LocalDualScreenActive
+import com.gamelaunch.frontend.ui.dualscreen.LocalGameSessionActive
 import com.gamelaunch.frontend.ui.perf.LocalReduceMotion
 import com.gamelaunch.frontend.ui.perf.PerformanceState
 import com.gamelaunch.frontend.ui.navigation.AppNavGraph
@@ -187,11 +188,13 @@ class MainActivity : ComponentActivity() {
 
             val dualScreenActive by dualScreenManager.active.collectAsState()
             val reduceMotion by performanceState.reduced.collectAsState()
+            val gameSessionActive by gameSessionState.launchedOnTop.collectAsState()
 
             AppTheme(darkMode = darkMode, branding = branding) {
               CompositionLocalProvider(
                   LocalDualScreenActive provides dualScreenActive,
-                  LocalReduceMotion provides reduceMotion
+                  LocalReduceMotion provides reduceMotion,
+                  LocalGameSessionActive provides gameSessionActive
               ) {
                 Box(Modifier.fillMaxSize()) {
                 val navController = rememberNavController()
