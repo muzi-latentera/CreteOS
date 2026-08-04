@@ -168,7 +168,7 @@ System console icons are from **[retro-game-console-icons](https://github.com/Ky
 
 Thanks to everyone who has helped improve eOr:
 
-- **[@aarvsn](https://github.com/aarvsn)** — database cleanup, emulator-mapping, and scanner fixes ([#41](https://github.com/keweis2/eOr/pull/41))
+- **[@aarvsn](https://github.com/aarvsn)** — database cleanup, emulator-mapping, and scanner fixes ([#41](https://github.com/keweis2/eOr/pull/41)); **Xbox 360 (Xenia) integration** ([#56](https://github.com/keweis2/eOr/pull/56))
 
 ---
 
