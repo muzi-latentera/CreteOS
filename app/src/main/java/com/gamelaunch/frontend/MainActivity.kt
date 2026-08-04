@@ -102,8 +102,6 @@ class MainActivity : ComponentActivity() {
 
     // Drives the second (artwork) screen on dual-screen handhelds; a no-op on single-screen devices.
     private lateinit var dualScreenManager: DualScreenManager
-    // Latest dark-mode choice, read by the artwork Presentation when it's (re)shown.
-    @Volatile private var currentDarkMode = false
 
     // Set when a newer GitHub release is found; drives the in-app update banner.
     private val updateState = mutableStateOf<AppUpdate?>(null)
@@ -130,7 +128,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        dualScreenManager = DualScreenManager(this, artworkBus) { currentDarkMode }
+        dualScreenManager = DualScreenManager(this, artworkBus)
 
         // On top-primary dual-screen devices (e.g. AYN Thor) the interactive menu belongs on the
         // *secondary* display, so relaunch there once before any UI setup. This is a no-op on the
@@ -322,7 +320,7 @@ class MainActivity : ComponentActivity() {
                 .collect { (enabled, swap) -> dualScreenManager.setPreferences(enabled, swap) }
         }
         lifecycleScope.launch {
-            settingsRepository.darkMode.collect { currentDarkMode = it }
+            settingsRepository.darkMode.collect { artworkBus.setDarkMode(it) }
         }
         // "Run lighter" signal: the lite build (LOW_POWER) is always reduced; the full build reduces
         // when the user enables Performance mode or when a second screen is present.

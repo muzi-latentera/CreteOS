@@ -1386,7 +1386,7 @@ private fun ScreenScraperBody(
     onScrapeAllClick: () -> Unit
 ) {
         Text(
-            "ScreenScraper is the default scraper — it provides the best box art, screenshots, wheel logos, and video previews. " +
+            "ScreenScraper is the default scraper — it provides the best box art, screenshots, marquees (wheel logos), and video previews. " +
             "Create a free account at screenscraper.fr, then enter your username and password below. " +
             "Without credentials the app falls back to libretro thumbnails and LaunchBox.",
             style = MaterialTheme.typography.bodySmall,
@@ -1455,7 +1455,7 @@ private fun ScreenScraperBody(
         CardSwitchRow("Metadata",       state.scrapeMetadata,      viewModel::setScrapeMetadata)
         CardSwitchRow("Box Art",        state.scrapeBoxArt,        viewModel::setScrapeBoxArt)
         CardSwitchRow("Screenshots",    state.scrapeScreenshots,   viewModel::setScrapeScreenshots)
-        CardSwitchRow("Wheel Logos",    state.scrapeWheelLogos,    viewModel::setScrapeWheelLogos)
+        CardSwitchRow("Marquees (Wheel Logos)", state.scrapeWheelLogos, viewModel::setScrapeWheelLogos)
         CardSwitchRow("Video Previews", state.scrapeVideos,        viewModel::setScrapeVideos)
 
         Spacer(Modifier.height(12.dp))
