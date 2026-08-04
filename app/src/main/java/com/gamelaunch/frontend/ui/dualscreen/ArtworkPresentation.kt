@@ -28,7 +28,6 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.gamelaunch.frontend.domain.model.GameMedia
 import com.gamelaunch.frontend.ui.component.AsyncGameArtwork
-import com.gamelaunch.frontend.ui.component.VideoPlayer
 import com.gamelaunch.frontend.ui.screen.home.SystemPreviewFan
 import com.gamelaunch.frontend.ui.theme.AmbientBackground
 import com.gamelaunch.frontend.ui.theme.AppTheme
@@ -89,28 +88,18 @@ private fun ArtworkScreen(artworkBus: ArtworkBus) {
     // instead of a flat black fill.
     AmbientBackground(Modifier.fillMaxSize()) {
         when (state.mode) {
+            // Game select + game detail: the top screen shows a still image only — never the
+            // preview video — so it stays a calm screenshot. (Video previews still play on the
+            // single-screen carousel background.)
             ArtworkMode.GAME -> {
-                val media = state.media
-                if (state.shouldPlayVideo && media?.effectiveVideo != null) {
-                    VideoPlayer(
-                        videoPath = media.effectiveVideo,
-                        shouldPlay = true,
-                        isMuted = state.videoMuted,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    // Prefer the gameplay screenshot by *category* (screenshot → background → box
-                    // art), even when it's only a remote URL and the box art happens to be cached
-                    // locally — otherwise a local cover would preempt a remote gameplay shot.
-                    val img = gameplayImage(media)
-                    AsyncGameArtwork(
-                        localPath = img?.takeUnless { it.startsWith("http") },
-                        remoteUrl = img?.takeIf { it.startsWith("http") },
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
+                val img = gameplayImage(state.media)
+                AsyncGameArtwork(
+                    localPath = img?.takeUnless { it.startsWith("http") },
+                    remoteUrl = img?.takeIf { it.startsWith("http") },
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
 
             // The fanned box-art preview for the focused system — the same one the single-screen
