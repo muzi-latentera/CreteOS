@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.gamelaunch.frontend.domain.model.GameMedia
 import com.gamelaunch.frontend.ui.component.AsyncGameArtwork
 import com.gamelaunch.frontend.ui.component.VideoPlayer
 import com.gamelaunch.frontend.ui.screen.home.SystemPreviewFan
@@ -98,14 +99,13 @@ private fun ArtworkScreen(artworkBus: ArtworkBus) {
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {
+                    // Prefer the gameplay screenshot by *category* (screenshot → background → box
+                    // art), even when it's only a remote URL and the box art happens to be cached
+                    // locally — otherwise a local cover would preempt a remote gameplay shot.
+                    val img = gameplayImage(media)
                     AsyncGameArtwork(
-                        // Same priority order the single-screen background uses.
-                        localPath = media?.screenshotLocalPath
-                            ?: media?.backgroundLocalPath
-                            ?: media?.boxArtLocalPath,
-                        remoteUrl = media?.screenshotRemoteUrl
-                            ?: media?.effectiveBackground
-                            ?: media?.boxArtRemoteUrl,
+                        localPath = img?.takeUnless { it.startsWith("http") },
+                        remoteUrl = img?.takeIf { it.startsWith("http") },
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
@@ -128,6 +128,19 @@ private fun ArtworkScreen(artworkBus: ArtworkBus) {
             }
         }
     }
+}
+
+/**
+ * The best **locally stored** image for the top screen, by category priority: an in-game screenshot
+ * first, then a fanart background, then the box-art cover. Only local files are used — never a remote
+ * URL — so the top screen never streams over the network (important on low-power/dual-screen).
+ */
+private fun gameplayImage(media: GameMedia?): String? = media?.let { m ->
+    listOfNotNull(
+        m.screenshotLocalPath,
+        m.backgroundLocalPath,
+        m.boxArtLocalPath
+    ).firstOrNull { it.isNotBlank() }
 }
 
 @Composable
