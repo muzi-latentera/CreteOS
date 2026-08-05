@@ -585,6 +585,7 @@ fun HomeScreen(
                                     onGameSelected    = viewModel::onGameSelected,
                                     onGameClick       = onGameClick,
                                     onMuteToggle      = viewModel::toggleMute,
+                                    gameSort          = state.gameSort,
                                     modifier          = Modifier.fillMaxSize(),
                                     showBackgroundArtwork = !dualScreen
                                 )
@@ -627,10 +628,10 @@ fun HomeScreen(
                                     columns            = recentGridColumns,
                                     mediaForGames      = state.mediaForGames,
                                     focusedGameIndex   = recentFocusIndex,
-                                    // The Recent tab is already in most-recently-played order, so the
-                                    // popup shows recency buckets (Today / This Week…).
                                     gameSort           = GameSort.RECENTLY_PLAYED,
                                     uniformAspectRatio = 0.72f,
+                                    // Home list, not a per-system library — no fast-scroll popup/blur.
+                                    sectionPopupEnabled = false,
                                     modifier         = Modifier.fillMaxSize()
                                 )
                             }
@@ -650,10 +651,10 @@ fun HomeScreen(
                                     columns            = recentGridColumns,
                                     mediaForGames      = state.mediaForGames,
                                     focusedGameIndex   = favFocusIndex,
-                                    // Favorites mix systems, so keep a uniform portrait tile and a
-                                    // star section token while fast-scrolling.
                                     gameSort           = GameSort.FAVORITES,
                                     uniformAspectRatio = 0.72f,
+                                    // Home list, not a per-system library — no fast-scroll popup/blur.
+                                    sectionPopupEnabled = false,
                                     modifier           = Modifier.fillMaxSize()
                                 )
                             }
