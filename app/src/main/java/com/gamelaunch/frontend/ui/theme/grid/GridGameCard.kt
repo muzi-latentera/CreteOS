@@ -53,7 +53,10 @@ fun GridGameCard(
     // Container shape. Defaults to the system's real box proportions; callers showing a mixed-system
     // list (e.g. Recently played) pass a fixed value to keep every tile the same rectangle.
     aspectRatio: Float = boxArtAspectRatio(game.platformId),
-    onClick: () -> Unit
+    // Stable click callback taking the game id. Kept as a (Long) -> Unit — rather than a pre-built
+    // () -> Unit — so the parent doesn't allocate a fresh lambda per item per recomposition, which
+    // would make this card un-skippable and recompose every visible tile on any media-map change.
+    onGameClick: (Long) -> Unit
 ) {
     val shape = RoundedCornerShape(12.dp)
 
@@ -108,7 +111,7 @@ fun GridGameCard(
             .fillMaxWidth()
             .aspectRatio(aspectRatio)
             .then(if (isFocused) Modifier.border(2.dp, ElectricBlue, shape) else Modifier)
-            .clickable(onClick = onClick)
+            .clickable { onGameClick(game.id) }
     ) {
         AsyncGameArtwork(
             localPath          = media?.boxArtLocalPath,

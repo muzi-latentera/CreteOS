@@ -21,6 +21,7 @@ import com.gamelaunch.frontend.ui.perf.PerformanceState
 import com.gamelaunch.frontend.ui.theme.LayoutMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +29,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -319,6 +321,10 @@ class HomeViewModel @Inject constructor(
                 gameRepository.getGamesByPlatform(platformId),
                 settingsRepository.gameSort
             ) { games, sort -> games.sortedBy(sort) }
+                // Sort a large library off the main thread. Room re-emits this flow on every games
+                // table change (favourite toggle, play-count/last-played bump), and sorting on Main
+                // was dropping frames on the lite build's RK3568.
+                .flowOn(Dispatchers.Default)
                 .collect { games ->
                     _uiState.update { state ->
                         // Preserve the current selection across re-emissions. Room re-queries this

@@ -173,7 +173,9 @@ fun GridHomeContent(
                     isFocused      = index == focusedGameIndex,
                     animateOnEntry = entranceWindowOpen,
                     aspectRatio    = uniformAspectRatio ?: boxArtAspectRatio(game.platformId),
-                    onClick        = { onGameClick(game.id) }
+                    // Pass the stable callback straight through — the card builds its own click
+                    // lambda internally, so no per-item allocation happens here.
+                    onGameClick    = onGameClick
                 )
             }
         }
