@@ -4,6 +4,7 @@ import com.gamelaunch.frontend.data.preferences.AppDataStore
 import com.gamelaunch.frontend.domain.model.GameSort
 import com.gamelaunch.frontend.domain.model.ScraperConfig
 import com.gamelaunch.frontend.domain.repository.SettingsRepository
+import com.gamelaunch.frontend.ui.dualscreen.TopScreenImage
 import com.gamelaunch.frontend.ui.theme.LayoutMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -51,7 +52,9 @@ class SettingsRepositoryImpl @Inject constructor(
     override val videoMuted: Flow<Boolean> = dataStore.videoMuted
     override val isFirstLaunch: Flow<Boolean> = dataStore.isFirstLaunch
     override val showRecentlyPlayed: Flow<Boolean> = dataStore.showRecentlyPlayed
+    override val showFavorites: Flow<Boolean> = dataStore.showFavorites
     override val showRetroAchievements: Flow<Boolean> = dataStore.showRetroAchievements
+    override val topScreenImage: Flow<TopScreenImage> = dataStore.topScreenImage.map { TopScreenImage.fromName(it) }
     override val darkMode: Flow<Boolean> = dataStore.darkMode
     override val dualScreenEnabled: Flow<Boolean> = dataStore.dualScreenEnabled
     override val dualScreenSwap: Flow<Boolean> = dataStore.dualScreenSwap
@@ -109,7 +112,9 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setVideoMuted(muted: Boolean) { dataStore.setVideoMuted(muted) }
     override suspend fun setFirstLaunchComplete() { dataStore.setFirstLaunchComplete() }
     override suspend fun setShowRecentlyPlayed(enabled: Boolean) { dataStore.setShowRecentlyPlayed(enabled) }
+    override suspend fun setShowFavorites(enabled: Boolean) { dataStore.setShowFavorites(enabled) }
     override suspend fun setShowRetroAchievements(enabled: Boolean) { dataStore.setShowRetroAchievements(enabled) }
+    override suspend fun setTopScreenImage(mode: TopScreenImage) { dataStore.setTopScreenImage(mode.name) }
     override suspend fun setDarkMode(enabled: Boolean) { dataStore.setDarkMode(enabled) }
     override suspend fun setDualScreenEnabled(enabled: Boolean) { dataStore.setDualScreenEnabled(enabled) }
     override suspend fun setDualScreenSwap(swap: Boolean) { dataStore.setDualScreenSwap(swap) }

@@ -484,6 +484,11 @@ private fun DisplaySection(state: SettingsUiState, viewModel: SettingsViewModel)
     SettingsSectionHeader("Display")
     SettingsCard {
         CardSwitchRow(
+            label           = "Favorites tab",
+            checked         = state.showFavorites,
+            onCheckedChange = viewModel::setShowFavorites
+        )
+        CardSwitchRow(
             label           = "Recently Played tab",
             checked         = state.showRecentlyPlayed,
             onCheckedChange = viewModel::setShowRecentlyPlayed
@@ -514,6 +519,12 @@ private fun DisplaySection(state: SettingsUiState, viewModel: SettingsViewModel)
                 label    = "Grid",
                 selected = state.layoutMode == LayoutMode.GRID,
                 onClick  = { viewModel.setLayoutMode(LayoutMode.GRID) },
+                modifier = Modifier.weight(1f)
+            )
+            BackgroundModeChip(
+                label    = "List",
+                selected = state.layoutMode == LayoutMode.LIST,
+                onClick  = { viewModel.setLayoutMode(LayoutMode.LIST) },
                 modifier = Modifier.weight(1f)
             )
         }
@@ -593,6 +604,32 @@ private fun DualScreenSection(state: SettingsUiState, viewModel: SettingsViewMod
                 "Single-screen games (PlayStation, Game Boy, etc.) open on the top panel. DS/3DS games always use both screens.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Top screen image",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                com.gamelaunch.frontend.ui.dualscreen.TopScreenImage.entries.forEach { opt ->
+                    BackgroundModeChip(
+                        label    = opt.label,
+                        selected = state.topScreenImage == opt,
+                        onClick  = { viewModel.setTopScreenImage(opt) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            Text(
+                "What the top panel shows while browsing a game — its logo, an in-game screenshot, or a composited mix.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp)
             )
         }
     }

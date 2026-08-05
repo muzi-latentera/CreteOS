@@ -45,6 +45,11 @@ class ImportEsdeMediaUseCase @Inject constructor(
         "atari2600" to listOf("atari2600"),
         "mame"      to listOf("mame", "arcade"),
         "xbox360"   to listOf("xbox360", "xbox 360"),
+        "cps1"      to listOf("cps1", "arcade"),
+        "cps2"      to listOf("cps2", "arcade"),
+        "cps3"      to listOf("cps3", "arcade"),
+        "c64"       to listOf("c64"),
+        "pico8"     to listOf("pico8"),
     )
 
     operator fun invoke(mediaFolderPath: String): Flow<EsdeImportStatus> = flow {
@@ -96,6 +101,7 @@ class ImportEsdeMediaUseCase @Inject constructor(
             var video:      String? = null
             var background: String? = null
             var wheelLogo:  String? = null
+            var miximage:   String? = null
 
             for (dir in dirs) {
                 boxArt     = boxArt     ?: index[Triple(dir, "box2dfront",   nameKey)]
@@ -111,12 +117,15 @@ class ImportEsdeMediaUseCase @Inject constructor(
                                         ?: index[Triple(dir, "marquee",      nameKey)]
                                         ?: index[Triple(dir, "wheel",        nameKey)]
                                         ?: index[Triple(dir, "logos",        nameKey)]
+                // ES-DE composites live in `miximages`.
+                miximage   = miximage   ?: index[Triple(dir, "miximages",    nameKey)]
+                                        ?: index[Triple(dir, "miximage",      nameKey)]
                 if (boxArt != null && screenshot != null && video != null &&
-                    background != null && wheelLogo != null) break
+                    background != null && wheelLogo != null && miximage != null) break
             }
 
             if (boxArt != null || screenshot != null || video != null ||
-                background != null || wheelLogo != null) {
+                background != null || wheelLogo != null || miximage != null) {
                 val existing = gameMediaDao.getMediaForGame(game.id)
                 val updated  = (existing ?: GameMediaEntity(gameId = game.id)).copy(
                     boxArtLocalPath     = boxArt     ?: existing?.boxArtLocalPath,
@@ -124,6 +133,7 @@ class ImportEsdeMediaUseCase @Inject constructor(
                     videoLocalPath      = video      ?: existing?.videoLocalPath,
                     backgroundLocalPath = background ?: existing?.backgroundLocalPath,
                     wheelLogoLocalPath  = wheelLogo  ?: existing?.wheelLogoLocalPath,
+                    miximageLocalPath   = miximage   ?: existing?.miximageLocalPath,
                 )
                 gameMediaDao.upsertMedia(updated)
                 matched++

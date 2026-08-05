@@ -19,9 +19,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
@@ -119,12 +122,13 @@ private fun ArtworkScreen(artworkBus: ArtworkBus) {
                     )
                 }
                 else -> when (state.mode) {
-                // Game select + game detail: show the game's marquee (wheel-logo) art centred over
-                // the gradient, so the top panel reads as branded title art rather than a raw
-                // screenshot. Falls back to the game title text when no marquee is available.
-                ArtworkMode.GAME -> MarqueeArtwork(
-                    marquee = marqueeImage(state.media),
+                // Game select + game detail: show the game's art on the top panel. Which art depends
+                // on the user's dual-screen "top image" choice — marquee (wheel-logo, the default),
+                // screenshot, or miximage — each falling back through the others, then to the title.
+                ArtworkMode.GAME -> GameTopArtwork(
+                    media = state.media,
                     title = state.title,
+                    type = state.topImageType,
                     darkMode = darkMode,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -145,6 +149,71 @@ private fun ArtworkScreen(artworkBus: ArtworkBus) {
                 }
             }
         }
+    }
+}
+
+private enum class TopArtKind { LOGO, PHOTO }
+private data class TopArt(val path: String, val kind: TopArtKind)
+
+/**
+ * Resolve which image the top panel should show for [type], falling back through the other media
+ * so a game missing (say) a miximage still shows something. LOGO art (the marquee) gets the centred
+ * glow treatment; PHOTO art (screenshot / miximage) is shown full-bleed.
+ */
+private fun resolveTopArt(media: GameMedia?, type: TopScreenImage): TopArt? {
+    val logo = marqueeImage(media)?.let { TopArt(it, TopArtKind.LOGO) }
+    val shot = media?.effectiveScreenshot?.takeIf { it.isNotBlank() }?.let { TopArt(it, TopArtKind.PHOTO) }
+    val mix  = media?.effectiveMiximage?.takeIf { it.isNotBlank() }?.let { TopArt(it, TopArtKind.PHOTO) }
+    return when (type) {
+        TopScreenImage.MARQUEE    -> logo ?: mix ?: shot
+        TopScreenImage.SCREENSHOT -> shot ?: mix ?: logo
+        TopScreenImage.MIXIMAGE   -> mix ?: shot ?: logo
+    }
+}
+
+/**
+ * The selected game's art for the top panel, per the chosen [type]. The last successfully-resolved
+ * image is held while the selection changes, so switching systems (which briefly clears the media)
+ * never flashes the panel back to a blank/title state — it only ever crossfades to the next real art.
+ */
+@Composable
+private fun GameTopArtwork(
+    media: GameMedia?,
+    title: String?,
+    type: TopScreenImage,
+    darkMode: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val resolved = remember(media, type) { resolveTopArt(media, type) }
+    var lastShown by remember { mutableStateOf<TopArt?>(null) }
+    LaunchedEffect(resolved) { if (resolved != null) lastShown = resolved }
+    val shown = resolved ?: lastShown
+
+    when {
+        shown == null ->
+            MarqueeArtwork(marquee = null, title = title, darkMode = darkMode, modifier = modifier)
+        shown.kind == TopArtKind.LOGO ->
+            MarqueeArtwork(marquee = shown.path, title = title, darkMode = darkMode, modifier = modifier)
+        else ->
+            PhotoArtwork(path = shown.path, modifier = modifier)
+    }
+}
+
+/** A screenshot or miximage shown fitted over the ambient gradient. */
+@Composable
+private fun PhotoArtwork(path: String, modifier: Modifier = Modifier) {
+    val data: Any = if (path.startsWith("http")) path else File(path)
+    val request = ImageRequest.Builder(LocalContext.current)
+        .data(data)
+        .crossfade(true)
+        .build()
+    Box(modifier.padding(16.dp), contentAlignment = Alignment.Center) {
+        AsyncImage(
+            model = request,
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 

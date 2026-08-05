@@ -26,7 +26,9 @@ data class ArtworkUiState(
     val systemPreviewArt: List<String> = emptyList(),
     /** The focused system id in SYSTEM_GRID mode, so the preview fan uses the right box aspect. */
     val focusedPlatformId: String? = null,
-    val title: String? = null
+    val title: String? = null,
+    /** Which media the top panel renders in GAME mode (marquee / screenshot / miximage). */
+    val topImageType: TopScreenImage = TopScreenImage.MARQUEE
 )
 
 /**

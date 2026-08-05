@@ -71,6 +71,8 @@ class MediaRepositoryImpl @Inject constructor(
             videoLocalPath      = media.videoLocalPath      ?: existing?.videoLocalPath,
             videoRemoteUrl      = media.videoRemoteUrl      ?: existing?.videoRemoteUrl,
             backgroundLocalPath = media.backgroundLocalPath ?: existing?.backgroundLocalPath,
+            miximageLocalPath   = media.miximageLocalPath   ?: existing?.miximageLocalPath,
+            miximageRemoteUrl   = media.miximageRemoteUrl   ?: existing?.miximageRemoteUrl,
             scraperTimestampMs  = media.scraperTimestampMs  ?: existing?.scraperTimestampMs,
         )
         gameMediaDao.upsertMedia(merged)
@@ -92,11 +94,16 @@ class MediaRepositoryImpl @Inject constructor(
     override suspend fun downloadAndCacheWheelLogo(gameId: Long, url: String): String? =
         downloadFile(url, File(mediaDir(), "wheels/${gameId}.png"))
 
+    override suspend fun downloadAndCacheMiximage(gameId: Long, url: String): String? =
+        downloadFile(url, File(mediaDir(), "miximages/${gameId}.png"))?.also { path ->
+            gameMediaDao.updateMiximageLocalPath(gameId, path)
+        }
+
     override suspend fun deleteMediaForGame(gameId: Long) {
         gameMediaDao.deleteMediaForGame(gameId)
         // Media may live in either the current folder or the internal default (if the user moved it).
         listOf(mediaDir(), defaultMediaDir).distinct().forEach { base ->
-            listOf("boxart", "videos", "screenshots", "wheels").forEach { dir ->
+            listOf("boxart", "videos", "screenshots", "wheels", "miximages").forEach { dir ->
                 File(base, dir).listFiles()
                     ?.filter { it.nameWithoutExtension == gameId.toString() }
                     ?.forEach { it.delete() }
@@ -133,6 +140,8 @@ private fun GameMediaEntity.toDomain() = GameMedia(
     videoLocalPath = videoLocalPath,
     videoRemoteUrl = videoRemoteUrl,
     backgroundLocalPath = backgroundLocalPath,
+    miximageLocalPath = miximageLocalPath,
+    miximageRemoteUrl = miximageRemoteUrl,
     scraperTimestampMs = scraperTimestampMs
 )
 
@@ -148,5 +157,7 @@ private fun GameMedia.toEntity() = GameMediaEntity(
     videoLocalPath = videoLocalPath,
     videoRemoteUrl = videoRemoteUrl,
     backgroundLocalPath = backgroundLocalPath,
+    miximageLocalPath = miximageLocalPath,
+    miximageRemoteUrl = miximageRemoteUrl,
     scraperTimestampMs = scraperTimestampMs
 )

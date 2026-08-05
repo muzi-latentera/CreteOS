@@ -43,11 +43,23 @@ object DatabaseModule {
         }
     }
 
+    /**
+     * v3 → v4 adds the two `miximage` columns to `game_media` (for the dual-screen top-panel
+     * "miximage" image option). Nullable TEXT with no default, matching Room's expected schema.
+     * Explicit (non-destructive) so users keep their scraped library and media.
+     */
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE game_media ADD COLUMN miximage_local TEXT")
+            db.execSQL("ALTER TABLE game_media ADD COLUMN miximage_remote TEXT")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, AppDatabase.DATABASE_NAME)
-            .addMigrations(MIGRATION_2_3)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
             .fallbackToDestructiveMigration()
             .build()
 
