@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gamelaunch.frontend.R
+import com.gamelaunch.frontend.domain.model.GameSort
 import com.gamelaunch.frontend.ui.component.boxArtAspectRatio
 import com.gamelaunch.frontend.ui.component.platformDisplayName
 import com.gamelaunch.frontend.ui.dualscreen.LocalDualScreenActive
@@ -549,6 +550,7 @@ fun HomeScreen(
                                     mediaForGames    = state.mediaForGames,
                                     focusedGameIndex = gridFocusIndex,
                                     onPageSizeChange = { gridPageSize = it },
+                                    gameSort         = state.gameSort,
                                     modifier         = Modifier.fillMaxSize()
                                 )
                             }
@@ -569,6 +571,9 @@ fun HomeScreen(
                                     columns            = recentGridColumns,
                                     mediaForGames      = state.mediaForGames,
                                     focusedGameIndex   = recentFocusIndex,
+                                    // The Recent tab is already in most-recently-played order, so the
+                                    // popup shows recency buckets (Today / This Week…).
+                                    gameSort           = GameSort.RECENTLY_PLAYED,
                                     uniformAspectRatio = 0.72f,
                                     modifier         = Modifier.fillMaxSize()
                                 )
