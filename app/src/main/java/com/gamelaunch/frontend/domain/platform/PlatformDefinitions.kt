@@ -160,6 +160,24 @@ object PlatformDefinitions {
             defaultCoreForRetroArch = "fbneo_libretro.so"
         ),
         Platform(
+            id = "cps1", displayName = "Capcom Play System 1", scraperSystemId = 6,
+            extensions = listOf(".zip", ".7z"),
+            folderNames = listOf("cps1", "CPS1", "Capcom Play System", "Capcom Play System 1"),
+            defaultCoreForRetroArch = "fbneo_libretro.so"
+        ),
+        Platform(
+            id = "cps2", displayName = "Capcom Play System 2", scraperSystemId = 7,
+            extensions = listOf(".zip", ".7z"),
+            folderNames = listOf("cps2", "CPS2", "Capcom Play System 2"),
+            defaultCoreForRetroArch = "fbneo_libretro.so"
+        ),
+        Platform(
+            id = "cps3", displayName = "Capcom Play System 3", scraperSystemId = 8,
+            extensions = listOf(".zip", ".7z"),
+            folderNames = listOf("cps3", "CPS3", "Capcom Play System 3"),
+            defaultCoreForRetroArch = "fbneo_libretro.so"
+        ),
+        Platform(
             id = "ngp", displayName = "Neo Geo Pocket", scraperSystemId = 25,
             extensions = listOf(".ngp", ".ngc"),
             folderNames = listOf("ngp", "NGP", "ngpc", "Neo Geo Pocket"),
@@ -200,6 +218,20 @@ object PlatformDefinitions {
             extensions = listOf(".iso", ".xex", ".stfs"),
             folderNames = listOf("xbox360", "Xbox 360", "x360", "360"),
             defaultEmulatorPackage = "com.xenia.android"
+        ),
+        Platform(
+            id = "c64", displayName = "Commodore 64", scraperSystemId = 66,
+            extensions = listOf(".d64", ".t64", ".crt", ".prg", ".g64", ".tap", ".nib", ".d81"),
+            folderNames = listOf("c64", "C64", "Commodore 64", "commodore64", "Commodore64"),
+            defaultCoreForRetroArch = "vice_x64_libretro.so"
+        ),
+        Platform(
+            id = "pico8", displayName = "PICO-8", scraperSystemId = 234,
+            // .p8 is the plain cart; .png covers the .p8.png cart image (only trusted inside a
+            // pico8 folder — see PlatformDetector's ambiguous-extension guard).
+            extensions = listOf(".p8", ".png"),
+            folderNames = listOf("pico8", "PICO-8", "pico-8", "PICO8", "Pico-8"),
+            defaultCoreForRetroArch = "fake08_libretro.so"
         ),
         Platform(
             id = "android", displayName = "Android Games", scraperSystemId = 0,

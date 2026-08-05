@@ -132,6 +132,12 @@ class ScrapeGameUseCase @Inject constructor(
                         gameInfo.getMediaUrl("video-normalized", config.preferredRegion)
                             ?: gameInfo.getMediaUrl("video", config.preferredRegion)
                         else null,
+                    // ScreenScraper's server-composited "mix" (box + screenshot + logo). Fetched
+                    // alongside screenshots so the dual-screen "miximage" top-panel option has art.
+                    miximageRemoteUrl  = if (config.scrapeScreenshots)
+                        gameInfo.getMediaUrl("mixrbv2", config.preferredRegion)
+                            ?: gameInfo.getMediaUrl("mixrbv1", config.preferredRegion)
+                        else null,
                     scraperTimestampMs = System.currentTimeMillis()
                 )
                 mediaRepository.upsertMedia(media)
@@ -139,6 +145,7 @@ class ScrapeGameUseCase @Inject constructor(
                 media.screenshotRemoteUrl?.let { mediaRepository.downloadAndCacheScreenshot(game.id, it) }
                 media.wheelLogoRemoteUrl?.let  { mediaRepository.downloadAndCacheWheelLogo(game.id, it) }
                 media.videoRemoteUrl?.let      { mediaRepository.downloadAndCacheVideo(game.id, it) }
+                media.miximageRemoteUrl?.let   { mediaRepository.downloadAndCacheMiximage(game.id, it) }
                 return ScrapeResult.Success(game.id, scrapedTitle)
             }
 

@@ -12,6 +12,8 @@ data class GameMedia(
     val videoLocalPath: String? = null,
     val videoRemoteUrl: String? = null,
     val backgroundLocalPath: String? = null,
+    val miximageLocalPath: String? = null,
+    val miximageRemoteUrl: String? = null,
     val scraperTimestampMs: Long? = null
 ) {
     val hasBoxArt: Boolean get() = boxArtLocalPath != null || boxArtRemoteUrl != null
@@ -19,4 +21,6 @@ data class GameMedia(
     val effectiveBoxArt: String? get() = boxArtLocalPath ?: boxArtRemoteUrl
     val effectiveVideo: String? get() = videoLocalPath ?: videoRemoteUrl
     val effectiveBackground: String? get() = backgroundLocalPath ?: screenshotRemoteUrl
+    val effectiveScreenshot: String? get() = screenshotLocalPath ?: screenshotRemoteUrl
+    val effectiveMiximage: String? get() = miximageLocalPath ?: miximageRemoteUrl
 }

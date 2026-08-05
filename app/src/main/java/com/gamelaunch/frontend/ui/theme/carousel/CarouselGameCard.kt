@@ -35,9 +35,16 @@ fun CarouselGameCard(
     )
     val shape = RoundedCornerShape(12.dp)
 
-    // Fixed width, height derived from the system's real box shape so covers aren't cropped.
-    val cardWidth = 118.dp
-    val cardHeight = cardWidth / boxArtAspectRatio(game.platformId)
+    // Height derives from the system's real box shape so covers aren't cropped. But tall covers
+    // (PSP UMD cases, Saturn, 3DO longboxes, Switch) would otherwise rise past the row and cover the
+    // game title above the carousel — so cap the height at a standard portrait box and let those
+    // narrow instead. Width then follows from the aspect so the art still isn't cropped.
+    val aspect = boxArtAspectRatio(game.platformId)
+    val baseWidth = 118.dp
+    val maxCardHeight = baseWidth / 0.72f          // standard portrait box height — the tallest we allow
+    val rawHeight = baseWidth / aspect
+    val cardHeight = if (rawHeight > maxCardHeight) maxCardHeight else rawHeight
+    val cardWidth  = if (rawHeight > maxCardHeight) maxCardHeight * aspect else baseWidth
 
     AsyncGameArtwork(
         localPath          = media?.boxArtLocalPath,

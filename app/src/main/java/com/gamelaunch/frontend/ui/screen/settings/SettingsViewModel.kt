@@ -60,7 +60,10 @@ data class SettingsUiState(
     val mediaStoragePath: String = "",
     val esdeImportStatus: EsdeImportStatus? = null,
     val showRecentlyPlayed: Boolean = true,
+    val showFavorites: Boolean = true,
     val showRetroAchievements: Boolean = true,
+    val topScreenImage: com.gamelaunch.frontend.ui.dualscreen.TopScreenImage =
+        com.gamelaunch.frontend.ui.dualscreen.TopScreenImage.MARQUEE,
     val friendsEnabled: Boolean = false,
     val darkMode: Boolean = false,
     val dualScreenEnabled: Boolean = true,
@@ -166,8 +169,18 @@ class SettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            settingsRepository.showFavorites.collect { show ->
+                _uiState.update { it.copy(showFavorites = show) }
+            }
+        }
+        viewModelScope.launch {
             settingsRepository.showRetroAchievements.collect { show ->
                 _uiState.update { it.copy(showRetroAchievements = show) }
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.topScreenImage.collect { mode ->
+                _uiState.update { it.copy(topScreenImage = mode) }
             }
         }
         viewModelScope.launch {
@@ -264,8 +277,16 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setShowRecentlyPlayed(enabled) }
     }
 
+    fun setShowFavorites(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setShowFavorites(enabled) }
+    }
+
     fun setShowRetroAchievements(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setShowRetroAchievements(enabled) }
+    }
+
+    fun setTopScreenImage(mode: com.gamelaunch.frontend.ui.dualscreen.TopScreenImage) {
+        viewModelScope.launch { settingsRepository.setTopScreenImage(mode) }
     }
 
     /** Master opt-in/out for the Friends feature; routes through the repo so the P2P engine and

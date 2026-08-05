@@ -13,5 +13,6 @@ interface MediaRepository {
     suspend fun downloadAndCacheVideo(gameId: Long, url: String): String?
     suspend fun downloadAndCacheScreenshot(gameId: Long, url: String): String?
     suspend fun downloadAndCacheWheelLogo(gameId: Long, url: String): String?
+    suspend fun downloadAndCacheMiximage(gameId: Long, url: String): String?
     suspend fun deleteMediaForGame(gameId: Long)
 }

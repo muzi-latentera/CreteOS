@@ -41,4 +41,7 @@ interface GameMediaDao {
 
     @Query("UPDATE game_media SET box_art_local = :localPath WHERE game_id = :gameId")
     suspend fun updateBoxArtLocalPath(gameId: Long, localPath: String)
+
+    @Query("UPDATE game_media SET miximage_local = :localPath WHERE game_id = :gameId")
+    suspend fun updateMiximageLocalPath(gameId: Long, localPath: String)
 }

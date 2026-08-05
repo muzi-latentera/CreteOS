@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 
-enum class TopTab { GAMES, RECENTLY_PLAYED, APPS, RETROACHIEVEMENTS, FRIENDS }
+enum class TopTab { GAMES, FAVORITES, RECENTLY_PLAYED, APPS, RETROACHIEVEMENTS, FRIENDS }
 
 data class HomeUiState(
     val topTab: TopTab = TopTab.GAMES,
@@ -47,9 +47,11 @@ data class HomeUiState(
     val previewPlatformId: String? = null,             // which system the preview art belongs to
     val selectedPlatform: String? = null,
     val showRecentlyPlayed: Boolean = true,
+    val showFavorites: Boolean = true,
     val showRetroAchievements: Boolean = true,
     val showFriends: Boolean = false,
     val recentlyPlayed: List<Game> = emptyList(),
+    val favorites: List<Game> = emptyList(),
     val games: List<Game> = emptyList(),
     val gameSort: GameSort = GameSort.DEFAULT,
     val gameGridColumns: Int = 0,             // 0 = auto-fit; > 0 = user-chosen column count
@@ -60,6 +62,8 @@ data class HomeUiState(
     val layoutMode: LayoutMode = LayoutMode.CAROUSEL,
     val videoMuted: Boolean = true,
     val videoDelayMs: Long = 1500L,
+    val topScreenImage: com.gamelaunch.frontend.ui.dualscreen.TopScreenImage =
+        com.gamelaunch.frontend.ui.dualscreen.TopScreenImage.MARQUEE,
     val isLoading: Boolean = true
 )
 
@@ -84,6 +88,7 @@ class HomeViewModel @Inject constructor(
         observeGameViewPrefs()
         observeAllMedia()
         observeRecentlyPlayed()
+        observeFavorites()
         publishArtwork()
     }
 
@@ -109,7 +114,8 @@ class HomeViewModel @Inject constructor(
                         videoMuted = state.videoMuted,
                         systemPreviewArt = state.systemPreviewArt,
                         focusedPlatformId = state.previewPlatformId,
-                        title = selectedGame?.title
+                        title = selectedGame?.title,
+                        topImageType = state.topScreenImage
                     )
                 )
             }
@@ -133,6 +139,15 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             gameRepository.getRecentlyPlayed(30).collect { games ->
                 _uiState.update { it.copy(recentlyPlayed = games) }
+            }
+        }
+    }
+
+    /** Favourited games across every system, for the all-systems Favorites tab. */
+    private fun observeFavorites() {
+        viewModelScope.launch {
+            gameRepository.getFavorites().collect { games ->
+                _uiState.update { it.copy(favorites = games) }
             }
         }
     }
@@ -306,6 +321,19 @@ class HomeViewModel @Inject constructor(
                     val fallback = if (!on && it.topTab == TopTab.FRIENDS) TopTab.GAMES else it.topTab
                     it.copy(showFriends = on, topTab = fallback)
                 }
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.showFavorites.collect { on ->
+                _uiState.update {
+                    val fallback = if (!on && it.topTab == TopTab.FAVORITES) TopTab.GAMES else it.topTab
+                    it.copy(showFavorites = on, topTab = fallback)
+                }
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.topScreenImage.collect { mode ->
+                _uiState.update { it.copy(topScreenImage = mode) }
             }
         }
     }

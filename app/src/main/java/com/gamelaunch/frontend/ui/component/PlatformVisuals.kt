@@ -13,6 +13,8 @@ private val platformLabels = mapOf(
     "genesis"  to "GEN",    "gg"      to "GG",      "sms"    to "SMS",
     "pce"      to "PCE",    "neogeo"  to "Neo·Geo", "arcade" to "Arcade",
     "msx"      to "MSX",    "lynx"    to "Lynx",    "atari"  to "Atari",
+    "cps1"     to "CPS1",   "cps2"    to "CPS2",    "cps3"   to "CPS3",
+    "c64"      to "C64",    "pico8"   to "PICO-8",
     "steam"    to "Steam",
     "xbox360"  to "360",
     "android"  to "Android"
@@ -146,6 +148,8 @@ private val platformIconAlias: Map<String, String> = mapOf(
     "virtualboy" to "vb",
     "colecovision" to "col",
     "intellivision" to "itv",
+    "pico8" to "pico",
+    // cps1/cps2/cps3 and c64 resolve to their own pack icons by id — no alias needed.
 )
 
 /** Console illustration for a platform, or null if the pack has none (callers fall back to [platformPadIcon]). */
@@ -172,7 +176,10 @@ fun boxArtAspectRatio(platformId: String): Float = when (platformId) {
     "nds" -> 1.11f
 
     // Square
-    "dc", "pcengine", "gb", "gbc", "gba", "neocd", "android" -> 1.0f
+    "dc", "pcengine", "gb", "gbc", "gba", "neocd", "android", "pico8" -> 1.0f
+
+    // Arcade marquees / flyers read wide
+    "cps1", "cps2", "cps3" -> 1.33f
 
     // Slightly portrait
     "ngp" -> 0.86f

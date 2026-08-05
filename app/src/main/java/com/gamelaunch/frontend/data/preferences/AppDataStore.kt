@@ -39,7 +39,10 @@ class AppDataStore @Inject constructor(@ApplicationContext private val context: 
         val VIDEO_MUTED = booleanPreferencesKey("video_muted")
         val FIRST_LAUNCH = booleanPreferencesKey("first_launch")
         val SHOW_RECENTLY_PLAYED = booleanPreferencesKey("show_recently_played")
+        val SHOW_FAVORITES = booleanPreferencesKey("show_favorites")
         val SHOW_RETRO_ACHIEVEMENTS = booleanPreferencesKey("show_retro_achievements")
+        // Which media the dual-screen top panel shows in game view: MARQUEE / SCREENSHOT / MIXIMAGE.
+        val TOP_SCREEN_IMAGE = stringPreferencesKey("top_screen_image")
         val DARK_MODE = booleanPreferencesKey("dark_mode")
         // Dual-screen (Anbernic RG DS / AYN Thor): auto-detect a second display and split the UI.
         val DUAL_SCREEN_ENABLED = booleanPreferencesKey("dual_screen_enabled")
@@ -93,7 +96,9 @@ class AppDataStore @Inject constructor(@ApplicationContext private val context: 
     val videoMuted: Flow<Boolean> = context.dataStore.data.map { it[Keys.VIDEO_MUTED] ?: true }
     val isFirstLaunch: Flow<Boolean> = context.dataStore.data.map { it[Keys.FIRST_LAUNCH] ?: true }
     val showRecentlyPlayed: Flow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_RECENTLY_PLAYED] ?: true }
+    val showFavorites: Flow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_FAVORITES] ?: true }
     val showRetroAchievements: Flow<Boolean> = context.dataStore.data.map { it[Keys.SHOW_RETRO_ACHIEVEMENTS] ?: true }
+    val topScreenImage: Flow<String> = context.dataStore.data.map { it[Keys.TOP_SCREEN_IMAGE] ?: "MARQUEE" }
     val darkMode: Flow<Boolean> = context.dataStore.data.map { it[Keys.DARK_MODE] ?: false }
     // Dual-screen is on by default: it only ever activates when a second display is actually present.
     val dualScreenEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.DUAL_SCREEN_ENABLED] ?: true }
@@ -150,7 +155,9 @@ class AppDataStore @Inject constructor(@ApplicationContext private val context: 
     suspend fun setVideoMuted(muted: Boolean) = context.dataStore.edit { it[Keys.VIDEO_MUTED] = muted }
     suspend fun setFirstLaunchComplete() = context.dataStore.edit { it[Keys.FIRST_LAUNCH] = false }
     suspend fun setShowRecentlyPlayed(enabled: Boolean) = context.dataStore.edit { it[Keys.SHOW_RECENTLY_PLAYED] = enabled }
+    suspend fun setShowFavorites(enabled: Boolean) = context.dataStore.edit { it[Keys.SHOW_FAVORITES] = enabled }
     suspend fun setShowRetroAchievements(enabled: Boolean) = context.dataStore.edit { it[Keys.SHOW_RETRO_ACHIEVEMENTS] = enabled }
+    suspend fun setTopScreenImage(mode: String) = context.dataStore.edit { it[Keys.TOP_SCREEN_IMAGE] = mode }
     suspend fun setDarkMode(enabled: Boolean) = context.dataStore.edit { it[Keys.DARK_MODE] = enabled }
     suspend fun setDualScreenEnabled(enabled: Boolean) = context.dataStore.edit { it[Keys.DUAL_SCREEN_ENABLED] = enabled }
     suspend fun setDualScreenSwap(swap: Boolean) = context.dataStore.edit { it[Keys.DUAL_SCREEN_SWAP] = swap }

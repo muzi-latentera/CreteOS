@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowRightAlt
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
@@ -92,8 +93,12 @@ import com.gamelaunch.frontend.ui.theme.TileText
 import com.gamelaunch.frontend.ui.theme.glassChip
 import com.gamelaunch.frontend.ui.theme.grid.GridHomeContent
 import com.gamelaunch.frontend.ui.theme.carousel.CarouselHomeContent
+import com.gamelaunch.frontend.ui.theme.list.ListHomeContent
 import com.gamelaunch.frontend.ui.theme.LayoutMode
 import com.gamelaunch.frontend.ui.screen.retroachievements.RetroAchievementsScreen
+
+// Carousel has no grid to report a screenful, so bumper page-jumps there step a fixed stride.
+private const val CAROUSEL_PAGE = 10
 
 @Composable
 fun HomeScreen(
@@ -120,6 +125,7 @@ fun HomeScreen(
     var appFocusIndex    by rememberSaveable { mutableIntStateOf(0) }
     var gridFocusIndex   by rememberSaveable { mutableIntStateOf(0) }
     var recentFocusIndex by rememberSaveable { mutableIntStateOf(0) }
+    var favFocusIndex    by rememberSaveable { mutableIntStateOf(0) }
     // A screenful of games (whole visible rows × columns), reported by the grid, for L2/R2 paging.
     var gridPageSize     by remember { mutableIntStateOf(0) }
     // Select-button quick menu on the game grid (grid size + sort).
@@ -165,12 +171,16 @@ fun HomeScreen(
         if (state.recentlyPlayed.isNotEmpty())
             recentFocusIndex = recentFocusIndex.coerceAtMost(state.recentlyPlayed.size - 1)
     }
+    LaunchedEffect(state.favorites.size) {
+        if (state.favorites.isNotEmpty())
+            favFocusIndex = favFocusIndex.coerceAtMost(state.favorites.size - 1)
+    }
     // Dual-screen: the grid layout tracks focus in local state (gridFocusIndex) and doesn't drive
     // the shared selection the way the carousel does, so mirror it into the ViewModel to keep the
     // artwork (top) screen in sync. No effect on single-screen devices (grid draws no backdrop).
     if (dualScreen) {
         LaunchedEffect(state.gameViewActive, state.layoutMode) {
-            if (state.gameViewActive && state.layoutMode == LayoutMode.GRID) {
+            if (state.gameViewActive && state.layoutMode != LayoutMode.CAROUSEL) {
                 // Only sync the top (artwork) screen once the cursor settles: publishing on every
                 // held-scroll step makes the Presentation decode a new marquee each step, on the same
                 // main thread as the scroll. Waiting for ~150ms of no movement holds the last marquee
@@ -188,10 +198,27 @@ fun HomeScreen(
         next?.let { viewModel.selectPlatform(it) }
     }
 
+    // Jump the game selection a whole page in the given direction, for whichever layout is active.
+    // Carousel drives the shared selectedGameIndex; grid/list drive the local gridFocusIndex. The
+    // page size is a screenful reported by the grid/list (rows×cols / rows); carousel has no reported
+    // size, so it uses a sensible fixed stride.
+    fun pageJumpGames(dir: Int) {
+        val n = state.games.size
+        if (n == 0) return
+        if (state.layoutMode == LayoutMode.CAROUSEL) {
+            val next = (state.selectedGameIndex + dir * CAROUSEL_PAGE).coerceIn(0, n - 1)
+            if (next != state.selectedGameIndex) viewModel.onGameSelected(next)
+        } else {
+            val page = gridPageSize.takeIf { it > 0 } ?: gameGridColumns
+            gridFocusIndex = (gridFocusIndex + dir * page).coerceIn(0, n - 1)
+        }
+    }
+
     // Recently Played, RetroAchievements and Friends tabs each appear only when enabled in settings.
     // This list also drives L1/R1 tab cycling, so an omitted filter here lets a disabled tab still be
     // reached with the bumpers (the Friends bug).
     val visibleTabs = TopTab.entries.filter {
+        (it != TopTab.FAVORITES         || state.showFavorites) &&
         (it != TopTab.RECENTLY_PLAYED   || state.showRecentlyPlayed) &&
         (it != TopTab.RETROACHIEVEMENTS || state.showRetroAchievements) &&
         (it != TopTab.FRIENDS           || state.showFriends)
@@ -215,8 +242,8 @@ fun HomeScreen(
                 else -> false
             }
         } else {
-            if (state.layoutMode == LayoutMode.CAROUSEL) {
-                when (key) {
+            when (state.layoutMode) {
+                LayoutMode.CAROUSEL -> when (key) {
                     Key.DirectionLeft  -> {
                         val nextIdx = (state.selectedGameIndex - 1).coerceAtLeast(0)
                         if (nextIdx != state.selectedGameIndex) {
@@ -233,12 +260,17 @@ fun HomeScreen(
                     }
                     else -> false
                 }
-            } else {
-                when (key) {
+                LayoutMode.GRID -> when (key) {
                     Key.DirectionLeft  -> { gridFocusIndex = (gridFocusIndex - 1).coerceAtLeast(0); true }
                     Key.DirectionRight -> { gridFocusIndex = (gridFocusIndex + 1).coerceAtMost(state.games.size - 1); true }
                     Key.DirectionUp    -> { (gridFocusIndex - gameGridColumns).let { if (it >= 0) gridFocusIndex = it }; true }
                     Key.DirectionDown  -> { (gridFocusIndex + gameGridColumns).let { if (it < state.games.size) gridFocusIndex = it }; true }
+                    else -> false
+                }
+                // Single vertical column: Up/Down step one title; Left/Right are unused.
+                LayoutMode.LIST -> when (key) {
+                    Key.DirectionUp   -> { gridFocusIndex = (gridFocusIndex - 1).coerceAtLeast(0); true }
+                    Key.DirectionDown -> { gridFocusIndex = (gridFocusIndex + 1).coerceAtMost(state.games.size - 1); true }
                     else -> false
                 }
             }
@@ -250,6 +282,16 @@ fun HomeScreen(
                 Key.DirectionRight -> { recentFocusIndex = (recentFocusIndex + 1).coerceAtMost(n - 1); true }
                 Key.DirectionUp    -> { (recentFocusIndex - gameGridColumns).let { if (it >= 0) recentFocusIndex = it }; true }
                 Key.DirectionDown  -> { (recentFocusIndex + gameGridColumns).let { if (it < n) recentFocusIndex = it }; true }
+                else -> false
+            }
+        }
+        TopTab.FAVORITES -> {
+            val n = state.favorites.size
+            when (key) {
+                Key.DirectionLeft  -> { favFocusIndex = (favFocusIndex - 1).coerceAtLeast(0); true }
+                Key.DirectionRight -> { favFocusIndex = (favFocusIndex + 1).coerceAtMost(n - 1); true }
+                Key.DirectionUp    -> { (favFocusIndex - recentGridColumns).let { if (it >= 0) favFocusIndex = it }; true }
+                Key.DirectionDown  -> { (favFocusIndex + recentGridColumns).let { if (it < n) favFocusIndex = it }; true }
                 else -> false
             }
         }
@@ -377,17 +419,12 @@ fun HomeScreen(
                                     val idx = if (state.layoutMode == LayoutMode.CAROUSEL) state.selectedGameIndex else gridFocusIndex
                                     state.games.getOrNull(idx)?.let { onGameClick(it.id) }; true
                                 }
-                                GamepadL1 -> { cyclePlatform(-1); true }
-                                GamepadR1 -> { cyclePlatform(+1); true }
-                                // L2/R2 jump the selection a full page (screenful of rows) at a time.
-                                GamepadL2 -> {
-                                    val page = gridPageSize.takeIf { it > 0 } ?: gameGridColumns
-                                    gridFocusIndex = (gridFocusIndex - page).coerceAtLeast(0); true
-                                }
-                                GamepadR2 -> {
-                                    val page = gridPageSize.takeIf { it > 0 } ?: gameGridColumns
-                                    gridFocusIndex = (gridFocusIndex + page).coerceAtMost(state.games.size - 1); true
-                                }
+                                // Bumpers (L1/R1) skip a full page of games — in grid, carousel, and
+                                // list alike. Triggers (L2/R2) move between systems.
+                                GamepadL1 -> { pageJumpGames(-1); true }
+                                GamepadR1 -> { pageJumpGames(+1); true }
+                                GamepadL2 -> { cyclePlatform(-1); true }
+                                GamepadR2 -> { cyclePlatform(+1); true }
                                 GamepadB, Key.Back -> { viewModel.exitToSystems(); true }
                                 GamepadSelect -> { optionsFocusIndex = 0; showGameOptions = true; true }
                                 else -> false
@@ -398,6 +435,14 @@ fun HomeScreen(
                         TopTab.RECENTLY_PLAYED -> when (key) {
                             GamepadA, Key.DirectionCenter, Key.Enter -> {
                                 state.recentlyPlayed.getOrNull(recentFocusIndex)?.let { onGameClick(it.id) }; true
+                            }
+                            else -> false
+                        }
+
+                        // ══ FAVORITES ════════════════════════════════════
+                        TopTab.FAVORITES -> when (key) {
+                            GamepadA, Key.DirectionCenter, Key.Enter -> {
+                                state.favorites.getOrNull(favFocusIndex)?.let { onGameClick(it.id) }; true
                             }
                             else -> false
                         }
@@ -498,6 +543,7 @@ fun HomeScreen(
                     if (!(state.topTab == TopTab.GAMES && state.gameViewActive)) {
                         ModeTabBar(
                             selected = state.topTab,
+                            showFavorites = state.showFavorites,
                             showRecentlyPlayed = state.showRecentlyPlayed,
                             showRetroAchievements = state.showRetroAchievements,
                             showFriends = state.showFriends,
@@ -527,8 +573,8 @@ fun HomeScreen(
                                 showPreviewArt  = !dualScreen
                             )
 
-                        state.topTab == TopTab.GAMES -> {
-                            if (state.layoutMode == LayoutMode.CAROUSEL) {
+                        state.topTab == TopTab.GAMES -> when (state.layoutMode) {
+                            LayoutMode.CAROUSEL ->
                                 CarouselHomeContent(
                                     games             = state.games,
                                     selectedGameMedia = state.selectedGameMedia,
@@ -542,7 +588,7 @@ fun HomeScreen(
                                     modifier          = Modifier.fillMaxSize(),
                                     showBackgroundArtwork = !dualScreen
                                 )
-                            } else {
+                            LayoutMode.GRID ->
                                 GridHomeContent(
                                     games            = state.games,
                                     onGameClick      = onGameClick,
@@ -553,7 +599,17 @@ fun HomeScreen(
                                     gameSort         = state.gameSort,
                                     modifier         = Modifier.fillMaxSize()
                                 )
-                            }
+                            LayoutMode.LIST ->
+                                ListHomeContent(
+                                    games            = state.games,
+                                    mediaForGames    = state.mediaForGames,
+                                    focusedGameIndex = gridFocusIndex,
+                                    onGameClick      = onGameClick,
+                                    onGameFocused    = { gridFocusIndex = it },
+                                    onPageSizeChange = { gridPageSize = it },
+                                    gameSort         = state.gameSort,
+                                    modifier         = Modifier.fillMaxSize()
+                                )
                         }
 
                         state.topTab == TopTab.RECENTLY_PLAYED ->
@@ -576,6 +632,29 @@ fun HomeScreen(
                                     gameSort           = GameSort.RECENTLY_PLAYED,
                                     uniformAspectRatio = 0.72f,
                                     modifier         = Modifier.fillMaxSize()
+                                )
+                            }
+
+                        state.topTab == TopTab.FAVORITES ->
+                            if (state.favorites.isEmpty()) {
+                                EmptyState(
+                                    icon     = Icons.Default.Favorite,
+                                    title    = "No favorites yet",
+                                    subtitle = "Tap the heart on a game's detail screen to collect it here",
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                GridHomeContent(
+                                    games              = state.favorites,
+                                    onGameClick        = onGameClick,
+                                    columns            = recentGridColumns,
+                                    mediaForGames      = state.mediaForGames,
+                                    focusedGameIndex   = favFocusIndex,
+                                    // Favorites mix systems, so keep a uniform portrait tile and a
+                                    // star section token while fast-scrolling.
+                                    gameSort           = GameSort.FAVORITES,
+                                    uniformAspectRatio = 0.72f,
+                                    modifier           = Modifier.fillMaxSize()
                                 )
                             }
 
@@ -625,6 +704,7 @@ private data class TabSpec(val tab: TopTab, val label: String, val icon: ImageVe
 
 private val tabSpecs = listOf(
     TabSpec(TopTab.GAMES, "Games", Icons.Default.SportsEsports),
+    TabSpec(TopTab.FAVORITES, "Favorites", Icons.Default.Favorite),
     TabSpec(TopTab.RECENTLY_PLAYED, "Recent", Icons.Default.History),
     TabSpec(TopTab.APPS, "Apps", Icons.Default.Apps),
     TabSpec(TopTab.RETROACHIEVEMENTS, "RetroAchievements", Icons.Default.EmojiEvents),
@@ -634,6 +714,7 @@ private val tabSpecs = listOf(
 @Composable
 private fun ModeTabBar(
     selected: TopTab,
+    showFavorites: Boolean,
     showRecentlyPlayed: Boolean,
     showRetroAchievements: Boolean,
     showFriends: Boolean,
@@ -641,6 +722,7 @@ private fun ModeTabBar(
 ) {
     val pill = RoundedCornerShape(50)
     val tabs = tabSpecs.filter {
+        (it.tab != TopTab.FAVORITES       || showFavorites) &&
         (it.tab != TopTab.RECENTLY_PLAYED  || showRecentlyPlayed) &&
         (it.tab != TopTab.RETROACHIEVEMENTS || showRetroAchievements) &&
         (it.tab != TopTab.FRIENDS || showFriends)

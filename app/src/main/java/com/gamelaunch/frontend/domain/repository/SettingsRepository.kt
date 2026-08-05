@@ -3,6 +3,7 @@ package com.gamelaunch.frontend.domain.repository
 import com.gamelaunch.frontend.domain.model.GameSort
 import com.gamelaunch.frontend.domain.model.ScraperConfig
 import com.gamelaunch.frontend.domain.platform.SystemSort
+import com.gamelaunch.frontend.ui.dualscreen.TopScreenImage
 import com.gamelaunch.frontend.ui.theme.LayoutMode
 import kotlinx.coroutines.flow.Flow
 
@@ -16,7 +17,9 @@ interface SettingsRepository {
     val videoMuted: Flow<Boolean>
     val isFirstLaunch: Flow<Boolean>
     val showRecentlyPlayed: Flow<Boolean>
+    val showFavorites: Flow<Boolean>
     val showRetroAchievements: Flow<Boolean>
+    val topScreenImage: Flow<TopScreenImage>
     val darkMode: Flow<Boolean>
     val dualScreenEnabled: Flow<Boolean>
     val dualScreenSwap: Flow<Boolean>
@@ -61,7 +64,9 @@ interface SettingsRepository {
     suspend fun setVideoMuted(muted: Boolean)
     suspend fun setFirstLaunchComplete()
     suspend fun setShowRecentlyPlayed(enabled: Boolean)
+    suspend fun setShowFavorites(enabled: Boolean)
     suspend fun setShowRetroAchievements(enabled: Boolean)
+    suspend fun setTopScreenImage(mode: TopScreenImage)
     suspend fun setDarkMode(enabled: Boolean)
     suspend fun setDualScreenEnabled(enabled: Boolean)
     suspend fun setDualScreenSwap(swap: Boolean)
