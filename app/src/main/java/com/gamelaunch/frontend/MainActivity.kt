@@ -31,6 +31,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -216,6 +217,18 @@ class MainActivity : ComponentActivity() {
                             navController    = navController,
                             startDestination = startDestination
                         )
+                        // Tell the artwork (top) screen when we're in the Settings area, so it shows
+                        // a gear instead of the last game's art. Driven here (not by HomeViewModel)
+                        // because HomeViewModel's selection stream doesn't know about navigation.
+                        LaunchedEffect(navController) {
+                            navController.currentBackStackEntryFlow.collect { entry ->
+                                val route = entry.destination.route
+                                artworkBus.setSettingsActive(
+                                    route == Screen.Settings.route ||
+                                    route == Screen.EmulatorConfig.route
+                                )
+                            }
+                        }
                         // System Back (the Retroid's B maps to it): pop the nav stack so the
                         // detail/settings screens return to where they came from. If the stack has
                         // nothing to pop — e.g. eOr was resumed on a sub-screen via a launcher

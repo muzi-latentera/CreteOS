@@ -48,11 +48,20 @@ class ArtworkBus @Inject constructor() {
     private val _darkMode = MutableStateFlow(false)
     val darkMode: StateFlow<Boolean> = _darkMode.asStateFlow()
 
+    // True while the user is in the Settings area. Driven by the Activity's nav observer (not the
+    // HomeViewModel selection stream), so the top panel can show a gear instead of the last game art.
+    private val _settingsActive = MutableStateFlow(false)
+    val settingsActive: StateFlow<Boolean> = _settingsActive.asStateFlow()
+
     fun publish(state: ArtworkUiState) {
         _state.value = state
     }
 
     fun setDarkMode(dark: Boolean) {
         _darkMode.value = dark
+    }
+
+    fun setSettingsActive(active: Boolean) {
+        _settingsActive.value = active
     }
 }

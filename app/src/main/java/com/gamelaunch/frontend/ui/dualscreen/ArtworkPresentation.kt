@@ -3,6 +3,7 @@ package com.gamelaunch.frontend.ui.dualscreen
 import android.app.Presentation
 import android.graphics.Color as AndroidColor
 import android.graphics.drawable.ColorDrawable
+import android.os.Build
 import android.os.Bundle
 import android.view.Display
 import android.view.View
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -22,8 +24,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ComposeView
@@ -92,18 +99,33 @@ private fun ArtworkScreen(artworkBus: ArtworkBus) {
     // Live light/dark so the ambient gradient below re-themes when the user flips the setting,
     // without rebuilding the Presentation. AppTheme lives inside the observed scope for that reason.
     val darkMode by artworkBus.darkMode.collectAsState()
+    val settingsActive by artworkBus.settingsActive.collectAsState()
 
     AppTheme(darkMode = darkMode) {
         // Continue the app's ambient gradient onto this screen so both panels read as one surface,
         // instead of a flat black fill.
         AmbientBackground(Modifier.fillMaxSize()) {
-            when (state.mode) {
+            when {
+                // In the Settings area the top panel shows a gear over the gradient, not the last
+                // game's art — mirrors the gear the user just selected on the bottom screen.
+                settingsActive -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = null,
+                        // Pure black on light, pure white on dark, so the gear reads cleanly against
+                        // the ambient gradient in either theme.
+                        tint = if (darkMode) Color.White else Color.Black,
+                        modifier = Modifier.fillMaxSize(0.34f)
+                    )
+                }
+                else -> when (state.mode) {
                 // Game select + game detail: show the game's marquee (wheel-logo) art centred over
                 // the gradient, so the top panel reads as branded title art rather than a raw
                 // screenshot. Falls back to the game title text when no marquee is available.
                 ArtworkMode.GAME -> MarqueeArtwork(
                     marquee = marqueeImage(state.media),
                     title = state.title,
+                    darkMode = darkMode,
                     modifier = Modifier.fillMaxSize()
                 )
 
@@ -117,8 +139,9 @@ private fun ArtworkScreen(artworkBus: ArtworkBus) {
                         .padding(20.dp)
                 )
 
-                ArtworkMode.IDLE -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    BrandPlaceholder()
+                    ArtworkMode.IDLE -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        BrandPlaceholder()
+                    }
                 }
             }
         }
@@ -131,16 +154,54 @@ private fun ArtworkScreen(artworkBus: ArtworkBus) {
  * top panel never streams over the network (important on low-power/dual-screen).
  */
 @Composable
-private fun MarqueeArtwork(marquee: String?, title: String?, modifier: Modifier = Modifier) {
+private fun MarqueeArtwork(
+    marquee: String?,
+    title: String?,
+    darkMode: Boolean,
+    modifier: Modifier = Modifier
+) {
     Box(modifier.padding(32.dp), contentAlignment = Alignment.Center) {
         if (marquee != null) {
             // A local file when imported/cached, or a remote URL (small logo PNG) as a fallback.
             val data: Any = if (marquee.startsWith("http")) marquee else File(marquee)
+            val request = ImageRequest.Builder(LocalContext.current)
+                .data(data)
+                .crossfade(true)
+                .build()
+
+            // Shadow / glow: a blurred, tinted copy of the same logo drawn behind the crisp one, so
+            // the effect follows the logo's alpha shape rather than its bounding box. Light mode gets
+            // a soft dark drop shadow offset downward; dark mode gets a subtle centred outer glow.
+            // blur() is a no-op below API 31, so we skip the layer there to avoid a hard silhouette.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (darkMode) {
+                    AsyncImage(
+                        model = request,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        colorFilter = ColorFilter.tint(Color.White),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .blur(26.dp, BlurredEdgeTreatment.Unbounded)
+                            .alpha(0.30f)
+                    )
+                } else {
+                    AsyncImage(
+                        model = request,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        colorFilter = ColorFilter.tint(Color.Black),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .offset(y = 6.dp)
+                            .blur(14.dp, BlurredEdgeTreatment.Unbounded)
+                            .alpha(0.45f)
+                    )
+                }
+            }
+
             AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(data)
-                    .crossfade(true)
-                    .build(),
+                model = request,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize()

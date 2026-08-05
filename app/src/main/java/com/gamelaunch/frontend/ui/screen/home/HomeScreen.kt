@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowRightAlt
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Group
@@ -451,14 +452,23 @@ fun HomeScreen(
                             val idx = if (state.layoutMode == LayoutMode.CAROUSEL) state.selectedGameIndex else gridFocusIndex
                             val hoveredGame = state.games.getOrNull(idx)
                             if (hoveredGame != null) {
+                                // Arrow as a vector Icon rather than a "→" glyph in the title text:
+                                // the Row centres it vertically, whereas the glyph sat low on the
+                                // text baseline and looked like it was resting on the bottom.
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowRightAlt,
+                                    contentDescription = null,
+                                    tint = BrandBlue,
+                                    modifier = Modifier.padding(horizontal = 6.dp).size(22.dp)
+                                )
                                 Text(
-                                    "  →  " + hoveredGame.title,
+                                    hoveredGame.title,
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = BrandBlue,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f).padding(start = 2.dp)
+                                    modifier = Modifier.weight(1f)
                                 )
                             } else {
                                 Spacer(Modifier.weight(1f))
