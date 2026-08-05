@@ -89,27 +89,6 @@ On first launch the app opens **Settings** automatically. Complete these steps b
 
 ---
 
-## ROM Folder Structure
-
-```
-/sdcard/ROMs/
-├── NES/
-│   ├── Super Mario Bros.nes
-│   └── Mega Man 2.nes
-├── SNES/
-│   ├── Super Metroid.sfc
-│   └── Chrono Trigger.sfc
-├── PS1/
-│   ├── Final Fantasy VII Disc1.bin
-│   └── Final Fantasy VII Disc1.cue
-└── GBA/
-    └── Pokemon FireRed.gba
-```
-
-Subfolder names are matched case-insensitively against the recognised systems. If a subfolder name isn't recognized, the scanner falls back to the file extension.
-
----
-
 ## Project Structure
 
 ```
