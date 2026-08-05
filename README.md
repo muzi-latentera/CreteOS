@@ -28,6 +28,7 @@
 - 👥 **Friends** — see what your friends are playing and their RetroAchievements score, right on the home screen. Add friends by sharing a link or tapping a nearby player on the same Wi-Fi — it's fully peer-to-peer with **no account, no login, and nothing stored online**. Turn the whole feature off any time with a single toggle.
 - 📱 **More than ROMs** — bring in your installed Android games and Steam / PC streaming launchers alongside your retro collection.
 - ⚡ **Fast & tidy** — a 512 MB artwork cache, instant navigation, and a scanner that keeps your library in sync as ROMs come and go.
+- ➡️ **Weekly Releases** - with v2 we are moving to a weekly release model so every weekend you will get the most up to date version of eOr 
 
 ---
 
