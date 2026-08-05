@@ -38,8 +38,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
@@ -166,9 +168,15 @@ fun HomeScreen(
     // the shared selection the way the carousel does, so mirror it into the ViewModel to keep the
     // artwork (top) screen in sync. No effect on single-screen devices (grid draws no backdrop).
     if (dualScreen) {
-        LaunchedEffect(gridFocusIndex, state.gameViewActive, state.layoutMode) {
+        LaunchedEffect(state.gameViewActive, state.layoutMode) {
             if (state.gameViewActive && state.layoutMode == LayoutMode.GRID) {
-                viewModel.onGameSelected(gridFocusIndex)
+                // Only sync the top (artwork) screen once the cursor settles: publishing on every
+                // held-scroll step makes the Presentation decode a new marquee each step, on the same
+                // main thread as the scroll. Waiting for ~150ms of no movement holds the last marquee
+                // while fast-scrolling and loads the focused game's art when the scroll stops.
+                snapshotFlow { gridFocusIndex }
+                    .debounce(150)
+                    .collect { viewModel.onGameSelected(it) }
             }
         }
     }
