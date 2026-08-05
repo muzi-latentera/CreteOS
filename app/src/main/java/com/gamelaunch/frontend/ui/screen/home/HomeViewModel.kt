@@ -320,13 +320,24 @@ class HomeViewModel @Inject constructor(
                 settingsRepository.gameSort
             ) { games, sort -> games.sortedBy(sort) }
                 .collect { games ->
-                    val firstMedia = _uiState.value.mediaForGames[games.firstOrNull()?.id]
                     _uiState.update { state ->
+                        // Preserve the current selection across re-emissions. Room re-queries this
+                        // flow whenever the games table changes — e.g. a favourite toggle or a
+                        // play-count/last-played bump after returning from a launched game — and a
+                        // blind reset to index 0 would snap the selection (and the top-screen marquee)
+                        // back to the first game. Re-find the selected game by id; only fall back to 0
+                        // when it's genuinely gone (platform switch, game removed).
+                        val previousId = state.games.getOrNull(state.selectedGameIndex)?.id
+                        val newIndex = previousId
+                            ?.let { id -> games.indexOfFirst { it.id == id } }
+                            ?.takeIf { it >= 0 }
+                            ?: 0
+                        val selectedGame = games.getOrNull(newIndex)
                         state.copy(
                             games             = games,
-                            selectedGameIndex = 0,
+                            selectedGameIndex = newIndex,
                             shouldPlayVideo   = false,
-                            selectedGameMedia = firstMedia
+                            selectedGameMedia = selectedGame?.let { g -> state.mediaForGames[g.id] }
                         )
                     }
                 }

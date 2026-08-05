@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -69,9 +70,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -81,15 +85,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.platform.LocalContext
@@ -110,6 +118,7 @@ import com.gamelaunch.frontend.domain.sync.SyncReadiness
 import com.gamelaunch.frontend.ui.component.QrCode
 import com.gamelaunch.frontend.domain.usecase.EsdeImportStatus
 import com.gamelaunch.frontend.domain.usecase.LbSyncStatus
+import com.gamelaunch.frontend.ui.input.GamepadA
 import com.gamelaunch.frontend.ui.input.GamepadL1
 import com.gamelaunch.frontend.ui.input.GamepadR1
 import com.gamelaunch.frontend.ui.theme.ElectricBlue
@@ -122,6 +131,42 @@ import com.journeyapps.barcodescanner.ScanOptions
 import kotlin.math.roundToInt
 
 private val gradientBrush = Brush.horizontalGradient(listOf(ElectricBlue, NeonPurple))
+
+/**
+ * Holds the click action of whichever settings control currently has d-pad focus. Compose's
+ * [clickable] only self-activates on Enter / DPAD-center, not the gamepad **A** button
+ * (KEYCODE_BUTTON_A), so the screen-level key handler reads this to fire A on the focused control.
+ */
+private val LocalFocusedAction = compositionLocalOf<MutableState<(() -> Unit)?>> {
+    error("LocalFocusedAction not provided")
+}
+
+/**
+ * Turns a settings control into a d-pad focus target: draws a highlight ring while focused, registers
+ * its [onClick] so the screen's A-button handler can activate it, and keeps the ordinary touch click.
+ * Use this in place of [clickable] on interactive settings rows/chips/buttons.
+ */
+@Composable
+private fun Modifier.dpadFocusable(
+    enabled: Boolean = true,
+    shape: Shape = RoundedCornerShape(10.dp),
+    onClick: () -> Unit
+): Modifier {
+    if (!enabled) return this
+    val focusedAction = LocalFocusedAction.current
+    var focused by remember { mutableStateOf(false) }
+    return this
+        .onFocusChanged {
+            focused = it.isFocused
+            if (it.isFocused) focusedAction.value = onClick
+        }
+        .border(
+            width = if (focused) 2.dp else 0.dp,
+            color = if (focused) ElectricBlue else Color.Transparent,
+            shape = shape
+        )
+        .clickable(onClick = onClick)
+}
 
 private enum class SettingsTab(val label: String, val icon: ImageVector) {
     GENERAL("General", Icons.Default.Tune),
@@ -192,21 +237,38 @@ fun SettingsScreen(
         selectedTab = visibleTabs[(cur + delta + visibleTabs.size) % visibleTabs.size]
     }
 
-    val tabFocusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { tabFocusRequester.requestFocus() } }
+    // D-pad navigation: focus is driven into the scrolling content (see the Column below), and this
+    // screen-level handler turns the d-pad into focus movement plus A-to-activate. focusedAction is
+    // the click of whatever control is focused, so A fires it (Compose's clickable ignores BUTTON_A).
+    val focusManager = LocalFocusManager.current
+    val contentFocus = remember { FocusRequester() }
+    val focusedAction = remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    // On entry and on every tab switch, drop focus onto the first control of the (rebuilt) content.
+    LaunchedEffect(selectedTab) {
+        focusedAction.value = null
+        runCatching { contentFocus.requestFocus() }
+    }
 
     // Honour the user's light/dark choice for this screen's Material components.
     ThemedScreen {
+    CompositionLocalProvider(LocalFocusedAction provides focusedAction) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .focusRequester(tabFocusRequester)
-            .focusable()
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
                     GamepadL1 -> { cycleTab(-1); true }
                     GamepadR1 -> { cycleTab(+1); true }
+                    Key.DirectionDown  -> focusManager.moveFocus(FocusDirection.Down)
+                    Key.DirectionUp    -> focusManager.moveFocus(FocusDirection.Up)
+                    Key.DirectionLeft  -> focusManager.moveFocus(FocusDirection.Left)
+                    Key.DirectionRight -> focusManager.moveFocus(FocusDirection.Right)
+                    GamepadA, Key.DirectionCenter, Key.Enter -> {
+                        val action = focusedAction.value
+                        if (action != null) { action(); true } else false
+                    }
                     else -> false
                 }
             }
@@ -292,6 +354,10 @@ fun SettingsScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        // Focus target for the screen: requesting this moves focus to the first
+                        // focusable control inside, and focusGroup keeps d-pad traversal contained.
+                        .focusRequester(contentFocus)
+                        .focusGroup()
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -363,6 +429,7 @@ fun SettingsScreen(
     }
     }
     }
+    }
 
     if (state.showAndroidGameSelection) {
         AndroidGameSelectionDialog(state = state, viewModel = viewModel)
@@ -390,7 +457,7 @@ private fun SettingsTabBar(tabs: List<SettingsTab>, selected: SettingsTab, onSel
                         if (isSel) Modifier.background(gradientBrush)
                         else Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
                     )
-                    .clickable { onSelect(tab) }
+                    .dpadFocusable(shape = RoundedCornerShape(50)) { onSelect(tab) }
                     .padding(horizontal = 14.dp, vertical = 9.dp)
             ) {
                 Icon(
@@ -553,7 +620,7 @@ private fun SystemSortSection(state: SettingsUiState, viewModel: SettingsViewMod
                     .fillMaxWidth()
                     .padding(vertical = 5.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .clickable(enabled = !disabled) { viewModel.toggleSystemSort(sort) }
+                    .dpadFocusable(enabled = !disabled) { viewModel.toggleSystemSort(sort) }
                     .padding(vertical = 8.dp, horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -989,7 +1056,7 @@ private fun BackgroundModeChip(
                 if (selected) Modifier.background(gradientBrush)
                 else Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
             )
-            .clickable(onClick = onClick),
+            .dpadFocusable(shape = RoundedCornerShape(21.dp), onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -1030,7 +1097,7 @@ private fun ThemeOption(
                 color = if (selected) accent else MaterialTheme.colorScheme.outline,
                 shape = RoundedCornerShape(14.dp)
             )
-            .clickable(onClick = onClick)
+            .dpadFocusable(shape = RoundedCornerShape(14.dp), onClick = onClick)
             .padding(8.dp)
     ) {
         // Mini UI mock-up: background, a top accent bar and three colourful tiles.
@@ -1104,7 +1171,7 @@ private fun RomLibrarySection(
                             .weight(1f)
                             .clip(RoundedCornerShape(10.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable { viewModel.setRomRootPath(path) }
+                            .dpadFocusable(shape = RoundedCornerShape(10.dp)) { viewModel.setRomRootPath(path) }
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -1664,7 +1731,7 @@ private fun SegmentedTabs(
                     .weight(1f)
                     .clip(RoundedCornerShape(9.dp))
                     .then(if (isSel) Modifier.background(gradientBrush) else Modifier)
-                    .clickable { onSelect(i) }
+                    .dpadFocusable(shape = RoundedCornerShape(9.dp)) { onSelect(i) }
                     .padding(vertical = 9.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -1792,7 +1859,7 @@ private fun CardSwitchRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .clickable { onCheckedChange(!checked) }
+            .dpadFocusable(shape = RoundedCornerShape(8.dp)) { onCheckedChange(!checked) }
             .padding(horizontal = 4.dp, vertical = 6.dp),
         verticalAlignment   = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
@@ -1832,7 +1899,7 @@ private fun GradientFillButton(
                     )
                 )
             )
-            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
+            .then(if (enabled) Modifier.dpadFocusable(shape = RoundedCornerShape(23.dp), onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center
     ) {
         if (loading) {
@@ -1859,7 +1926,7 @@ private fun GradientOutlineButton(
             .height(46.dp)
             .clip(RoundedCornerShape(23.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
+            .then(if (enabled) Modifier.dpadFocusable(shape = RoundedCornerShape(23.dp), onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center
     ) {
         Text(
