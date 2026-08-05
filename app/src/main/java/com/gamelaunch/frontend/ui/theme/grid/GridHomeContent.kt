@@ -49,6 +49,9 @@ fun GridHomeContent(
     // When set, every tile uses this fixed aspect ratio instead of its system's box shape — used by
     // mixed-system lists (Recently played) so the grid stays a uniform rectangle.
     uniformAspectRatio: Float? = null,
+    // The fast-scroll section popup + hold-scroll blur only belong on the per-system game grid.
+    // The home lists (Recently played, Favorites) pass false so neither appears there.
+    sectionPopupEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     if (games.isEmpty()) {
@@ -89,8 +92,11 @@ fun GridHomeContent(
     // once the cursor stops and the grid catches up. Draw-only overlay: it deliberately does not
     // touch scroll mechanics or input handling (the source of the reverted double-move regression).
     val reduceMotion = LocalReduceMotion.current
+    // Arm the popup on VERTICAL movement only: key it on the focused row, so nudging left/right
+    // within a row doesn't raise it. When disabled (home lists) pass -1 so it never arms.
+    val armRow = if (sectionPopupEnabled && focusedGameIndex >= 0) focusedGameIndex / columns else -1
     val section = rememberSectionIndicatorState(
-        focusedIndex = focusedGameIndex,
+        focusedIndex = armRow,
         reduceMotion = reduceMotion,
         isScrollInProgress = { gridState.isScrollInProgress }
     )

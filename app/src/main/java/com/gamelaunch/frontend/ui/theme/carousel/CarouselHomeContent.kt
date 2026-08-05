@@ -34,11 +34,17 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.model.GameMedia
+import com.gamelaunch.frontend.domain.model.GameSort
+import com.gamelaunch.frontend.domain.model.sectionLabel
 import com.gamelaunch.frontend.ui.component.AsyncGameArtwork
+import com.gamelaunch.frontend.ui.component.ScrollSectionIndicator
 import com.gamelaunch.frontend.ui.component.VideoPlayer
+import com.gamelaunch.frontend.ui.component.rememberSectionIndicatorState
+import com.gamelaunch.frontend.ui.perf.LocalReduceMotion
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -53,6 +59,7 @@ fun CarouselHomeContent(
     onGameSelected: (Int) -> Unit,
     onGameClick: (Long) -> Unit,
     onMuteToggle: () -> Unit,
+    gameSort: GameSort = GameSort.ALPHABETICAL,
     modifier: Modifier = Modifier,
     // When false (dual-screen: artwork lives on the top panel), skip the full-screen video/art
     // backdrop and its darkening gradient here so the bottom panel is just the menu.
@@ -76,6 +83,15 @@ fun CarouselHomeContent(
     }
 
     val selectedGame = games.getOrNull(selectedIndex)
+
+    // The carousel is the one game-selection view that scrolls horizontally, so it's the sole place
+    // the fast-scroll section popup is allowed to appear on a horizontal scroll.
+    val reduceMotion = LocalReduceMotion.current
+    val section = rememberSectionIndicatorState(
+        focusedIndex = selectedIndex,
+        reduceMotion = reduceMotion,
+        isScrollInProgress = { listState.isScrollInProgress }
+    )
 
     Box(modifier = modifier) {
         // Background fill: video or stretched box art. On dual-screen devices this whole layer moves
@@ -196,6 +212,16 @@ fun CarouselHomeContent(
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No games found", color = Color.White, style = MaterialTheme.typography.titleMedium)
             }
+        }
+
+        // Fast-scroll "you are here" section token, centred while flicking through the carousel.
+        if (section.alpha > 0f) {
+            ScrollSectionIndicator(
+                label    = games.getOrNull(selectedIndex)?.sectionLabel(gameSort).orEmpty(),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .graphicsLayer { alpha = section.alpha }
+            )
         }
     }
 }
