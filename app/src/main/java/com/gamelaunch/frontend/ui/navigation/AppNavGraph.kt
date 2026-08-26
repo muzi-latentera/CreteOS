@@ -95,16 +95,32 @@ fun AppNavGraph(
                 onOpenSettings  = { if (canAccessProtectedRoutes) navController.navigate(Screen.Settings.route) },
                 onOpenProviders = { navController.navigate(Screen.ProviderSettings.route) },
                 onOpenDisplay   = { navController.navigate(Screen.DisplayDiagnostics.route) },
-                onOpenLibrary   = { navController.navigate(Screen.Library.route) }
+                onOpenLibrary   = { filter ->
+                    navController.navigate("${Screen.Library.route}?filter=${filter.name}")
+                }
             )
         }
 
-        composable(Screen.Library.route) {
-            // Full library grid — pushed when a Library source tile is tapped
+        composable(
+            route = "${Screen.Library.route}?filter={filter}",
+            arguments = listOf(
+                navArgument("filter") {
+                    type = androidx.navigation.NavType.StringType
+                    defaultValue = com.gamelaunch.frontend.pocket.ui.LibraryFilter.ALL.name
+                }
+            )
+        ) { backStackEntry ->
+            val filterName = backStackEntry.arguments?.getString("filter")
+                ?: com.gamelaunch.frontend.pocket.ui.LibraryFilter.ALL.name
+            val initialFilter = runCatching {
+                com.gamelaunch.frontend.pocket.ui.LibraryFilter.valueOf(filterName)
+            }.getOrDefault(com.gamelaunch.frontend.pocket.ui.LibraryFilter.ALL)
+
             val libraryViewModel: com.gamelaunch.frontend.pocket.ui.library.LibraryViewModel =
                 androidx.hilt.navigation.compose.hiltViewModel()
             com.gamelaunch.frontend.pocket.ui.LibraryScreen(
                 libraryViewModel = libraryViewModel,
+                initialFilter    = initialFilter,
                 onGameClick = { gameId -> navController.navigate(Screen.GameDetail.route(gameId)) },
                 onBack      = { navController.popBackStack() }
             )

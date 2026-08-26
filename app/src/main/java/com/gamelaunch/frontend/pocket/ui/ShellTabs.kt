@@ -70,7 +70,7 @@ fun CreteHomeLayout(
     homeViewModel: HomeViewModel,
     libraryViewModel: LibraryViewModel,
     onGameClick: (Long) -> Unit,
-    onOpenLibrary: () -> Unit,
+    onOpenLibrary: (LibraryFilter) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenProviders: () -> Unit,
     onOpenDisplay: () -> Unit,
@@ -133,16 +133,19 @@ fun CreteHomeLayout(
 
         // ── Tab bar ────────────────────────────────────────────────────────
         Row(
-            modifier = Modifier.padding(start = CreteDS.spaceXXL),
-            horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceXXL)
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.Bottom
         ) {
             ShellTab.entries.forEach { tab ->
                 val selected = tab == activeTab
                 Column(
-                    modifier = Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { onTabSelected(tab) },
+                    modifier = Modifier
+                        .padding(horizontal = CreteDS.spaceXXL)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { onTabSelected(tab) },
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -291,25 +294,26 @@ private fun LargeNewsCard(item: NewsItem) {
 // ══════════════════════════════════════════════════════════════════════════
 
 /**
- * Large library source tiles. Each tile navigates to the full library grid.
- * WinHanced parity: All Games | Steam | Xbox | XCloud style cards.
+ * Large library source tiles — same width as news cards (320dp).
+ * Tapping passes the chosen filter so the full grid opens pre-filtered.
  */
 @Composable
 private fun LibrarySection(
     libraryViewModel: LibraryViewModel,
-    onOpenLibrary: () -> Unit,
+    onOpenLibrary: (LibraryFilter) -> Unit,
     onGameClick: (Long) -> Unit
 ) {
     val state by libraryViewModel.uiState.collectAsState()
     val totalCount = state.games.size
 
+    // Pair<label, filter>  — icon drives the visual, filter drives navigation
     val sources = listOf(
-        Triple("All Games",  Icons.Outlined.GridView,       "($totalCount)"),
-        Triple("Local",      Icons.Outlined.Computer,       null),
-        Triple("Streaming",  Icons.Outlined.Stream,         null),
-        Triple("Cloud",      Icons.Outlined.Cloud,          null),
-        Triple("Retro",      Icons.Outlined.SportsEsports,  null),
-        Triple("Android",    Icons.Outlined.PhoneAndroid,   null)
+        Triple("All Games",  Icons.Outlined.GridView,       LibraryFilter.ALL),
+        Triple("Local",      Icons.Outlined.Computer,       LibraryFilter.LOCAL),
+        Triple("Streaming",  Icons.Outlined.Stream,         LibraryFilter.STREAMING),
+        Triple("Cloud",      Icons.Outlined.Cloud,          LibraryFilter.CLOUD),
+        Triple("Retro",      Icons.Outlined.SportsEsports,  LibraryFilter.RETRO),
+        Triple("Android",    Icons.Outlined.PhoneAndroid,   LibraryFilter.ANDROID)
     )
 
     LazyRow(
@@ -317,12 +321,12 @@ private fun LibrarySection(
         horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceL),
         modifier = Modifier.fillMaxSize()
     ) {
-        items(sources) { (label, icon, badge) ->
+        items(sources) { (label, icon, filter) ->
             LargeSourceTile(
-                label   = label,
-                icon    = icon,
-                badge   = badge,
-                onClick = onOpenLibrary
+                label  = label,
+                icon   = icon,
+                badge  = if (filter == LibraryFilter.ALL) "($totalCount)" else null,
+                onClick = { onOpenLibrary(filter) }
             )
         }
     }
@@ -338,7 +342,7 @@ private fun LargeSourceTile(
     Column(
         modifier = Modifier
             .fillMaxHeight()
-            .width(220.dp)
+            .width(320.dp)                          // matches news card width
             .clip(RoundedCornerShape(CreteDS.radiusL))
             .background(Color(0x30FFFFFF))
             .border(0.5.dp, Color(0x44FFFFFF), RoundedCornerShape(CreteDS.radiusL))
@@ -355,11 +359,11 @@ private fun LargeSourceTile(
             imageVector = icon,
             contentDescription = null,
             tint = CreteDS.textSecondary.copy(alpha = 0.7f),
-            modifier = Modifier.size(48.dp)
+            modifier = Modifier.size(56.dp)
         )
         Spacer(Modifier.height(CreteDS.spaceL))
         Row(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -369,11 +373,7 @@ private fun LargeSourceTile(
                 fontWeight = FontWeight.SemiBold
             )
             if (badge != null) {
-                Text(
-                    text = badge,
-                    style = CreteDS.typeMeta,
-                    color = CreteDS.textSecondary
-                )
+                Text(text = badge, style = CreteDS.typeMeta, color = CreteDS.textSecondary)
             }
         }
     }
@@ -420,7 +420,7 @@ private fun LargeSettingsTile(tile: SettingsTile) {
     Column(
         modifier = Modifier
             .fillMaxHeight()
-            .width(220.dp)
+            .width(320.dp)                          // matches news card width
             .clip(RoundedCornerShape(CreteDS.radiusL))
             .background(Color(0x30FFFFFF))
             .border(0.5.dp, Color(0x44FFFFFF), RoundedCornerShape(CreteDS.radiusL))
@@ -437,7 +437,7 @@ private fun LargeSettingsTile(tile: SettingsTile) {
             imageVector = tile.icon,
             contentDescription = null,
             tint = CreteDS.textSecondary.copy(alpha = 0.7f),
-            modifier = Modifier.size(44.dp)
+            modifier = Modifier.size(56.dp)
         )
         Spacer(Modifier.height(CreteDS.spaceL))
         Text(
@@ -446,7 +446,7 @@ private fun LargeSettingsTile(tile: SettingsTile) {
             color = CreteDS.textPrimary,
             fontWeight = FontWeight.SemiBold
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
         Text(
             text = tile.subtitle,
             style = CreteDS.typeMeta,
@@ -472,15 +472,17 @@ enum class LibraryFilter(val label: String) {
 
 /**
  * Full library grid — shown as a pushed screen when a library source tile is tapped.
- * Two-row horizontal scrolling grid with filter chips at the top.
+ * Uses a LazyRow of CreteGameCard tiles (same as the Recent Games carousel).
+ * initialFilter pre-selects the filter pill matching what was tapped on the home screen.
  */
 @Composable
 fun LibraryTabContent(
     libraryViewModel: LibraryViewModel,
-    onGameClick: (Long) -> Unit
+    onGameClick: (Long) -> Unit,
+    initialFilter: LibraryFilter = LibraryFilter.ALL
 ) {
     val state        by libraryViewModel.uiState.collectAsState()
-    var activeFilter by remember { mutableStateOf(LibraryFilter.ALL) }
+    var activeFilter by remember { mutableStateOf(initialFilter) }
 
     val providerPackages = setOf(
         "com.nvidia.geforcenow",
@@ -511,10 +513,7 @@ fun LibraryTabContent(
             .fillMaxSize()
             .background(
                 androidx.compose.ui.graphics.Brush.radialGradient(
-                    colors = listOf(
-                        Color(0xFF0E1E35),
-                        Color(0xFF060E1C)
-                    ),
+                    colors = listOf(Color(0xFF0E1E35), Color(0xFF060E1C)),
                     radius = 1400f
                 )
             )
@@ -541,31 +540,27 @@ fun LibraryTabContent(
                 contentAlignment = Alignment.Center
             ) { Text("No games", style = CreteDS.typeMeta) }
         } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        androidx.compose.ui.graphics.Brush.verticalGradient(
-                            listOf(Color(0x88060C18), Color(0xCC060C18))
-                        )
-                    )
+            // Two-row horizontal scrolling grid of game cards — same tiles as Recent Games carousel
+            LazyHorizontalGrid(
+                rows = GridCells.Fixed(2),
+                contentPadding = PaddingValues(
+                    start = CreteDS.spaceXXL,
+                    end = CreteDS.spaceXXL,
+                    top = CreteDS.spaceS,
+                    bottom = CreteDS.spaceS
+                ),
+                horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceM),
+                verticalArrangement = Arrangement.spacedBy(CreteDS.spaceM),
+                modifier = Modifier.fillMaxSize()
             ) {
-                LazyHorizontalGrid(
-                    rows = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(horizontal = CreteDS.spaceXXL),
-                    horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceM),
-                    verticalArrangement = Arrangement.spacedBy(CreteDS.spaceM),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(filteredGames) { game ->
-                        CreteGameCard(
-                            artworkUrl = state.mediaForGames[game.id]?.effectiveBoxArt,
-                            title      = game.title,
-                            platformId = game.platformId,
-                            focused    = false,
-                            onClick    = { onGameClick(game.id) }
-                        )
-                    }
+                items(filteredGames) { game ->
+                    CreteGameCard(
+                        artworkUrl = state.mediaForGames[game.id]?.effectiveBoxArt,
+                        title      = game.title,
+                        platformId = game.platformId,
+                        focused    = false,
+                        onClick    = { onGameClick(game.id) }
+                    )
                 }
             }
         }
@@ -785,52 +780,15 @@ private fun ColumnScope.SettingsPanelAction(label: String, icon: ImageVector, on
 @Composable
 fun LibraryScreen(
     libraryViewModel: LibraryViewModel,
+    initialFilter: LibraryFilter = LibraryFilter.ALL,
     onGameClick: (Long) -> Unit,
     onBack: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                androidx.compose.ui.graphics.Brush.radialGradient(
-                    colors = listOf(Color(0xFF0E1E35), Color(0xFF060E1C)),
-                    radius = 1400f
-                )
-            )
-    ) {
-        LibraryTabContent(
-            libraryViewModel = libraryViewModel,
-            onGameClick      = onGameClick
-        )
-
-        // Back pill — top left
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 24.dp, top = 16.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(0x28FFFFFF))
-                .border(0.5.dp, Color(0x33FFFFFF), RoundedCornerShape(8.dp))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onBack
-                )
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.ArrowBack,
-                contentDescription = "Back",
-                tint = CreteDS.textSecondary,
-                modifier = Modifier.size(18.dp)
-            )
-            Text(
-                text = "Library",
-                style = CreteDS.typeNavTab,
-                color = CreteDS.textSecondary
-            )
-        }
-    }
+    // No back pill — system back / gesture handles navigation.
+    // Filter chips already show context (which filter is active).
+    LibraryTabContent(
+        libraryViewModel = libraryViewModel,
+        onGameClick      = onGameClick,
+        initialFilter    = initialFilter
+    )
 }
