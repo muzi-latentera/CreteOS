@@ -3,6 +3,8 @@ package com.gamelaunch.frontend.pocket.launch
 import android.util.Log
 import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.pocket.data.repository.LaunchTargetRepository
+import com.gamelaunch.frontend.pocket.display.GamingDisplayManager
+import com.gamelaunch.frontend.pocket.domain.DisplayPolicy
 import com.gamelaunch.frontend.pocket.domain.LaunchContext
 import com.gamelaunch.frontend.pocket.domain.LaunchTarget
 import com.gamelaunch.frontend.pocket.providers.GameProvider
@@ -23,6 +25,7 @@ import javax.inject.Singleton
 @Singleton
 class UnifiedLaunchCoordinator @Inject constructor(
     private val launchTargetRepository: LaunchTargetRepository,
+    private val gamingDisplayManager: GamingDisplayManager,
     private val providers: Map<ProviderId, @JvmSuppressWildcards GameProvider>
 ) {
 
@@ -71,9 +74,18 @@ class UnifiedLaunchCoordinator @Inject constructor(
             )
         }
 
-        // Build launch context — GamingDisplayManager (Phase 5) will fill display fields
-        val context = LaunchContext()
-        return provider.launch(target, context)
+        // Build launch context using current display state
+        val display = gamingDisplayManager.activeDisplay.value
+        val launchContext = LaunchContext(
+            destinationDisplayId = if (display.isExternal) display.displayId else null,
+            displayWidth = display.width,
+            displayHeight = display.height,
+            refreshRate = display.refreshRate,
+            externalDisplayConnected = display.isExternal,
+            displayPolicy = DisplayPolicy.AUTO_MATCH_DISPLAY // default; per-game override in Phase 11
+        )
+
+        return provider.launch(target, launchContext)
     }
 
     companion object {
