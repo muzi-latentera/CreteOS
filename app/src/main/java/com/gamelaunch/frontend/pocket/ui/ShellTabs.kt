@@ -493,12 +493,20 @@ private fun HeroTile(
                 // Platform chip
                 HeroChip(text = platformLabel)
 
-                // Play time chip
-                HeroChip(text = "$playTimeHours H PLAYED")
+                // Play time chip — only show if actually played
+                if (game.playCount > 0) {
+                    HeroChip(text = "$playTimeHours H PLAYED")
+                }
 
-                // Save synced chip (green)
+                // Provider chip (replaces fake "SAVE SYNCED")
                 HeroChip(
-                    text = "SAVE SYNCED",
+                    text = when (game.platformId.lowercase()) {
+                        "steam" -> "GAME NATIVE"
+                        "gfn"   -> "GEFORCE NOW"
+                        "moonlight" -> "MOONLIGHT"
+                        "android"   -> "ANDROID"
+                        else        -> "READY"
+                    },
                     textColor = GreenSync,
                     borderColor = GreenSync.copy(alpha = 0.3f)
                 )
@@ -576,12 +584,31 @@ private fun HeroTile(
                 .padding(20.dp)
         ) {
             Column(
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                ProfileRow(label = "Runtime", value = "ProtonGE 9-7")
-                ProfileRow(label = "Profile", value = "Performance")
-                ProfileRow(label = "Controls", value = "Xbox Layout")
-                ProfileRow(label = "Last session", value = formatLastPlayed(game.lastPlayedMs))
+                Text(
+                    "ACTIVE PROFILE",
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 2.sp,
+                    color = CreamText.copy(alpha = 0.42f)
+                )
+                ProfileRow(label = "Provider",
+                    value = when (game.platformId.lowercase()) {
+                        "steam" -> "Game Native"
+                        "gfn"   -> "GeForce NOW"
+                        "moonlight" -> "Moonlight"
+                        "android"   -> "Android"
+                        else        -> game.platformId.uppercase()
+                    }
+                )
+                ProfileRow(label = "Source", value = platformLabel)
+                ProfileRow(label = "Sessions",
+                    value = if (game.playCount > 0) game.playCount.toString() else "—"
+                )
+                ProfileRow(label = "Last played",
+                    value = formatLastPlayed(game.lastPlayedMs)
+                )
             }
         }
     }
