@@ -9,6 +9,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -82,7 +85,13 @@ fun CreteHomeLayout(
 ) {
     val state       by homeViewModel.uiState.collectAsState()
     val recentGames = remember(state.recentlyPlayed, state.games) {
-        state.recentlyPlayed.takeIf { it.isNotEmpty() } ?: state.games.take(20)
+        // Smart 10: recently played first (in play-recency order),
+        // then fill remaining slots with most recently added games not already in the list.
+        val playedIds = state.recentlyPlayed.map { it.id }.toSet()
+        val recentlyAdded = state.games
+            .filter { it.id !in playedIds }
+            .sortedByDescending { it.dateAdded }
+        (state.recentlyPlayed + recentlyAdded).take(10)
     }
     var focusedIndex by remember { mutableIntStateOf(0) }  // first card focused by default
 
@@ -568,16 +577,19 @@ fun LibraryTabContent(
                 contentAlignment = Alignment.Center
             ) { Text("No games", style = CreteDS.typeMeta) }
         } else {
-            // Single-row horizontal scroll of game cards — same tiles as Recent Games carousel
-            LazyRow(
+            // Adaptive vertical grid — fills the screen, auto-calculates columns from card width.
+            // ~6 columns on Fold 8 inner (1280dp / 140dp), ~4 on smaller screens.
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = CreteDS.gameCardWidth + CreteDS.spaceM),
                 contentPadding = PaddingValues(
                     horizontal = CreteDS.spaceXXL,
-                    vertical = CreteDS.spaceS
+                    vertical = CreteDS.spaceM
                 ),
                 horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceM),
-                modifier = Modifier.fillMaxWidth()
+                verticalArrangement = Arrangement.spacedBy(CreteDS.spaceM),
+                modifier = Modifier.fillMaxSize()
             ) {
-                items(filteredGames) { game ->
+                items(filteredGames, key = { it.id }) { game ->
                     CreteGameCard(
                         artworkUrl = state.mediaForGames[game.id]?.effectiveBoxArt,
                         title      = game.title,
