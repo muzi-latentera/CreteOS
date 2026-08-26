@@ -35,7 +35,15 @@ object CreteDS {
     val bgCardElevated = Color(0xFF1A2435)
 
     /** Top-right system pill background */
-    val pillBg        = Color(0x99131922)   // 60% opacity card
+    val pillBg        = Color(0xDD131922)   // 87% opacity - more opaque
+
+    // ── Panel backgrounds — opaque glass effect ────────────────────────────
+    /** Main panel background — 80% opacity */
+    val panelBg       = Color(0xCC0C1018)
+    /** Card on panel — 87% opacity */
+    val panelBgCard   = Color(0xDD0F1520)
+    /** Slightly lighter panel — 73% opacity */
+    val panelBgLight  = Color(0xBB131922)
 
     /** Focus/selected accent — bright blue, used sparingly */
     val accent        = Color(0xFF4D9FFF)

@@ -132,6 +132,8 @@ fun CreteGameDetailScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = CreteDS.spaceL)
+                    .padding(bottom = CreteDS.spaceL),
+                opacity = 0.93f
             ) {
                 Column(modifier = Modifier.padding(CreteDS.spaceXL)) {
 
@@ -155,17 +157,22 @@ fun CreteGameDetailScreen(
                         val sessionsStr = if (game.playCount == 0) "—" else "${game.playCount}"
                         CreteStatItem(label = "Sessions", value = sessionsStr)
 
+                        Spacer(Modifier.width(CreteDS.spaceXL))
+
                         // Last played
                         game.lastPlayedMs?.let { ms ->
                             CreteStatDivider()
+                            Spacer(Modifier.width(CreteDS.spaceS))
                             CreteStatItem(
                                 label = "Last Played",
                                 value = formatLastPlayed(ms)
                             )
+                            Spacer(Modifier.width(CreteDS.spaceXL))
                         }
 
                         // Achievements placeholder — Steam integration would fill this
                         CreteStatDivider()
+                        Spacer(Modifier.width(CreteDS.spaceS))
                         CreteStatItem(label = "Achievements", value = "—")
 
                         Spacer(Modifier.weight(1f))

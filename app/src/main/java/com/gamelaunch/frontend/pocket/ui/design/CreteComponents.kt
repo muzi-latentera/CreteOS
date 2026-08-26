@@ -96,26 +96,22 @@ private fun ControllerHint(button: String, label: String) {
 /**
  * Frosted glass-style card. Thin border, subtle bg, rounded.
  * Used for the game info panel in the detail screen.
+ * @param opacity Background opacity (0.0-1.0), defaults to 0.80 (80%)
  */
 @Composable
 fun CreteGlassCard(
     modifier: Modifier = Modifier,
+    opacity: Float = 0.80f,
     content: @Composable BoxScope.() -> Unit
 ) {
+    val bgColor = Color(0xFF0A1220).copy(alpha = opacity)
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(CreteDS.radiusL))
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        CreteDS.bgCard.copy(alpha = 0.92f),
-                        CreteDS.bgSurface.copy(alpha = 0.95f)
-                    )
-                )
-            )
+            .background(bgColor)
             .border(
                 0.5.dp,
-                CreteDS.border,
+                Color.White.copy(alpha = 0.08f),
                 RoundedCornerShape(CreteDS.radiusL)
             ),
         content = content
@@ -296,7 +292,7 @@ fun CretePlayButton(
 
     Row(
         modifier = modifier
-            .height(48.dp)
+            .height(44.dp)
             .clip(RoundedCornerShape(CreteDS.radiusM))
             .background(bg)
             .border(1.dp, borderColor, RoundedCornerShape(CreteDS.radiusM))
