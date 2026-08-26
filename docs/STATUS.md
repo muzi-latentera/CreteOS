@@ -24,7 +24,7 @@ Last updated: 2026-08-26
 | LaunchGameUseCase seam | ✅ DONE | 1 upstream file modified, coordinator injected |
 | HOME launcher declaration | ✅ DONE | Tested on Fold 8 — Home button returns to CreteOS |
 | eOr regression (ROMs, Android games, settings) | 🟡 PARTIAL | Not formally re-tested after UI changes |
-| Unit tests (coordinator, GameNative provider) | 🟡 PARTIAL | 13 tests pass; no tests for artwork resolver, sync, or other providers |
+| Unit tests (coordinator, GameNative provider) | ✅ DONE | 28 tests pass (8 GameNative, 6 coordinator, 14 correctness pass) |
 | Upstream eOr merge test | ❌ NOT STARTED | Simulated merge never run |
 
 ---
@@ -36,9 +36,9 @@ Last updated: 2026-08-26
 | Direct launch intent (LAUNCH_GAME, app_id, game_source) | ✅ DONE | Tested with Bastion (107100) — confirmed in logcat |
 | Existing GameNative config preserved (no container_config sent) | ✅ DONE | Verified in tests |
 | HOME return after game exit | ✅ DONE | Tested on Fold 8 |
-| Frontend sync file discovery | ❌ NOT STARTED | GameNative 1.2.0 doesn't have Frontend Sync yet |
-| Automatic library sync via eOr GameRepository | ❌ NOT STARTED | Currently ADB debug seeding only — **must not reach production** |
-| Multiple GameNative games | ❌ NOT STARTED | Only Bastion seeded manually |
+| GameNative frontend sync file discovery | 🟡 PARTIAL | **GameNative 1.2.0 DOES have Frontend Sync (PR #1454, merged 2026-05-30).** User must configure it: GameNative Settings → Interface → Frontend Sync → pick export folder. Then same folder in CreteOS Settings → Games → Steam Library. Discovery code reads .steam/.gog/.epic/.amazon/.pcgame files. Untested end-to-end until user configures export folder. |
+| Automatic library sync via eOr GameRepository | 🟡 PARTIAL | ProviderSyncCoordinator uses GameRepository.insertGame() + GameIdentityResolver. DebugSeedReceiver is DEBUG-only. Production path exists, needs user to configure GameNative Frontend Sync folder. |
+| Multiple GameNative games | 🟡 PARTIAL | Will work once Frontend Sync is configured — only Bastion manually seeded currently |
 
 ---
 
@@ -61,7 +61,7 @@ Last updated: 2026-08-26
 | Item | Status | Notes |
 |---|---|---|
 | GameNativeProvider — launch | ✅ DONE | Tested |
-| GameNativeProvider — discovery | ❌ NOT STARTED | Returns emptyList() pending Frontend Sync |
+| GameNativeProvider — discovery | 🟡 PARTIAL | discoverGames() reads .steam/.gog/.epic/.amazon/.pcgame files. Needs user to configure GameNative Frontend Sync folder first. |
 | GameHubLiteProvider — launch | 🟡 PARTIAL | Intent constructed, package unverified on real device |
 | GameHubLiteProvider — discovery | ❌ NOT STARTED | Returns emptyList() |
 | WinNativeProvider — launch | 🟡 PARTIAL | Stub only, package name unverified |
@@ -123,9 +123,25 @@ Last updated: 2026-08-26
 
 | Item | Current state | Required action |
 |---|---|---|
-| DebugSeedReceiver raw SQLiteDatabase writes to gamelauncher.db | In debug receiver | Add `BuildConfig.DEBUG` guard; document as debug-only |
-| Manual ADB sqlite3 database manipulation | Dev workflow only | Remove from any documented process; replace with PcGameArtworkResolver |
-| PowerManager.reboot() in status bar power button | Likely fails silently | Replace with Android Power Menu intent or Lock Screen only |
+| DebugSeedReceiver raw SQLiteDatabase writes to gamelauncher.db | **FIXED** — BuildConfig.DEBUG guard added | Will silently no-op in release builds |
+| Manual ADB sqlite3 database manipulation | Dev workflow only — replaced by ProviderSyncCoordinator | Use GameNative Frontend Sync folder for production imports |
+| PowerManager.reboot() / POWER_MENU_LAUNCH | **FIXED** — both removed; tested on Android 17, neither works from normal APK | Power button now shows Lock Screen only, with device-admin explanation |
+
+## Correctness pass results (2026-08-26)
+
+All 8 architecture bugs from review fixed and tested:
+
+| Bug | Status |
+|---|---|
+| GameIdentityResolver source-key ordering (GOG/Epic treated as Steam) | ✅ Fixed — source wins over provider |
+| Title matching not implemented | ✅ Fixed — getAllGames().first() with exact normalised match |
+| GameIdentityResolver not wired into ProviderSyncCoordinator | ✅ Fixed — every discovered game goes through resolver |
+| Steam CDN used for GOG/Epic/Amazon IDs | ✅ Fixed — CDN only when source=="STEAM" |
+| PcGameArtworkResolver: cover/hero not independent | ✅ Fixed — cover and hero resolved independently |
+| Moonlight: fabricated pcName from activity.packageName | ✅ Fixed — pcName removed; startShortcut() primary; ShortcutTrampoline only with real data |
+| isPreferred reset on rescan | ✅ Fixed — currentPreferred preserved from existing target |
+| Stale-target reconciliation missing | ✅ Fixed — seen IDs tracked; unseen targets marked unavailable |
+| GameNative claimed to have no Frontend Sync | ✅ Corrected — PR #1454 confirmed in 1.2.0; discoverGames() implemented |
 
 ---
 

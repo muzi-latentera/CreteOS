@@ -3,29 +3,36 @@ package com.gamelaunch.frontend.pocket.sync
 import android.util.Log
 import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.repository.GameRepository
-import com.gamelaunch.frontend.pocket.data.db.entity.LaunchTargetEntity
 import com.gamelaunch.frontend.pocket.data.repository.LaunchTargetRepository
 import com.gamelaunch.frontend.pocket.domain.DiscoveredProviderGame
+import com.gamelaunch.frontend.pocket.domain.LaunchTarget
 import com.gamelaunch.frontend.pocket.providers.GameProvider
 import com.gamelaunch.frontend.pocket.providers.ProviderId
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Coordinates provider discovery and syncs results into both databases correctly:
+ * Coordinates provider discovery and correctly syncs results into both databases.
  *
- * - eOr's GameRepository (via insertGame) for library visibility
- * - CreteOS PocketDatabase (via LaunchTargetRepository) for launch targets
- * - PcGameArtworkResolver for artwork (Steam CDN + eOr MediaRepository)
+ * Contract:
+ * - eOr's GameRepository (insertGame) for library visibility — never raw SQL
+ * - CreteOS PocketDatabase (LaunchTargetRepository) for launch targets
+ * - PcGameArtworkResolver for Steam CDN artwork (Steam source only)
+ * - GameIdentityResolver for matching discovered games to existing eOr games
  *
- * This is the ONLY legitimate path for inserting provider-discovered games.
- * No code outside this class should write raw SQL to gamelauncher.db.
+ * Stale-target reconciliation:
+ *   After discovering games for a provider, any existing target for that provider
+ *   that was NOT seen in this sync is marked unavailable (not deleted).
+ *   Preferences are preserved throughout.
+ *
+ * isPreferred is NEVER reset by a sync. The user's choice persists.
  */
 @Singleton
 class ProviderSyncCoordinator @Inject constructor(
     private val gameRepository: GameRepository,
     private val launchTargetRepository: LaunchTargetRepository,
     private val artworkResolver: PcGameArtworkResolver,
+    private val identityResolver: GameIdentityResolver,
     private val providers: Map<ProviderId, @JvmSuppressWildcards GameProvider>
 ) {
 
@@ -34,139 +41,178 @@ class ProviderSyncCoordinator @Inject constructor(
         val discovered: Int,
         val added: Int,
         val updated: Int,
+        val markedUnavailable: Int,
         val errors: List<String>
     )
 
-    /**
-     * Run discovery for all enabled providers and sync results.
-     */
     suspend fun syncAll(): List<SyncResult> =
         providers.entries.mapNotNull { (id, provider) ->
             runCatching { syncProvider(id, provider) }
                 .getOrElse { e ->
                     Log.e(TAG, "Sync failed for $id: ${e.message}", e)
-                    SyncResult(id, 0, 0, 0, listOf(e.message ?: "Unknown error"))
+                    SyncResult(id, 0, 0, 0, 0, listOf(e.message ?: "Unknown error"))
                 }
         }
 
-    /**
-     * Run discovery for a single provider.
-     */
     suspend fun syncProvider(providerId: ProviderId, provider: GameProvider): SyncResult {
         if (!provider.isAvailable()) {
             Log.d(TAG, "$providerId not installed — marking unavailable")
             launchTargetRepository.markProviderUnavailable(providerId)
-            return SyncResult(providerId, 0, 0, 0, emptyList())
+            return SyncResult(providerId, 0, 0, 0, 0, emptyList())
         }
 
         val discovered = runCatching { provider.discoverGames() }.getOrElse {
             Log.w(TAG, "discoverGames() failed for $providerId: ${it.message}")
-            return SyncResult(providerId, 0, 0, 0, listOf(it.message ?: "Discovery failed"))
+            return SyncResult(providerId, 0, 0, 0, 0, listOf(it.message ?: "Discovery failed"))
         }
 
         Log.d(TAG, "$providerId discovered ${discovered.size} games")
+
+        // Collect existing targets for this provider BEFORE processing — for reconciliation
+        val existingTargets = launchTargetRepository
+            .getTargetsForProvider(providerId)
+            .associateBy { it.externalId }
+
+        val seenExternalIds = mutableSetOf<String>()
         var added = 0; var updated = 0
         val errors = mutableListOf<String>()
 
-        for (discovered in discovered) {
+        for (game in discovered) {
             runCatching {
-                processDiscoveredGame(discovered)?.let { wasNew ->
-                    if (wasNew) added++ else updated++
-                }
+                val wasNew = processDiscoveredGame(game, existingTargets[game.externalId])
+                seenExternalIds += game.externalId
+                if (wasNew) added++ else updated++
             }.onFailure { e ->
-                Log.w(TAG, "Failed to process ${discovered.displayName}: ${e.message}")
-                errors += "${discovered.displayName}: ${e.message}"
+                Log.w(TAG, "Failed to process ${game.displayName}: ${e.message}")
+                errors += "${game.displayName}: ${e.message}"
             }
         }
 
-        launchTargetRepository.markProviderAvailable(providerId)
-        return SyncResult(providerId, discovered.size, added, updated, errors)
+        // Stale-target reconciliation: mark targets not seen in this sync as unavailable
+        val stale = existingTargets.filterKeys { it !in seenExternalIds }
+        stale.values.forEach { staleTarget ->
+            runCatching {
+                // Mark unavailable but preserve the row and any isPreferred flag
+                launchTargetRepository.upsertTarget(staleTarget.copy(isAvailable = false))
+                Log.d(TAG, "Marked stale: ${providerId}/${staleTarget.externalId}")
+            }
+        }
+
+        return SyncResult(providerId, discovered.size, added, updated, stale.size, errors)
     }
 
     /**
-     * Process one discovered game:
-     * 1. Find or create the eOr Game row (via GameRepository — no raw SQL)
-     * 2. Upsert a launch target in PocketDatabase
-     * 3. Resolve artwork via PcGameArtworkResolver
+     * Process one discovered game.
      *
-     * Returns true if a new Game row was inserted, false if existing.
+     * Flow:
+     * 1. Try to resolve an existing eOr host via GameIdentityResolver
+     * 2. If resolved: attach launch target to that host
+     * 3. If unresolved: create a synthetic eOr game row with a provider-namespaced key
+     * 4. Upsert launch target — PRESERVING isPreferred if target already exists
+     * 5. Resolve artwork for new games (Steam source only for CDN)
+     *
+     * Returns true if a new eOr Game row was inserted.
      */
-    private suspend fun processDiscoveredGame(discovered: DiscoveredProviderGame): Boolean {
-        // Determine the romPath key (eOr canonical format)
-        val hostKey = discovered.hostGameKey
-            ?: buildHostKey(discovered.provider, discovered.externalId, discovered.source)
+    private suspend fun processDiscoveredGame(
+        discovered: DiscoveredProviderGame,
+        existingTarget: LaunchTarget?
+    ): Boolean {
 
-        // Check if eOr already has this game
-        var existingGame = gameRepository.getGameByRomPath(hostKey)
+        // 1+2. Try identity resolution
+        val resolved = discovered.hostGameKey?.let { key ->
+            // hostGameKey already provided by provider (e.g. GameNative with .steam files)
+            val game = gameRepository.getGameByRomPath(key)
+            game?.let { GameIdentityResolver.ResolvedIdentity(key, it.id, GameIdentityResolver.Confidence.EXACT_STORE_ID) }
+        } ?: identityResolver.resolve(discovered)
+
+        val hostGameKey: String
+        val hostGameId: Long
         val wasNew: Boolean
 
-        if (existingGame == null) {
-            // Insert via GameRepository — correct path, Room handles it
-            val game = Game(
-                title      = discovered.displayName,
-                romPath    = hostKey,
-                romFilename = "${discovered.displayName}.${discovered.source.lowercase()}",
-                platformId  = platformForProvider(discovered.provider)
-            )
-            val newId = gameRepository.insertGame(game)
-            if (newId <= 0L) {
-                // Already exists (race condition) — fetch it
-                existingGame = gameRepository.getGameByRomPath(hostKey)
-                    ?: return false
-            }
-            wasNew = newId > 0L
-            val gameId = if (wasNew) newId else (existingGame?.id ?: return false)
-            Log.d(TAG, "Inserted game '${discovered.displayName}' id=$gameId romPath=$hostKey")
-
-            // Resolve artwork for new games immediately
-            resolveArtwork(gameId, discovered)
+        if (resolved != null) {
+            hostGameKey = resolved.hostGameKey
+            hostGameId  = resolved.hostGameId
+            wasNew      = false
         } else {
-            wasNew = false
+            // 3. Unresolved — create synthetic game row
+            val syntheticKey = buildSyntheticKey(discovered)
+            val existingGame = gameRepository.getGameByRomPath(syntheticKey)
+
+            if (existingGame != null) {
+                hostGameKey = syntheticKey
+                hostGameId  = existingGame.id
+                wasNew      = false
+            } else {
+                val game = Game(
+                    title       = discovered.displayName,
+                    romPath     = syntheticKey,
+                    romFilename = "${discovered.displayName}.${discovered.source.lowercase()}",
+                    platformId  = platformForProvider(discovered.provider)
+                )
+                val newId = gameRepository.insertGame(game)
+                if (newId <= 0L) {
+                    // Race condition — fetch it
+                    val refetched = gameRepository.getGameByRomPath(syntheticKey)
+                        ?: return false
+                    hostGameKey = syntheticKey
+                    hostGameId  = refetched.id
+                    wasNew      = false
+                } else {
+                    hostGameKey = syntheticKey
+                    hostGameId  = newId
+                    wasNew      = true
+                    Log.d(TAG, "Synthetic game '${discovered.displayName}' id=$newId key=$syntheticKey")
+                }
+            }
         }
 
-        val gameId = existingGame?.id ?: gameRepository.getGameByRomPath(hostKey)?.id ?: return wasNew
-
-        // Upsert launch target in PocketDatabase
-        val target = LaunchTargetEntity(
-            hostGameKey = hostKey,
-            provider    = discovered.provider.name,
+        // 4. Upsert launch target — PRESERVE isPreferred from existing target
+        val currentPreferred = existingTarget?.isPreferred ?: false
+        val target = LaunchTarget(
+            id          = existingTarget?.id ?: 0,
+            hostGameKey = hostGameKey,
+            provider    = discovered.provider,
             externalId  = discovered.externalId,
             source      = discovered.source,
             displayName = discovered.displayName,
             launchData  = discovered.launchData,
             isAvailable = true,
-            isPreferred = false
+            isPreferred = currentPreferred  // never reset by sync
         )
-        launchTargetRepository.upsertTarget(target.toDomain())
-        Log.d(TAG, "Upserted launch target: ${discovered.provider} / ${discovered.externalId}")
+        launchTargetRepository.upsertTarget(target)
+        Log.d(TAG, "Upserted target: ${discovered.provider}/${discovered.externalId} preferred=$currentPreferred")
+
+        // 5. Artwork — Steam CDN only for source==STEAM
+        if (wasNew) {
+            resolveArtwork(hostGameId, discovered)
+        }
 
         return wasNew
     }
 
     private suspend fun resolveArtwork(gameId: Long, discovered: DiscoveredProviderGame) {
-        val steamAppId = when (discovered.provider) {
-            ProviderId.GAME_NATIVE,
-            ProviderId.GAME_HUB_LITE -> discovered.externalId.toIntOrNull()
-            else -> null
-        }
-        if (steamAppId != null && discovered.source in STEAM_SOURCES) {
-            // Set remote URLs immediately (fast) then trigger background download
+        // Steam CDN ONLY for actual Steam AppIDs (source == "STEAM")
+        // GOG/Epic/Amazon IDs are NOT Steam AppIDs
+        if (discovered.source == "STEAM") {
+            val steamAppId = discovered.externalId.toIntOrNull() ?: return
             artworkResolver.setRemoteUrlsForSteamGame(gameId, steamAppId)
         }
-        // Non-Steam and emulator artwork handled by eOr's existing scraper
+        // All other sources: eOr scraper handles artwork through its existing path
     }
 
-    private fun buildHostKey(provider: ProviderId, externalId: String, source: String): String =
-        when (provider) {
-            ProviderId.GAME_NATIVE,
-            ProviderId.GAME_HUB_LITE -> if (source == "STEAM") "steam:$externalId"
-                                         else "steam:$source:$externalId"
-            ProviderId.WIN_NATIVE    -> "winnative:$externalId"
-            ProviderId.WINLATOR      -> "winlator:$externalId"
-            ProviderId.MOONLIGHT     -> "moonlight:$externalId"
-            ProviderId.GEFORCE_NOW   -> "gfn:$externalId"
-            ProviderId.ANDROID_SHORTCUT -> "shortcut:$externalId"
-        }
+    /**
+     * Build a synthetic romPath for provider-only games (no eOr match).
+     * Provider-namespaced to avoid collisions between providers.
+     */
+    private fun buildSyntheticKey(discovered: DiscoveredProviderGame): String = when (discovered.provider) {
+        ProviderId.MOONLIGHT     -> "moonlight:${discovered.externalId}"
+        ProviderId.GEFORCE_NOW   -> "gfn:${discovered.externalId}"
+        ProviderId.WIN_NATIVE    -> "winnative:${discovered.externalId}"
+        ProviderId.WINLATOR      -> "winlator:${discovered.externalId}"
+        ProviderId.ANDROID_SHORTCUT -> "shortcut:${discovered.externalId}"
+        // GameNative/GameHub with unknown source — shouldn't happen after identity resolver runs
+        else -> "${discovered.provider.name.lowercase()}:${discovered.externalId}"
+    }
 
     private fun platformForProvider(provider: ProviderId): String = when (provider) {
         ProviderId.GAME_NATIVE,
@@ -178,24 +224,7 @@ class ProviderSyncCoordinator @Inject constructor(
         ProviderId.ANDROID_SHORTCUT -> "android"
     }
 
-    // Helper to bridge from entity to domain (LaunchTargetRepository expects domain)
-    private fun LaunchTargetEntity.toDomain() =
-        com.gamelaunch.frontend.pocket.domain.LaunchTarget(
-            id          = id,
-            hostGameKey = hostGameKey,
-            provider    = runCatching {
-                com.gamelaunch.frontend.pocket.providers.ProviderId.valueOf(provider)
-            }.getOrDefault(ProviderId.GAME_NATIVE),
-            externalId  = externalId,
-            source      = source,
-            displayName = displayName,
-            launchData  = launchData,
-            isAvailable = isAvailable,
-            isPreferred = isPreferred
-        )
-
     companion object {
         private const val TAG = "ProviderSyncCoord"
-        private val STEAM_SOURCES = setOf("STEAM", "GOG", "EPIC", "AMAZON", "CUSTOM_GAME")
     }
 }
