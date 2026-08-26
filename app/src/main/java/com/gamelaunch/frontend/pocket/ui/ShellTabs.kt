@@ -788,6 +788,7 @@ fun LibraryTabContent(
     val state by libraryViewModel.uiState.collectAsState()
     var activeFilter by remember { mutableStateOf(initialFilter) }
     var focusedGameId by remember { mutableStateOf<Long?>(null) }
+    var showSources by remember { mutableStateOf(false) }
 
     val providerPackages = setOf(
         "com.nvidia.geforcenow", "com.limelight", "com.nytimes.crossword",
@@ -850,6 +851,44 @@ fun LibraryTabContent(
 
             Spacer(Modifier.width(12.dp))
 
+            // Sources toggle button
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        if (showSources) AmberAccent.copy(alpha = 0.16f)
+                        else CreamText.copy(alpha = 0.05f)
+                    )
+                    .border(
+                        1.dp,
+                        if (showSources) AmberAccent.copy(alpha = 0.5f) else CreamText.copy(alpha = 0.10f),
+                        RoundedCornerShape(8.dp)
+                    )
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showSources = !showSources }
+                    )
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Layers,
+                    contentDescription = "Sources",
+                    tint = if (showSources) AmberAccent else DimCream,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "Sources",
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = if (showSources) AmberAccent else DimCream
+                )
+            }
+
+            Spacer(Modifier.width(8.dp))
+
             // Sort button
             Box(
                 modifier = Modifier
@@ -875,8 +914,10 @@ fun LibraryTabContent(
 
         Spacer(Modifier.height(16.dp))
 
-        // Game grid
-        if (state.isLoading) {
+        // Sources view or game grid
+        if (showSources) {
+            SourcesGridView()
+        } else if (state.isLoading) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -968,6 +1009,153 @@ private fun V1FilterChip(
 /**
  * Standalone library screen — navigated to when a Library source tile is tapped.
  */
+
+// ══════════════════════════════════════════════════════════════════════════
+// SOURCES GRID VIEW — shown when Sources toggle is active in Library
+// ══════════════════════════════════════════════════════════════════════════
+
+private data class SourceCard(
+    val name: String,
+    val kind: String,
+    val initial: String,
+    val bgColor: Long,
+    val count: String,
+    val note: String,
+    val enabled: Boolean = true
+)
+
+@Composable
+private fun SourcesGridView() {
+    val sources = listOf(
+        SourceCard("Game Native",  "Windows runtime",    "N", 0xFF2E7D96, "Steam library", "Handles PC games via GameNative bridge."),
+        SourceCard("Moonlight",    "PC streaming",       "M", 0xFF1A4A7A, "PC games",      "Stream games from your gaming PC."),
+        SourceCard("GeForce NOW",  "Cloud streaming",    "G", 0xFF76B900, "Cloud library", "NVIDIA cloud gaming service."),
+        SourceCard("RetroArch",    "Emulator frontend",  "R", 0xFFC9482A, "ROMs",          "Multi-system emulation via RetroArch."),
+        SourceCard("Android",      "Native apps",        "A", 0xFF3DDC84, "Android games", "Games installed directly on device."),
+        SourceCard("GameHub",      "Windows runtime",    "H", 0xFF3E6FB8, "PC games",      "Alternative Windows compatibility layer.")
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp)
+    ) {
+        Text(
+            text = "Everything CreteOS can see",
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = CreamText
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "Runtimes, emulators and folders indexed into one library. Toggle a source off and its titles leave the shelves.",
+            fontSize = 13.sp,
+            color = DimCream,
+            lineHeight = 18.sp
+        )
+        Spacer(Modifier.height(20.dp))
+
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            items(sources) { source ->
+                SourceCardItem(source = source)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourceCardItem(source: SourceCard) {
+    var enabled by remember { mutableStateOf(source.enabled) }
+
+    Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF0F1317))
+            .border(1.dp, CreamText.copy(alpha = 0.09f), RoundedCornerShape(14.dp))
+            .padding(18.dp)
+    ) {
+        // Header: icon + name + kind + toggle
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // Icon box
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(Color(source.bgColor).copy(alpha = 0.9f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = source.initial,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = source.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CreamText)
+                Text(
+                    text = source.kind.uppercase(),
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 1.2.sp,
+                    color = DimCream
+                )
+            }
+            // Toggle
+            Box(
+                modifier = Modifier
+                    .width(44.dp)
+                    .height(24.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (enabled) AmberAccent.copy(alpha = 0.55f) else CreamText.copy(alpha = 0.08f))
+                    .border(1.dp, CreamText.copy(alpha = 0.14f), RoundedCornerShape(12.dp))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { enabled = !enabled }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(3.dp)
+                        .size(18.dp)
+                        .align(if (enabled) Alignment.CenterEnd else Alignment.CenterStart)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(Color.White)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+        Box(Modifier.fillMaxWidth().height(0.5.dp).background(CreamText.copy(alpha = 0.08f)))
+        Spacer(Modifier.height(14.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            Text(text = source.count, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = CreamText)
+            Text(
+                text = "SCANNED RECENTLY",
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                color = DimCream.copy(alpha = 0.7f)
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(text = source.note, fontSize = 12.sp, color = DimCream, lineHeight = 16.sp)
+    }
+}
+
 @Composable
 fun LibraryScreen(
     libraryViewModel: LibraryViewModel,
