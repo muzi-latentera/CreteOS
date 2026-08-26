@@ -80,21 +80,22 @@ class DebugSeedReceiver : BroadcastReceiver() {
                     Log.i(TAG, "eOr DB: inserted game rowId=$rowId for '$title' (romPath=$hostKey)")
 
                     // 3. Insert Steam CDN artwork into game_media table
-                    // Steam provides portrait cover art at a predictable CDN URL
+                    // Steam provides portrait cover art and wide hero art at predictable CDN URLs
                     if (source == "STEAM" && rowId > 0) {
-                        val boxArtUrl = "https://cdn.steamstatic.com/steam/apps/$appId/library_600x900.jpg"
-                        val heroUrl   = "https://cdn.steamstatic.com/steam/apps/$appId/library_hero.jpg"
+                        val boxArtUrl  = "https://cdn.steamstatic.com/steam/apps/$appId/library_600x900.jpg"
+                        val heroUrl    = "https://cdn.steamstatic.com/steam/apps/$appId/library_hero.jpg"
                         val mediaValues = android.content.ContentValues().apply {
                             put("game_id", rowId)
                             put("box_art_remote", boxArtUrl)
-                            put("background_local", heroUrl)
+                            // screenshot_remote maps to screenshotRemoteUrl → used by effectiveBackground
+                            put("screenshot_remote", heroUrl)
                             put("scraper_timestamp_ms", now)
                         }
                         eorDb.insertWithOnConflict(
                             "game_media", null, mediaValues,
                             android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE
                         )
-                        Log.i(TAG, "eOr DB: inserted artwork for '$title' — $boxArtUrl")
+                        Log.i(TAG, "eOr DB: inserted artwork for '$title' — cover=$boxArtUrl hero=$heroUrl")
                     }
                     eorDb.close()
                 } else {

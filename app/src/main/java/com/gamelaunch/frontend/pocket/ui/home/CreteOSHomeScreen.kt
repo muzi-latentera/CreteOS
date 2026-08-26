@@ -57,6 +57,9 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.ui.component.AsyncGameArtwork
 import com.gamelaunch.frontend.ui.component.platformDisplayName
@@ -198,13 +201,15 @@ fun CreteOSHomeScreen(
                     }
                 } else {
                     // Hero section with blurred artwork
+                    // Use wide hero image (screenshot_remote) for background, fall back to box art
+                    val heroArtPath = focusedMedia?.effectiveBackground ?: focusedMedia?.effectiveBoxArt
                     HeroSection(
                         game = focusedGame,
-                        artworkPath = focusedMedia?.effectiveBackground ?: focusedMedia?.effectiveBoxArt,
+                        artworkPath = heroArtPath,
                         onPlayClick = { focusedGame?.let { onGameClick(it.id) } },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(0.4f)
+                            .weight(0.45f)
                     )
                     
                     // Recent games section
@@ -256,71 +261,68 @@ private fun HeroSection(
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier) {
-        // Blurred background artwork
-        if (artworkPath != null) {
+        // Blurred background artwork — use the hero/screenshot URL, fall back to box art
+        val heroUrl = artworkPath
+        if (heroUrl != null) {
             Crossfade(
-                targetState = artworkPath,
+                targetState = heroUrl,
                 label = "heroArtwork"
-            ) { path ->
-                AsyncGameArtwork(
-                    localPath = if (!path.startsWith("http")) path else null,
-                    remoteUrl = if (path.startsWith("http")) path else null,
-                    contentDescription = "Background artwork",
+            ) { url ->
+                AsyncImage(
+                    model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                        .data(url)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
-                        .blur(radius = 20.dp)
+                        .blur(radius = 24.dp)
                 )
             }
         }
-        
-        // Dark scrim overlay
+
+        // Dark scrim — heavier at top, lighter at bottom where text is
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = 0.3f),
-                            Color.Black.copy(alpha = 0.7f)
-                        )
+                        0f to Color.Black.copy(alpha = 0.5f),
+                        0.6f to Color.Black.copy(alpha = 0.4f),
+                        1f to Color.Black.copy(alpha = 0.85f)
                     )
                 )
         )
-        
-        // Game info overlay
+
+        // Game info overlay pinned to bottom
         if (game != null) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                    .padding(horizontal = 32.dp, vertical = 20.dp),
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    // Game title
                     Text(
                         text = game.title,
                         color = Color.White,
-                        fontSize = 28.sp,
+                        fontSize = 32.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 2
                     )
-                    
                     Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Platform badge and last played
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        // Platform badge
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(Color.White.copy(alpha = 0.15f))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .background(Color.White.copy(alpha = 0.18f))
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
                         ) {
                             Text(
                                 text = platformDisplayName(game.platformId),
@@ -329,8 +331,6 @@ private fun HeroSection(
                                 fontWeight = FontWeight.Medium
                             )
                         }
-                        
-                        // Last played
                         val lastPlayed = game.lastPlayedMs?.let { formatLastPlayed(it) }
                         if (lastPlayed != null) {
                             Text(
@@ -341,8 +341,7 @@ private fun HeroSection(
                         }
                     }
                 }
-                
-                // Play button
+
                 Button(
                     onClick = onPlayClick,
                     colors = ButtonDefaults.buttonColors(
@@ -350,19 +349,11 @@ private fun HeroSection(
                         contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.height(48.dp)
+                    modifier = Modifier.height(52.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(24.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "PLAY",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp
-                    )
+                    Text("PLAY", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
             }
         }
@@ -382,15 +373,13 @@ private fun BottomTabBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color.Black.copy(alpha = 0.5f))
-            .padding(horizontal = 24.dp, vertical = 12.dp),
+            .background(Color.Black.copy(alpha = 0.6f))
+            .padding(horizontal = 24.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Tab buttons
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
+        // Tab buttons (left side)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TabButton(
                 icon = Icons.Default.Folder,
                 label = "Library",
@@ -404,13 +393,12 @@ private fun BottomTabBar(
                 onClick = onSettingsClick
             )
         }
-        
-        // Controller hints
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+
+        // Controller hints (right side) — only show once
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ControllerHint(button = "LB", label = "Library")
             ControllerHint(button = "RB", label = "Settings")
+            ControllerHint(button = "A", label = "Play")
         }
     }
 }
