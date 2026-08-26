@@ -172,17 +172,6 @@ fun V1GameCard(
             )
         }
 
-        // Giant letter backdrop — right-aligned, partially clipped
-        Text(
-            text = initial,
-            fontSize = 150.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = Color.White.copy(alpha = 0.46f),
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .offset(x = 20.dp)
-        )
-
         // Bottom scrim gradient 0%→86% dark
         Box(
             modifier = Modifier
@@ -305,7 +294,7 @@ fun CreteHomeLayout(
                     media = heroMedia,
                     focused = heroFocused,
                     onClick = { onGameClick(heroGame.id) },
-                    modifier = Modifier.padding(horizontal = 32.dp, vertical = 24.dp)
+                    modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 56.dp, bottom = 12.dp)
                 )
             } else {
                 // Empty state hero
@@ -446,17 +435,6 @@ private fun HeroTile(
             )
         }
 
-        // Giant letter — right side
-        Text(
-            text = initial,
-            fontSize = 460.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = Color.White.copy(alpha = 0.42f),
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .offset(x = 60.dp, y = 40.dp)
-        )
-
         // Left gradient overlay: 94%→76%→10% opacity dark
         Box(
             modifier = Modifier
@@ -561,22 +539,6 @@ private fun HeroTile(
                         fontSize = 14.sp,
                         letterSpacing = 0.5.sp
                     )
-                    Spacer(Modifier.width(4.dp))
-                    // A button indicator
-                    Box(
-                        modifier = Modifier
-                            .size(18.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color.White.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "A",
-                            color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
                 }
 
                 // Game details outline button
