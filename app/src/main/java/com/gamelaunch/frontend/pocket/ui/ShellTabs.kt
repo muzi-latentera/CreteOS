@@ -292,7 +292,7 @@ fun CreteHomeLayout(
                     media = heroMedia,
                     focused = heroFocused,
                     onClick = { onGameClick(heroGame.id) },
-                    modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 56.dp, bottom = 12.dp)
+                    modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 80.dp, bottom = 12.dp)
                 )
             } else {
                 // Empty state hero
@@ -741,8 +741,8 @@ private fun RedditNewsCard(
 ) {
     Box(
         modifier = Modifier
-            .width(260.dp)
-            .height(150.dp)
+            .width(300.dp)
+            .height(160.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(Color(0xFF0F1317))
             .border(1.dp, CreamText.copy(alpha = 0.08f), RoundedCornerShape(12.dp))

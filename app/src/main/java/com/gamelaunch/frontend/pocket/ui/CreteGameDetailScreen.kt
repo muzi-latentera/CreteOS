@@ -204,49 +204,9 @@ fun CreteGameDetailScreen(
             Column(
                 modifier = Modifier.weight(1f).fillMaxHeight()
             ) {
-                // Back button
-                Row(
-                    modifier = Modifier
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onBack
-                        ),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clip(CircleShape)
-                            .background(V2RedPlay),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("B", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = V2Cream)
-                    }
-                    Text(
-                        "Back to library",
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 1.6.sp,
-                        color = V2Dim
-                    )
-                }
+                Spacer(Modifier.height(8.dp))
 
-                Spacer(Modifier.height(34.dp))
-
-                // Platform label
-                Text(
-                    text = platformDisplayName(game.platformId).uppercase(),
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 2.6.sp,
-                    color = V2Amber
-                )
-
-                Spacer(Modifier.height(14.dp))
-
-                // Game title
+                // Game title — no platform label above it, no back button (use B gamepad or swipe)
                 Text(
                     text = game.title,
                     fontSize = 36.sp,
@@ -259,11 +219,10 @@ fun CreteGameDetailScreen(
                     modifier = Modifier.fillMaxWidth(0.85f)
                 )
 
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(16.dp))
 
-                // Tags row
+                // Tags row — genre only (platform shown in right panel)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    V2Tag(platformDisplayName(game.platformId))
                     game.genre?.split(",", "/")?.firstOrNull()?.trim()
                         ?.takeIf { it.isNotBlank() }?.let { V2Tag(it) }
                     if (game.playCount > 0) {
@@ -386,23 +345,7 @@ fun CreteGameDetailScreen(
                     }
                 }
 
-                // ── Stats row at bottom ────────────────────────────────────
-                Spacer(Modifier.height(8.dp))
-                Box(Modifier.fillMaxWidth().height(1.dp).background(V2Cream.copy(alpha = 0.10f)))
-
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    val steam = pocketState.steamMetadata
-                    // Sessions from real CreteOS session recording (play_count = CreteOS launches)
-                    V2StatCol("Sessions",
-                        if (game.playCount > 0) game.playCount.toString() else "—")
-                    V2StatCol("Last Played",
-                        steam?.lastPlayedMs?.let { formatLastPlayed(it) }
-                            ?: game.lastPlayedMs?.let { formatLastPlayed(it) }
-                            ?: "—")
-                    V2StatCol("Achievements",
-                        pocketState.steamMetadata.formatAchievements())
-                }
-            }
+            }  // end left panel Column
 
             // ── RIGHT PANEL: launch config ─────────────────────────────────
             Column(

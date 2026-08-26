@@ -151,7 +151,7 @@ class SteamMetadataSync @Inject constructor(
      * Call once per game when detail screen opens and developer is still null.
      */
     suspend fun fetchAppDetails(steamAppId: String): Unit = withContext(Dispatchers.IO) {
-        val url = "https://store.steampowered.com/api/appdetails?appids=$steamAppId&filters=basic"
+        val url = "https://store.steampowered.com/api/appdetails?appids=$steamAppId"
         try {
             val resp = httpClient.newCall(
                 Request.Builder().url(url)
