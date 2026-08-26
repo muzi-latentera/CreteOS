@@ -1,6 +1,7 @@
 package com.gamelaunch.frontend.domain.usecase
 
 import android.content.Context
+import com.gamelaunch.frontend.BuildConfig
 import com.gamelaunch.frontend.util.VersionCompare
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -50,8 +51,9 @@ class CheckForUpdateUseCase @Inject constructor(
     }
 
     companion object {
-        private const val REPO = "keweis2/eOr"
-        private const val LATEST_RELEASE_URL = "https://api.github.com/repos/$REPO/releases/latest"
-        private const val RELEASES_PAGE = "https://github.com/$REPO/releases/latest"
+        private val REPO = BuildConfig.UPDATE_REPO
+        private val UPSTREAM_REPO = BuildConfig.UPSTREAM_REPO
+        private val LATEST_RELEASE_URL get() = "https://api.github.com/repos/$REPO/releases/latest"
+        private val RELEASES_PAGE get() = "https://github.com/$REPO/releases/latest"
     }
 }

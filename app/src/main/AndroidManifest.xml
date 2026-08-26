@@ -74,6 +74,21 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="obtainium" />
         </intent>
+        <!-- CreteOS PC/Streaming providers -->
+        <package android:name="app.gamenative" />
+        <package android:name="gamehub.lite" />
+        <package android:name="com.winlator" />
+        <package android:name="net.qiujuer.winlator" />
+        <package android:name="com.limelight" />
+        <package android:name="com.nvidia.geforcenow" />
+        <!-- WinNative — check current package at runtime -->
+        <package android:name="app.winnative" />
+        <intent>
+            <action android:name="app.gamenative.LAUNCH_GAME" />
+        </intent>
+        <intent>
+            <action android:name="gamehub.lite.LAUNCH_GAME" />
+        </intent>
     </queries>
 
     <application
