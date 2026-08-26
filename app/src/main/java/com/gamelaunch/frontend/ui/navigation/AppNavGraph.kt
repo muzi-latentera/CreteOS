@@ -267,7 +267,8 @@ fun AppNavGraph(
 
         composable(Screen.ProviderSettings.route) {
             com.gamelaunch.frontend.pocket.ui.ProviderSettingsScreen(
-                onBack = { navController.backOrHome() }
+                onBack = { navController.backOrHome() },
+                onDisplayDiagnostics = { navController.navigate(Screen.DisplayDiagnostics.route) }
             )
         }
     }
