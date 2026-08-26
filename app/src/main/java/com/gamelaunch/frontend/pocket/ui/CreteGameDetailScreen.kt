@@ -84,7 +84,28 @@ fun CreteGameDetailScreen(
     // ── State — unchanged from working product screen ──────────────────────
     val state       by viewModel.uiState.collectAsState()
     val pocketState by pocketViewModel.uiState.collectAsState()
-    val game        = state.game ?: return
+
+    // Show loading spinner while game data is being fetched from Room
+    val game = state.game
+    if (game == null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(V2Dark)
+                .focusable()
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (event.key) {
+                        GamepadB, Key.Backspace, Key.Escape -> { onBack(); true }
+                        else -> false
+                    }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = V2Amber, modifier = Modifier.size(40.dp))
+        }
+        return
+    }
     val media       = state.media
     val context     = LocalContext.current
 
