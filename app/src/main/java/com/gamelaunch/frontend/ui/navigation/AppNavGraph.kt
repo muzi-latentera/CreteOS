@@ -94,7 +94,7 @@ fun AppNavGraph(
                     navController.navigate(Screen.GameDetail.route(gameId))
                 },
                 onSettingsClick = {
-                    if (canAccessProtectedRoutes) navController.navigate(Screen.Settings.route)
+                    navController.navigate(Screen.CreteSettings.route)
                 },
                 onLibraryClick = {
                     navController.navigate(Screen.Library.route)
@@ -111,7 +111,7 @@ fun AppNavGraph(
                     navController.backOrHome()
                 },
                 onSettingsClick = {
-                    if (canAccessProtectedRoutes) navController.navigate(Screen.Settings.route)
+                    navController.navigate(Screen.CreteSettings.route)
                 },
                 onBack = { navController.backOrHome() }
             )
@@ -121,9 +121,9 @@ fun AppNavGraph(
             route = Screen.GameDetail.route,
             arguments = listOf(navArgument(Screen.GameDetail.ARG_GAME_ID) { type = NavType.LongType })
         ) {
-            GameDetailScreen(
-                onBack = { navController.backOrHome() },
-                isLocked = isLocked
+            // CreteOS v2 detail screen — WinHanced-style hero + stats + metadata
+            com.gamelaunch.frontend.pocket.ui.CreteGameDetailScreen(
+                onBack = { navController.backOrHome() }
             )
         }
 
@@ -268,6 +268,15 @@ fun AppNavGraph(
         composable(Screen.ProviderSettings.route) {
             com.gamelaunch.frontend.pocket.ui.ProviderSettingsScreen(
                 onBack = { navController.backOrHome() },
+                onDisplayDiagnostics = { navController.navigate(Screen.DisplayDiagnostics.route) }
+            )
+        }
+
+        composable(Screen.CreteSettings.route) {
+            com.gamelaunch.frontend.pocket.ui.CreteSettingsScreen(
+                onBack = { navController.backOrHome() },
+                onOpenCategory = { navController.navigate(it.route) },
+                onProviderSettings = { navController.navigate(Screen.ProviderSettings.route) },
                 onDisplayDiagnostics = { navController.navigate(Screen.DisplayDiagnostics.route) }
             )
         }

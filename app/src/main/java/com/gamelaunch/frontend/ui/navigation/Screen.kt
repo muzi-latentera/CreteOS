@@ -41,4 +41,5 @@ sealed class Screen(val route: String) {
     // CreteOS pocket routes
     object DisplayDiagnostics : Screen("display_diagnostics")
     object ProviderSettings : Screen("provider_settings")
+    object CreteSettings : Screen("crete_settings")
 }
