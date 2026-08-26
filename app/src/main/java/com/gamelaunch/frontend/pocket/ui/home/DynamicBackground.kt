@@ -14,22 +14,22 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
-/** CreteOS dark navy base background colour. */
-val CreteOSBackground = Color(0xFF0D1117)
+/**
+ * Deep purple-tinted dark navy — matches WinHanced's ambient dark.
+ * Slightly warmer/purple-er than pure #06080F.
+ */
+val CreteOSBackground = Color(0xFF080B14)
 
-/** Duration for accent colour transition animation. */
 private const val ACCENT_ANIMATION_DURATION_MS = 600
 
 /**
- * Animated dynamic background for the CreteOS home screen.
- * 
- * Displays a dark navy base with an animated radial gradient accent that transitions
- * smoothly when the focused game changes. The accent colour is extracted from the
- * focused game's artwork via the Palette API.
+ * WinHanced-style dynamic background.
  *
- * @param accentColor The dominant colour extracted from the current game's artwork.
- * @param modifier Modifier for the background container.
- * @param content Content to render on top of the dynamic background.
+ * Two ambient radial blobs react to the focused game's artwork colour:
+ *  - Primary blob: top-left, stronger alpha (0.45 → 0.0)
+ *  - Secondary blob: bottom-right, softer alpha (0.25 → 0.0)
+ *
+ * This gives the purple/green blob effect visible in WinHanced screenshots.
  */
 @Composable
 fun DynamicBackground(
@@ -37,43 +37,55 @@ fun DynamicBackground(
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit
 ) {
-    // Animate accent colour changes over 600ms
     val animatedAccent by animateColorAsState(
         targetValue = accentColor,
         animationSpec = tween(durationMillis = ACCENT_ANIMATION_DURATION_MS),
         label = "accentColorAnimation"
     )
-    
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(CreteOSBackground)
     ) {
-        // Radial gradient overlay from top-left corner
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val gradientRadius = maxOf(size.width, size.height) * 1.2f
-            
+            val w = size.width
+            val h = size.height
+            val blobRadius = maxOf(w, h) * 1.3f
+
+            // Primary blob — top-left, full accent saturation
             drawRect(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        animatedAccent.copy(alpha = 0.30f),
-                        animatedAccent.copy(alpha = 0.15f),
-                        animatedAccent.copy(alpha = 0.05f),
+                        animatedAccent.copy(alpha = 0.45f),
+                        animatedAccent.copy(alpha = 0.22f),
+                        animatedAccent.copy(alpha = 0.08f),
                         Color.Transparent
                     ),
-                    center = Offset(0f, 0f), // Top-left corner
-                    radius = gradientRadius
+                    center = Offset(0f, 0f),
+                    radius = blobRadius
+                )
+            )
+
+            // Secondary blob — bottom-right, complementary depth
+            drawRect(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        animatedAccent.copy(alpha = 0.25f),
+                        animatedAccent.copy(alpha = 0.10f),
+                        animatedAccent.copy(alpha = 0.03f),
+                        Color.Transparent
+                    ),
+                    center = Offset(w, h),
+                    radius = blobRadius * 0.85f
                 )
             )
         }
-        
+
         content()
     }
 }
 
-/**
- * Simplified dynamic background without content slot, for use as a background modifier.
- */
 @Composable
 fun Modifier.dynamicBackground(accentColor: Color): Modifier {
     val animatedAccent by animateColorAsState(
@@ -81,19 +93,19 @@ fun Modifier.dynamicBackground(accentColor: Color): Modifier {
         animationSpec = tween(durationMillis = ACCENT_ANIMATION_DURATION_MS),
         label = "accentColorAnimation"
     )
-    
+
     return this
         .background(CreteOSBackground)
         .background(
             Brush.radialGradient(
                 colors = listOf(
-                    animatedAccent.copy(alpha = 0.30f),
-                    animatedAccent.copy(alpha = 0.15f),
-                    animatedAccent.copy(alpha = 0.05f),
+                    animatedAccent.copy(alpha = 0.45f),
+                    animatedAccent.copy(alpha = 0.22f),
+                    animatedAccent.copy(alpha = 0.08f),
                     Color.Transparent
                 ),
                 center = Offset.Zero,
-                radius = 2000f // Large enough for most screens
+                radius = 2000f
             )
         )
 }

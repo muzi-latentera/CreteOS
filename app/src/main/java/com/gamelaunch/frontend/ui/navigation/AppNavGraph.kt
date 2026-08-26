@@ -91,11 +91,12 @@ fun AppNavGraph(
         composable(Screen.Home.route) {
             // Single persistent shell — What's New / Library / Settings are the only tabs
             com.gamelaunch.frontend.pocket.ui.CreteRootShell(
-                onGameClick     = { gameId -> navController.navigate(Screen.GameDetail.route(gameId)) },
-                onOpenSettings  = { if (canAccessProtectedRoutes) navController.navigate(Screen.Settings.route) },
-                onOpenProviders = { navController.navigate(Screen.ProviderSettings.route) },
-                onOpenDisplay   = { navController.navigate(Screen.DisplayDiagnostics.route) },
-                onOpenLibrary   = { filter ->
+                onGameClick          = { gameId -> navController.navigate(Screen.GameDetail.route(gameId)) },
+                onOpenSettings       = { if (canAccessProtectedRoutes) navController.navigate(Screen.Settings.route) },
+                onOpenCreteSettings  = { navController.navigate(Screen.CreteSettings.route) },
+                onOpenProviders      = { navController.navigate(Screen.ProviderSettings.route) },
+                onOpenDisplay        = { navController.navigate(Screen.DisplayDiagnostics.route) },
+                onOpenLibrary        = { filter ->
                     navController.navigate("${Screen.Library.route}?filter=${filter.name}")
                 }
             )

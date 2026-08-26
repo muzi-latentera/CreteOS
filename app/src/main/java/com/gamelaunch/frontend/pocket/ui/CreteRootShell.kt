@@ -59,10 +59,11 @@ typealias ShellTabLegacy = ShellTab
 @Composable
 fun CreteRootShell(
     onGameClick: (Long) -> Unit,
-    onOpenSettings: () -> Unit,
+    onOpenSettings: () -> Unit,          // eOr advanced settings (from settings panel actions)
+    onOpenCreteSettings: () -> Unit = {}, // CreteOS glass settings screen (from Settings tiles)
     onOpenProviders: () -> Unit,
     onOpenDisplay: () -> Unit,
-    onOpenLibrary: (LibraryFilter) -> Unit = {},      // navigates to full library grid screen with pre-selected filter
+    onOpenLibrary: (LibraryFilter) -> Unit = {},
     homeViewModel: HomeViewModel = hiltViewModel(),
     libraryViewModel: LibraryViewModel = hiltViewModel()
 ) {
@@ -136,16 +137,17 @@ fun CreteRootShell(
 
         // ── Single unified content layout ────────────────────────────────
         CreteHomeLayout(
-            activeTab       = activeTab,
-            onTabSelected   = { activeTab = it },
-            homeViewModel   = homeViewModel,
+            activeTab        = activeTab,
+            onTabSelected    = { activeTab = it },
+            homeViewModel    = homeViewModel,
             libraryViewModel = libraryViewModel,
-            onGameClick     = onGameClick,
-            onOpenLibrary   = onOpenLibrary,
-            onOpenSettings  = onOpenSettings,
-            onOpenProviders = onOpenProviders,
-            onOpenDisplay   = onOpenDisplay,
-            modifier        = Modifier.fillMaxSize()
+            onGameClick      = onGameClick,
+            onOpenLibrary    = onOpenLibrary,
+            onOpenCreteSettings = onOpenCreteSettings,
+            onOpenSettings   = onOpenSettings,
+            onOpenProviders  = onOpenProviders,
+            onOpenDisplay    = onOpenDisplay,
+            modifier         = Modifier.fillMaxSize()
         )
     }
 }
