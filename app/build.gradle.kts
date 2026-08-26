@@ -49,6 +49,10 @@ android {
         buildConfigField("String", "SS_DEV_ID",       "\"${obfuscateSecret((localProperties["SS_DEV_ID"] as String?) ?: "")}\"")
         buildConfigField("String", "SS_DEV_PASSWORD",  "\"${obfuscateSecret((localProperties["SS_DEV_PASSWORD"] as String?) ?: "")}\"")
 
+        // Steam account credentials — set in local.properties, never committed to source
+        buildConfigField("String", "STEAM_API_KEY", "\"${(localProperties["STEAM_API_KEY"] as String?) ?: ""}\"")
+        buildConfigField("String", "STEAM_ID",      "\"${(localProperties["STEAM_ID"] as String?) ?: ""}\"")
+
         // CreteOS fork identity — used by CheckForUpdateUseCase and Settings UI
         buildConfigField("String", "UPDATE_REPO",       "\"muzi-latentera/CreteOS\"")
         buildConfigField("String", "UPSTREAM_REPO",     "\"keweis2/eOr\"")

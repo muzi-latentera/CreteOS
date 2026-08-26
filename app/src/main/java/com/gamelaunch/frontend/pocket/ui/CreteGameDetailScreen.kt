@@ -33,6 +33,10 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.gamelaunch.frontend.pocket.data.HltbTimes
+import com.gamelaunch.frontend.pocket.data.achievementPercent
+import com.gamelaunch.frontend.pocket.data.formatAchievements
+import com.gamelaunch.frontend.pocket.data.formatPlaytime
 import com.gamelaunch.frontend.pocket.ui.design.*
 import com.gamelaunch.frontend.pocket.ui.home.rememberDominantColor
 import com.gamelaunch.frontend.ui.component.platformDisplayName
@@ -343,7 +347,7 @@ fun CreteGameDetailScreen(
                     // Recent sessions
                     Column(modifier = Modifier.width(420.dp)) {
                         Text(
-                            "RECENT SESSIONS",
+                            "PLAY HISTORY",
                             fontSize = 10.sp,
                             fontFamily = FontFamily.Monospace,
                             letterSpacing = 2.2.sp,
@@ -351,65 +355,52 @@ fun CreteGameDetailScreen(
                         )
                         Spacer(Modifier.height(14.dp))
 
-                        val sessions = buildSessionList(game.playCount, game.lastPlayedMs)
-                        if (sessions.isEmpty()) {
-                            Text(
-                                "No sessions recorded yet",
-                                fontSize = 12.sp,
-                                color = V2Dim
-                            )
-                        } else {
-                            sessions.forEach { session ->
-                                Spacer(Modifier.height(8.dp))
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(V2Cream.copy(alpha = 0.045f))
-                                        .border(1.dp, V2Cream.copy(alpha = 0.06f), RoundedCornerShape(10.dp))
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        session.label,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 11.sp,
-                                        color = V2Dim,
-                                        modifier = Modifier.width(74.dp)
-                                    )
-                                    Spacer(Modifier.width(12.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(6.dp)
-                                            .clip(RoundedCornerShape(3.dp))
-                                            .background(V2Cream.copy(alpha = 0.08f))
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxHeight()
-                                                .fillMaxWidth(session.progress)
-                                                .clip(RoundedCornerShape(3.dp))
-                                                .background(V2Amber)
-                                        )
+                        val steam = pocketState.steamMetadata
+                        if (steam != null && steam.playtimeMinutes > 0) {
+                            // Show real Steam total playtime
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(V2Cream.copy(alpha = 0.045f))
+                                    .border(1.dp, V2Cream.copy(alpha = 0.06f), RoundedCornerShape(10.dp))
+                                    .padding(horizontal = 12.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text("TOTAL PLAYTIME", fontSize = 9.sp,
+                                        fontFamily = FontFamily.Monospace, letterSpacing = 1.2.sp,
+                                        color = V2VeryDim)
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(steam.formatPlaytime(), fontSize = 22.sp,
+                                        fontWeight = FontWeight.Bold, color = V2Cream)
+                                }
+                                steam.lastPlayedMs?.let { ms ->
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text("LAST PLAYED", fontSize = 9.sp,
+                                            fontFamily = FontFamily.Monospace, letterSpacing = 1.2.sp,
+                                            color = V2VeryDim)
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(formatLastPlayed(ms), fontSize = 12.sp,
+                                            fontFamily = FontFamily.Monospace, color = V2Dim)
                                     }
-                                    Spacer(Modifier.width(12.dp))
-                                    Text(
-                                        session.duration,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 11.5.sp,
-                                        color = V2Cream,
-                                        modifier = Modifier.width(58.dp)
-                                    )
-                                    Text(
-                                        "${session.fps} fps",
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 11.sp,
-                                        color = V2Green,
-                                        modifier = Modifier.width(52.dp)
-                                    )
                                 }
                             }
+                            Spacer(Modifier.height(10.dp))
+                            Text(
+                                "Per-session history will appear here once you play through CreteOS.",
+                                fontSize = 11.sp,
+                                color = V2VeryDim,
+                                lineHeight = 15.sp
+                            )
+                        } else {
+                            Text(
+                                "No play history yet.\nSessions are recorded from first launch through CreteOS.",
+                                fontSize = 12.sp,
+                                color = V2Dim,
+                                lineHeight = 16.sp
+                            )
                         }
                     }
 
@@ -433,13 +424,13 @@ fun CreteGameDetailScreen(
                 Box(Modifier.fillMaxWidth().height(1.dp).background(V2Cream.copy(alpha = 0.10f)))
 
                 Row(modifier = Modifier.fillMaxWidth()) {
-                    val playtimeDisplay = if (game.playCount > 0) {
-                        val m = game.playCount * 30
-                        if (m >= 60) "${m / 60}h ${m % 60}m" else "${m}m"
-                    } else "—"
-                    V2StatCol("Playtime", playtimeDisplay)
+                    // Real Steam playtime from sidecar metadata
+                    val steam = pocketState.steamMetadata
+                    V2StatCol("Playtime", steam.formatPlaytime())
                     V2StatCol("Last Played",
-                        game.lastPlayedMs?.let { formatLastPlayed(it) } ?: "—")
+                        steam?.lastPlayedMs?.let { formatLastPlayed(it) }
+                            ?: game.lastPlayedMs?.let { formatLastPlayed(it) }
+                            ?: "—")
                     V2StatCol("Sessions",
                         if (game.playCount > 0) game.playCount.toString() else "—")
                 }
@@ -470,42 +461,60 @@ fun CreteGameDetailScreen(
                 Text("PROGRESS", fontSize = 10.sp, fontFamily = FontFamily.Monospace,
                     letterSpacing = 2.4.sp, color = V2VeryDim)
                 Spacer(Modifier.height(12.dp))
+
+                val steam = pocketState.steamMetadata
                 V2InfoRow("Last played",
-                    game.lastPlayedMs?.let { formatLastPlayed(it) } ?: "—")
-                val playtimeStr = if (game.playCount > 0) {
-                    val m = game.playCount * 30
-                    if (m >= 60) "${m / 60}h ${m % 60}m" else "${m}m"
-                } else "—"
-                V2InfoRow("Playtime", playtimeStr)
+                    steam?.lastPlayedMs?.let { formatLastPlayed(it) }
+                        ?: game.lastPlayedMs?.let { formatLastPlayed(it) }
+                        ?: "—")
+                V2InfoRow("Playtime", steam.formatPlaytime())
                 V2InfoRow("Sessions",
                     if (game.playCount > 0) game.playCount.toString() else "—")
                 Spacer(Modifier.height(6.dp))
-                // Achievement bar — real data pending Steam achievements integration
+                // Achievements from Steam metadata — real data when synced
                 Row(verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth()) {
+                    val steamAch = pocketState.steamMetadata
                     Column {
                         Text("ACHIEVEMENTS", fontSize = 9.sp, fontFamily = FontFamily.Monospace,
                             letterSpacing = 1.2.sp, color = V2VeryDim)
                         Spacer(Modifier.height(2.dp))
-                        Text("— / —", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = V2Cream)
+                        Text(steamAch.formatAchievements(), fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (steamAch?.achievementsTotal ?: 0 > 0) V2Cream else V2VeryDim)
                     }
-                    Box(modifier = Modifier.width(80.dp).height(5.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(V2Cream.copy(alpha = 0.10f)))
+                    if ((steamAch?.achievementsTotal ?: 0) > 0) {
+                        Box(modifier = Modifier.width(80.dp).height(5.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(V2Cream.copy(alpha = 0.10f))) {
+                            Box(modifier = Modifier.fillMaxHeight()
+                                .fillMaxWidth(steamAch.achievementPercent())
+                                .background(V2Amber))
+                        }
+                    } else {
+                        Box(modifier = Modifier.width(80.dp).height(5.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(V2Cream.copy(alpha = 0.06f)))
+                    }
                 }
 
                 Spacer(Modifier.height(18.dp))
 
-                // ── HOW LONG TO BEAT — real values pending HLTB/IGDB ─────
+                // ── HOW LONG TO BEAT — from HltbProvider (cached) ────────
                 Text("HOW LONG TO BEAT", fontSize = 10.sp, fontFamily = FontFamily.Monospace,
                     letterSpacing = 2.4.sp, color = V2VeryDim)
                 Spacer(Modifier.height(12.dp))
-                Row(modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween) {
-                    V2HltbCol("Main Story", "—")
-                    V2HltbCol("Main + Extras", "—")
-                    V2HltbCol("Completionist", "—")
+                if (pocketState.hltbLoading) {
+                    CircularProgressIndicator(
+                        color = V2Amber, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Row(modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween) {
+                        V2HltbCol("Main Story",    pocketState.hltbTimes.formatMain())
+                        V2HltbCol("Main + Extras", pocketState.hltbTimes.formatExtra())
+                        V2HltbCol("Completionist", pocketState.hltbTimes.formatCompletionist())
+                    }
                 }
 
                 Spacer(Modifier.weight(1f))
@@ -535,8 +544,10 @@ fun CreteGameDetailScreen(
                                     val intent = android.content.Intent(
                                         android.content.Intent.ACTION_MAIN
                                     ).apply {
-                                        setPackage("app.gamenative")
-                                        addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+                                        component = android.content.ComponentName(
+                                            "app.gamenative",
+                                            "app.gamenative.MainActivityAliasDefault"
+                                        )
                                         addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                                     }
                                     try { ctx.startActivity(intent) } catch (_: Exception) {}

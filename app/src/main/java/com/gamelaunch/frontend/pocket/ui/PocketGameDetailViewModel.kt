@@ -4,6 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.usecase.LaunchGameUseCase
+import com.gamelaunch.frontend.pocket.data.GameSessionDao
+import com.gamelaunch.frontend.pocket.data.GameSessionEntity
+import com.gamelaunch.frontend.pocket.data.HltbTimes
+import com.gamelaunch.frontend.pocket.data.HowLongToBeatProvider
+import com.gamelaunch.frontend.pocket.data.SteamMetadataDao
+import com.gamelaunch.frontend.pocket.data.SteamMetadataEntity
+import com.gamelaunch.frontend.pocket.data.SteamMetadataSync
 import com.gamelaunch.frontend.pocket.data.repository.LaunchTargetRepository
 import com.gamelaunch.frontend.pocket.domain.LaunchTarget
 import com.gamelaunch.frontend.pocket.launch.UnifiedLaunchCoordinator
@@ -20,7 +27,10 @@ import javax.inject.Inject
 data class PocketLaunchUiState(
     val targets: List<LaunchTarget> = emptyList(),
     val showPlayUsing: Boolean = false,
-    val launchError: String? = null
+    val launchError: String? = null,
+    val hltbTimes: HltbTimes = HltbTimes.EMPTY,
+    val hltbLoading: Boolean = false,
+    val steamMetadata: SteamMetadataEntity? = null
 )
 
 /**
@@ -34,7 +44,11 @@ class PocketGameDetailViewModel @Inject constructor(
     private val launchTargetRepository: LaunchTargetRepository,
     private val unifiedLaunchCoordinator: UnifiedLaunchCoordinator,
     private val launchGameUseCase: LaunchGameUseCase,
-    private val providers: Map<ProviderId, @JvmSuppressWildcards GameProvider>
+    private val providers: Map<ProviderId, @JvmSuppressWildcards GameProvider>,
+    private val hltbProvider: HowLongToBeatProvider,
+    private val steamMetadataDao: SteamMetadataDao,
+    private val steamMetadataSync: SteamMetadataSync,
+    private val gameSessionDao: GameSessionDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PocketLaunchUiState())
@@ -46,6 +60,48 @@ class PocketGameDetailViewModel @Inject constructor(
                 _uiState.update { it.copy(targets = targets) }
             }
         }
+
+        if (game.platformId.lowercase() == "steam") {
+            val appId = game.romPath.substringAfterLast(":")
+            if (appId.isNotBlank()) {
+                // Load Steam metadata from local cache immediately
+                viewModelScope.launch {
+                    val cached = steamMetadataDao.getByAppId(appId)
+                    _uiState.update { it.copy(steamMetadata = cached) }
+
+                    val now = System.currentTimeMillis()
+                    val staleTtlMs = 7L * 24 * 60 * 60 * 1000  // 7 days
+
+                    // Sync library if never synced
+                    if (cached == null) {
+                        steamMetadataSync.syncLibrary()
+                    }
+
+                    // Sync achievements if:
+                    //  - never fetched (achievementsSyncedAtMs == null), OR
+                    //  - last fetch was > 7 days ago
+                    // This is checked independently of library sync so achievements
+                    // are never stuck at 0/0 just because the record exists.
+                    val needsAchievementSync = cached?.achievementsSyncedAtMs == null ||
+                        (now - (cached.achievementsSyncedAtMs ?: 0L)) > staleTtlMs
+
+                    if (needsAchievementSync) {
+                        steamMetadataSync.syncAchievements(appId)
+                    }
+
+                    // Update UI with latest data
+                    _uiState.update { it.copy(steamMetadata = steamMetadataDao.getByAppId(appId)) }
+                }
+
+                // HLTB
+                viewModelScope.launch {
+                    _uiState.update { it.copy(hltbLoading = true) }
+                    val times = try { hltbProvider.getTimes(appId, game.title) }
+                                catch (_: Exception) { HltbTimes.EMPTY }
+                    _uiState.update { it.copy(hltbTimes = times, hltbLoading = false) }
+                }
+            }
+        }
     }
 
     fun showPlayUsing() = _uiState.update { it.copy(showPlayUsing = true) }
@@ -55,8 +111,28 @@ class PocketGameDetailViewModel @Inject constructor(
     fun launchWithTarget(game: Game, target: LaunchTarget) {
         _uiState.update { it.copy(showPlayUsing = false) }
         viewModelScope.launch {
-            unifiedLaunchCoordinator.tryLaunch(game)
-                ?.onFailure { e -> _uiState.update { it.copy(launchError = e.message) } }
+            val result = unifiedLaunchCoordinator.tryLaunch(game)
+            if (result?.isSuccess == true) {
+                // Record session start — end is recorded when CreteOS returns to foreground
+                gameSessionDao.startSession(
+                    GameSessionEntity(
+                        gameKey     = game.romPath,
+                        startedAtMs = System.currentTimeMillis(),
+                        provider    = target.provider.name
+                    )
+                )
+            }
+            result?.onFailure { e -> _uiState.update { it.copy(launchError = e.message) } }
+        }
+    }
+
+    /** Call from MainActivity.onResume — closes any open session when user returns to CreteOS. */
+    fun endActiveSession() {
+        viewModelScope.launch {
+            val active = gameSessionDao.getActiveSession()
+            if (active != null) {
+                gameSessionDao.endSession(active.id, System.currentTimeMillis())
+            }
         }
     }
 
@@ -67,10 +143,7 @@ class PocketGameDetailViewModel @Inject constructor(
     }
 
     fun isProviderAvailable(providerId: ProviderId): Boolean =
-        providers[providerId]?.let { provider ->
-            // Synchronous package check only — full async check happens at launch time
-            true
-        } ?: false
+        providers[providerId]?.let { _ -> true } ?: false
 
     fun dismissError() = _uiState.update { it.copy(launchError = null) }
 }

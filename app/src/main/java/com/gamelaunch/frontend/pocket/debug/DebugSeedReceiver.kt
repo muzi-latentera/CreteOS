@@ -76,7 +76,7 @@ class DebugSeedReceiver : BroadcastReceiver() {
                         put("rom_filename", "$title.steam")
                         put("platform_id", "steam")
                         put("is_favorite", 0)
-                        put("play_count", if (playtimeMins > 0) 1 else 0)
+                        put("play_count", 0) // launch count only — Steam playtime goes into SteamMetadataEntity
                         put("date_added", now)
                         put("is_scraped", 0)
                         put("available_in_locked_mode", 1)

@@ -1,6 +1,9 @@
 package com.gamelaunch.frontend.pocket.di
 
 import android.content.Context
+import com.gamelaunch.frontend.pocket.data.GameSessionDao
+import com.gamelaunch.frontend.pocket.data.HltbCacheDao
+import com.gamelaunch.frontend.pocket.data.SteamMetadataDao
 import com.gamelaunch.frontend.pocket.data.db.PocketDatabase
 import com.gamelaunch.frontend.pocket.data.db.dao.GameLaunchPreferenceDao
 import com.gamelaunch.frontend.pocket.data.db.dao.LaunchTargetDao
@@ -35,6 +38,18 @@ object PocketModule {
     @Provides
     fun provideManualGameLinkDao(db: PocketDatabase): ManualGameLinkDao =
         db.manualGameLinkDao()
+
+    @Provides
+    fun provideHltbCacheDao(db: PocketDatabase): HltbCacheDao =
+        db.hltbCacheDao()
+
+    @Provides
+    fun provideSteamMetadataDao(db: PocketDatabase): SteamMetadataDao =
+        db.steamMetadataDao()
+
+    @Provides
+    fun provideGameSessionDao(db: PocketDatabase): GameSessionDao =
+        db.gameSessionDao()
 
     @Provides
     @Singleton
