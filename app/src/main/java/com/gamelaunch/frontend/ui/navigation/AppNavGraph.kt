@@ -89,31 +89,12 @@ fun AppNavGraph(
         }
 
         composable(Screen.Home.route) {
-            CreteOSHomeScreen(
-                onGameClick = { gameId ->
-                    navController.navigate(Screen.GameDetail.route(gameId))
-                },
-                onSettingsClick = {
-                    navController.navigate(Screen.CreteSettings.route)
-                },
-                onLibraryClick = {
-                    navController.navigate(Screen.Library.route)
-                }
-            )
-        }
-
-        composable(Screen.Library.route) {
-            CreteOSLibraryScreen(
-                onGameClick = { gameId ->
-                    navController.navigate(Screen.GameDetail.route(gameId))
-                },
-                onHomeClick = {
-                    navController.backOrHome()
-                },
-                onSettingsClick = {
-                    navController.navigate(Screen.CreteSettings.route)
-                },
-                onBack = { navController.backOrHome() }
+            // Single persistent shell — Home/Library/Settings are tabs, not routes
+            com.gamelaunch.frontend.pocket.ui.CreteRootShell(
+                onGameClick     = { gameId -> navController.navigate(Screen.GameDetail.route(gameId)) },
+                onOpenSettings  = { if (canAccessProtectedRoutes) navController.navigate(Screen.Settings.route) },
+                onOpenProviders = { navController.navigate(Screen.ProviderSettings.route) },
+                onOpenDisplay   = { navController.navigate(Screen.DisplayDiagnostics.route) }
             )
         }
 
