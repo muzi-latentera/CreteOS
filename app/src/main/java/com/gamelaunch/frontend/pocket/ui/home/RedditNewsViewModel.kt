@@ -2,19 +2,22 @@ package com.gamelaunch.frontend.pocket.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gamelaunch.frontend.data.network.RedditApi
+import com.gamelaunch.frontend.data.network.RedditRssFetcher
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import javax.inject.Named
 
 data class NewsPost(
     val headline: String,
-    val subreddit: String,         // e.g. "r/Games"
-    val url: String,               // Reddit post URL to open in browser
-    val thumbnailUrl: String?,     // nullable — some posts have no preview image
+    val subreddit: String,      // "r/Games"
+    val url: String,            // Reddit post URL to open in browser
+    val thumbnailUrl: String?,
     val ageLabel: String
 )
 
@@ -26,7 +29,7 @@ data class NewsUiState(
 
 @HiltViewModel
 class RedditNewsViewModel @Inject constructor(
-    private val redditApi: RedditApi
+    @Named("reddit") private val rssFetcher: RedditRssFetcher
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(NewsUiState())
@@ -34,66 +37,39 @@ class RedditNewsViewModel @Inject constructor(
 
     private val subreddits = listOf("Games", "pcgaming")
 
-    init {
-        fetchNews()
-    }
+    init { fetchNews() }
 
     fun fetchNews() {
         viewModelScope.launch {
             _state.value = NewsUiState(isLoading = true)
             try {
-                // Fetch both subreddits concurrently
-                val results = subreddits.map { sub ->
-                    async {
-                        try {
-                            redditApi.getHotPosts(sub, limit = 8)
-                                .data.children
-                                .map { it.data }
-                                .filter { !it.title.startsWith("[") }  // skip mod posts
-                                .map { post ->
-                                    NewsPost(
-                                        headline     = post.title,
-                                        subreddit    = "r/${post.subreddit}",
-                                        url          = "https://reddit.com${post.permalink}",
-                                        thumbnailUrl = bestThumbnail(post),
-                                        ageLabel     = formatAge(post.createdUtc)
-                                    )
-                                }
-                        } catch (e: Exception) {
-                            emptyList()
+                val posts = withContext(Dispatchers.IO) {
+                    subreddits
+                        .map { sub -> async { rssFetcher.fetch(sub, limit = 8) } }
+                        .map { it.await() }
+                        .flatten()
+                        .sortedByDescending { it.publishedUtc }
+                        .distinctBy { it.title }
+                        .take(15)
+                        .map { post ->
+                            NewsPost(
+                                headline     = post.title,
+                                subreddit    = "r/${post.subreddit}",
+                                url          = post.link,
+                                thumbnailUrl = post.thumbnailUrl,
+                                ageLabel     = formatAge(post.publishedUtc)
+                            )
                         }
-                    }
-                }.map { it.await() }
-
-                val merged = results
-                    .flatten()
-                    .distinctBy { it.headline }
-                    .take(15)
-
-                _state.value = NewsUiState(posts = merged, isLoading = false)
+                }
+                _state.value = NewsUiState(posts = posts, isLoading = false)
             } catch (e: Exception) {
                 _state.value = NewsUiState(isLoading = false, error = e.message)
             }
         }
     }
 
-    /** Pick the best available thumbnail URL from a Reddit post. */
-    private fun bestThumbnail(post: com.gamelaunch.frontend.data.network.RedditPost): String? {
-        // Try preview image first (higher quality), fall back to thumbnail
-        val previewUrl = post.preview?.images
-            ?.firstOrNull()
-            ?.resolutions
-            ?.lastOrNull()   // last resolution = largest under source
-            ?.url
-            ?.replace("&amp;", "&")   // Reddit HTML-encodes preview URLs
-
-        if (previewUrl != null) return previewUrl
-
-        val thumb = post.thumbnail
-        return if (thumb != null && thumb.startsWith("http")) thumb else null
-    }
-
     private fun formatAge(utcSeconds: Long): String {
+        if (utcSeconds == 0L) return ""
         val diffMs = System.currentTimeMillis() - (utcSeconds * 1000)
         val hours = diffMs / 3_600_000
         val days  = diffMs / 86_400_000
