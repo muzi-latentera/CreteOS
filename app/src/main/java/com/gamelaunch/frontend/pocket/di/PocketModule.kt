@@ -5,6 +5,7 @@ import com.gamelaunch.frontend.pocket.data.db.PocketDatabase
 import com.gamelaunch.frontend.pocket.data.db.dao.GameLaunchPreferenceDao
 import com.gamelaunch.frontend.pocket.data.db.dao.LaunchTargetDao
 import com.gamelaunch.frontend.pocket.data.db.dao.ManualGameLinkDao
+import com.gamelaunch.frontend.pocket.display.GamingDisplayManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -32,4 +33,9 @@ object PocketModule {
     @Provides
     fun provideManualGameLinkDao(db: PocketDatabase): ManualGameLinkDao =
         db.manualGameLinkDao()
+
+    @Provides
+    @Singleton
+    fun provideGamingDisplayManager(@ApplicationContext context: Context): GamingDisplayManager =
+        GamingDisplayManager(context)
 }
