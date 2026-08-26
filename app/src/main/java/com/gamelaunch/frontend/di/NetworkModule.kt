@@ -122,7 +122,7 @@ object NetworkModule {
     fun provideRetroAchievementsConnectApi(@Named("ra") retrofit: Retrofit): RetroAchievementsConnectApi =
         retrofit.create(RetroAchievementsConnectApi::class.java)
 
-    // ── Reddit news ──────────────────────────────────────────────────────
+    // ── Reddit news (RSS — works without auth or special tokens) ────────
 
     @Provides
     @Singleton
@@ -130,7 +130,6 @@ object NetworkModule {
     fun provideRedditOkHttpClient(): OkHttpClient =
         OkHttpClient.Builder()
             .addInterceptor { chain ->
-                // Reddit requires a descriptive User-Agent or returns 429
                 val request = chain.request().newBuilder()
                     .header("User-Agent", "CreteOS/1.0 (Android; gaming launcher)")
                     .build()
@@ -143,15 +142,6 @@ object NetworkModule {
     @Provides
     @Singleton
     @Named("reddit")
-    fun provideRedditRetrofit(@Named("reddit") client: OkHttpClient): Retrofit =
-        Retrofit.Builder()
-            .baseUrl("https://www.reddit.com/")
-            .client(client)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-
-    @Provides
-    @Singleton
-    fun provideRedditApi(@Named("reddit") retrofit: Retrofit): com.gamelaunch.frontend.data.network.RedditApi =
-        retrofit.create(com.gamelaunch.frontend.data.network.RedditApi::class.java)
+    fun provideRedditRssFetcher(@Named("reddit") client: OkHttpClient): com.gamelaunch.frontend.data.network.RedditRssFetcher =
+        com.gamelaunch.frontend.data.network.RedditRssFetcher(client)
 }
