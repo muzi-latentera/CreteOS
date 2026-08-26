@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -461,6 +462,7 @@ fun CreteGameDetailScreen(
                 )
                 Spacer(Modifier.height(14.dp))
 
+                // ── Config rows ────────────────────────────────────────────
                 V2ConfigRow("Provider", platformDisplayName(game.platformId))
                 V2ConfigRow("Launch path", game.romPath.takeLast(36))
                 V2ConfigRow("Last played",
@@ -471,6 +473,50 @@ fun CreteGameDetailScreen(
                 V2ConfigRow("Frame cap", "60 fps · VRR on")
                 V2ConfigRow("Controller map", "CreteOS default")
                 V2ConfigRow("Shader cache", "Warm")
+
+                // GameNative settings deep link (Steam games only)
+                if (game.platformId.lowercase() == "steam") {
+                    Spacer(Modifier.height(8.dp))
+                    val ctx = LocalContext.current
+                    val appId = game.romPath.substringAfterLast(":")
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(V2Amber.copy(alpha = 0.10f))
+                            .border(1.dp, V2Amber.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = {
+                                    // Open GameNative — per-game settings via main activity
+                                    val intent = android.content.Intent().apply {
+                                        setPackage("app.gamenative")
+                                        action = "android.intent.action.MAIN"
+                                        addCategory("android.intent.category.LAUNCHER")
+                                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    try { ctx.startActivity(intent) } catch (_: Exception) {}
+                                }
+                            )
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "Open in GameNative",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = V2Amber
+                        )
+                        Icon(
+                            Icons.Outlined.KeyboardArrowRight,
+                            null,
+                            tint = V2Amber,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
 
                 Spacer(Modifier.weight(1f))
 

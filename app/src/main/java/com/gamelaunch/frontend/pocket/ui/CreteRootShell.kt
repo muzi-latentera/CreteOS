@@ -278,18 +278,12 @@ private fun BottomNavButton(
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
-            .then(
-                if (selected) Modifier
-                    .background(selectedColor.copy(alpha = 0.13f))
-                    .border(1.dp, selectedColor.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                else Modifier
-            )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .padding(horizontal = 20.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
