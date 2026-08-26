@@ -140,10 +140,10 @@ fun CreteGameDetailScreen(
             )
         )
 
-        // ── Giant letter backdrop ─────────────────────────────────────────
+        // ── Giant letter backdrop — toned down ────────────────────────────
         Text(
             text = initial,
-            color = accentColor.copy(alpha = 0.50f),
+            color = accentColor.copy(alpha = 0.28f),
             fontSize = 860.sp,
             fontWeight = FontWeight.ExtraBold,
             modifier = Modifier
@@ -433,11 +433,13 @@ fun CreteGameDetailScreen(
                 Box(Modifier.fillMaxWidth().height(1.dp).background(V2Cream.copy(alpha = 0.10f)))
 
                 Row(modifier = Modifier.fillMaxWidth()) {
-                    V2StatCol("Playtime",
-                        if (game.playCount > 0) "${(game.playCount * 30).toFloat() / 60f} h" else "—")
+                    val playtimeDisplay = if (game.playCount > 0) {
+                        val m = game.playCount * 30
+                        if (m >= 60) "${m / 60}h ${m % 60}m" else "${m}m"
+                    } else "—"
+                    V2StatCol("Playtime", playtimeDisplay)
                     V2StatCol("Last Played",
                         game.lastPlayedMs?.let { formatLastPlayed(it) } ?: "—")
-                    V2StatCol("Avg FPS", "—")
                     V2StatCol("Sessions",
                         if (game.playCount > 0) game.playCount.toString() else "—")
                 }
@@ -453,88 +455,102 @@ fun CreteGameDetailScreen(
                     .border(1.dp, V2GlassBorder, RoundedCornerShape(16.dp))
                     .padding(24.dp)
             ) {
-                Text(
-                    "LAUNCH CONFIGURATION",
-                    fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 2.4.sp,
-                    color = V2VeryDim
-                )
-                Spacer(Modifier.height(14.dp))
+                // ── GAME INFO ────────────────────────────────────────────
+                Text("GAME INFO", fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+                    letterSpacing = 2.4.sp, color = V2VeryDim)
+                Spacer(Modifier.height(12.dp))
+                // Real data from eOr scraper when available
+                game.releaseYear?.let { V2InfoRow("Released", it.toString()) }
+                V2InfoRow("Developer", "—")  // populated once IGDB is wired
+                V2InfoRow("Publisher", "—")
 
-                // ── Config rows ────────────────────────────────────────────
-                V2ConfigRow("Provider", platformDisplayName(game.platformId))
-                V2ConfigRow("Launch path", game.romPath.takeLast(36))
-                V2ConfigRow("Last played",
+                Spacer(Modifier.height(18.dp))
+
+                // ── PROGRESS ─────────────────────────────────────────────
+                Text("PROGRESS", fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+                    letterSpacing = 2.4.sp, color = V2VeryDim)
+                Spacer(Modifier.height(12.dp))
+                V2InfoRow("Last played",
                     game.lastPlayedMs?.let { formatLastPlayed(it) } ?: "—")
-                V2ConfigRow("Play count", game.playCount.toString())
-                V2ConfigRow("App ID",
-                    game.romPath.substringAfterLast(":").takeIf { it.isNotBlank() } ?: "—")
-                V2ConfigRow("Frame cap", "60 fps · VRR on")
-                V2ConfigRow("Controller map", "CreteOS default")
-                V2ConfigRow("Shader cache", "Warm")
+                val playtimeStr = if (game.playCount > 0) {
+                    val m = game.playCount * 30
+                    if (m >= 60) "${m / 60}h ${m % 60}m" else "${m}m"
+                } else "—"
+                V2InfoRow("Playtime", playtimeStr)
+                V2InfoRow("Sessions",
+                    if (game.playCount > 0) game.playCount.toString() else "—")
+                Spacer(Modifier.height(6.dp))
+                // Achievement bar — real data pending Steam achievements integration
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()) {
+                    Column {
+                        Text("ACHIEVEMENTS", fontSize = 9.sp, fontFamily = FontFamily.Monospace,
+                            letterSpacing = 1.2.sp, color = V2VeryDim)
+                        Spacer(Modifier.height(2.dp))
+                        Text("— / —", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = V2Cream)
+                    }
+                    Box(modifier = Modifier.width(80.dp).height(5.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(V2Cream.copy(alpha = 0.10f)))
+                }
 
-                // GameNative settings deep link (Steam games only)
+                Spacer(Modifier.height(18.dp))
+
+                // ── HOW LONG TO BEAT — real values pending HLTB/IGDB ─────
+                Text("HOW LONG TO BEAT", fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+                    letterSpacing = 2.4.sp, color = V2VeryDim)
+                Spacer(Modifier.height(12.dp))
+                Row(modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    V2HltbCol("Main Story", "—")
+                    V2HltbCol("Main + Extras", "—")
+                    V2HltbCol("Completionist", "—")
+                }
+
+                Spacer(Modifier.weight(1f))
+
+                // ── LAUNCH ────────────────────────────────────────────────
+                Box(Modifier.fillMaxWidth().height(0.5.dp).background(V2Cream.copy(alpha = 0.08f)))
+                Spacer(Modifier.height(10.dp))
+                Text("LAUNCH", fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+                    letterSpacing = 2.4.sp, color = V2VeryDim)
+                Spacer(Modifier.height(10.dp))
+                V2InfoRow("Provider", platformDisplayName(game.platformId))
+                V2InfoRow("App ID",
+                    game.romPath.substringAfterLast(":").takeIf { it.isNotBlank() } ?: "—")
+
                 if (game.platformId.lowercase() == "steam") {
                     Spacer(Modifier.height(8.dp))
                     val ctx = LocalContext.current
-                    val appId = game.romPath.substringAfterLast(":")
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
+                        modifier = Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
                             .background(V2Amber.copy(alpha = 0.10f))
-                            .border(1.dp, V2Amber.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                            .border(1.dp, V2Amber.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                                 onClick = {
-                                    // Open GameNative — per-game settings via main activity
-                                    val intent = android.content.Intent().apply {
+                                    val intent = android.content.Intent(
+                                        android.content.Intent.ACTION_MAIN
+                                    ).apply {
                                         setPackage("app.gamenative")
-                                        action = "android.intent.action.MAIN"
-                                        addCategory("android.intent.category.LAUNCHER")
+                                        addCategory(android.content.Intent.CATEGORY_LAUNCHER)
                                         addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                                     }
                                     try { ctx.startActivity(intent) } catch (_: Exception) {}
                                 }
                             )
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            "Open in GameNative",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = V2Amber
-                        )
-                        Icon(
-                            Icons.Outlined.KeyboardArrowRight,
-                            null,
-                            tint = V2Amber,
-                            modifier = Modifier.size(16.dp)
-                        )
+                        Text("Open GameNative", fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold, color = V2Amber)
+                        Icon(Icons.Outlined.KeyboardArrowRight, null,
+                            tint = V2Amber, modifier = Modifier.size(14.dp))
                     }
-                }
-
-                Spacer(Modifier.weight(1f))
-
-                // Hint box
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(11.dp))
-                        .background(Color(0xFF2E7D96).copy(alpha = 0.12f))
-                        .border(1.dp, Color(0xFF2E7D96).copy(alpha = 0.32f), RoundedCornerShape(11.dp))
-                        .padding(14.dp)
-                ) {
-                    Text(
-                        "Profile changes apply on next launch. CreteOS writes them back to the provider so its own UI stays in sync.",
-                        fontSize = 12.sp,
-                        color = Color(0xFFA8D6E4),
-                        lineHeight = 17.sp
-                    )
                 }
             }
         }
@@ -564,7 +580,35 @@ fun CreteGameDetailScreen(
     }
 }
 
+// ── Avg FPS placeholder removed — no real data source yet ─────────────────
+
 // ── Helper composables ────────────────────────────────────────────────────
+
+@Composable
+private fun V2InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, fontSize = 12.sp, color = V2Dim)
+        Text(value, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+            color = if (value == "—") V2VeryDim else V2Cream,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+    Box(Modifier.fillMaxWidth().height(0.5.dp).background(V2Cream.copy(alpha = 0.04f)))
+}
+
+@Composable
+private fun V2HltbCol(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, fontSize = 9.sp, fontFamily = FontFamily.Monospace,
+            letterSpacing = 0.5.sp, color = V2VeryDim, maxLines = 1)
+        Spacer(Modifier.height(4.dp))
+        Text(value, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+            color = if (value == "—") V2VeryDim else V2Cream)
+    }
+}
 
 @Composable
 private fun V2Tag(text: String) {
