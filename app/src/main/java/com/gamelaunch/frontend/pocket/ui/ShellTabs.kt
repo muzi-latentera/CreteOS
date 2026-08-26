@@ -71,7 +71,8 @@ fun CreteHomeLayout(
     libraryViewModel: LibraryViewModel,
     onGameClick: (Long) -> Unit,
     onOpenLibrary: (LibraryFilter) -> Unit,
-    onOpenSettings: () -> Unit,
+    onOpenCreteSettings: () -> Unit,     // opens glass two-column settings view
+    onOpenSettings: () -> Unit,          // opens eOr advanced settings (used from within settings panels)
     onOpenProviders: () -> Unit,
     onOpenDisplay: () -> Unit,
     modifier: Modifier = Modifier
@@ -80,7 +81,6 @@ fun CreteHomeLayout(
     val recentGames = remember(state.recentlyPlayed, state.games) {
         state.recentlyPlayed.takeIf { it.isNotEmpty() } ?: state.games.take(20)
     }
-    var focusedIndex by remember { mutableIntStateOf(0) }
 
     Column(modifier = modifier.padding(top = CreteDS.space3XL)) {
 
@@ -119,11 +119,8 @@ fun CreteHomeLayout(
                         artworkUrl = state.mediaForGames[game.id]?.effectiveBoxArt,
                         title      = game.title,
                         platformId = game.platformId,
-                        focused    = index == focusedIndex,
-                        onClick    = {
-                            focusedIndex = index
-                            onGameClick(game.id)
-                        }
+                        focused    = false,   // no tap-focus animation — prevents screen shift
+                        onClick    = { onGameClick(game.id) }
                     )
                 }
             }
@@ -185,7 +182,7 @@ fun CreteHomeLayout(
                     onGameClick      = onGameClick
                 )
                 ShellTab.SETTINGS  -> SettingsSection(
-                    onOpenSettings  = onOpenSettings,
+                    onOpenCreteSettings = onOpenCreteSettings,
                     onOpenProviders = onOpenProviders,
                     onOpenDisplay   = onOpenDisplay
                 )
@@ -219,7 +216,9 @@ private fun WhatsNewSection() {
     LazyRow(
         contentPadding = PaddingValues(horizontal = CreteDS.spaceXXL, vertical = CreteDS.spaceS),
         horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceL),
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp)
     ) {
         items(sampleNewsItems) { news ->
             LargeNewsCard(item = news)
@@ -319,7 +318,9 @@ private fun LibrarySection(
     LazyRow(
         contentPadding = PaddingValues(horizontal = CreteDS.spaceXXL, vertical = CreteDS.spaceS),
         horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceL),
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp)
     ) {
         items(sources) { (label, icon, filter) ->
             LargeSourceTile(
@@ -392,22 +393,24 @@ private data class SettingsTile(
 
 @Composable
 private fun SettingsSection(
-    onOpenSettings: () -> Unit,
+    onOpenCreteSettings: () -> Unit,
     onOpenProviders: () -> Unit,
     onOpenDisplay: () -> Unit
 ) {
     val tiles = listOf(
         SettingsTile("PC & Streaming",  "GameNative, Moonlight, GeForce NOW",    Icons.Outlined.Stream,         onOpenProviders),
-        SettingsTile("Libraries",       "Game sources and ROM folders",          Icons.AutoMirrored.Outlined.LibraryBooks, onOpenSettings),
+        SettingsTile("Libraries",       "Game sources and ROM folders",          Icons.AutoMirrored.Outlined.LibraryBooks, onOpenCreteSettings),
         SettingsTile("Display",         "XREAL, external display, resolution",   Icons.Outlined.Monitor,        onOpenDisplay),
-        SettingsTile("Appearance",      "Theme, layout, backgrounds",            Icons.Outlined.Palette,        onOpenSettings),
-        SettingsTile("General",         "Emulators, metadata, achievements",     Icons.Outlined.Settings,       onOpenSettings)
+        SettingsTile("Appearance",      "Theme, layout, backgrounds",            Icons.Outlined.Palette,        onOpenCreteSettings),
+        SettingsTile("General",         "Emulators, metadata, achievements",     Icons.Outlined.Settings,       onOpenCreteSettings)
     )
 
     LazyRow(
         contentPadding = PaddingValues(horizontal = CreteDS.spaceXXL, vertical = CreteDS.spaceS),
         horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceL),
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp)
     ) {
         items(tiles) { tile ->
             LargeSettingsTile(tile = tile)
