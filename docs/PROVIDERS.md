@@ -156,11 +156,11 @@ GFN game IDs must be manually linked or obtained from the GFN catalog.
 
 | Provider | Installed | Discovery | Launch | Notes |
 |---|---|---|---|---|
-| GameNative | ☐ | ☐ | ☐ | |
-| GameHub Lite | ☐ | ☐ | ☐ | |
-| WinNative | ☐ | ☐ | ☐ | Package name unverified |
-| Winlator CMod | ☐ | ☐ | ☐ | Package name unverified |
-| Moonlight | ☐ | ☐ | ☐ | ShortcutTrampoline unverified |
-| GeForce NOW | ☐ | N/A | ☐ | |
+| GameNative | ✅ v1.2.0 | ❌ No export API in 1.2.0 | ✅ Verified | `app.gamenative.LAUNCH_GAME` works. No frontend sync in 1.2.0 — manual seeding only for now |
+| GameHub Lite | ✅ v5.1.8 | ❌ Not started | ✅ Verified | `gamehub.lite.LAUNCH_GAME` → `com.xj.landscape.launcher.ui.gamedetail.GameDetailActivity`. Tested 2026-08-26 |
+| WinNative | ☐ | ❌ Not started | ❌ Unverified | Package `app.winnative` unconfirmed — install and verify |
+| Winlator CMod | ☐ | ❌ Not started | ❌ Unverified | Package unconfirmed |
+| Moonlight | ✅ v12.1 | 🟡 Shortcuts API written | 🟡 `ShortcutTrampoline` verified exported | Verified `com.limelight.ShortcutTrampoline` android:exported=true on v12.1. startShortcut() path written, untested |
+| GeForce NOW | ✅ installed | N/A (manual) | 🟡 Deep link written | Untested on real game |
 
 Update this table after device testing on the KONKR Pocket FIT Elite.

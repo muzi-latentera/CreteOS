@@ -257,6 +257,19 @@ fun AppNavGraph(
                 ScrapeProgressScreen(onBack = { navController.backOrHome() })
             }
         }
+
+        // CreteOS pocket routes
+        composable(Screen.DisplayDiagnostics.route) {
+            com.gamelaunch.frontend.pocket.ui.DisplayDiagnosticsScreen(
+                onBack = { navController.backOrHome() }
+            )
+        }
+
+        composable(Screen.ProviderSettings.route) {
+            com.gamelaunch.frontend.pocket.ui.ProviderSettingsScreen(
+                onBack = { navController.backOrHome() }
+            )
+        }
     }
 }
 

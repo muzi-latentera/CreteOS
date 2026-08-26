@@ -37,4 +37,8 @@ sealed class Screen(val route: String) {
         const val ARG_GAME_ID = "gameId"
         fun route(gameId: Long) = "game_detail/$gameId"
     }
+
+    // CreteOS pocket routes
+    object DisplayDiagnostics : Screen("display_diagnostics")
+    object ProviderSettings : Screen("provider_settings")
 }
