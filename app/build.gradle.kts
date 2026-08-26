@@ -34,7 +34,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.gamelaunch.frontend"
+        applicationId = "io.latent.creteos"
         minSdk = 26
         targetSdk = 34
         versionCode = 42
@@ -48,6 +48,11 @@ android {
         // obfuscateSecret above) and decoded at runtime by Secrets.reveal().
         buildConfigField("String", "SS_DEV_ID",       "\"${obfuscateSecret((localProperties["SS_DEV_ID"] as String?) ?: "")}\"")
         buildConfigField("String", "SS_DEV_PASSWORD",  "\"${obfuscateSecret((localProperties["SS_DEV_PASSWORD"] as String?) ?: "")}\"")
+
+        // CreteOS fork identity — used by CheckForUpdateUseCase and Settings UI
+        buildConfigField("String", "UPDATE_REPO",       "\"muzi-latentera/CreteOS\"")
+        buildConfigField("String", "UPSTREAM_REPO",     "\"keweis2/eOr\"")
+        buildConfigField("String", "EOR_BASE_VERSION",  "\"2.6.0\"")
     }
 
     externalNativeBuild {
