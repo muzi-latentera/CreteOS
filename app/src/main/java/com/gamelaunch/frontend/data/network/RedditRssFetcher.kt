@@ -15,36 +15,41 @@ class RedditRssFetcher(private val client: OkHttpClient) {
 
     data class RedditRssPost(
         val title: String,
-        val link: String,           // full Reddit post URL
+        val link: String,
         val subreddit: String,
         val thumbnailUrl: String?,
-        val publishedUtc: Long      // epoch seconds
+        val publishedUtc: Long
     )
 
     fun fetch(subreddit: String, limit: Int = 10): List<RedditRssPost> {
         val url = "https://www.reddit.com/r/$subreddit/.rss?limit=$limit"
+        android.util.Log.d("RedditRss", "Fetching: $url")
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", "CreteOS/1.0 (Android; gaming launcher)")
             .build()
 
         val response = client.newCall(request).execute()
+        android.util.Log.d("RedditRss", "Response for $subreddit: ${response.code}")
         if (!response.isSuccessful) return emptyList()
 
-        return response.body?.byteStream()?.let { stream ->
+        val posts = response.body?.byteStream()?.let { stream ->
             parseAtomFeed(stream, subreddit)
         } ?: emptyList()
+        android.util.Log.d("RedditRss", "Parsed ${posts.size} posts from r/$subreddit")
+        return posts
     }
 
     private fun parseAtomFeed(stream: InputStream, subreddit: String): List<RedditRssPost> {
         val posts = mutableListOf<RedditRssPost>()
         val parser = Xml.newPullParser()
         parser.setFeature(android.util.Xml.FEATURE_RELAXED, true)
+        // Enable namespace processing so we can match media:thumbnail
+        parser.setFeature("http://xmlpull.org/v1/doc/features.html#process-namespaces", true)
         parser.setInput(stream, "UTF-8")
 
         var eventType = parser.eventType
 
-        // Per-entry state
         var inEntry = false
         var title = ""
         var link = ""
@@ -54,29 +59,33 @@ class RedditRssFetcher(private val client: OkHttpClient) {
         while (eventType != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
             when (eventType) {
                 org.xmlpull.v1.XmlPullParser.START_TAG -> {
-                    when (parser.name) {
-                        "entry" -> {
+                    val localName = parser.name ?: ""
+                    val ns = parser.namespace ?: ""
+
+                    when {
+                        localName == "entry" -> {
                             inEntry = true
                             title = ""; link = ""; thumbnail = null; published = 0L
                         }
-                        "title" -> if (inEntry) {
+                        inEntry && localName == "title" -> {
                             title = parser.nextText().trim()
                         }
-                        "link" -> if (inEntry) {
-                            val rel = parser.getAttributeValue(null, "rel")
+                        inEntry && localName == "link" -> {
+                            val rel  = parser.getAttributeValue(null, "rel")
                             val href = parser.getAttributeValue(null, "href") ?: ""
-                            if (rel == "alternate" && href.contains("reddit.com")) {
+                            if ((rel == "alternate" || rel == null) && href.contains("reddit.com")) {
                                 link = href
                             }
                         }
-                        "thumbnail" -> if (inEntry) {
-                            // media:thumbnail url="…"
+                        inEntry && localName == "thumbnail" -> {
+                            // media:thumbnail — the url attribute
                             val url = parser.getAttributeValue(null, "url")
+                                ?: parser.getAttributeValue("http://search.yahoo.com/mrss/", "url")
                             if (!url.isNullOrBlank() && url.startsWith("http")) {
                                 thumbnail = url
                             }
                         }
-                        "published", "updated" -> if (inEntry && published == 0L) {
+                        inEntry && (localName == "published" || localName == "updated") && published == 0L -> {
                             runCatching {
                                 val text = parser.nextText()
                                 published = java.time.Instant.parse(text).epochSecond
@@ -85,26 +94,19 @@ class RedditRssFetcher(private val client: OkHttpClient) {
                     }
                 }
                 org.xmlpull.v1.XmlPullParser.END_TAG -> {
-                    if (parser.name == "entry" && inEntry && title.isNotBlank() && link.isNotBlank()) {
-                        // Skip mod/weekly threads
-                        if (!title.startsWith("[") && title.length > 10) {
-                            posts.add(
-                                RedditRssPost(
-                                    title       = title,
-                                    link        = link,
-                                    subreddit   = subreddit,
-                                    thumbnailUrl = thumbnail,
-                                    publishedUtc = published
-                                )
-                            )
+                    if ((parser.name ?: "") == "entry" && inEntry) {
+                        if (title.isNotBlank() && link.isNotBlank() && !title.startsWith("[")) {
+                            posts.add(RedditRssPost(title, link, subreddit, thumbnail, published))
                         }
                         inEntry = false
                     }
                 }
             }
-            eventType = parser.next()
+            // Safe next — XmlPullParser can throw on malformed XML
+            try { eventType = parser.next() } catch (e: Exception) { break }
         }
 
+        android.util.Log.d("RedditRss", "r/$subreddit: parsed ${posts.size} posts, first=${posts.firstOrNull()?.title?.take(40)}")
         return posts
     }
 }
