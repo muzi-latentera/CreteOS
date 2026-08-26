@@ -81,6 +81,10 @@ enum class SettingsCategory(
         "settings_locked", "Locked Mode",
         "Restrict eOr to approved games and apps", Icons.Default.Lock
     ),
+    PC_STREAMING(
+        "provider_settings", "PC & Streaming",
+        "GameNative, Moonlight, GeForce NOW — sync and manage", Icons.Default.VideogameAsset
+    ),
 }
 
 @Composable
