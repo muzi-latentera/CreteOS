@@ -9,11 +9,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 
 /**
- * CreteDS — Design System tokens for CreteOS UI v2.
+ * CreteDS — Design System tokens for CreteOS UI v1.
  *
  * Single source of truth. All pocket UI components read from here.
- * Inspired by WinHanced: dark navy base, frosted glass surfaces,
- * artwork-reactive ambient colour, thin outline icons, restrained accents.
+ * Near-black base, amber accent, cream text palette.
  *
  * Do NOT reference Material colorScheme in pocket UI components directly.
  * Use these tokens so the look stays consistent across screens.
@@ -22,64 +21,70 @@ object CreteDS {
 
     // ── Colour palette ─────────────────────────────────────────────────────
 
-    /** Deepest background — under everything */
-    val bgBase        = Color(0xFF06080F)
+    /** Deepest background — near-black, under everything */
+    val bgBase        = Color(0xFF08090B)
 
-    /** Surface behind cards and panels */
-    val bgSurface     = Color(0xFF0C1018)
+    /** Sidebar panel background */
+    val bgSidebar     = Color(0xFF0B0E11)
 
-    /** Card/panel fill */
-    val bgCard        = Color(0xFF131922)
+    /** Card/panel fill — source/settings cards */
+    val bgCard        = Color(0xFF0F1317)
 
-    /** Elevated card — slightly lighter */
-    val bgCardElevated = Color(0xFF1A2435)
+    /** Elevated card — game card placeholder, slightly lighter */
+    val bgCardElevated = Color(0xFF14181D)
 
     /** Top-right system pill background */
-    val pillBg        = Color(0xDD131922)   // 87% opacity - more opaque
+    val pillBg        = Color(0xDD0F1317)   // 87% opacity
 
     // ── Panel backgrounds — opaque glass effect ────────────────────────────
     /** Main panel background — 80% opacity */
-    val panelBg       = Color(0xCC0C1018)
+    val panelBg       = Color(0xCC0B0E11)
     /** Card on panel — 87% opacity */
-    val panelBgCard   = Color(0xDD0F1520)
+    val panelBgCard   = Color(0xDD0F1317)
     /** Slightly lighter panel — 73% opacity */
-    val panelBgLight  = Color(0xBB131922)
+    val panelBgLight  = Color(0xBB14181D)
 
-    /** Focus/selected accent — bright blue, used sparingly */
-    val accent        = Color(0xFF4D9FFF)
+    /** Focus/selected accent — amber, used sparingly */
+    val accent        = Color(0xFFE9A93C)
 
-    /** Focus ring/border on selected element */
-    val focusBorder   = Color(0xFF4D9FFF)
+    /** Red accent — play button */
+    val accentRed     = Color(0xFFC9482A)
+
+    /** Focus ring/border on selected element — amber */
+    val focusBorder   = Color(0xFFE9A93C)
 
     /** Navigation underline on active tab */
-    val tabUnderline  = Color(0xFF4D9FFF)
+    val tabUnderline  = Color(0xFFE9A93C)
 
-    /** Primary text */
-    val textPrimary   = Color(0xFFEEF2FF)
+    /** Primary text — cream */
+    val textPrimary   = Color(0xFFF2EADB)
 
-    /** Secondary / muted text */
-    val textSecondary = Color(0xFF8899BB)
+    /** Secondary / muted text — cream at 55% */
+    val textSecondary = Color(0x8CF2EADB)
 
-    /** Disabled / very muted text */
-    val textDisabled  = Color(0xFF4A5568)
+    /** Disabled / very muted text — cream at 27% */
+    val textDisabled  = Color(0x45F2EADB)
 
-    /** Thin border on cards/pills */
-    val border        = Color(0xFF1E2D45)
+    /** Monospace data colour — cyan-tinted */
+    val textMono      = Color(0xFF9FD3E2)
+
+    /** Thin border on cards/pills — subtle */
+    val border        = Color(0x14F2E8D5)
 
     /** Brighter border on focused card */
-    val borderFocused = Color(0xFF3A5A88)
+    val borderFocused = Color(0x33F2E8D5)
 
     /** Scrim over hero artwork */
     val heroScrim     = Color(0x99000000)
 
     /** Genre/tag chip background */
-    val chipBg        = Color(0xFF1A2840)
+    val chipBg        = Color(0xFF14181D)
 
-    /** Play button background */
-    val playBg        = Color(0xFF1C3060)
+    /** Play button background — red */
+    val playBg        = Color(0xFFC9482A)
 
-    /** Play button focused */
-    val playBgFocused = Color(0xFF2A4C99)
+    /** Play button focused — slightly lighter red */
+    val playBgFocused = Color(0xFFD95A3D)
 
     // Steam platform colour
     val steamTint     = Color(0xFF1B2838)

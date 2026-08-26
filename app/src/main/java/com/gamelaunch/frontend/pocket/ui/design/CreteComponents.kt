@@ -121,7 +121,34 @@ fun CreteGlassCard(
 // ── Game cover card ────────────────────────────────────────────────────────
 
 /**
+ * Generates a deterministic colour from a string hash.
+ * Used for placeholder initial letter colour.
+ */
+private fun colorFromHash(text: String): Color {
+    val hash = text.hashCode()
+    val hue = (hash and 0x7FFFFFFF) % 360
+    // Desaturated palette — 40% saturation, 60% lightness
+    val h = hue / 360f
+    val s = 0.4f
+    val l = 0.6f
+    // HSL to RGB
+    val c = (1 - kotlin.math.abs(2 * l - 1)) * s
+    val x = c * (1 - kotlin.math.abs((h * 6) % 2 - 1))
+    val m = l - c / 2
+    val (r, g, b) = when {
+        h < 1f/6 -> Triple(c, x, 0f)
+        h < 2f/6 -> Triple(x, c, 0f)
+        h < 3f/6 -> Triple(0f, c, x)
+        h < 4f/6 -> Triple(0f, x, c)
+        h < 5f/6 -> Triple(x, 0f, c)
+        else     -> Triple(c, 0f, x)
+    }
+    return Color(r + m, g + m, b + m)
+}
+
+/**
  * Portrait cover card — 2:3 ratio, focus scale animation, platform badge.
+ * When no artwork, shows large initial letter as background decoration.
  * Used in carousel and library grid.
  */
 @Composable
@@ -167,17 +194,30 @@ fun CreteGameCard(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            // Placeholder
+            // Placeholder with large initial letter background
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(CreteDS.bgCardElevated),
-                contentAlignment = Alignment.Center
+                    .background(CreteDS.bgCardElevated)
             ) {
+                // Large background initial letter
+                val initial = title.firstOrNull()?.uppercaseChar()?.toString() ?: ""
+                val letterColor = colorFromHash(title)
+                Text(
+                    text = initial,
+                    fontSize = 120.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = letterColor.copy(alpha = 0.46f),
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .graphicsLayer { translationY = -10f }
+                )
+                // Smaller title initials in front
                 Text(
                     text = title.take(2).uppercase(),
                     style = CreteDS.typeGameTitle,
-                    color = CreteDS.textSecondary
+                    color = CreteDS.textSecondary,
+                    modifier = Modifier.align(Alignment.Center)
                 )
             }
         }
@@ -268,8 +308,9 @@ fun CreteStatDivider() {
 // ── Play button ────────────────────────────────────────────────────────────
 
 /**
- * WinHanced-style Play button with optional dropdown arrow for multi-provider.
- * Bordered rectangle, not a filled capsule.
+ * Play button with solid red background (#C9482A).
+ * Optional dropdown arrow for multi-provider.
+ * Amber glow border on focus.
  */
 @Composable
 fun CretePlayButton(
@@ -278,13 +319,8 @@ fun CretePlayButton(
     focused: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val bg by animateColorAsState(
-        targetValue = if (focused) CreteDS.playBgFocused else CreteDS.playBg,
-        animationSpec = tween(CreteDS.animFast),
-        label = "playBg"
-    )
     val borderColor by animateColorAsState(
-        targetValue = if (focused) CreteDS.accent else CreteDS.borderFocused,
+        targetValue = if (focused) CreteDS.accent else Color.Transparent,
         animationSpec = tween(CreteDS.animFast),
         label = "playBorder"
     )
@@ -293,8 +329,8 @@ fun CretePlayButton(
         modifier = modifier
             .height(44.dp)
             .clip(RoundedCornerShape(CreteDS.radiusM))
-            .background(bg)
-            .border(1.dp, borderColor, RoundedCornerShape(CreteDS.radiusM)),
+            .background(CreteDS.accentRed)
+            .border(2.dp, borderColor, RoundedCornerShape(CreteDS.radiusM)),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Play region
@@ -313,14 +349,14 @@ fun CretePlayButton(
             Icon(
                 imageVector = Icons.Outlined.PlayArrow,
                 contentDescription = null,
-                tint = CreteDS.textPrimary,
+                tint = Color.White,
                 modifier = Modifier.size(20.dp)
             )
             Text(
                 text = "Play",
-                style = CreteDS.typeNavTab,
-                color = CreteDS.textPrimary,
-                fontWeight = FontWeight.SemiBold
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp
             )
         }
 
@@ -330,7 +366,7 @@ fun CretePlayButton(
                 modifier = Modifier
                     .width(1.dp)
                     .fillMaxHeight()
-                    .background(borderColor)
+                    .background(Color.White.copy(alpha = 0.3f))
             )
             Box(
                 modifier = Modifier
@@ -346,7 +382,7 @@ fun CretePlayButton(
                 Icon(
                     imageVector = Icons.Outlined.KeyboardArrowDown,
                     contentDescription = "Choose launch method",
-                    tint = CreteDS.textSecondary,
+                    tint = Color.White.copy(alpha = 0.8f),
                     modifier = Modifier.size(18.dp)
                 )
             }
