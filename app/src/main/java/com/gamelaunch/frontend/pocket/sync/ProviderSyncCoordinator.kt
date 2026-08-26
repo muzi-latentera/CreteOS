@@ -26,6 +26,12 @@ import javax.inject.Singleton
  *   Preferences are preserved throughout.
  *
  * isPreferred is NEVER reset by a sync. The user's choice persists.
+ *
+ * ## Performance
+ *
+ * Uses GameIdentityResolver.buildIndex() once per syncProvider() call,
+ * then passes the index to each resolve() call. This avoids O(n²) database
+ * queries for large provider discoveries (e.g., 300 Steam games).
  */
 @Singleton
 class ProviderSyncCoordinator @Inject constructor(
@@ -68,6 +74,9 @@ class ProviderSyncCoordinator @Inject constructor(
 
         Log.d(TAG, "$providerId discovered ${discovered.size} games")
 
+        // Build library index ONCE for this sync — avoids O(n²) queries
+        val libraryIndex = identityResolver.buildIndex()
+
         // Collect existing targets for this provider BEFORE processing — for reconciliation
         val existingTargets = launchTargetRepository
             .getTargetsForProvider(providerId)
@@ -79,7 +88,7 @@ class ProviderSyncCoordinator @Inject constructor(
 
         for (game in discovered) {
             runCatching {
-                val wasNew = processDiscoveredGame(game, existingTargets[game.externalId])
+                val wasNew = processDiscoveredGame(game, existingTargets[game.externalId], libraryIndex)
                 seenExternalIds += game.externalId
                 if (wasNew) added++ else updated++
             }.onFailure { e ->
@@ -115,15 +124,16 @@ class ProviderSyncCoordinator @Inject constructor(
      */
     private suspend fun processDiscoveredGame(
         discovered: DiscoveredProviderGame,
-        existingTarget: LaunchTarget?
+        existingTarget: LaunchTarget?,
+        libraryIndex: GameIdentityResolver.LibraryIndex
     ): Boolean {
 
         // 1+2. Try identity resolution
         val resolved = discovered.hostGameKey?.let { key ->
             // hostGameKey already provided by provider (e.g. GameNative with .steam files)
-            val game = gameRepository.getGameByRomPath(key)
+            val game = libraryIndex.byRomPath[key]
             game?.let { GameIdentityResolver.ResolvedIdentity(key, it.id, GameIdentityResolver.Confidence.EXACT_STORE_ID) }
-        } ?: identityResolver.resolve(discovered)
+        } ?: identityResolver.resolve(discovered, libraryIndex)
 
         val hostGameKey: String
         val hostGameId: Long
@@ -136,7 +146,8 @@ class ProviderSyncCoordinator @Inject constructor(
         } else {
             // 3. Unresolved — create synthetic game row
             val syntheticKey = buildSyntheticKey(discovered)
-            val existingGame = gameRepository.getGameByRomPath(syntheticKey)
+            val existingGame = libraryIndex.byRomPath[syntheticKey]
+                ?: gameRepository.getGameByRomPath(syntheticKey)
 
             if (existingGame != null) {
                 hostGameKey = syntheticKey
@@ -192,7 +203,7 @@ class ProviderSyncCoordinator @Inject constructor(
 
     private suspend fun resolveArtwork(gameId: Long, discovered: DiscoveredProviderGame) {
         // Steam CDN ONLY for actual Steam AppIDs (source == "STEAM")
-        // GOG/Epic/Amazon IDs are NOT Steam AppIDs
+        // GOG/Epic/Amazon IDs are NOT Steam AppIDs — they would return wrong artwork
         if (discovered.source == "STEAM") {
             val steamAppId = discovered.externalId.toIntOrNull() ?: return
             artworkResolver.setRemoteUrlsForSteamGame(gameId, steamAppId)

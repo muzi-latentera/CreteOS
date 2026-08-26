@@ -2,11 +2,13 @@ package com.gamelaunch.frontend.pocket
 
 import android.content.Context
 import android.content.pm.PackageManager
+import com.gamelaunch.frontend.domain.repository.SettingsRepository
 import com.gamelaunch.frontend.pocket.domain.DisplayPolicy
 import com.gamelaunch.frontend.pocket.domain.LaunchContext
 import com.gamelaunch.frontend.pocket.domain.LaunchTarget
 import com.gamelaunch.frontend.pocket.providers.ProviderId
 import com.gamelaunch.frontend.pocket.providers.impl.GameNativeProvider
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -15,24 +17,29 @@ import org.mockito.kotlin.*
 
 /**
  * Unit tests for GameNativeProvider.
- * Intent construction is not easily verifiable in plain JVM tests (Android class).
- * These tests verify:
- * - availability detection
- * - valid/invalid app_id handling
- * - the XREAL screenSize JSON assembly logic
+ *
+ * Verifies:
+ * - Availability detection
+ * - Valid/invalid app_id handling
+ * - XREAL screenSize JSON assembly
+ * - Discovery returns empty when no export folder configured
  */
 class GameNativeProviderTest {
 
     private val context: Context = mock()
     private val packageManager: PackageManager = mock()
+    private val settingsRepository: SettingsRepository = mock()
     private lateinit var provider: GameNativeProvider
 
     @Before
     fun setup() {
         whenever(context.packageManager).thenReturn(packageManager)
-        // startActivity is void — allow it without returning anything
         doNothing().whenever(context).startActivity(any())
-        provider = GameNativeProvider(context)
+        
+        // Default: no Steam Library path configured
+        whenever(settingsRepository.steamLibraryPath).thenReturn(flowOf(""))
+        
+        provider = GameNativeProvider(context, settingsRepository)
     }
 
     @Test
@@ -72,50 +79,69 @@ class GameNativeProviderTest {
         )
         val result = provider.launch(target, LaunchContext())
         assertTrue("Should succeed with valid app_id", result.isSuccess)
-        // startActivity was called
         verify(context).startActivity(any())
     }
 
     @Test
     fun `XREAL screenSize JSON is correct format`() {
-        // Test the JSON string construction logic directly
         val width = 1920
         val height = 1200
         val config = """{"screenSize":"${width}x${height}"}"""
         assertEquals("""{"screenSize":"1920x1200"}""", config)
-        assertTrue(config.contains("1920x1200"))
     }
 
     @Test
-    fun `BACKEND_DEFAULT policy does not trigger XREAL override check`() = runTest {
-        // With BACKEND_DEFAULT, even if externalDisplayConnected is true, no config should be sent
+    fun `BACKEND_DEFAULT policy does not trigger XREAL override`() = runTest {
         val target = LaunchTarget(
             hostGameKey = "steam:367520",
             provider = ProviderId.GAME_NATIVE,
             externalId = "367520",
             displayName = "Hollow Knight"
         )
-        // Policy = BACKEND_DEFAULT and external display connected (edge case)
         val launchContext = LaunchContext(
             displayPolicy = DisplayPolicy.BACKEND_DEFAULT,
             externalDisplayConnected = true,
             displayWidth = 1920,
             displayHeight = 1200
         )
-        // Just verify it doesn't crash and completes successfully
         val result = provider.launch(target, launchContext)
-        assertTrue("Launch should succeed regardless", result.isSuccess)
+        assertTrue("Launch should succeed", result.isSuccess)
     }
 
     @Test
-    fun `discoverGames returns empty list`() = runTest {
-        // Discovery is implemented in later phase — must not throw
+    fun `discoverGames returns empty list when no export folder exists`() = runTest {
+        // Default: no steamLibraryPath, no fallback paths exist
+        whenever(settingsRepository.steamLibraryPath).thenReturn(flowOf(""))
+        
         val games = provider.discoverGames()
-        assertTrue("discoverGames should return empty list (Phase 4 TODO)", games.isEmpty())
+        assertTrue("discoverGames should return empty when no folder configured", games.isEmpty())
     }
 
     @Test
     fun `provider id is GAME_NATIVE`() {
         assertEquals(ProviderId.GAME_NATIVE, provider.id)
+    }
+
+    // ==========================================================================
+    // Marker file parsing tests (verified against GameNative source)
+    // ==========================================================================
+
+    @Test
+    fun `buildHostKey produces correct format for each source`() {
+        assertEquals("steam:107100", GameNativeProvider.buildHostKey(107100, "STEAM"))
+        assertEquals("steam:GOG:12345", GameNativeProvider.buildHostKey(12345, "GOG"))
+        assertEquals("steam:EPIC:99999", GameNativeProvider.buildHostKey(99999, "EPIC"))
+        assertEquals("steam:AMAZON:55555", GameNativeProvider.buildHostKey(55555, "AMAZON"))
+        assertEquals("steam:CUSTOM_GAME:1", GameNativeProvider.buildHostKey(1, "CUSTOM_GAME"))
+    }
+
+    @Test
+    fun `extension mapping matches GameNative FrontendSyncManager`() {
+        // Verify our extension map matches GameNative's extensionFor() output
+        assertEquals("STEAM", GameNativeProvider.EXPORT_EXTENSIONS["steam"])
+        assertEquals("GOG", GameNativeProvider.EXPORT_EXTENSIONS["gog"])
+        assertEquals("EPIC", GameNativeProvider.EXPORT_EXTENSIONS["epic"])
+        assertEquals("AMAZON", GameNativeProvider.EXPORT_EXTENSIONS["amazon"])
+        assertEquals("CUSTOM_GAME", GameNativeProvider.EXPORT_EXTENSIONS["pcgame"])
     }
 }

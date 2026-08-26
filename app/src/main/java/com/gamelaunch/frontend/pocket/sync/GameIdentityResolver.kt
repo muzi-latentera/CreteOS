@@ -1,6 +1,7 @@
 package com.gamelaunch.frontend.pocket.sync
 
 import android.util.Log
+import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.repository.GameRepository
 import com.gamelaunch.frontend.pocket.data.db.entity.ManualGameLinkEntity
 import com.gamelaunch.frontend.pocket.data.repository.LaunchTargetRepository
@@ -31,6 +32,11 @@ import javax.inject.Singleton
  *    Never when multiple candidates exist (prefer false negative).
  *
  * 4. Unresolved — returns null. Caller should offer manual linking UI.
+ *
+ * ## Performance Optimization
+ *
+ * For batch discovery (300+ games), use [buildIndex] once and pass the index to
+ * [resolve] overload. This avoids 300 separate Flow collections on getAllGames().
  */
 @Singleton
 class GameIdentityResolver @Inject constructor(
@@ -52,28 +58,69 @@ class GameIdentityResolver @Inject constructor(
     }
 
     /**
+     * Pre-built index of the game library for efficient batch resolution.
+     *
+     * Build this ONCE via [buildIndex] before processing a batch of discoveries,
+     * then pass it to [resolve(discovered, index)] for each game.
+     */
+    data class LibraryIndex(
+        val byRomPath: Map<String, Game>,
+        val byNormalisedTitle: Map<String, List<Game>>
+    )
+
+    /**
+     * Build a snapshot index of the current game library.
+     *
+     * Call this ONCE before a batch sync, then reuse for all resolve() calls.
+     * This avoids O(n) Flow collections per discovered game.
+     */
+    suspend fun buildIndex(): LibraryIndex {
+        val allGames = gameRepository.getAllGames().first()
+        
+        val byRomPath = allGames.associateBy { it.romPath }
+        val byNormalisedTitle = allGames.groupBy { normaliseTitle(it.title) }
+        
+        Log.d(TAG, "Built library index: ${allGames.size} games, ${byNormalisedTitle.size} unique titles")
+        return LibraryIndex(byRomPath, byNormalisedTitle)
+    }
+
+    /**
      * Attempt to resolve the eOr host game for [discovered].
      * Returns null when resolution is ambiguous or impossible.
+     *
+     * This overload collects getAllGames() on each call — use the indexed overload
+     * for batch operations.
      */
     suspend fun resolve(discovered: DiscoveredProviderGame): ResolvedIdentity? {
+        val index = buildIndex()
+        return resolve(discovered, index)
+    }
+
+    /**
+     * Attempt to resolve the eOr host game for [discovered] using a pre-built index.
+     * Returns null when resolution is ambiguous or impossible.
+     *
+     * Preferred for batch operations — build the index once via [buildIndex].
+     */
+    suspend fun resolve(discovered: DiscoveredProviderGame, index: LibraryIndex): ResolvedIdentity? {
 
         // 1. Exact store ID — SOURCE determines the key format, not the provider
         val storeKey = buildStoreKey(discovered.externalId, discovered.source)
         if (storeKey != null) {
-            val game = gameRepository.getGameByRomPath(storeKey)
+            val game = index.byRomPath[storeKey]
             if (game != null) {
                 Log.d(TAG, "Resolved '${discovered.displayName}' via store ID ($storeKey) → ${game.id}")
                 return ResolvedIdentity(storeKey, game.id, Confidence.EXACT_STORE_ID)
             }
         }
 
-        // 2. Manual link
+        // 2. Manual link (not indexed — these are rare user-confirmed links)
         val manualLink = launchTargetRepository.findManualLink(
             discovered.provider,
             discovered.externalId
         )
         if (manualLink != null) {
-            val game = gameRepository.getGameByRomPath(manualLink.hostGameKey)
+            val game = index.byRomPath[manualLink.hostGameKey]
             if (game != null) {
                 Log.d(TAG, "Resolved '${discovered.displayName}' via manual link → ${game.id}")
                 return ResolvedIdentity(manualLink.hostGameKey, game.id, Confidence.MANUAL_LINK)
@@ -83,9 +130,7 @@ class GameIdentityResolver @Inject constructor(
         // 3. Conservative normalised title match
         val normalised = normaliseTitle(discovered.displayName)
         if (normalised.length >= MIN_TITLE_LENGTH) {
-            val candidates = gameRepository.getAllGames()
-                .first()  // collect once — we don't want to stay subscribed here
-                .filter { normaliseTitle(it.title) == normalised }
+            val candidates = index.byNormalisedTitle[normalised] ?: emptyList()
 
             when (candidates.size) {
                 1 -> {
