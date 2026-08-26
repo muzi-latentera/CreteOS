@@ -35,11 +35,15 @@ class DebugSeedReceiver : BroadcastReceiver() {
         val appId = intent.getStringExtra("appId") ?: run {
             Log.e(TAG, "Missing appId extra"); return
         }
-        val title = intent.getStringExtra("title") ?: "Game $appId"
-        val source = intent.getStringExtra("source") ?: "STEAM"
-        val hostKey = if (source == "STEAM") "steam:$appId" else "steam:$source:$appId"
+        val title          = intent.getStringExtra("title") ?: "Game $appId"
+        val source         = intent.getStringExtra("source") ?: "STEAM"
+        val hostKey        = if (source == "STEAM") "steam:$appId" else "steam:$source:$appId"
+        val playtimeMins   = intent.getLongExtra("playtimeMinutes", 0L)
+        val lastPlayedEpoch= intent.getLongExtra("lastPlayedEpoch", 0L)
+        // Convert Steam epoch seconds → milliseconds; 0 means never played
+        val lastPlayedMs   = if (lastPlayedEpoch > 0L) lastPlayedEpoch * 1000L else null
 
-        Log.i(TAG, "Seeding: title=$title appId=$appId source=$source hostKey=$hostKey")
+        Log.i(TAG, "Seeding: title=$title appId=$appId playtime=${playtimeMins}m lastPlayed=$lastPlayedMs")
 
         CoroutineScope(Dispatchers.IO).launch {
             runCatching {
@@ -72,10 +76,11 @@ class DebugSeedReceiver : BroadcastReceiver() {
                         put("rom_filename", "$title.steam")
                         put("platform_id", "steam")
                         put("is_favorite", 0)
-                        put("play_count", 0)
+                        put("play_count", if (playtimeMins > 0) 1 else 0)
                         put("date_added", now)
                         put("is_scraped", 0)
                         put("available_in_locked_mode", 1)
+                        if (lastPlayedMs != null) put("last_played_ms", lastPlayedMs)
                     }
                     val rowId = eorDb.insertWithOnConflict(
                         "games", null, values,
