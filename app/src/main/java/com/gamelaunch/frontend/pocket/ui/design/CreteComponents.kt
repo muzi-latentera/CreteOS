@@ -200,32 +200,36 @@ fun CreteGameCard(
 
 // ── Provider badge ─────────────────────────────────────────────────────────
 
-/** Small platform icon badge — Steam, Android, etc. */
+/** Small platform badge — bottom-right corner of game cards. */
 @Composable
 fun CreteProviderBadge(
     platformId: String,
     modifier: Modifier = Modifier
 ) {
-    val label = when (platformId.lowercase()) {
-        "steam", "gog", "epic", "amazon" -> "S"
-        "android"   -> "A"
-        "moonlight" -> "M"
-        "gfn"       -> "G"
-        else        -> platformId.take(1).uppercase()
+    val (label, tint) = when (platformId.lowercase()) {
+        "steam"     -> "ST" to Color(0xFF1B9FEA)
+        "gog"       -> "GO" to Color(0xFF8A44CB)
+        "epic"      -> "EP" to Color(0xFF2D2D2D)
+        "amazon"    -> "PG" to Color(0xFFFF9900)
+        "android"   -> "AN" to Color(0xFF3DDC84)
+        "moonlight" -> "ML" to Color(0xFF4D9FFF)
+        "gfn"       -> "GN" to Color(0xFF76B900)
+        else        -> platformId.take(2).uppercase() to CreteDS.textSecondary
     }
     Box(
         modifier = modifier
-            .size(CreteDS.providerBadgeSize)
-            .clip(RoundedCornerShape(3.dp))
-            .background(CreteDS.bgBase.copy(alpha = 0.75f))
-            .border(0.5.dp, CreteDS.border, RoundedCornerShape(3.dp)),
+            .size(22.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color(0xCC060E1C))
+            .border(0.5.dp, tint.copy(alpha = 0.6f), RoundedCornerShape(4.dp)),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            fontSize = 8.sp,
+            fontSize = 7.sp,
             fontWeight = FontWeight.Bold,
-            color = CreteDS.textSecondary
+            color = tint,
+            letterSpacing = (-0.3).sp
         )
     }
 }
@@ -295,12 +299,14 @@ fun CretePlayButton(
             .height(44.dp)
             .clip(RoundedCornerShape(CreteDS.radiusM))
             .background(bg)
-            .border(1.dp, borderColor, RoundedCornerShape(CreteDS.radiusM))
+            .border(1.dp, borderColor, RoundedCornerShape(CreteDS.radiusM)),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         // Play region
         Row(
             modifier = Modifier
-                .padding(horizontal = CreteDS.spaceL, vertical = CreteDS.spaceS)
+                .fillMaxHeight()
+                .padding(horizontal = CreteDS.spaceL)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,

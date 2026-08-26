@@ -9,9 +9,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -126,7 +123,7 @@ fun CreteHomeLayout(
             }
         }
 
-        Spacer(Modifier.height(CreteDS.spaceXXL))
+        Spacer(Modifier.height(CreteDS.space3XL))   // more breathing room above tab bar
 
         // ── Tab bar ────────────────────────────────────────────────────────
         Row(
@@ -165,7 +162,7 @@ fun CreteHomeLayout(
             }
         }
 
-        Spacer(Modifier.height(CreteDS.spaceL))
+        Spacer(Modifier.height(CreteDS.spaceXXL))   // breathing room below tab bar
 
         // ── Large content tiles — fill remaining height ────────────────────
         Crossfade(
@@ -543,18 +540,14 @@ fun LibraryTabContent(
                 contentAlignment = Alignment.Center
             ) { Text("No games", style = CreteDS.typeMeta) }
         } else {
-            // Two-row horizontal scrolling grid of game cards — same tiles as Recent Games carousel
-            LazyHorizontalGrid(
-                rows = GridCells.Fixed(2),
+            // Single-row horizontal scroll of game cards — same tiles as Recent Games carousel
+            LazyRow(
                 contentPadding = PaddingValues(
-                    start = CreteDS.spaceXXL,
-                    end = CreteDS.spaceXXL,
-                    top = CreteDS.spaceS,
-                    bottom = CreteDS.spaceS
+                    horizontal = CreteDS.spaceXXL,
+                    vertical = CreteDS.spaceS
                 ),
                 horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceM),
-                verticalArrangement = Arrangement.spacedBy(CreteDS.spaceM),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxWidth()
             ) {
                 items(filteredGames) { game ->
                     CreteGameCard(
