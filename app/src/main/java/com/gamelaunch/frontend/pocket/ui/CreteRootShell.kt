@@ -62,7 +62,7 @@ fun CreteRootShell(
     onOpenSettings: () -> Unit,
     onOpenProviders: () -> Unit,
     onOpenDisplay: () -> Unit,
-    onOpenLibrary: () -> Unit = {},      // navigates to full library grid screen
+    onOpenLibrary: (LibraryFilter) -> Unit = {},      // navigates to full library grid screen with pre-selected filter
     homeViewModel: HomeViewModel = hiltViewModel(),
     libraryViewModel: LibraryViewModel = hiltViewModel()
 ) {
