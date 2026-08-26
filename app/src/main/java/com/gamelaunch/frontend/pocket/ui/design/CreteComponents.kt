@@ -138,6 +138,11 @@ fun CreteGameCard(
         animationSpec = tween(CreteDS.animFast),
         label = "cardScale"
     )
+    val alpha by animateFloatAsState(
+        targetValue = if (focused) 1f else CreteDS.alphaDim,
+        animationSpec = tween(CreteDS.animFast),
+        label = "cardAlpha"
+    )
     val borderColor by animateColorAsState(
         targetValue = if (focused) CreteDS.focusBorder else Color.Transparent,
         animationSpec = tween(CreteDS.animFast),
@@ -146,14 +151,12 @@ fun CreteGameCard(
 
     Box(
         modifier = modifier
-            .width(CreteDS.gameCardWidth)    // constant 140dp — no layout shift ever
-            .height(CreteDS.gameCardHeight)  // constant 210dp
-            .clip(RoundedCornerShape(CreteDS.radiusM))   // clip first so artwork is rounded
+            .width(if (focused) CreteDS.gameCardWidthFocus else CreteDS.gameCardWidth)
+            .height(if (focused) CreteDS.gameCardHeightFocus else CreteDS.gameCardHeight)
+            .scale(scale)
+            .alpha(alpha)
+            .clip(RoundedCornerShape(CreteDS.radiusM))
             .border(1.5.dp, borderColor, RoundedCornerShape(CreteDS.radiusM))
-            .graphicsLayer {                              // scale is draw-only, doesn't affect layout
-                scaleX = scale
-                scaleY = scale
-            }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
