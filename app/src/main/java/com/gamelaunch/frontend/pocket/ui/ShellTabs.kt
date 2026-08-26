@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -172,45 +173,47 @@ fun V1GameCard(
             )
         }
 
-        // Bottom scrim gradient 0%→86% dark
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(80.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0f to Color.Transparent,
-                            1f to DarkBase.copy(alpha = 0.86f)
+        // Bottom scrim + text — only shown when no artwork
+        if (artworkUrl == null) {
+            // Bottom scrim gradient
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0f to Color.Transparent,
+                                1f to DarkBase.copy(alpha = 0.86f)
+                            )
                         )
                     )
+            )
+            // Title + platform label
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(10.dp)
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = CreamText,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 15.sp
                 )
-        )
-
-        // Bottom text overlay
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(10.dp)
-        ) {
-            Text(
-                text = title,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = CreamText,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                lineHeight = 15.sp
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = platformLabel,
-                fontSize = 9.sp,
-                fontFamily = FontFamily.Monospace,
-                color = DimCream,
-                letterSpacing = 0.5.sp
-            )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = platformLabel,
+                    fontSize = 9.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = DimCream,
+                    letterSpacing = 0.5.sp
+                )
+            }
         }
     }
 }
@@ -266,12 +269,8 @@ fun CreteHomeLayout(
             .sortedByDescending { it.lastPlayedMs }
     }
 
-    // Added this week — newest additions by dateAdded, limit 9
-    val addedThisWeekGames = remember(allGames) {
-        allGames
-            .sortedByDescending { it.dateAdded }
-            .take(9)
-    }
+    // Added this week — not used (replaced by Reddit news)
+    // val addedThisWeekGames = ...
 
     // Hero game — the most recently played game (top of jumpBackIn)
     val heroGame = jumpBackInGames.firstOrNull()
@@ -280,7 +279,6 @@ fun CreteHomeLayout(
     // Focus states
     var heroFocused by remember { mutableStateOf(false) }
     var jumpBackInFocusIndex by remember { mutableIntStateOf(-1) }
-    var addedThisWeekFocusIndex by remember { mutableIntStateOf(-1) }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -346,18 +344,9 @@ fun CreteHomeLayout(
             }
         }
 
-        // ── ADDED THIS WEEK RAIL ───────────────────────────────────────────
-        if (addedThisWeekGames.isNotEmpty()) {
-            item {
-                GameRail(
-                    title = "Added this week",
-                    games = addedThisWeekGames,
-                    mediaForGames = libState.mediaForGames,
-                    focusedIndex = addedThisWeekFocusIndex,
-                    onFocusChange = { addedThisWeekFocusIndex = it },
-                    onGameClick = onGameClick
-                )
-            }
+        // ── REDDIT NEWS RAIL ───────────────────────────────────────────
+        item {
+            RedditNewsRail(newsViewModel = newsViewModel)
         }
     }
 }
@@ -474,11 +463,11 @@ private fun HeroTile(
             // Game title
             Text(
                 text = game.title,
-                fontSize = 56.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontSize = 40.sp,
+                fontWeight = FontWeight.Bold,
                 color = CreamText,
-                letterSpacing = (-1.1).sp,
-                lineHeight = 56.sp,
+                letterSpacing = (-0.5).sp,
+                lineHeight = 42.sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
@@ -664,10 +653,152 @@ private fun formatLastPlayed(lastPlayedMs: Long?): String {
     val hours = diff / (1000 * 60 * 60)
     val days = hours / 24
     return when {
-        hours < 1 -> "Just now"
+        hours < 1  -> "Just now"
         hours < 24 -> "${hours}h ago"
-        days < 7 -> "${days}d ago"
-        else -> "${days / 7}w ago"
+        days < 7   -> "${days}d ago"
+        else -> {
+            // Include year e.g. "Oct 30 '26"
+            val cal = java.util.Calendar.getInstance().apply { timeInMillis = lastPlayedMs }
+            val month = arrayOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")[cal.get(java.util.Calendar.MONTH)]
+            val day = cal.get(java.util.Calendar.DAY_OF_MONTH)
+            val year = cal.get(java.util.Calendar.YEAR).toString().takeLast(2)
+            "$month $day '$year"
+        }
+    }
+}
+
+// ── REDDIT NEWS RAIL ───────────────────────────────────────────────────────
+
+@Composable
+private fun RedditNewsRail(newsViewModel: RedditNewsViewModel) {
+    val newsState by newsViewModel.state.collectAsState()
+    val uriHandler = LocalUriHandler.current
+    val posts = newsState.posts
+
+    if (posts.isEmpty()) return
+
+    Column(modifier = Modifier.padding(top = 24.dp)) {
+        // Rail header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "WHAT'S NEW",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = CreamText,
+                letterSpacing = 2.sp
+            )
+            Spacer(Modifier.width(16.dp))
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(1.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(CreamText.copy(alpha = 0.2f), Color.Transparent)
+                        )
+                    )
+            )
+            Spacer(Modifier.width(16.dp))
+            Text(
+                text = "${posts.size}",
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                color = DimCream
+            )
+        }
+
+        // Horizontal scrolling news cards
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 32.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(top = 8.dp)
+        ) {
+            items(posts) { post ->
+                RedditNewsCard(
+                    title = post.headline,
+                    subreddit = post.subreddit,
+                    thumbnailUrl = post.thumbnailUrl,
+                    onClick = {
+                        try { uriHandler.openUri(post.url) } catch (_: Exception) {}
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RedditNewsCard(
+    title: String,
+    subreddit: String,
+    thumbnailUrl: String?,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(260.dp)
+            .height(150.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF0F1317))
+            .border(1.dp, CreamText.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+    ) {
+        // Thumbnail if available
+        if (thumbnailUrl != null) {
+            AsyncImage(
+                model = thumbnailUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = 0.3f }
+            )
+        }
+        // Bottom gradient scrim
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color.Transparent,
+                        0.4f to Color(0xFF0F1317).copy(alpha = 0.7f),
+                        1f to Color(0xFF0F1317).copy(alpha = 0.97f)
+                    )
+                )
+        )
+        // Content
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(14.dp)
+        ) {
+            Text(
+                text = subreddit,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                color = AmberAccent,
+                letterSpacing = 1.sp
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = title,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = CreamText,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 17.sp
+            )
+        }
     }
 }
 
@@ -805,7 +936,7 @@ fun LibraryTabContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 16.dp)
+            .padding(top = 68.dp) // clear system pill (≈56dp pill + 12dp gap)
     ) {
         // Filter chips row + count + sort
         Row(
@@ -1187,7 +1318,8 @@ fun SettingsTabContent(
     Row(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = CreteDS.spaceXXL, vertical = CreteDS.spaceXL),
+            .padding(horizontal = CreteDS.spaceXXL)
+            .padding(top = 68.dp, bottom = CreteDS.spaceXL), // clear system pill
         horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceXL)
     ) {
         LazyColumn(

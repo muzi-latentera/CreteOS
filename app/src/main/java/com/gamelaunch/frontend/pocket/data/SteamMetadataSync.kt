@@ -144,4 +144,55 @@ class SteamMetadataSync @Inject constructor(
             Log.w(TAG, "Achievement sync failed for $steamAppId: ${e.message}")
         }
     }
+
+    /**
+     * Fetch developer, publisher, and short description from Steam Store API.
+     * Free endpoint — no API key required.
+     * Call once per game when detail screen opens and developer is still null.
+     */
+    suspend fun fetchAppDetails(steamAppId: String): Unit = withContext(Dispatchers.IO) {
+        val url = "https://store.steampowered.com/api/appdetails?appids=$steamAppId&filters=basic"
+        try {
+            val resp = httpClient.newCall(
+                Request.Builder().url(url)
+                    .header("User-Agent", "CreteOS/1.0 (Android)")
+                    .build()
+            ).execute()
+
+            if (!resp.isSuccessful) {
+                Log.w(TAG, "fetchAppDetails $steamAppId: HTTP ${resp.code}")
+                return@withContext
+            }
+
+            val body   = resp.body?.string() ?: return@withContext
+            val root   = JSONObject(body)
+            val data   = root.optJSONObject(steamAppId)
+                ?.takeIf { it.optBoolean("success", false) }
+                ?.optJSONObject("data")
+                ?: return@withContext
+
+            val developers = data.optJSONArray("developers")
+                ?.let { arr -> (0 until arr.length()).map { arr.getString(it) }.joinToString(", ") }
+            val publishers = data.optJSONArray("publishers")
+                ?.let { arr -> (0 until arr.length()).map { arr.getString(it) }.joinToString(", ") }
+            val description = data.optString("short_description").takeIf { it.isNotBlank() }
+
+            if (developers == null && publishers == null && description == null) return@withContext
+
+            val existing = steamMetadataDao.getByAppId(steamAppId)
+            if (existing != null) {
+                steamMetadataDao.upsert(
+                    existing.copy(
+                        developer   = developers ?: existing.developer,
+                        publisher   = publishers ?: existing.publisher,
+                        description = description ?: existing.description,
+                        updatedAtMs = System.currentTimeMillis()
+                    )
+                )
+                Log.d(TAG, "$steamAppId details: dev='$developers' pub='$publishers'")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "fetchAppDetails failed for $steamAppId: ${e.message}")
+        }
+    }
 }
