@@ -165,17 +165,6 @@ fun CreteGameDetailScreen(
             )
         )
 
-        // ── Giant letter backdrop — toned down ────────────────────────────
-        Text(
-            text = initial,
-            color = accentColor.copy(alpha = 0.28f),
-            fontSize = 860.sp,
-            fontWeight = FontWeight.ExtraBold,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .offset(x = 40.dp, y = 260.dp)
-        )
-
         // ── Hero image overlay (top portion) ──────────────────────────────
         if (heroUrl != null) {
             Box(
@@ -260,12 +249,12 @@ fun CreteGameDetailScreen(
                 // Game title
                 Text(
                     text = game.title,
-                    fontSize = 76.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-2.3).sp,
-                    lineHeight = 74.sp,
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.5).sp,
+                    lineHeight = 38.sp,
                     color = V2Cream,
-                    maxLines = 2,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth(0.85f)
                 )
@@ -359,82 +348,39 @@ fun CreteGameDetailScreen(
 
                 Spacer(Modifier.height(38.dp))
 
-                // Sessions + More from shelf
+                // Sessions + description
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(26.dp),
                     verticalAlignment = Alignment.Top,
                     modifier = Modifier.weight(1f)
                 ) {
-                    // Recent sessions
-                    Column(modifier = Modifier.width(420.dp)) {
+                    // Description from Steam metadata or eOr
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "PLAY HISTORY",
+                            "ABOUT",
                             fontSize = 10.sp,
                             fontFamily = FontFamily.Monospace,
                             letterSpacing = 2.2.sp,
                             color = V2VeryDim
                         )
-                        Spacer(Modifier.height(14.dp))
-
-                        val steam = pocketState.steamMetadata
-                        if (steam != null && steam.playtimeMinutes > 0) {
-                            // Show real Steam total playtime
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(V2Cream.copy(alpha = 0.045f))
-                                    .border(1.dp, V2Cream.copy(alpha = 0.06f), RoundedCornerShape(10.dp))
-                                    .padding(horizontal = 12.dp, vertical = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column {
-                                    Text("TOTAL PLAYTIME", fontSize = 9.sp,
-                                        fontFamily = FontFamily.Monospace, letterSpacing = 1.2.sp,
-                                        color = V2VeryDim)
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(steam.formatPlaytime(), fontSize = 22.sp,
-                                        fontWeight = FontWeight.Bold, color = V2Cream)
-                                }
-                                steam.lastPlayedMs?.let { ms ->
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text("LAST PLAYED", fontSize = 9.sp,
-                                            fontFamily = FontFamily.Monospace, letterSpacing = 1.2.sp,
-                                            color = V2VeryDim)
-                                        Spacer(Modifier.height(4.dp))
-                                        Text(formatLastPlayed(ms), fontSize = 12.sp,
-                                            fontFamily = FontFamily.Monospace, color = V2Dim)
-                                    }
-                                }
-                            }
-                            Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(10.dp))
+                        val description = pocketState.steamMetadata?.description
+                            ?: game.description
+                        if (description != null) {
                             Text(
-                                "Per-session history will appear here once you play through CreteOS.",
-                                fontSize = 11.sp,
-                                color = V2VeryDim,
-                                lineHeight = 15.sp
+                                text = description,
+                                fontSize = 13.sp,
+                                color = V2Dim,
+                                lineHeight = 19.sp,
+                                maxLines = 6,
+                                overflow = TextOverflow.Ellipsis
                             )
                         } else {
                             Text(
-                                "No play history yet.\nSessions are recorded from first launch through CreteOS.",
+                                "No description available yet.",
                                 fontSize = 12.sp,
-                                color = V2Dim,
+                                color = V2VeryDim,
                                 lineHeight = 16.sp
-                            )
-                        }
-                    }
-
-                    // Description
-                    Column(modifier = Modifier.weight(1f)) {
-                        game.description?.let { desc ->
-                            Text(
-                                text = desc,
-                                fontSize = 13.sp,
-                                color = V2Dim,
-                                lineHeight = 18.sp,
-                                maxLines = 5,
-                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -445,15 +391,16 @@ fun CreteGameDetailScreen(
                 Box(Modifier.fillMaxWidth().height(1.dp).background(V2Cream.copy(alpha = 0.10f)))
 
                 Row(modifier = Modifier.fillMaxWidth()) {
-                    // Real Steam playtime from sidecar metadata
                     val steam = pocketState.steamMetadata
-                    V2StatCol("Playtime", steam.formatPlaytime())
+                    // Sessions from real CreteOS session recording (play_count = CreteOS launches)
+                    V2StatCol("Sessions",
+                        if (game.playCount > 0) game.playCount.toString() else "—")
                     V2StatCol("Last Played",
                         steam?.lastPlayedMs?.let { formatLastPlayed(it) }
                             ?: game.lastPlayedMs?.let { formatLastPlayed(it) }
                             ?: "—")
-                    V2StatCol("Sessions",
-                        if (game.playCount > 0) game.playCount.toString() else "—")
+                    V2StatCol("Achievements",
+                        pocketState.steamMetadata.formatAchievements())
                 }
             }
 
@@ -471,10 +418,11 @@ fun CreteGameDetailScreen(
                 Text("GAME INFO", fontSize = 10.sp, fontFamily = FontFamily.Monospace,
                     letterSpacing = 2.4.sp, color = V2VeryDim)
                 Spacer(Modifier.height(12.dp))
-                // Real data from eOr scraper when available
                 game.releaseYear?.let { V2InfoRow("Released", it.toString()) }
-                V2InfoRow("Developer", "—")  // populated once IGDB is wired
-                V2InfoRow("Publisher", "—")
+                V2InfoRow("Developer",
+                    pocketState.steamMetadata?.developer ?: "—")
+                V2InfoRow("Publisher",
+                    pocketState.steamMetadata?.publisher ?: "—")
 
                 Spacer(Modifier.height(18.dp))
 
@@ -756,6 +704,14 @@ private fun formatLastPlayed(ms: Long): String {
         mins  < 60 -> "${mins}m ago"
         hours < 24 -> "${hours}h ago"
         days  < 7  -> "${days}d ago"
-        else       -> SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(ms))
+        else -> {
+            // e.g. "Oct 30 '26"
+            val cal = java.util.Calendar.getInstance().apply { timeInMillis = ms }
+            val months = arrayOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+            val month = months[cal.get(java.util.Calendar.MONTH)]
+            val day   = cal.get(java.util.Calendar.DAY_OF_MONTH)
+            val year  = cal.get(java.util.Calendar.YEAR).toString().takeLast(2)
+            "$month $day '$year"
+        }
     }
 }

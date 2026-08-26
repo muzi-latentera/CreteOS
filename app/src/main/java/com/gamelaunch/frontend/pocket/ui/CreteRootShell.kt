@@ -249,20 +249,12 @@ private fun CreteBottomNavBar(
 
         Spacer(Modifier.weight(1f))
 
-        // ── Right: Settings + Power ───────────────────────────────────────
+        // ── Right: Settings only — Power is in the system pill ────────────
         BottomNavButton(
             icon = Icons.Outlined.Settings,
             label = "Settings",
             selected = activeTab == ShellTab.SETTINGS,
             onClick = onSettingsClick
-        )
-        Spacer(Modifier.width(8.dp))
-        BottomNavButton(
-            icon = Icons.Outlined.PowerSettingsNew,
-            label = "Power",
-            selected = false,
-            selectedColor = Color(0xFFC9482A),
-            onClick = onPowerClick
         )
     }
 }

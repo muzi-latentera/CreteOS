@@ -89,6 +89,12 @@ class PocketGameDetailViewModel @Inject constructor(
                         steamMetadataSync.syncAchievements(appId)
                     }
 
+                    // Fetch developer/publisher/description if not yet populated
+                    val afterSync = steamMetadataDao.getByAppId(appId)
+                    if (afterSync?.developer == null) {
+                        steamMetadataSync.fetchAppDetails(appId)
+                    }
+
                     // Update UI with latest data
                     _uiState.update { it.copy(steamMetadata = steamMetadataDao.getByAppId(appId)) }
                 }
