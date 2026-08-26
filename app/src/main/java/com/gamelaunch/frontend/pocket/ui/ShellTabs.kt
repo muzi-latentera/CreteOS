@@ -25,6 +25,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
@@ -49,6 +50,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.model.GameMedia
+import com.gamelaunch.frontend.pocket.data.SteamMetadataDao
+import com.gamelaunch.frontend.pocket.data.SteamMetadataEntity
+import com.gamelaunch.frontend.pocket.data.formatPlaytime
 import com.gamelaunch.frontend.pocket.ui.design.*
 import com.gamelaunch.frontend.pocket.ui.home.RedditNewsViewModel
 import com.gamelaunch.frontend.pocket.ui.library.LibraryViewModel
@@ -241,8 +245,10 @@ fun CreteHomeLayout(
     onOpenProviders: () -> Unit,
     onOpenDisplay: () -> Unit,
     modifier: Modifier = Modifier,
-    newsViewModel: RedditNewsViewModel = hiltViewModel()
+    newsViewModel: RedditNewsViewModel = hiltViewModel(),
+    heroSteamViewModel: HeroSteamViewModel = hiltViewModel()
 ) {
+    val steamMetadataDao = heroSteamViewModel.steamMetadataDao
     val libState by libraryViewModel.uiState.collectAsState()
 
     // Provider apps to exclude
@@ -276,6 +282,12 @@ fun CreteHomeLayout(
     val heroGame = jumpBackInGames.firstOrNull()
     val heroMedia = heroGame?.let { libState.mediaForGames[it.id] }
 
+    // Load Steam metadata for the hero game (developer, publisher, playtime)
+    val heroAppId = heroGame?.romPath?.substringAfterLast(":")?.takeIf { it.isNotBlank() }
+    val heroSteamMeta by produceState<SteamMetadataEntity?>(null, heroAppId) {
+        value = heroAppId?.let { steamMetadataDao.getByAppId(it) }
+    }
+
     // Focus states
     var heroFocused by remember { mutableStateOf(false) }
     var jumpBackInFocusIndex by remember { mutableIntStateOf(-1) }
@@ -290,6 +302,7 @@ fun CreteHomeLayout(
                 HeroTile(
                     game = heroGame,
                     media = heroMedia,
+                    steamMeta = heroSteamMeta,
                     focused = heroFocused,
                     onClick = { onGameClick(heroGame.id) },
                     modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 80.dp, bottom = 12.dp)
@@ -357,19 +370,14 @@ fun CreteHomeLayout(
 private fun HeroTile(
     game: Game,
     media: GameMedia?,
+    steamMeta: SteamMetadataEntity?,
     focused: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val bgColor = deterministicColor(game.title)
-    val initial = game.title.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
 
-    // Format play time
-    val playTimeHours = if (game.playCount > 0) {
-        String.format("%.1f", game.playCount * 0.5) // Rough estimate
-    } else "0.0"
-
-    // Platform label
+    // Platform label for chips
     val platformLabel = when (game.platformId.lowercase()) {
         "steam" -> "STEAM"
         "gog" -> "GOG"
@@ -482,16 +490,19 @@ private fun HeroTile(
                 // Platform chip
                 HeroChip(text = platformLabel)
 
-                // Play time chip — only show if actually played
-                if (game.playCount > 0) {
-                    HeroChip(text = "$playTimeHours H PLAYED")
+                // Playtime chip from Steam metadata — only show if > 0
+                val playtimeLabel = steamMeta?.let { m ->
+                    if (m.playtimeMinutes > 0) m.formatPlaytime() + " PLAYED" else null
+                }
+                if (playtimeLabel != null) {
+                    HeroChip(text = playtimeLabel)
                 }
 
-                // Provider chip (replaces fake "SAVE SYNCED")
+                // Provider chip
                 HeroChip(
                     text = when (game.platformId.lowercase()) {
-                        "steam" -> "GAME NATIVE"
-                        "gfn"   -> "GEFORCE NOW"
+                        "steam"     -> "GAME NATIVE"
+                        "gfn"       -> "GEFORCE NOW"
                         "moonlight" -> "MOONLIGHT"
                         "android"   -> "ANDROID"
                         else        -> "READY"
@@ -576,27 +587,29 @@ private fun HeroTile(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
-                    "ACTIVE PROFILE",
+                    "GAME INFO",
                     fontSize = 10.sp,
                     fontFamily = FontFamily.Monospace,
                     letterSpacing = 2.sp,
                     color = CreamText.copy(alpha = 0.42f)
                 )
-                ProfileRow(label = "Provider",
-                    value = when (game.platformId.lowercase()) {
-                        "steam" -> "Game Native"
-                        "gfn"   -> "GeForce NOW"
-                        "moonlight" -> "Moonlight"
-                        "android"   -> "Android"
-                        else        -> game.platformId.uppercase()
-                    }
+                ProfileRow(
+                    label = "Developer",
+                    value = steamMeta?.developer ?: "—"
                 )
-                ProfileRow(label = "Source", value = platformLabel)
-                ProfileRow(label = "Sessions",
-                    value = if (game.playCount > 0) game.playCount.toString() else "—"
+                ProfileRow(
+                    label = "Publisher",
+                    value = steamMeta?.publisher ?: "—"
                 )
-                ProfileRow(label = "Last played",
-                    value = formatLastPlayed(game.lastPlayedMs)
+                ProfileRow(
+                    label = "Playtime",
+                    value = steamMeta.formatPlaytime()
+                )
+                ProfileRow(
+                    label = "Last played",
+                    value = formatLastPlayed(
+                        steamMeta?.lastPlayedMs ?: game.lastPlayedMs
+                    )
                 )
             }
         }
