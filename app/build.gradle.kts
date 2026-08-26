@@ -170,6 +170,9 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.video)
 
+    // Palette API for color extraction
+    implementation("androidx.palette:palette:1.0.0")
+
     // DataStore
     implementation(libs.datastore.preferences)
 

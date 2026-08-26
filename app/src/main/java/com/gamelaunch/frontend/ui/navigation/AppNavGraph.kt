@@ -14,6 +14,8 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.navArgument
 import com.gamelaunch.frontend.ui.screen.detail.GameDetailScreen
 import com.gamelaunch.frontend.ui.screen.home.HomeScreen
+import com.gamelaunch.frontend.pocket.ui.home.CreteOSHomeScreen
+import com.gamelaunch.frontend.pocket.ui.library.CreteOSLibraryScreen
 import com.gamelaunch.frontend.ui.screen.onboarding.OnboardingScreen
 import com.gamelaunch.frontend.ui.screen.scan.ScanScreen
 import com.gamelaunch.frontend.ui.screen.scrape.ScrapeProgressScreen
@@ -87,17 +89,31 @@ fun AppNavGraph(
         }
 
         composable(Screen.Home.route) {
-            HomeScreen(
+            CreteOSHomeScreen(
                 onGameClick = { gameId ->
                     navController.navigate(Screen.GameDetail.route(gameId))
                 },
                 onSettingsClick = {
                     if (canAccessProtectedRoutes) navController.navigate(Screen.Settings.route)
                 },
-                onScrapeSystem = { platformId ->
-                    navController.navigate(Screen.ScrapeProgress.route(platformId))
+                onLibraryClick = {
+                    navController.navigate(Screen.Library.route)
+                }
+            )
+        }
+
+        composable(Screen.Library.route) {
+            CreteOSLibraryScreen(
+                onGameClick = { gameId ->
+                    navController.navigate(Screen.GameDetail.route(gameId))
                 },
-                lockedModeViewModel = lockedModeViewModel
+                onHomeClick = {
+                    navController.backOrHome()
+                },
+                onSettingsClick = {
+                    if (canAccessProtectedRoutes) navController.navigate(Screen.Settings.route)
+                },
+                onBack = { navController.backOrHome() }
             )
         }
 

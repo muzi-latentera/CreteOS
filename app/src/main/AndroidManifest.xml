@@ -159,6 +159,15 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- Debug only: ADB game seeding for testing without Frontend Sync -->
+        <receiver
+            android:name=".pocket.debug.DebugSeedReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="io.latent.creteos.SEED_GAME" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>
