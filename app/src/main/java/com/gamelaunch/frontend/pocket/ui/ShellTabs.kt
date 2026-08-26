@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -23,9 +24,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.model.GameMedia
 import com.gamelaunch.frontend.pocket.ui.design.*
@@ -38,15 +42,26 @@ import com.gamelaunch.frontend.ui.screen.settings.SettingsCategory
 // HOME TAB
 // ══════════════════════════════════════════════════════════════════════════
 
+// Sub-tabs shown below the game carousel on Home
+private enum class HomeSection(val label: String) {
+    WHATS_NEW("What's New"),
+    LIBRARY("Library")
+}
+
 /**
  * Home tab content — WinHanced hierarchy:
- * - Recent Games label near top
- * - Horizontal cover carousel
- * - Libraries / Sources section
- * - Gaming News placeholder
  *
- * Hero artwork is the full background handled by CreteRootShell.
- * This content just has the game list.
+ * ┌────────────────────────────────────────────────┐
+ * │  Recent Games                                  │  ← label
+ * │  [cover] [cover] [cover] [cover] → scrolls    │  ← carousel
+ * │                                                │
+ * │  [What's New]  [Library]                       │  ← sub-tabs
+ * │                                                │
+ * │  [large tile] [large tile] [large tile] →      │  ← content tiles
+ * └────────────────────────────────────────────────┘
+ *
+ * What's New = large landscape news cards (image + category + headline)
+ * Library    = large square source tiles (icon + label) → tap goes to Library tab
  */
 @Composable
 fun HomeTabContent(
@@ -54,35 +69,38 @@ fun HomeTabContent(
     onGameClick: (Long) -> Unit,
     onTabChange: (ShellTab) -> Unit
 ) {
-    val state      by homeViewModel.uiState.collectAsState()
+    val state       by homeViewModel.uiState.collectAsState()
     val recentGames = remember(state.recentlyPlayed, state.games) {
         state.recentlyPlayed.takeIf { it.isNotEmpty() } ?: state.games.take(20)
     }
-    var focusedIndex by remember { mutableIntStateOf(0) }
+    var focusedIndex  by remember { mutableIntStateOf(0) }
+    var activeSection by remember { mutableStateOf(HomeSection.WHATS_NEW) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(top = CreteDS.space3XL)
     ) {
-        // "Recent Games" label
+        // ── Recent Games label ─────────────────────────────────────────
         Text(
             text = "Recent Games",
             style = CreteDS.typeGameTitle,
             color = CreteDS.textPrimary,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(
-                start = CreteDS.spaceXXL,
-                bottom = CreteDS.spaceM
-            )
+            modifier = Modifier.padding(start = CreteDS.spaceXXL, bottom = CreteDS.spaceM)
         )
 
+        // ── Game carousel ──────────────────────────────────────────────
         if (state.isLoading) {
-            Box(Modifier.fillMaxWidth().height(CreteDS.gameCardHeight + 32.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = CreteDS.accent)
-            }
+            Box(
+                modifier = Modifier.fillMaxWidth().height(CreteDS.gameCardHeight + 32.dp),
+                contentAlignment = Alignment.Center
+            ) { CircularProgressIndicator(color = CreteDS.accent) }
         } else if (recentGames.isEmpty()) {
-            Box(Modifier.fillMaxWidth().padding(CreteDS.spaceXXL), contentAlignment = Alignment.CenterStart) {
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(CreteDS.spaceXXL),
+                contentAlignment = Alignment.CenterStart
+            ) {
                 Text(
                     "No games yet. Go to Settings → PC & Streaming to add GameNative games.",
                     style = CreteDS.typeMeta
@@ -110,75 +128,209 @@ fun HomeTabContent(
 
         Spacer(Modifier.height(CreteDS.spaceXXL))
 
-        // ── Libraries / Sources section ──────────────────────────────────
-        Text(
-            text = "Libraries",
-            style = CreteDS.typeNavTab,
-            color = CreteDS.textSecondary,
-            modifier = Modifier.padding(start = CreteDS.spaceXXL, bottom = CreteDS.spaceM)
-        )
-
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = CreteDS.spaceXXL),
-            horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceM)
+        // ── Section sub-tabs ─────────────────────────────────────────────
+        Row(
+            modifier = Modifier.padding(start = CreteDS.spaceXXL),
+            horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceXXL)
         ) {
-            val sources = listOf(
-                "All Games" to LibraryFilter.ALL,
-                "Local" to LibraryFilter.LOCAL,
-                "Streaming" to LibraryFilter.STREAMING,
-                "Cloud" to LibraryFilter.CLOUD,
-                "Retro" to LibraryFilter.RETRO,
-                "Android" to LibraryFilter.ANDROID
-            )
-            items(sources) { (label, _) ->
-                LibrarySourceTile(
-                    label = label,
-                    onClick = { onTabChange(ShellTab.LIBRARY) }
+            HomeSection.entries.forEach { section ->
+                val selected = section == activeSection
+                Column(
+                    modifier = Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { activeSection = section },
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = section.label,
+                        style = if (selected) CreteDS.typeNavTab else CreteDS.typeNavTabDim,
+                        color = if (selected) CreteDS.textPrimary else CreteDS.textSecondary,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    // Underline indicator
+                    Box(
+                        modifier = Modifier
+                            .width(24.dp)
+                            .height(2.dp)
+                            .background(
+                                if (selected) CreteDS.accent
+                                else Color.Transparent,
+                                RoundedCornerShape(1.dp)
+                            )
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(CreteDS.spaceL))
+
+        // ── Large content tiles — fill the remaining height ──────────────
+        Box(modifier = Modifier.weight(1f)) {
+            when (activeSection) {
+                HomeSection.WHATS_NEW -> NewsSection()
+                HomeSection.LIBRARY   -> LibrarySourceSection(
+                    onNavigateToLibrary = { onTabChange(ShellTab.LIBRARY) }
                 )
             }
         }
+    }
+}
 
-        Spacer(Modifier.height(CreteDS.spaceXXL))
+// ── Library source section — large square tiles ───────────────────────────
 
-        // ── Gaming News placeholder ──────────────────────────────────────
-        Text(
-            text = "Gaming News",
-            style = CreteDS.typeNavTab,
-            color = CreteDS.textSecondary,
-            modifier = Modifier.padding(start = CreteDS.spaceXXL, bottom = CreteDS.spaceM)
-        )
+/**
+ * Full-height row of large library source tiles — WinHanced Library tab style.
+ * Each tile is a tall frosted-glass card with an icon + label.
+ * Tapping any tile navigates to the Library tab.
+ */
+@Composable
+private fun LibrarySourceSection(onNavigateToLibrary: () -> Unit) {
+    val sources = listOf(
+        Triple("All Games",  Icons.Outlined.GridView,        null),
+        Triple("Local",      Icons.Outlined.Computer,        null),
+        Triple("Streaming",  Icons.Outlined.Stream,          null),
+        Triple("Cloud",      Icons.Outlined.Cloud,           null),
+        Triple("Retro",      Icons.Outlined.SportsEsports,   null),
+        Triple("Android",    Icons.Outlined.PhoneAndroid,    null)
+    )
 
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = CreteDS.spaceXXL),
-            horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceM)
-        ) {
-            items(sampleNewsItems) { news ->
-                NewsCard(item = news)
-            }
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = CreteDS.spaceXXL, vertical = CreteDS.spaceS),
+        horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceL),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        items(sources) { (label, icon, _) ->
+            LargeSourceTile(
+                label = label,
+                icon  = icon,
+                onClick = onNavigateToLibrary
+            )
         }
     }
 }
 
-// ── Library source tile for Home ───────────────────────────────────────────
-
 @Composable
-private fun LibrarySourceTile(label: String, onClick: () -> Unit) {
-    Box(
+private fun LargeSourceTile(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    Column(
         modifier = Modifier
-            .width(130.dp)
-            .height(50.dp)
-            .clip(RoundedCornerShape(CreteDS.radiusM))
-            // frosted glass: light smoke, NOT dark block
-            .background(Color(0x28FFFFFF))
-            .border(0.5.dp, Color(0x33FFFFFF), RoundedCornerShape(CreteDS.radiusM))
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
-        contentAlignment = Alignment.Center
+            .fillMaxHeight()
+            .width(220.dp)
+            .clip(RoundedCornerShape(CreteDS.radiusL))
+            .background(Color(0x30FFFFFF))           // frosted glass
+            .border(0.5.dp, Color(0x44FFFFFF), RoundedCornerShape(CreteDS.radiusL))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(vertical = CreteDS.spaceXXL, horizontal = CreteDS.spaceXL),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = label, style = CreteDS.typeNavTab, color = CreteDS.textSecondary)
+        androidx.compose.material3.Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = CreteDS.textSecondary.copy(alpha = 0.7f),
+            modifier = Modifier.size(48.dp)
+        )
+        Spacer(Modifier.height(CreteDS.spaceL))
+        Text(
+            text = label,
+            style = CreteDS.typeGameTitle,
+            color = CreteDS.textPrimary,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 
-// ── News card composables ──────────────────────────────────────────────────
+// ── News section — large landscape cards ──────────────────────────────────
+
+/**
+ * Full-height row of large landscape news cards — WinHanced What's New style.
+ * Each card fills the available height with an image, category label and headline
+ * overlaid at the bottom behind a gradient scrim.
+ */
+@Composable
+private fun NewsSection() {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = CreteDS.spaceXXL, vertical = CreteDS.spaceS),
+        horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceL),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        items(sampleNewsItems) { news ->
+            LargeNewsCard(item = news)
+        }
+    }
+}
+
+@Composable
+private fun LargeNewsCard(item: NewsItem) {
+    Box(
+        modifier = Modifier
+            .fillMaxHeight()
+            .width(320.dp)
+            .clip(RoundedCornerShape(CreteDS.radiusL))
+            .background(Color(0x30FFFFFF))
+            .border(0.5.dp, Color(0x44FFFFFF), RoundedCornerShape(CreteDS.radiusL))
+    ) {
+        // Thumbnail fills the whole card when available
+        if (item.thumbnailUrl != null) {
+            AsyncImage(
+                model = item.thumbnailUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            // Gradient placeholder — unique-ish colour per item
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        androidx.compose.ui.graphics.Brush.linearGradient(
+                            listOf(Color(0xFF1A2840), Color(0xFF0A1628))
+                        )
+                    )
+            )
+        }
+
+        // Bottom scrim + text
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomStart)
+                .background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        listOf(Color.Transparent, Color(0xDD000000))
+                    )
+                )
+                .padding(CreteDS.spaceL)
+        ) {
+            Text(
+                text = item.source.uppercase(),
+                style = CreteDS.typeChip,
+                color = CreteDS.accent,
+                letterSpacing = 1.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = item.headline,
+                style = CreteDS.typeNavTab,
+                color = CreteDS.textPrimary,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
 
 private data class NewsItem(
     val headline: String,
@@ -187,31 +339,13 @@ private data class NewsItem(
     val thumbnailUrl: String? = null
 )
 
-@Composable
-private fun NewsCard(item: NewsItem) {
-    Box(
-        modifier = Modifier
-            .width(280.dp)
-            .height(90.dp)
-            .clip(RoundedCornerShape(CreteDS.radiusM))
-            // frosted glass: light smoke
-            .background(Color(0x28FFFFFF))
-            .border(0.5.dp, Color(0x33FFFFFF), RoundedCornerShape(CreteDS.radiusM))
-            .padding(CreteDS.spaceL)
-    ) {
-        Column {
-            Text(text = item.headline, style = CreteDS.typeMeta, color = CreteDS.textPrimary, maxLines = 2)
-            Spacer(Modifier.height(CreteDS.spaceS))
-            Text(text = "${item.source} · ${item.timestampLabel}", style = CreteDS.typeControllerHint, color = CreteDS.textDisabled)
-        }
-    }
-}
-
-// Sample news items until real NewsProvider is implemented
+// Sample items until real NewsProvider feeds are wired in
 private val sampleNewsItems = listOf(
-    NewsItem("Gaming news will appear here when connected", "r/Games", "soon"),
-    NewsItem("Configure a news source in Settings to see headlines", "r/pcgaming", "soon"),
-    NewsItem("Steam new releases, reviews and community updates", "Steam", "soon")
+    NewsItem("The Best PC Games to Play This Weekend", "r/pcgaming", "2h ago"),
+    NewsItem("Steam Next Fest: Top 10 Most Wishlisted Demos", "r/Games", "5h ago"),
+    NewsItem("Xbox Game Pass New Additions — August 2026", "r/Games", "1d ago"),
+    NewsItem("Hollow Knight: Silksong Release Date Revealed", "r/Games", "2d ago"),
+    NewsItem("Best Settings to Optimise Games on Handheld", "r/pcgaming", "3d ago")
 )
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -388,7 +522,7 @@ fun SettingsTabContent(
 
     val categories = listOf(
         SettingsCategoryItem("PC & Streaming",  "GameNative, Moonlight, GeForce NOW",   Icons.Outlined.Stream),
-        SettingsCategoryItem("Libraries",        "Game sources and folders",             Icons.Outlined.LibraryBooks),
+        SettingsCategoryItem("Libraries",        "Game sources and folders",             Icons.AutoMirrored.Outlined.LibraryBooks),
         SettingsCategoryItem("Display",          "XREAL, external display, resolution",  Icons.Outlined.Monitor),
         SettingsCategoryItem("Appearance",       "Theme, layout, backgrounds",           Icons.Outlined.Palette),
         SettingsCategoryItem("General",          "Emulators, metadata, achievements",    Icons.Outlined.Settings)
