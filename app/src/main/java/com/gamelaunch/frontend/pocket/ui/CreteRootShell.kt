@@ -96,8 +96,28 @@ fun CreteRootShell(
                 }
             }
     ) {
-        // ── Hero artwork fills the full background ──────────────────────────
-        if (heroUrl != null) {
+        // ── Background per tab ──────────────────────────────────────────────
+        // Home: hero artwork from focused game
+        // Library/Settings: neutral dark gradient (no game artwork bleed-through)
+        val showHeroArtwork = activeTab == ShellTab.HOME
+
+        if (!showHeroArtwork) {
+            // Neutral dark blue-purple gradient for Library and Settings
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(
+                                androidx.compose.ui.graphics.Color(0xFF0A1628),
+                                androidx.compose.ui.graphics.Color(0xFF060C18)
+                            ),
+                            radius = 1200f
+                        )
+                    )
+            )
+        } else if (heroUrl != null) {
+            // Hero artwork only on Home tab
             Crossfade(
                 targetState = heroUrl,
                 animationSpec = tween(CreteDS.animColour),
@@ -113,18 +133,20 @@ fun CreteRootShell(
             }
         }
 
-        // Dark scrim over artwork — lighter at top, darker at bottom
-        androidx.compose.foundation.layout.Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    androidx.compose.ui.graphics.Brush.verticalGradient(
-                        0.0f to CreteDS.bgBase.copy(alpha = 0.35f),
-                        0.4f to CreteDS.bgBase.copy(alpha = 0.55f),
-                        1.0f to CreteDS.bgBase.copy(alpha = 0.92f)
+        // Dark scrim over artwork — only needed when showing hero
+        if (showHeroArtwork) {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            0.0f to CreteDS.bgBase.copy(alpha = 0.35f),
+                            0.4f to CreteDS.bgBase.copy(alpha = 0.55f),
+                            1.0f to CreteDS.bgBase.copy(alpha = 0.92f)
+                        )
                     )
-                )
-        )
+            )
+        }
 
         // ── System pill — always mounted ────────────────────────────────────
         CreteSystemPill(
