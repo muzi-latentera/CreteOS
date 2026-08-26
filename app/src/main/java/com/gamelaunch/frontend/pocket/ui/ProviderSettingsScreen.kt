@@ -4,17 +4,16 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Monitor
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gamelaunch.frontend.pocket.providers.ProviderId
@@ -22,11 +21,15 @@ import com.gamelaunch.frontend.pocket.providers.ProviderId
 /**
  * PC & Streaming provider settings screen.
  *
- * Contains:
- * - GameNative Frontend Sync setup instructions
- * - Sync/Rescan button that calls real ProviderSyncCoordinator
- * - Provider status list (installed/not installed, game count)
- * - Active display info
+ * GameNative discovery status (verified 2026-08-26, v1.2.0):
+ * - No public API to list installed games
+ * - No Android shortcuts for installed games
+ * - No shared storage export
+ * - Direct launch works: LAUNCH_GAME intent with app_id is confirmed working
+ *
+ * The correct workflow for adding GameNative games is manual AppID entry.
+ * Once the GameNative team adds a read-only installed-games API, Sync will
+ * use it automatically. Until then, Add Game is the production path.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,6 +39,13 @@ fun ProviderSettingsScreen(
     viewModel: ProviderSettingsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+
+    if (state.showAddGameDialog) {
+        AddGameNativeGameDialog(
+            onAdd   = { appId, title -> viewModel.addGameNativeGame(appId, title) },
+            onDismiss = viewModel::dismissAddGame
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -56,9 +66,9 @@ fun ProviderSettingsScreen(
                 .padding(horizontal = 16.dp)
         ) {
 
-            // ── GameNative Setup Guide ──────────────────────────────────────────
+            // ── GameNative ──────────────────────────────────────────────────────
             item {
-                SectionHeader("GameNative Setup")
+                SectionHeader("GameNative")
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -67,30 +77,29 @@ fun ProviderSettingsScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            "To sync your GameNative library automatically:",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        SetupStep(1, "In GameNative: Settings → Interface → Frontend Sync")
-                        SetupStep(2, "Pick an export folder (e.g. /sdcard/ROMs)")
-                        SetupStep(3, "In CreteOS: Settings → Games → Steam Library Folder → same folder")
-                        SetupStep(4, "Tap Sync below — installed games appear automatically")
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "Note: GameNative 1.2.0 has no API to query its installed games directly. " +
-                            "Frontend Sync (marker files) is the only production import path.",
+                            "GameNative 1.2.0 does not expose an API to list installed games. " +
+                            "Add games manually by Steam AppID — artwork and title are fetched automatically.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = viewModel::showAddGame,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Add GameNative Game")
+                        }
                     }
                 }
                 Spacer(Modifier.height(16.dp))
             }
 
-            // ── Sync button ─────────────────────────────────────────────────────
+            // ── Sync (for providers that do support discovery) ──────────────────
             item {
-                Button(
+                SectionHeader("Sync")
+                OutlinedButton(
                     onClick = { viewModel.rescanAll() },
                     enabled = !state.isScanning,
                     modifier = Modifier.fillMaxWidth()
@@ -98,8 +107,7 @@ fun ProviderSettingsScreen(
                     if (state.isScanning) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary
+                            strokeWidth = 2.dp
                         )
                         Spacer(Modifier.width(8.dp))
                         Text("Syncing…")
@@ -109,9 +117,8 @@ fun ProviderSettingsScreen(
                         Text("Sync all providers")
                     }
                 }
-
                 state.lastSyncResult?.let { result ->
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     Text(
                         text = result,
                         style = MaterialTheme.typography.bodySmall,
@@ -122,19 +129,19 @@ fun ProviderSettingsScreen(
             }
 
             // ── Provider status ─────────────────────────────────────────────────
-            item { SectionHeader("Providers (${state.providerStatuses.size})") }
+            item { SectionHeader("Providers") }
 
             items(state.providerStatuses) { status ->
                 ProviderStatusRow(
-                    status = status,
+                    status   = status,
                     onRescan = { viewModel.rescan(status.providerId) }
                 )
             }
 
-            // ── Active display ──────────────────────────────────────────────────
+            // ── Display ─────────────────────────────────────────────────────────
             item {
                 Spacer(Modifier.height(16.dp))
-                SectionHeader("Active Gaming Display")
+                SectionHeader("Active Display")
                 state.activeDisplay?.let { display ->
                     Row(
                         modifier = Modifier
@@ -173,22 +180,6 @@ fun ProviderSettingsScreen(
 }
 
 @Composable
-private fun SetupStep(number: Int, text: String) {
-    Row(
-        modifier = Modifier.padding(vertical = 2.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Text(
-            "$number. ",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Bold
-        )
-        Text(text, style = MaterialTheme.typography.bodySmall)
-    }
-}
-
-@Composable
 private fun SectionHeader(title: String) {
     Text(
         text = title,
@@ -212,33 +203,24 @@ private fun ProviderStatusRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = when {
-                status.isInstalled  -> Icons.Default.CheckCircle
-                else                -> Icons.Default.Error
-            },
+            imageVector = if (status.isInstalled) Icons.Default.CheckCircle else Icons.Default.Error,
             contentDescription = null,
-            tint = when {
-                status.isInstalled  -> MaterialTheme.colorScheme.primary
-                else                -> MaterialTheme.colorScheme.onSurfaceVariant
-            },
+            tint = if (status.isInstalled) MaterialTheme.colorScheme.primary
+                   else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp)
         )
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
+            Text(status.providerId.displayName, style = MaterialTheme.typography.bodyLarge)
             Text(
-                text = status.providerId.displayName,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Text(
-                text = if (status.isInstalled) "${status.gameCount} games linked"
-                       else "Not installed",
+                if (status.isInstalled) "${status.gameCount} games linked" else "Not installed",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         if (status.isInstalled) {
             IconButton(onClick = onRescan) {
-                Icon(Icons.Default.Refresh, contentDescription = "Sync ${status.providerId.displayName}")
+                Icon(Icons.Default.Refresh, contentDescription = "Sync")
             }
         }
     }
