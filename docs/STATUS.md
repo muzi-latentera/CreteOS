@@ -36,9 +36,9 @@ Last updated: 2026-08-26
 | Direct launch intent (LAUNCH_GAME, app_id, game_source) | ✅ DONE | Tested with Bastion (107100) — confirmed in logcat |
 | Existing GameNative config preserved (no container_config sent) | ✅ DONE | Verified in tests |
 | HOME return after game exit | ✅ DONE | Tested on Fold 8 |
-| GameNative frontend sync file discovery | ✅ DONE | **Marker file format VERIFIED from GameNative 1.2.0 source (2026-08-26).** See below for details. Uses eOr's Steam Library Folder setting first, falls back to common paths. |
+| GameNative frontend sync file discovery | ❌ NOT AVAILABLE | **Verified on device 2026-08-26**: no Frontend Sync UI in GameNative 1.2.0, no shared storage exports, no shortcuts, no ContentProvider. Game files in private internal storage. Production path: manual AppID entry via Settings → PC & Streaming → Add GameNative Game. |
 | Automatic library sync via eOr GameRepository | ✅ DONE | ProviderSyncCoordinator uses GameRepository.insertGame() + GameIdentityResolver with LibraryIndex optimization. |
-| Multiple GameNative games | 🟡 PARTIAL | Will work once Frontend Sync is configured — user must set same folder in both apps |
+| Multiple GameNative games | 🟡 PARTIAL | Each game added via Add GameNative Game (manual AppID entry) |
 
 ### GameNative Marker File Format (Verified 2026-08-26)
 
@@ -168,7 +168,7 @@ All 8 architecture bugs from review fixed and tested:
 | Moonlight: fabricated pcName from activity.packageName | ✅ Fixed — pcName removed; startShortcut() primary |
 | isPreferred reset on rescan | ✅ Fixed — currentPreferred preserved from existing target |
 | Stale-target reconciliation missing | ✅ Fixed — seen IDs tracked; unseen targets marked unavailable |
-| GameNative claimed to have no Frontend Sync | ✅ Corrected — PR #1454 verified in 1.2.0 source |
+| GameNative auto-discovery | ❌ Impossible on stock APK — no public API, no shared storage, no shortcuts. Manual AppID entry is the production path. |
 | GameIdentityResolver O(n²) query pattern | ✅ Fixed — LibraryIndex built once per sync |
 | GameNative folder ignores eOr setting | ✅ Fixed — reads steamLibraryPath first |
 
