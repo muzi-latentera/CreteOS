@@ -1,5 +1,7 @@
 package com.gamelaunch.frontend.pocket.ui
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,49 +42,49 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.gamelaunch.frontend.ui.screen.settings.SettingsCategory
 
 // ══════════════════════════════════════════════════════════════════════════
-// HOME TAB
+// CRETE HOME LAYOUT — unified WinHanced-style shell content
 // ══════════════════════════════════════════════════════════════════════════
 
-// Sub-tabs shown below the game carousel on Home
-private enum class HomeSection(val label: String) {
-    WHATS_NEW("What's New"),
-    LIBRARY("Library")
-}
-
 /**
- * Home tab content — WinHanced hierarchy:
+ * The entire home-screen content area.
  *
- * ┌────────────────────────────────────────────────┐
- * │  Recent Games                                  │  ← label
- * │  [cover] [cover] [cover] [cover] → scrolls    │  ← carousel
- * │                                                │
- * │  [What's New]  [Library]                       │  ← sub-tabs
- * │                                                │
- * │  [large tile] [large tile] [large tile] →      │  ← content tiles
- * └────────────────────────────────────────────────┘
+ * Layout (fixed, always this structure):
  *
- * What's New = large landscape news cards (image + category + headline)
- * Library    = large square source tiles (icon + label) → tap goes to Library tab
+ *   "Recent Games"
+ *   [game cover carousel — scrolls right]
+ *
+ *   [What's New]  [Library]  [Settings]   ← tab bar
+ *   ─────                                 ← underline indicator
+ *
+ *   [large content tiles]                 ← fill remaining height, change per tab
+ *
+ * Tabs:
+ *   What's New  → large landscape news/media cards
+ *   Library     → large source tiles → tap to open full library grid
+ *   Settings    → large settings tiles → tap to open settings screen
  */
 @Composable
-fun HomeTabContent(
+fun CreteHomeLayout(
+    activeTab: ShellTab,
+    onTabSelected: (ShellTab) -> Unit,
     homeViewModel: HomeViewModel,
+    libraryViewModel: LibraryViewModel,
     onGameClick: (Long) -> Unit,
-    onTabChange: (ShellTab) -> Unit
+    onOpenLibrary: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenProviders: () -> Unit,
+    onOpenDisplay: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val state       by homeViewModel.uiState.collectAsState()
     val recentGames = remember(state.recentlyPlayed, state.games) {
         state.recentlyPlayed.takeIf { it.isNotEmpty() } ?: state.games.take(20)
     }
-    var focusedIndex  by remember { mutableIntStateOf(0) }
-    var activeSection by remember { mutableStateOf(HomeSection.WHATS_NEW) }
+    var focusedIndex by remember { mutableIntStateOf(0) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(top = CreteDS.space3XL)
-    ) {
-        // ── Recent Games label ─────────────────────────────────────────
+    Column(modifier = modifier.padding(top = CreteDS.space3XL)) {
+
+        // ── Recent Games label ─────────────────────────────────────────────
         Text(
             text = "Recent Games",
             style = CreteDS.typeGameTitle,
@@ -90,7 +93,7 @@ fun HomeTabContent(
             modifier = Modifier.padding(start = CreteDS.spaceXXL, bottom = CreteDS.spaceM)
         )
 
-        // ── Game carousel ──────────────────────────────────────────────
+        // ── Game cover carousel ────────────────────────────────────────────
         if (state.isLoading) {
             Box(
                 modifier = Modifier.fillMaxWidth().height(CreteDS.gameCardHeight + 32.dp),
@@ -102,7 +105,7 @@ fun HomeTabContent(
                 contentAlignment = Alignment.CenterStart
             ) {
                 Text(
-                    "No games yet. Go to Settings → PC & Streaming to add GameNative games.",
+                    "No games yet. Go to Settings → PC & Streaming to add games.",
                     style = CreteDS.typeMeta
                 )
             }
@@ -128,36 +131,34 @@ fun HomeTabContent(
 
         Spacer(Modifier.height(CreteDS.spaceXXL))
 
-        // ── Section sub-tabs ─────────────────────────────────────────────
+        // ── Tab bar ────────────────────────────────────────────────────────
         Row(
             modifier = Modifier.padding(start = CreteDS.spaceXXL),
             horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceXXL)
         ) {
-            HomeSection.entries.forEach { section ->
-                val selected = section == activeSection
+            ShellTab.entries.forEach { tab ->
+                val selected = tab == activeTab
                 Column(
                     modifier = Modifier.clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
-                    ) { activeSection = section },
+                    ) { onTabSelected(tab) },
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = section.label,
-                        style = if (selected) CreteDS.typeNavTab else CreteDS.typeNavTabDim,
+                        text = tab.label,
+                        style = CreteDS.typeNavTab,
                         color = if (selected) CreteDS.textPrimary else CreteDS.textSecondary,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
                     )
-                    Spacer(Modifier.height(4.dp))
-                    // Underline indicator
+                    Spacer(Modifier.height(5.dp))
                     Box(
                         modifier = Modifier
-                            .width(24.dp)
-                            .height(2.dp)
+                            .width(28.dp)
+                            .height(2.5.dp)
                             .background(
-                                if (selected) CreteDS.accent
-                                else Color.Transparent,
-                                RoundedCornerShape(1.dp)
+                                if (selected) CreteDS.accent else Color.Transparent,
+                                RoundedCornerShape(2.dp)
                             )
                     )
                 }
@@ -166,98 +167,52 @@ fun HomeTabContent(
 
         Spacer(Modifier.height(CreteDS.spaceL))
 
-        // ── Large content tiles — fill the remaining height ──────────────
-        Box(modifier = Modifier.weight(1f)) {
-            when (activeSection) {
-                HomeSection.WHATS_NEW -> NewsSection()
-                HomeSection.LIBRARY   -> LibrarySourceSection(
-                    onNavigateToLibrary = { onTabChange(ShellTab.LIBRARY) }
+        // ── Large content tiles — fill remaining height ────────────────────
+        Crossfade(
+            targetState = activeTab,
+            animationSpec = tween(CreteDS.animFast),
+            label = "shellCards",
+            modifier = Modifier.weight(1f)
+        ) { tab ->
+            when (tab) {
+                ShellTab.WHATS_NEW -> WhatsNewSection()
+                ShellTab.LIBRARY   -> LibrarySection(
+                    libraryViewModel = libraryViewModel,
+                    onOpenLibrary    = onOpenLibrary,
+                    onGameClick      = onGameClick
+                )
+                ShellTab.SETTINGS  -> SettingsSection(
+                    onOpenSettings  = onOpenSettings,
+                    onOpenProviders = onOpenProviders,
+                    onOpenDisplay   = onOpenDisplay
                 )
             }
         }
     }
 }
 
-// ── Library source section — large square tiles ───────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// WHAT'S NEW — large landscape news cards
+// ══════════════════════════════════════════════════════════════════════════
 
-/**
- * Full-height row of large library source tiles — WinHanced Library tab style.
- * Each tile is a tall frosted-glass card with an icon + label.
- * Tapping any tile navigates to the Library tab.
- */
-@Composable
-private fun LibrarySourceSection(onNavigateToLibrary: () -> Unit) {
-    val sources = listOf(
-        Triple("All Games",  Icons.Outlined.GridView,        null),
-        Triple("Local",      Icons.Outlined.Computer,        null),
-        Triple("Streaming",  Icons.Outlined.Stream,          null),
-        Triple("Cloud",      Icons.Outlined.Cloud,           null),
-        Triple("Retro",      Icons.Outlined.SportsEsports,   null),
-        Triple("Android",    Icons.Outlined.PhoneAndroid,    null)
-    )
+private data class NewsItem(
+    val headline: String,
+    val source: String,
+    val timestampLabel: String,
+    val thumbnailUrl: String? = null
+)
 
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = CreteDS.spaceXXL, vertical = CreteDS.spaceS),
-        horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceL),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        items(sources) { (label, icon, _) ->
-            LargeSourceTile(
-                label = label,
-                icon  = icon,
-                onClick = onNavigateToLibrary
-            )
-        }
-    }
-}
+// Sample items until real NewsProvider feeds are wired in
+private val sampleNewsItems = listOf(
+    NewsItem("The Best PC Games to Play This Weekend",           "r/pcgaming", "2h ago"),
+    NewsItem("Steam Next Fest: Top 10 Most Wishlisted Demos",    "r/Games",    "5h ago"),
+    NewsItem("Xbox Game Pass New Additions — August 2026",       "r/Games",    "1d ago"),
+    NewsItem("Hollow Knight: Silksong Release Date Revealed",    "r/Games",    "2d ago"),
+    NewsItem("Best Settings to Optimise Games on Handheld",      "r/pcgaming", "3d ago")
+)
 
 @Composable
-private fun LargeSourceTile(
-    label: String,
-    icon: ImageVector,
-    onClick: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxHeight()
-            .width(220.dp)
-            .clip(RoundedCornerShape(CreteDS.radiusL))
-            .background(Color(0x30FFFFFF))           // frosted glass
-            .border(0.5.dp, Color(0x44FFFFFF), RoundedCornerShape(CreteDS.radiusL))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-            .padding(vertical = CreteDS.spaceXXL, horizontal = CreteDS.spaceXL),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        androidx.compose.material3.Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = CreteDS.textSecondary.copy(alpha = 0.7f),
-            modifier = Modifier.size(48.dp)
-        )
-        Spacer(Modifier.height(CreteDS.spaceL))
-        Text(
-            text = label,
-            style = CreteDS.typeGameTitle,
-            color = CreteDS.textPrimary,
-            fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-// ── News section — large landscape cards ──────────────────────────────────
-
-/**
- * Full-height row of large landscape news cards — WinHanced What's New style.
- * Each card fills the available height with an image, category label and headline
- * overlaid at the bottom behind a gradient scrim.
- */
-@Composable
-private fun NewsSection() {
+private fun WhatsNewSection() {
     LazyRow(
         contentPadding = PaddingValues(horizontal = CreteDS.spaceXXL, vertical = CreteDS.spaceS),
         horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceL),
@@ -279,7 +234,6 @@ private fun LargeNewsCard(item: NewsItem) {
             .background(Color(0x30FFFFFF))
             .border(0.5.dp, Color(0x44FFFFFF), RoundedCornerShape(CreteDS.radiusL))
     ) {
-        // Thumbnail fills the whole card when available
         if (item.thumbnailUrl != null) {
             AsyncImage(
                 model = item.thumbnailUrl,
@@ -288,7 +242,7 @@ private fun LargeNewsCard(item: NewsItem) {
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            // Gradient placeholder — unique-ish colour per item
+            // Gradient placeholder — subtle variety per card
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -332,24 +286,179 @@ private fun LargeNewsCard(item: NewsItem) {
     }
 }
 
-private data class NewsItem(
-    val headline: String,
-    val source: String,
-    val timestampLabel: String,
-    val thumbnailUrl: String? = null
-)
+// ══════════════════════════════════════════════════════════════════════════
+// LIBRARY — large source tiles → tap opens full grid
+// ══════════════════════════════════════════════════════════════════════════
 
-// Sample items until real NewsProvider feeds are wired in
-private val sampleNewsItems = listOf(
-    NewsItem("The Best PC Games to Play This Weekend", "r/pcgaming", "2h ago"),
-    NewsItem("Steam Next Fest: Top 10 Most Wishlisted Demos", "r/Games", "5h ago"),
-    NewsItem("Xbox Game Pass New Additions — August 2026", "r/Games", "1d ago"),
-    NewsItem("Hollow Knight: Silksong Release Date Revealed", "r/Games", "2d ago"),
-    NewsItem("Best Settings to Optimise Games on Handheld", "r/pcgaming", "3d ago")
-)
+/**
+ * Large library source tiles. Each tile navigates to the full library grid.
+ * WinHanced parity: All Games | Steam | Xbox | XCloud style cards.
+ */
+@Composable
+private fun LibrarySection(
+    libraryViewModel: LibraryViewModel,
+    onOpenLibrary: () -> Unit,
+    onGameClick: (Long) -> Unit
+) {
+    val state by libraryViewModel.uiState.collectAsState()
+    val totalCount = state.games.size
+
+    val sources = listOf(
+        Triple("All Games",  Icons.Outlined.GridView,       "($totalCount)"),
+        Triple("Local",      Icons.Outlined.Computer,       null),
+        Triple("Streaming",  Icons.Outlined.Stream,         null),
+        Triple("Cloud",      Icons.Outlined.Cloud,          null),
+        Triple("Retro",      Icons.Outlined.SportsEsports,  null),
+        Triple("Android",    Icons.Outlined.PhoneAndroid,   null)
+    )
+
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = CreteDS.spaceXXL, vertical = CreteDS.spaceS),
+        horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceL),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        items(sources) { (label, icon, badge) ->
+            LargeSourceTile(
+                label   = label,
+                icon    = icon,
+                badge   = badge,
+                onClick = onOpenLibrary
+            )
+        }
+    }
+}
+
+@Composable
+private fun LargeSourceTile(
+    label: String,
+    icon: ImageVector,
+    badge: String?,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxHeight()
+            .width(220.dp)
+            .clip(RoundedCornerShape(CreteDS.radiusL))
+            .background(Color(0x30FFFFFF))
+            .border(0.5.dp, Color(0x44FFFFFF), RoundedCornerShape(CreteDS.radiusL))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(vertical = CreteDS.spaceXXL, horizontal = CreteDS.spaceXL),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = CreteDS.textSecondary.copy(alpha = 0.7f),
+            modifier = Modifier.size(48.dp)
+        )
+        Spacer(Modifier.height(CreteDS.spaceL))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                style = CreteDS.typeGameTitle,
+                color = CreteDS.textPrimary,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (badge != null) {
+                Text(
+                    text = badge,
+                    style = CreteDS.typeMeta,
+                    color = CreteDS.textSecondary
+                )
+            }
+        }
+    }
+}
 
 // ══════════════════════════════════════════════════════════════════════════
-// LIBRARY TAB
+// SETTINGS — large section tiles → tap opens settings screens
+// ══════════════════════════════════════════════════════════════════════════
+
+private data class SettingsTile(
+    val label: String,
+    val subtitle: String,
+    val icon: ImageVector,
+    val onClick: () -> Unit
+)
+
+@Composable
+private fun SettingsSection(
+    onOpenSettings: () -> Unit,
+    onOpenProviders: () -> Unit,
+    onOpenDisplay: () -> Unit
+) {
+    val tiles = listOf(
+        SettingsTile("PC & Streaming",  "GameNative, Moonlight, GeForce NOW",    Icons.Outlined.Stream,         onOpenProviders),
+        SettingsTile("Libraries",       "Game sources and ROM folders",          Icons.AutoMirrored.Outlined.LibraryBooks, onOpenSettings),
+        SettingsTile("Display",         "XREAL, external display, resolution",   Icons.Outlined.Monitor,        onOpenDisplay),
+        SettingsTile("Appearance",      "Theme, layout, backgrounds",            Icons.Outlined.Palette,        onOpenSettings),
+        SettingsTile("General",         "Emulators, metadata, achievements",     Icons.Outlined.Settings,       onOpenSettings)
+    )
+
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = CreteDS.spaceXXL, vertical = CreteDS.spaceS),
+        horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceL),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        items(tiles) { tile ->
+            LargeSettingsTile(tile = tile)
+        }
+    }
+}
+
+@Composable
+private fun LargeSettingsTile(tile: SettingsTile) {
+    Column(
+        modifier = Modifier
+            .fillMaxHeight()
+            .width(220.dp)
+            .clip(RoundedCornerShape(CreteDS.radiusL))
+            .background(Color(0x30FFFFFF))
+            .border(0.5.dp, Color(0x44FFFFFF), RoundedCornerShape(CreteDS.radiusL))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = tile.onClick
+            )
+            .padding(vertical = CreteDS.spaceXXL, horizontal = CreteDS.spaceXL),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = tile.icon,
+            contentDescription = null,
+            tint = CreteDS.textSecondary.copy(alpha = 0.7f),
+            modifier = Modifier.size(44.dp)
+        )
+        Spacer(Modifier.height(CreteDS.spaceL))
+        Text(
+            text = tile.label,
+            style = CreteDS.typeGameTitle,
+            color = CreteDS.textPrimary,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = tile.subtitle,
+            style = CreteDS.typeMeta,
+            color = CreteDS.textSecondary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// FULL LIBRARY GRID — pushed as a separate screen when source tile is tapped
 // ══════════════════════════════════════════════════════════════════════════
 
 enum class LibraryFilter(val label: String) {
@@ -362,20 +471,17 @@ enum class LibraryFilter(val label: String) {
 }
 
 /**
- * Library tab — games as the dominant grid.
- * Games deduplicated — one tile per game regardless of how many providers.
- * Filters are compact and controller-friendly.
- * Excludes provider apps (GeForce NOW, Moonlight, etc.) from display.
+ * Full library grid — shown as a pushed screen when a library source tile is tapped.
+ * Two-row horizontal scrolling grid with filter chips at the top.
  */
 @Composable
 fun LibraryTabContent(
     libraryViewModel: LibraryViewModel,
     onGameClick: (Long) -> Unit
 ) {
-    val state      by libraryViewModel.uiState.collectAsState()
+    val state        by libraryViewModel.uiState.collectAsState()
     var activeFilter by remember { mutableStateOf(LibraryFilter.ALL) }
 
-    // Provider packages to exclude from library display
     val providerPackages = setOf(
         "com.nvidia.geforcenow",
         "com.limelight",
@@ -385,14 +491,10 @@ fun LibraryTabContent(
     )
 
     val filteredGames = remember(state.games, activeFilter) {
-        // First, exclude Android provider/launcher shortcuts
         val base = state.games.filter { game ->
             if (game.platformId == "android" && game.romPath.startsWith("package:")) {
-                val pkg = game.romPath.removePrefix("package:")
-                pkg !in providerPackages
-            } else {
-                true
-            }
+                game.romPath.removePrefix("package:") !in providerPackages
+            } else true
         }
         when (activeFilter) {
             LibraryFilter.ALL       -> base
@@ -407,6 +509,15 @@ fun LibraryTabContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(
+                androidx.compose.ui.graphics.Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFF0E1E35),
+                        Color(0xFF060E1C)
+                    ),
+                    radius = 1400f
+                )
+            )
             .padding(top = CreteDS.spaceXL)
     ) {
         // Filter chips
@@ -428,24 +539,17 @@ fun LibraryTabContent(
             Box(
                 modifier = Modifier.fillMaxSize().padding(CreteDS.spaceXXL),
                 contentAlignment = Alignment.Center
-            ) {
-                Text("No games", style = CreteDS.typeMeta)
-            }
+            ) { Text("No games", style = CreteDS.typeMeta) }
         } else {
-            // Dark base under the grid so games read better
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         androidx.compose.ui.graphics.Brush.verticalGradient(
-                            listOf(
-                                Color(0x88060C18),
-                                Color(0xCC060C18)
-                            )
+                            listOf(Color(0x88060C18), Color(0xCC060C18))
                         )
                     )
             ) {
-                // Two-row horizontal grid — scrolls right
                 LazyHorizontalGrid(
                     rows = GridCells.Fixed(2),
                     contentPadding = PaddingValues(horizontal = CreteDS.spaceXXL),
@@ -469,22 +573,14 @@ fun LibraryTabContent(
 }
 
 @Composable
-private fun LibraryFilterChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
+private fun LibraryFilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(CreteDS.radiusPill))
-            .background(
-                if (selected) Color(0x554D9FFF)   // accent tint when selected
-                else Color(0x22FFFFFF)             // light smoky-glass when unselected
-            )
+            .background(if (selected) Color(0x554D9FFF) else Color(0x22FFFFFF))
             .border(
                 width = if (selected) 1.dp else 0.5.dp,
-                color = if (selected) CreteDS.accent.copy(alpha = 0.7f)
-                        else Color(0x40FFFFFF),    // very subtle white border
+                color = if (selected) CreteDS.accent.copy(alpha = 0.7f) else Color(0x40FFFFFF),
                 shape = RoundedCornerShape(CreteDS.radiusPill)
             )
             .clickable(
@@ -505,12 +601,12 @@ private fun LibraryFilterChip(
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// SETTINGS TAB
+// SETTINGS TAB CONTENT — kept for backward compatibility & deep-link access
 // ══════════════════════════════════════════════════════════════════════════
 
 /**
- * Settings tab — two-column layout same as CreteSettingsScreen but inline.
- * Uses glass surfaces throughout.
+ * Full settings screen — still used when navigating to the dedicated settings route.
+ * Two-column glass layout.
  */
 @Composable
 fun SettingsTabContent(
@@ -521,11 +617,11 @@ fun SettingsTabContent(
     var selectedIndex by remember { mutableIntStateOf(0) }
 
     val categories = listOf(
-        SettingsCategoryItem("PC & Streaming",  "GameNative, Moonlight, GeForce NOW",   Icons.Outlined.Stream),
-        SettingsCategoryItem("Libraries",        "Game sources and folders",             Icons.AutoMirrored.Outlined.LibraryBooks),
-        SettingsCategoryItem("Display",          "XREAL, external display, resolution",  Icons.Outlined.Monitor),
-        SettingsCategoryItem("Appearance",       "Theme, layout, backgrounds",           Icons.Outlined.Palette),
-        SettingsCategoryItem("General",          "Emulators, metadata, achievements",    Icons.Outlined.Settings)
+        SettingsCategoryItem("PC & Streaming", "GameNative, Moonlight, GeForce NOW",  Icons.Outlined.Stream),
+        SettingsCategoryItem("Libraries",      "Game sources and folders",            Icons.AutoMirrored.Outlined.LibraryBooks),
+        SettingsCategoryItem("Display",        "XREAL, external display, resolution", Icons.Outlined.Monitor),
+        SettingsCategoryItem("Appearance",     "Theme, layout, backgrounds",          Icons.Outlined.Palette),
+        SettingsCategoryItem("General",        "Emulators, metadata, achievements",   Icons.Outlined.Settings)
     )
 
     Row(
@@ -534,21 +630,15 @@ fun SettingsTabContent(
             .padding(horizontal = CreteDS.spaceXXL, vertical = CreteDS.spaceXL),
         horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceXL)
     ) {
-        // Left: category list
         LazyColumn(
             modifier = Modifier.width(260.dp),
             verticalArrangement = Arrangement.spacedBy(CreteDS.spaceS)
         ) {
             itemsIndexed(categories) { index, item ->
-                GlassSettingsCard(
-                    item     = item,
-                    selected = index == selectedIndex,
-                    onClick  = { selectedIndex = index }
-                )
+                GlassSettingsCard(item = item, selected = index == selectedIndex, onClick = { selectedIndex = index })
             }
         }
 
-        // Right: contextual panel — glass surface
         GlassPanel(modifier = Modifier.weight(1f).fillMaxHeight()) {
             when (selectedIndex) {
                 0 -> PcStreamingSettingsPanel(onOpenProviders = onOpenProviders, onOpenDisplay = onOpenDisplay)
@@ -561,63 +651,39 @@ fun SettingsTabContent(
     }
 }
 
-// ── Glass surface ──────────────────────────────────────────────────────────
-
 @Composable
-fun GlassPanel(
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit
-) {
+fun GlassPanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(CreteDS.radiusL))
-            .background(
-                // frosted glass - light smoke over the dark background
-                Color(0x28FFFFFF)
-            )
+            .background(Color(0x28FFFFFF))
             .border(0.5.dp, Color(0x33FFFFFF), RoundedCornerShape(CreteDS.radiusL))
             .padding(CreteDS.spaceXXL),
         content = content
     )
 }
 
-// ── Settings category card ─────────────────────────────────────────────────
-
 @Composable
-private fun GlassSettingsCard(
-    item: SettingsCategoryItem,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
+private fun GlassSettingsCard(item: SettingsCategoryItem, selected: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(CreteDS.radiusM))
-            .background(
-                if (selected) Color(0x554D9FFF)   // accent tint when selected
-                else Color(0x28FFFFFF)             // light frosted glass when unselected
-            )
+            .background(if (selected) Color(0x554D9FFF) else Color(0x28FFFFFF))
             .border(
                 width = if (selected) 1.dp else 0.5.dp,
-                color = if (selected) CreteDS.accent.copy(alpha = 0.5f)
-                        else Color(0x33FFFFFF),
+                color = if (selected) CreteDS.accent.copy(alpha = 0.5f) else Color(0x33FFFFFF),
                 shape = RoundedCornerShape(CreteDS.radiusM)
             )
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
             .padding(horizontal = CreteDS.spaceL, vertical = CreteDS.spaceM),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceM)
     ) {
-        androidx.compose.material3.Icon(
+        Icon(
             imageVector = item.icon,
             contentDescription = null,
-            // softer: textSecondary at reduced alpha when unselected, accent when selected
-            tint = if (selected) CreteDS.accent
-                   else CreteDS.textSecondary.copy(alpha = 0.6f),
+            tint = if (selected) CreteDS.accent else CreteDS.textSecondary.copy(alpha = 0.6f),
             modifier = Modifier.size(18.dp)
         )
         Column(modifier = Modifier.weight(1f)) {
@@ -635,10 +701,7 @@ private fun GlassSettingsCard(
 // ── Settings right panels ──────────────────────────────────────────────────
 
 @Composable
-private fun ColumnScope.PcStreamingSettingsPanel(
-    onOpenProviders: () -> Unit,
-    onOpenDisplay: () -> Unit
-) {
+private fun ColumnScope.PcStreamingSettingsPanel(onOpenProviders: () -> Unit, onOpenDisplay: () -> Unit) {
     SettingsPanelTitle("PC & Streaming")
     SettingsPanelBody("Add GameNative games, manage Moonlight, and configure display settings.")
     Spacer(Modifier.height(CreteDS.spaceXL))
@@ -682,13 +745,8 @@ private fun ColumnScope.GeneralSettingsPanel(onOpenSettings: () -> Unit) {
 
 @Composable
 private fun ColumnScope.SettingsPanelTitle(text: String) {
-    Text(
-        text = text,
-        color = CreteDS.textPrimary,
-        fontWeight = FontWeight.Bold,
-        fontSize = 20.sp,
-        modifier = Modifier.padding(bottom = CreteDS.spaceS)
-    )
+    Text(text = text, color = CreteDS.textPrimary, fontWeight = FontWeight.Bold, fontSize = 20.sp,
+        modifier = Modifier.padding(bottom = CreteDS.spaceS))
 }
 
 @Composable
@@ -697,42 +755,82 @@ private fun ColumnScope.SettingsPanelBody(text: String) {
 }
 
 @Composable
-private fun ColumnScope.SettingsPanelAction(
-    label: String,
-    icon: ImageVector,
-    onClick: () -> Unit
-) {
+private fun ColumnScope.SettingsPanelAction(label: String, icon: ImageVector, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(CreteDS.radiusS))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
             .padding(vertical = CreteDS.spaceM),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceM)
     ) {
-        androidx.compose.material3.Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = CreteDS.textSecondary.copy(alpha = 0.55f),   // softer grey
-            modifier = Modifier.size(18.dp)
-        )
-        Text(
-            text = label,
-            style = CreteDS.typeNavTab,
-            color = CreteDS.textSecondary,
-            modifier = Modifier.weight(1f)
-        )
-        androidx.compose.material3.Icon(
-            imageVector = Icons.Outlined.ChevronRight,
-            contentDescription = null,
-            tint = CreteDS.textDisabled.copy(alpha = 0.5f),     // even softer chevron
-            modifier = Modifier.size(16.dp)
-        )
+        Icon(imageVector = icon, contentDescription = null,
+            tint = CreteDS.textSecondary.copy(alpha = 0.55f), modifier = Modifier.size(18.dp))
+        Text(text = label, style = CreteDS.typeNavTab, color = CreteDS.textSecondary, modifier = Modifier.weight(1f))
+        Icon(imageVector = Icons.Outlined.ChevronRight, contentDescription = null,
+            tint = CreteDS.textDisabled.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
     }
     Box(Modifier.fillMaxWidth().height(0.5.dp).background(Color(0x20FFFFFF)))
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// LIBRARY SCREEN — full-screen pushed route wrapper for LibraryTabContent
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Standalone library screen — navigated to when a Library source tile is tapped.
+ * Wraps LibraryTabContent and adds a back button.
+ */
+@Composable
+fun LibraryScreen(
+    libraryViewModel: LibraryViewModel,
+    onGameClick: (Long) -> Unit,
+    onBack: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                androidx.compose.ui.graphics.Brush.radialGradient(
+                    colors = listOf(Color(0xFF0E1E35), Color(0xFF060E1C)),
+                    radius = 1400f
+                )
+            )
+    ) {
+        LibraryTabContent(
+            libraryViewModel = libraryViewModel,
+            onGameClick      = onGameClick
+        )
+
+        // Back pill — top left
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 24.dp, top = 16.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0x28FFFFFF))
+                .border(0.5.dp, Color(0x33FFFFFF), RoundedCornerShape(8.dp))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onBack
+                )
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.ArrowBack,
+                contentDescription = "Back",
+                tint = CreteDS.textSecondary,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = "Library",
+                style = CreteDS.typeNavTab,
+                color = CreteDS.textSecondary
+            )
+        }
+    }
 }

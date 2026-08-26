@@ -22,51 +22,58 @@ import com.gamelaunch.frontend.ui.input.GamepadL1
 import com.gamelaunch.frontend.ui.input.GamepadR1
 import com.gamelaunch.frontend.ui.screen.home.HomeViewModel
 
+// Single tab bar — maps directly to WinHanced's What's New | Library | Settings
 enum class ShellTab(val label: String) {
-    HOME("Home"),
+    WHATS_NEW("What's New"),
     LIBRARY("Library"),
     SETTINGS("Settings")
 }
 
+// Kept for backward compatibility with any callers that haven't been updated yet
+// (will be removed in a follow-up once all usages are migrated)
+@Deprecated("Use ShellTab directly", replaceWith = ReplaceWith("ShellTab"))
+typealias ShellTabLegacy = ShellTab
+
 /**
- * CreteOS Root Shell — single persistent layout.
+ * CreteOS Root Shell — single persistent layout, WinHanced architecture.
  *
- * The system pill and tab navigation NEVER unmount.
- * Switching between Home / Library / Settings crossfades only the content area.
- * Game Detail, Provider Settings, Display Diagnostics etc. are still pushed routes.
+ * The layout is fixed and never changes:
  *
- * Layout:
+ * ┌──────────────────────────────────── [pill] ─┐
+ * │  [hero artwork fills entire background]     │
+ * │  [dark scrim]                               │
+ * │                                             │
+ * │  "Recent Games"                             │
+ * │  [game cover carousel — scrolls right]      │
+ * │                                             │
+ * │  [What's New]  [Library]  [Settings]        │  ← single tab bar
+ * │  ────                                       │  ← underline indicator
+ * │                                             │
+ * │  [large content tiles — fill remaining]     │  ← changes per tab
+ * └─────────────────────────────────────────────┘
  *
- * ┌─────────────────────────────────── [pill] ─┐
- * │   [hero artwork fills entire background]   │
- * │   [dark scrim + dynamic accent tint]       │
- * │                                            │
- * │  ┌──────────────────────────────────────┐  │
- * │  │  [tab content area — crossfades]     │  │
- * │  └──────────────────────────────────────┘  │
- * │                                            │
- * │  [LB] Home · Library · Settings [RB]       │
- * │  [controller hints]                        │
- * └────────────────────────────────────────────┘
+ * What's New  → large landscape news/media cards
+ * Library     → large source tiles (All Games, Local, Streaming…) → pushes library grid
+ * Settings    → large settings tiles (PC & Streaming, Libraries…) → pushes settings screen
  */
 @Composable
 fun CreteRootShell(
     onGameClick: (Long) -> Unit,
-    onOpenSettings: () -> Unit,     // pushes to advanced settings route
+    onOpenSettings: () -> Unit,
     onOpenProviders: () -> Unit,
     onOpenDisplay: () -> Unit,
+    onOpenLibrary: () -> Unit = {},      // navigates to full library grid screen
     homeViewModel: HomeViewModel = hiltViewModel(),
     libraryViewModel: LibraryViewModel = hiltViewModel()
 ) {
-    var activeTab by remember { mutableStateOf(ShellTab.HOME) }
+    var activeTab by remember { mutableStateOf(ShellTab.WHATS_NEW) }
 
-    val homeState   by homeViewModel.uiState.collectAsState()
+    val homeState by homeViewModel.uiState.collectAsState()
 
-    // Derive focused game for background artwork — always from whatever's focused
-    val focusedGame = homeState.recentlyPlayed.firstOrNull() ?: homeState.games.firstOrNull()
+    val focusedGame  = homeState.recentlyPlayed.firstOrNull() ?: homeState.games.firstOrNull()
     val focusedMedia = focusedGame?.let { homeState.mediaForGames[it.id] }
-    val heroUrl = focusedMedia?.effectiveBackground ?: focusedMedia?.effectiveBoxArt
-    val accentColor = rememberDominantColor(focusedMedia?.effectiveBoxArt)
+    val heroUrl      = focusedMedia?.effectiveBackground ?: focusedMedia?.effectiveBoxArt
+    val accentColor  = rememberDominantColor(focusedMedia?.effectiveBoxArt)
 
     DynamicBackground(
         accentColor = accentColor,
@@ -77,60 +84,21 @@ fun CreteRootShell(
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (event.key) {
                     GamepadL1 -> {
-                        activeTab = when (activeTab) {
-                            ShellTab.HOME     -> ShellTab.HOME
-                            ShellTab.LIBRARY  -> ShellTab.HOME
-                            ShellTab.SETTINGS -> ShellTab.LIBRARY
-                        }
+                        val prev = (activeTab.ordinal - 1).coerceAtLeast(0)
+                        activeTab = ShellTab.entries[prev]
                         true
                     }
                     GamepadR1 -> {
-                        activeTab = when (activeTab) {
-                            ShellTab.HOME     -> ShellTab.LIBRARY
-                            ShellTab.LIBRARY  -> ShellTab.SETTINGS
-                            ShellTab.SETTINGS -> ShellTab.SETTINGS
-                        }
+                        val next = (activeTab.ordinal + 1).coerceAtMost(ShellTab.entries.lastIndex)
+                        activeTab = ShellTab.entries[next]
                         true
                     }
                     else -> false
                 }
             }
     ) {
-        // ── Background per tab ──────────────────────────────────────────────
-        // Home: hero artwork from focused game
-        // Library/Settings: neutral dark gradient (no game artwork bleed-through)
-        val showHeroArtwork = activeTab == ShellTab.HOME
-
-        if (!showHeroArtwork) {
-            // Library/Settings: deep navy-blue radial environment — feels like frosted acrylic
-            // Slightly lighter at center so it doesn't feel like a pure black void
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        androidx.compose.ui.graphics.Brush.radialGradient(
-                            colors = listOf(
-                                androidx.compose.ui.graphics.Color(0xFF0E1E35),  // lighter navy at center
-                                androidx.compose.ui.graphics.Color(0xFF060E1C)   // deeper at edges
-                            ),
-                            radius = 1400f
-                        )
-                    )
-            )
-            // Subtle vignette to add depth
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        androidx.compose.ui.graphics.Brush.verticalGradient(
-                            0.0f to androidx.compose.ui.graphics.Color(0x15000000),
-                            0.5f to androidx.compose.ui.graphics.Color(0x00000000),
-                            1.0f to androidx.compose.ui.graphics.Color(0x33000000)
-                        )
-                    )
-            )
-        } else if (heroUrl != null) {
-            // Hero artwork only on Home tab
+        // ── Background: hero artwork with gradient scrim ─────────────────
+        if (heroUrl != null) {
             Crossfade(
                 targetState = heroUrl,
                 animationSpec = tween(CreteDS.animColour),
@@ -146,66 +114,38 @@ fun CreteRootShell(
             }
         }
 
-        // Dark scrim over artwork — only needed when showing hero
-        if (showHeroArtwork) {
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        androidx.compose.ui.graphics.Brush.verticalGradient(
-                            0.0f to CreteDS.bgBase.copy(alpha = 0.45f),  // more diffused at top
-                            0.35f to CreteDS.bgBase.copy(alpha = 0.60f),
-                            1.0f to CreteDS.bgBase.copy(alpha = 0.95f)
-                        )
+        // Scrim — always shown (darker when no artwork to keep navy feel)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        0.0f to CreteDS.bgBase.copy(alpha = if (heroUrl != null) 0.50f else 0.90f),
+                        0.40f to CreteDS.bgBase.copy(alpha = if (heroUrl != null) 0.65f else 0.92f),
+                        1.0f to CreteDS.bgBase.copy(alpha = 0.97f)
                     )
-            )
-        }
+                )
+        )
 
-        // ── System pill — always mounted ────────────────────────────────────
+        // ── System pill ──────────────────────────────────────────────────
         CreteSystemPill(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 12.dp, end = 16.dp)
         )
 
-        // ── Content + nav ────────────────────────────────────────────────────
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Tab content crossfades
-            Box(modifier = Modifier.weight(1f)) {
-                Crossfade(
-                    targetState = activeTab,
-                    animationSpec = tween(CreteDS.animFast),
-                    label = "tabContent"
-                ) { tab ->
-                    when (tab) {
-                        ShellTab.HOME -> HomeTabContent(
-                            homeViewModel = homeViewModel,
-                            onGameClick   = onGameClick,
-                            onTabChange   = { activeTab = it }
-                        )
-                        ShellTab.LIBRARY -> LibraryTabContent(
-                            libraryViewModel = libraryViewModel,
-                            onGameClick      = onGameClick
-                        )
-                        ShellTab.SETTINGS -> SettingsTabContent(
-                            onOpenSettings  = onOpenSettings,
-                            onOpenProviders = onOpenProviders,
-                            onOpenDisplay   = onOpenDisplay
-                        )
-                    }
-                }
-            }
-
-            // ── Persistent tab bar — always visible ────────────────────────
-            CreteTopNavigation(
-                tabs = ShellTab.entries.map { it.label },
-                selectedIndex = activeTab.ordinal,
-                onTabSelected = { index -> activeTab = ShellTab.entries[index] }
-            )
-
-            // No persistent controller hints — they add clutter.
-            // Contextual hints appear per-screen where needed (e.g. game detail).
-            Spacer(Modifier.height(8.dp))
-        }
+        // ── Single unified content layout ────────────────────────────────
+        CreteHomeLayout(
+            activeTab       = activeTab,
+            onTabSelected   = { activeTab = it },
+            homeViewModel   = homeViewModel,
+            libraryViewModel = libraryViewModel,
+            onGameClick     = onGameClick,
+            onOpenLibrary   = onOpenLibrary,
+            onOpenSettings  = onOpenSettings,
+            onOpenProviders = onOpenProviders,
+            onOpenDisplay   = onOpenDisplay,
+            modifier        = Modifier.fillMaxSize()
+        )
     }
 }

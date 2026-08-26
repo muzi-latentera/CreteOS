@@ -89,12 +89,24 @@ fun AppNavGraph(
         }
 
         composable(Screen.Home.route) {
-            // Single persistent shell — Home/Library/Settings are tabs, not routes
+            // Single persistent shell — What's New / Library / Settings are the only tabs
             com.gamelaunch.frontend.pocket.ui.CreteRootShell(
                 onGameClick     = { gameId -> navController.navigate(Screen.GameDetail.route(gameId)) },
                 onOpenSettings  = { if (canAccessProtectedRoutes) navController.navigate(Screen.Settings.route) },
                 onOpenProviders = { navController.navigate(Screen.ProviderSettings.route) },
-                onOpenDisplay   = { navController.navigate(Screen.DisplayDiagnostics.route) }
+                onOpenDisplay   = { navController.navigate(Screen.DisplayDiagnostics.route) },
+                onOpenLibrary   = { navController.navigate(Screen.Library.route) }
+            )
+        }
+
+        composable(Screen.Library.route) {
+            // Full library grid — pushed when a Library source tile is tapped
+            val libraryViewModel: com.gamelaunch.frontend.pocket.ui.library.LibraryViewModel =
+                androidx.hilt.navigation.compose.hiltViewModel()
+            com.gamelaunch.frontend.pocket.ui.LibraryScreen(
+                libraryViewModel = libraryViewModel,
+                onGameClick = { gameId -> navController.navigate(Screen.GameDetail.route(gameId)) },
+                onBack      = { navController.popBackStack() }
             )
         }
 
