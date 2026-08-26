@@ -26,6 +26,10 @@ import kotlinx.coroutines.launch
 class DebugSeedReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
+        if (!com.gamelaunch.frontend.BuildConfig.DEBUG) {
+            Log.w(TAG, "DebugSeedReceiver called in non-debug build — ignoring")
+            return
+        }
         if (intent.action != ACTION) return
 
         val appId = intent.getStringExtra("appId") ?: run {
