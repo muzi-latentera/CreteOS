@@ -420,15 +420,25 @@ private fun HeroTile(
                 )
         )
 
-        // Artwork background if available
-        if (media?.effectiveBoxArt != null) {
+        // Artwork background — prefer high-res Steam header (460×215 sharp),
+        // fall back to page_bg_raw, then portrait box art
+        val appId = game.romPath.substringAfterLast(":").takeIf { it.isNotBlank() }
+        val heroImageUrl = when {
+            appId != null && game.platformId.lowercase() == "steam" ->
+                // header.jpg is 460×215 crisp — much sharper than library_hero (blurry resize)
+                "https://cdn.akamai.steamstatic.com/steam/apps/$appId/header.jpg"
+            media?.effectiveBackground != null -> media.effectiveBackground
+            media?.effectiveBoxArt != null     -> media.effectiveBoxArt
+            else -> null
+        }
+        if (heroImageUrl != null) {
             AsyncImage(
-                model = media.effectiveBoxArt,
+                model = heroImageUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = 0.4f }
+                    .graphicsLayer { alpha = 0.55f }
             )
         }
 
@@ -482,32 +492,23 @@ private fun HeroTile(
 
             Spacer(Modifier.height(16.dp))
 
-            // Tag row
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Platform chip
-                HeroChip(text = platformLabel)
+                // Tag row — platform + provider only (playtime shown in right panel)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    HeroChip(text = platformLabel)
 
-                // Playtime chip from Steam metadata — only show if > 0
-                val playtimeLabel = steamMeta?.let { m ->
-                    if (m.playtimeMinutes > 0) m.formatPlaytime() + " PLAYED" else null
-                }
-                if (playtimeLabel != null) {
-                    HeroChip(text = playtimeLabel)
-                }
-
-                // Provider chip
-                HeroChip(
-                    text = when (game.platformId.lowercase()) {
-                        "steam"     -> "GAME NATIVE"
-                        "gfn"       -> "GEFORCE NOW"
-                        "moonlight" -> "MOONLIGHT"
-                        "android"   -> "ANDROID"
-                        else        -> "READY"
-                    },
-                    textColor = GreenSync,
+                    // Provider chip
+                    HeroChip(
+                        text = when (game.platformId.lowercase()) {
+                            "steam"     -> "GAME NATIVE"
+                            "gfn"       -> "GEFORCE NOW"
+                            "moonlight" -> "MOONLIGHT"
+                            "android"   -> "ANDROID"
+                            else        -> "READY"
+                        },
+                        textColor = GreenSync,
                     borderColor = GreenSync.copy(alpha = 0.3f)
                 )
             }

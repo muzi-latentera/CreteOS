@@ -307,41 +307,62 @@ fun CreteGameDetailScreen(
 
                 Spacer(Modifier.height(38.dp))
 
-                // Sessions + description
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(26.dp),
-                    verticalAlignment = Alignment.Top,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    // Description from Steam metadata or eOr
-                    Column(modifier = Modifier.weight(1f)) {
+                // Left panel lower section: description + quick stats
+                Column(modifier = Modifier.weight(1f)) {
+
+                    // ── ABOUT ───────────────────────────────────────────
+                    Text(
+                        "ABOUT",
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 2.2.sp,
+                        color = V2Dim  // was V2VeryDim — too faint
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    val description = pocketState.steamMetadata?.description ?: game.description
+                    if (description != null) {
                         Text(
-                            "ABOUT",
-                            fontSize = 10.sp,
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 2.2.sp,
-                            color = V2VeryDim
+                            text = description,
+                            fontSize = 13.sp,
+                            color = V2Cream.copy(alpha = 0.75f),
+                            lineHeight = 20.sp,
+                            maxLines = 5,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        Spacer(Modifier.height(10.dp))
-                        val description = pocketState.steamMetadata?.description
-                            ?: game.description
-                        if (description != null) {
-                            Text(
-                                text = description,
-                                fontSize = 13.sp,
-                                color = V2Dim,
-                                lineHeight = 19.sp,
-                                maxLines = 6,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        } else {
-                            Text(
-                                "No description available yet.",
-                                fontSize = 12.sp,
-                                color = V2VeryDim,
-                                lineHeight = 16.sp
+                    } else {
+                        Text(
+                            "No description available yet.",
+                            fontSize = 12.sp,
+                            color = V2VeryDim,
+                            lineHeight = 16.sp
+                        )
+                    }
+
+                    Spacer(Modifier.height(28.dp))
+
+                    // ── QUICK STATS row ──────────────────────────────────
+                    // Shows non-duplicate info: playtime, release year, genre
+                    val steam = pocketState.steamMetadata
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        // Playtime
+                        if (steam != null && steam.playtimeMinutes > 0) {
+                            QuickStat(
+                                label = "PLAYTIME",
+                                value = steam.formatPlaytime()
                             )
                         }
+                        // Release year
+                        game.releaseYear?.let {
+                            QuickStat(label = "RELEASED", value = it.toString())
+                        }
+                        // Genre
+                        game.genre?.split(",", "/")?.firstOrNull()?.trim()
+                            ?.takeIf { it.isNotBlank() }?.let {
+                                QuickStat(label = "GENRE", value = it)
+                            }
                     }
                 }
 
@@ -421,11 +442,22 @@ fun CreteGameDetailScreen(
                     CircularProgressIndicator(
                         color = V2Amber, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                 } else {
-                    Row(modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween) {
-                        V2HltbCol("Main Story",    pocketState.hltbTimes.formatMain())
-                        V2HltbCol("Main + Extras", pocketState.hltbTimes.formatExtra())
-                        V2HltbCol("Completionist", pocketState.hltbTimes.formatCompletionist())
+                    val hltb = pocketState.hltbTimes
+                    val hasData = hltb.formatMain() != "—"
+                    if (!hasData) {
+                        Text(
+                            "Currently unavailable — HLTB blocks direct requests. Check howlongtobeat.com",
+                            fontSize = 11.sp,
+                            color = V2VeryDim,
+                            lineHeight = 15.sp
+                        )
+                    } else {
+                        Row(modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween) {
+                            V2HltbCol("Main Story",    hltb.formatMain())
+                            V2HltbCol("Main + Extras", hltb.formatExtra())
+                            V2HltbCol("Completionist", hltb.formatCompletionist())
+                        }
                     }
                 }
 
@@ -564,6 +596,28 @@ private fun RowScope.V2StatCol(label: String, value: String) {
             letterSpacing = 2.sp, color = V2VeryDim)
         Spacer(Modifier.height(8.dp))
         Text(value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = V2Cream)
+    }
+}
+
+@Composable
+private fun QuickStat(label: String, value: String) {
+    Column {
+        Text(
+            text = label,
+            fontSize = 9.sp,
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = 1.5.sp,
+            color = V2VeryDim
+        )
+        Spacer(Modifier.height(3.dp))
+        Text(
+            text = value,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = V2Cream,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
