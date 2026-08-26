@@ -63,7 +63,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.model.GameMedia
 import com.gamelaunch.frontend.pocket.ui.home.CreteOSStatusBar
-import com.gamelaunch.frontend.pocket.ui.home.CreteOSTab
+import com.gamelaunch.frontend.pocket.ui.home.HomeTab
 import com.gamelaunch.frontend.pocket.ui.home.DefaultAccentColor
 import com.gamelaunch.frontend.pocket.ui.home.DynamicBackground
 import com.gamelaunch.frontend.pocket.ui.home.rememberDominantColor
