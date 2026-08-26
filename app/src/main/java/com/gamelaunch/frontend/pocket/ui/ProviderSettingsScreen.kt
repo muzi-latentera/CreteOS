@@ -19,6 +19,7 @@ import com.gamelaunch.frontend.pocket.providers.ProviderId
  * PC & Streaming providers settings screen.
  * Uses eOr's existing Material3 / Compose conventions — no visual redesign.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProviderSettingsScreen(
     onBack: () -> Unit,
