@@ -121,4 +121,37 @@ object NetworkModule {
     @Singleton
     fun provideRetroAchievementsConnectApi(@Named("ra") retrofit: Retrofit): RetroAchievementsConnectApi =
         retrofit.create(RetroAchievementsConnectApi::class.java)
+
+    // ── Reddit news ──────────────────────────────────────────────────────
+
+    @Provides
+    @Singleton
+    @Named("reddit")
+    fun provideRedditOkHttpClient(): OkHttpClient =
+        OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                // Reddit requires a descriptive User-Agent or returns 429
+                val request = chain.request().newBuilder()
+                    .header("User-Agent", "CreteOS/1.0 (Android; gaming launcher)")
+                    .build()
+                chain.proceed(request)
+            }
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .build()
+
+    @Provides
+    @Singleton
+    @Named("reddit")
+    fun provideRedditRetrofit(@Named("reddit") client: OkHttpClient): Retrofit =
+        Retrofit.Builder()
+            .baseUrl("https://www.reddit.com/")
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+
+    @Provides
+    @Singleton
+    fun provideRedditApi(@Named("reddit") retrofit: Retrofit): com.gamelaunch.frontend.data.network.RedditApi =
+        retrofit.create(com.gamelaunch.frontend.data.network.RedditApi::class.java)
 }

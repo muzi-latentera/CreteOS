@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -37,6 +38,10 @@ import com.gamelaunch.frontend.pocket.ui.library.LibraryViewModel
 import com.gamelaunch.frontend.ui.screen.home.HomeViewModel
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gamelaunch.frontend.ui.screen.settings.SettingsCategory
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.material3.CircularProgressIndicator
+import com.gamelaunch.frontend.pocket.ui.home.RedditNewsViewModel
 
 // ══════════════════════════════════════════════════════════════════════════
 // CRETE HOME LAYOUT — unified WinHanced-style shell content
@@ -78,6 +83,7 @@ fun CreteHomeLayout(
     val recentGames = remember(state.recentlyPlayed, state.games) {
         state.recentlyPlayed.takeIf { it.isNotEmpty() } ?: state.games.take(20)
     }
+    var focusedIndex by remember { mutableIntStateOf(0) }  // first card focused by default
 
     Column(modifier = modifier.padding(top = CreteDS.space3XL)) {
 
@@ -116,8 +122,11 @@ fun CreteHomeLayout(
                         artworkUrl = state.mediaForGames[game.id]?.effectiveBoxArt,
                         title      = game.title,
                         platformId = game.platformId,
-                        focused    = false,   // no tap-focus animation — prevents screen shift
-                        onClick    = { onGameClick(game.id) }
+                        focused    = index == focusedIndex,
+                        onClick    = {
+                            focusedIndex = index
+                            onGameClick(game.id)
+                        }
                     )
                 }
             }
@@ -189,42 +198,54 @@ fun CreteHomeLayout(
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// WHAT'S NEW — large landscape news cards
+// WHAT'S NEW — real Reddit posts from r/Games and r/pcgaming
 // ══════════════════════════════════════════════════════════════════════════
 
-private data class NewsItem(
-    val headline: String,
-    val source: String,
-    val timestampLabel: String,
-    val thumbnailUrl: String? = null
-)
-
-// Sample items until real NewsProvider feeds are wired in
-private val sampleNewsItems = listOf(
-    NewsItem("The Best PC Games to Play This Weekend",           "r/pcgaming", "2h ago"),
-    NewsItem("Steam Next Fest: Top 10 Most Wishlisted Demos",    "r/Games",    "5h ago"),
-    NewsItem("Xbox Game Pass New Additions — August 2026",       "r/Games",    "1d ago"),
-    NewsItem("Hollow Knight: Silksong Release Date Revealed",    "r/Games",    "2d ago"),
-    NewsItem("Best Settings to Optimise Games on Handheld",      "r/pcgaming", "3d ago")
-)
-
 @Composable
-private fun WhatsNewSection() {
+private fun WhatsNewSection(
+    newsViewModel: RedditNewsViewModel = hiltViewModel()
+) {
+    val state by newsViewModel.state.collectAsState()
+    val context = LocalContext.current
+
+    if (state.isLoading && state.posts.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxWidth().height(200.dp),
+            contentAlignment = Alignment.Center
+        ) { CircularProgressIndicator(color = CreteDS.accent, modifier = Modifier.size(28.dp)) }
+        return
+    }
+
+    val displayPosts = state.posts.ifEmpty {
+        // Offline fallback — static placeholders with no URL
+        listOf(
+            com.gamelaunch.frontend.pocket.ui.home.NewsPost("The Best PC Games to Play This Weekend", "r/pcgaming", "", null, "2h ago"),
+            com.gamelaunch.frontend.pocket.ui.home.NewsPost("Steam Next Fest: Top 10 Most Wishlisted Demos", "r/Games", "", null, "5h ago"),
+            com.gamelaunch.frontend.pocket.ui.home.NewsPost("Xbox Game Pass New Additions", "r/Games", "", null, "1d ago")
+        )
+    }
+
     LazyRow(
         contentPadding = PaddingValues(horizontal = CreteDS.spaceXXL, vertical = CreteDS.spaceS),
         horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceL),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(200.dp)
+        modifier = Modifier.fillMaxWidth().height(200.dp)
     ) {
-        items(sampleNewsItems) { news ->
-            LargeNewsCard(item = news)
+        items(displayPosts) { post ->
+            LargeNewsCard(post = post, onClick = {
+                if (post.url.isNotBlank()) {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(post.url))
+                    context.startActivity(intent)
+                }
+            })
         }
     }
 }
 
 @Composable
-private fun LargeNewsCard(item: NewsItem) {
+private fun LargeNewsCard(
+    post: com.gamelaunch.frontend.pocket.ui.home.NewsPost,
+    onClick: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxHeight()
@@ -232,16 +253,22 @@ private fun LargeNewsCard(item: NewsItem) {
             .clip(RoundedCornerShape(CreteDS.radiusL))
             .background(Color(0x30FFFFFF))
             .border(0.5.dp, Color(0x44FFFFFF), RoundedCornerShape(CreteDS.radiusL))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
     ) {
-        if (item.thumbnailUrl != null) {
+        // Thumbnail fills card when available
+        if (post.thumbnailUrl != null) {
             AsyncImage(
-                model = item.thumbnailUrl,
+                model = post.thumbnailUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            // Gradient placeholder — subtle variety per card
+            // Gradient placeholder
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -260,13 +287,13 @@ private fun LargeNewsCard(item: NewsItem) {
                 .align(Alignment.BottomStart)
                 .background(
                     androidx.compose.ui.graphics.Brush.verticalGradient(
-                        listOf(Color.Transparent, Color(0xDD000000))
+                        listOf(Color.Transparent, Color(0xEE000000))
                     )
                 )
                 .padding(CreteDS.spaceL)
         ) {
             Text(
-                text = item.source.uppercase(),
+                text = post.subreddit.uppercase(),
                 style = CreteDS.typeChip,
                 color = CreteDS.accent,
                 letterSpacing = 1.sp,
@@ -274,7 +301,7 @@ private fun LargeNewsCard(item: NewsItem) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = item.headline,
+                text = post.headline,
                 style = CreteDS.typeNavTab,
                 color = CreteDS.textPrimary,
                 fontWeight = FontWeight.SemiBold,

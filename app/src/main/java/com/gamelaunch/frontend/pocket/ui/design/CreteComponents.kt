@@ -138,11 +138,6 @@ fun CreteGameCard(
         animationSpec = tween(CreteDS.animFast),
         label = "cardScale"
     )
-    val alpha by animateFloatAsState(
-        targetValue = if (focused) 1f else CreteDS.alphaDim,
-        animationSpec = tween(CreteDS.animFast),
-        label = "cardAlpha"
-    )
     val borderColor by animateColorAsState(
         targetValue = if (focused) CreteDS.focusBorder else Color.Transparent,
         animationSpec = tween(CreteDS.animFast),
@@ -154,7 +149,7 @@ fun CreteGameCard(
             .width(if (focused) CreteDS.gameCardWidthFocus else CreteDS.gameCardWidth)
             .height(if (focused) CreteDS.gameCardHeightFocus else CreteDS.gameCardHeight)
             .scale(scale)
-            .alpha(alpha)
+            // no alpha dim — all cards are full opacity; only focused gets border+scale
             .clip(RoundedCornerShape(CreteDS.radiusM))
             .border(1.5.dp, borderColor, RoundedCornerShape(CreteDS.radiusM))
             .clickable(
