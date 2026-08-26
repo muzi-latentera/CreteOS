@@ -55,7 +55,6 @@ class DebugSeedReceiver : BroadcastReceiver() {
                 Log.i(TAG, "Pocket DB: seeded launch target id=$targetId for '$title'")
 
                 // 2. Seed into eOr's gamelauncher.db games table using raw SQL
-                // (We don't have eOr's Hilt graph here, so we open the DB directly via SQLite)
                 val eorDbFile = context.getDatabasePath("gamelauncher.db")
                 if (eorDbFile.exists()) {
                     val eorDb = android.database.sqlite.SQLiteDatabase.openDatabase(
@@ -78,8 +77,26 @@ class DebugSeedReceiver : BroadcastReceiver() {
                         "games", null, values,
                         android.database.sqlite.SQLiteDatabase.CONFLICT_IGNORE
                     )
-                    eorDb.close()
                     Log.i(TAG, "eOr DB: inserted game rowId=$rowId for '$title' (romPath=$hostKey)")
+
+                    // 3. Insert Steam CDN artwork into game_media table
+                    // Steam provides portrait cover art at a predictable CDN URL
+                    if (source == "STEAM" && rowId > 0) {
+                        val boxArtUrl = "https://cdn.steamstatic.com/steam/apps/$appId/library_600x900.jpg"
+                        val heroUrl   = "https://cdn.steamstatic.com/steam/apps/$appId/library_hero.jpg"
+                        val mediaValues = android.content.ContentValues().apply {
+                            put("game_id", rowId)
+                            put("box_art_remote", boxArtUrl)
+                            put("background_local", heroUrl)
+                            put("scraper_timestamp_ms", now)
+                        }
+                        eorDb.insertWithOnConflict(
+                            "game_media", null, mediaValues,
+                            android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE
+                        )
+                        Log.i(TAG, "eOr DB: inserted artwork for '$title' — $boxArtUrl")
+                    }
+                    eorDb.close()
                 } else {
                     Log.w(TAG, "eOr gamelauncher.db not found at ${eorDbFile.path}")
                 }
