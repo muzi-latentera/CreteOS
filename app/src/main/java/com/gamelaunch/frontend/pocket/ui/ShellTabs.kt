@@ -73,11 +73,12 @@ fun CreteHomeLayout(
     libraryViewModel: LibraryViewModel,
     onGameClick: (Long) -> Unit,
     onOpenLibrary: (LibraryFilter) -> Unit,
-    onOpenCreteSettings: () -> Unit,     // opens glass two-column settings view
-    onOpenSettings: () -> Unit,          // opens eOr advanced settings (used from within settings panels)
+    onOpenCreteSettings: () -> Unit,
+    onOpenSettings: () -> Unit,
     onOpenProviders: () -> Unit,
     onOpenDisplay: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    newsViewModel: RedditNewsViewModel = hiltViewModel()   // hoisted here for correct scope
 ) {
     val state       by homeViewModel.uiState.collectAsState()
     val recentGames = remember(state.recentlyPlayed, state.games) {
@@ -181,7 +182,7 @@ fun CreteHomeLayout(
             modifier = Modifier.weight(1f)
         ) { tab ->
             when (tab) {
-                ShellTab.WHATS_NEW -> WhatsNewSection()
+                ShellTab.WHATS_NEW -> WhatsNewSection(newsViewModel = newsViewModel)
                 ShellTab.LIBRARY   -> LibrarySection(
                     libraryViewModel = libraryViewModel,
                     onOpenLibrary    = onOpenLibrary,
@@ -203,7 +204,7 @@ fun CreteHomeLayout(
 
 @Composable
 private fun WhatsNewSection(
-    newsViewModel: RedditNewsViewModel = hiltViewModel()
+    newsViewModel: RedditNewsViewModel
 ) {
     val state by newsViewModel.state.collectAsState()
     val context = LocalContext.current

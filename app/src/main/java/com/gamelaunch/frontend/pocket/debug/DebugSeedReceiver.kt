@@ -79,7 +79,7 @@ class DebugSeedReceiver : BroadcastReceiver() {
                     }
                     val rowId = eorDb.insertWithOnConflict(
                         "games", null, values,
-                        android.database.sqlite.SQLiteDatabase.CONFLICT_IGNORE
+                        android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE
                     )
                     Log.i(TAG, "eOr DB: inserted game rowId=$rowId for '$title' (romPath=$hostKey)")
 
