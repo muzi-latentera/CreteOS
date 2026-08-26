@@ -3,6 +3,7 @@ package com.gamelaunch.frontend.ui.navigation
 sealed class Screen(val route: String) {
     object Onboarding : Screen("onboarding")
     object Home : Screen("home")
+    object Library : Screen("library")
     object Scan : Screen("scan")
 
     /** Nested graph wrapping the settings index + its drill-in category screens. Navigating here
