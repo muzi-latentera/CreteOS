@@ -232,34 +232,13 @@ fun CreteOSStatusBar(
             onDismiss = { showPowerDialog = false },
             onLock = {
                 showPowerDialog = false
-                // Lock screen — works on any Android without permissions
-                val km = context.getSystemService(android.app.KeyguardManager::class.java)
-                // Best available option for a normal launcher app
-                val intent = Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)
-                context.sendBroadcast(intent)
-                // Request device admin lock if available, otherwise rely on system
+                // DevicePolicyManager.lockNow() works only if the user has granted
+                // CreteOS device-admin rights (Settings → Security → Device admin apps).
+                // If not granted it silently does nothing — we catch the exception.
                 try {
                     val dpm = context.getSystemService(android.app.admin.DevicePolicyManager::class.java)
                     dpm?.lockNow()
-                } catch (_: Exception) { /* no device admin — that's fine */ }
-            },
-            onSystemPowerMenu = {
-                showPowerDialog = false
-                // Show Android's built-in power menu — works on all Android versions
-                // This is the correct API for a normal launcher app
-                try {
-                    @Suppress("DEPRECATION")
-                    val intent = Intent("android.intent.action.POWER_MENU_LAUNCH")
-                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    context.startActivity(intent)
-                } catch (_: Exception) {
-                    // Fallback: show Android's accessibility power menu on Android 11+
-                    try {
-                        val am = context.getSystemService(android.accessibilityservice.AccessibilityService::class.java)
-                        // Can't call performGlobalAction from here without an AccessibilityService
-                        // Just do nothing — power menu is behind system permissions
-                    } catch (_: Exception) { }
-                }
+                } catch (_: Exception) { }
             }
         )
     }
@@ -268,37 +247,28 @@ fun CreteOSStatusBar(
 @Composable
 private fun PowerDialog(
     onDismiss: () -> Unit,
-    onLock: () -> Unit,
-    onSystemPowerMenu: () -> Unit
+    onLock: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color(0xFF161B22),
         titleContentColor = Color.White,
         textContentColor = Color(0xFFE6EDF3),
-        title = {
+        title = { Text("Power", fontWeight = FontWeight.SemiBold) },
+        text = {
             Text(
-                text = "Power",
-                fontWeight = FontWeight.SemiBold
+                "Lock Screen requires CreteOS to be set as a Device Admin app " +
+                "(Settings → Security → Device admin apps)."
             )
         },
-        text = {
-            Text("Lock screen or open system power menu.")
-        },
         confirmButton = {
-            TextButton(onClick = onSystemPowerMenu) {
-                Text("System Power Menu", color = Color(0xFFFF6B6B))
+            TextButton(onClick = onLock) {
+                Text("Lock Screen", color = Color(0xFF58A6FF))
             }
         },
         dismissButton = {
-            Row {
-                TextButton(onClick = onDismiss) {
-                    Text("Cancel", color = Color(0xFF8B949E))
-                }
-                Spacer(Modifier.width(8.dp))
-                TextButton(onClick = onLock) {
-                    Text("Lock Screen", color = Color(0xFF58A6FF))
-                }
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = Color(0xFF8B949E))
             }
         }
     )

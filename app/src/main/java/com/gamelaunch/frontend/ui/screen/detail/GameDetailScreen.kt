@@ -83,11 +83,19 @@ private val favoritePink  = Color(0xFFFF6B9D)
 fun GameDetailScreen(
     onBack: () -> Unit,
     isLocked: Boolean = false,
-    viewModel: GameDetailViewModel = hiltViewModel()
+    viewModel: GameDetailViewModel = hiltViewModel(),
+    pocketViewModel: com.gamelaunch.frontend.pocket.ui.PocketGameDetailViewModel = hiltViewModel()
 ) {
     val state          by viewModel.uiState.collectAsState()
+    val pocketState    by pocketViewModel.uiState.collectAsState()
     val focusRequester  = remember { FocusRequester() }
     var showRemoveConfirm by remember { mutableStateOf(false) }
+
+    // Load pocket launch targets when game is available
+    val currentGame = state.game
+    androidx.compose.runtime.LaunchedEffect(currentGame?.id) {
+        currentGame?.let { pocketViewModel.loadTargetsForGame(it) }
+    }
 
     LaunchedEffect(Unit) {
         try { focusRequester.requestFocus() } catch (_: Exception) { }
@@ -314,6 +322,18 @@ fun GameDetailScreen(
                             )
                         }
                     }
+
+                    // Play Using… — shown when multiple launch targets exist
+                    if (pocketState.targets.size > 1) {
+                        Spacer(Modifier.height(8.dp))
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { pocketViewModel.showPlayUsing() },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(27.dp)
+                        ) {
+                            Text("Play using…")
+                        }
+                    }
                 }
             }
         }
@@ -325,6 +345,32 @@ fun GameDetailScreen(
                 text  = { Text(error) },
                 confirmButton = {
                     TextButton(onClick = viewModel::dismissError) { Text("OK") }
+                }
+            )
+        }
+
+        // Play Using… dialog
+        if (pocketState.showPlayUsing && currentGame != null) {
+            com.gamelaunch.frontend.pocket.ui.PlayUsingDialog(
+                gameName  = currentGame.title,
+                targets   = pocketState.targets,
+                onLaunchTarget = { target ->
+                    pocketViewModel.launchWithTarget(currentGame, target)
+                },
+                onSetPreferred = { target ->
+                    pocketViewModel.setPreferredTarget(currentGame, target)
+                },
+                onDismiss = pocketViewModel::dismissPlayUsing
+            )
+        }
+
+        pocketState.launchError?.let { error ->
+            AlertDialog(
+                onDismissRequest = pocketViewModel::dismissError,
+                title = { Text("Cannot Launch") },
+                text  = { Text(error) },
+                confirmButton = {
+                    TextButton(onClick = pocketViewModel::dismissError) { Text("OK") }
                 }
             )
         }

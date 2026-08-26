@@ -36,29 +36,30 @@ class GameHubLiteProvider @Inject constructor(
         ProviderCapability.LOCAL
     )
 
-    override suspend fun isAvailable(): Boolean = PACKAGES.any { pkg ->
-        runCatching { context.packageManager.getPackageInfo(pkg, 0); true }.getOrDefault(false)
-    }
+    override suspend fun isAvailable(): Boolean = runCatching {
+        context.packageManager.getPackageInfo(PACKAGE, 0)
+        true
+    }.getOrDefault(false)
 
     override suspend fun discoverGames(): List<DiscoveredProviderGame> = emptyList()
 
     override suspend fun launch(target: LaunchTarget, launchContext: LaunchContext): Result<Unit> {
-        val pkg = PACKAGES.firstOrNull { p ->
-            runCatching { context.packageManager.getPackageInfo(p, 0); true }.getOrDefault(false)
-        } ?: return Result.failure(IllegalStateException("GameHub Lite is not installed"))
+        if (!isAvailable()) {
+            return Result.failure(IllegalStateException("GameHub Lite is not installed"))
+        }
 
         val steamAppId = target.externalId
         return runCatching {
             val intent = Intent(LAUNCH_ACTION).apply {
-                setPackage(pkg)
+                // Verified on gamehub.lite v5.1.8 — activity confirmed via aapt manifest dump
+                setClassName(PACKAGE, LAUNCH_ACTIVITY)
                 putExtra(EXTRA_STEAM_APP_ID, steamAppId)
                 putExtra(EXTRA_AUTO_START, true)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            // Fall back to opening GameHub Lite's own UI if direct launch is rejected
             runCatching { context.startActivity(intent) }.getOrElse {
                 Log.w(TAG, "Direct launch rejected, opening GameHub Lite library")
-                val launch = context.packageManager.getLaunchIntentForPackage(pkg)
+                val launch = context.packageManager.getLaunchIntentForPackage(PACKAGE)
                     ?: throw IllegalStateException("Cannot open GameHub Lite")
                 launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(launch)
@@ -68,9 +69,10 @@ class GameHubLiteProvider @Inject constructor(
     }
 
     companion object {
-        // Current known package IDs — verify against installed build
-        val PACKAGES = listOf("gamehub.lite", "com.producdevity.gamehublite")
+        // Verified against gamehub.lite v5.1.8 on Android 17, 2026-08-26
+        const val PACKAGE = "gamehub.lite"
         const val LAUNCH_ACTION = "gamehub.lite.LAUNCH_GAME"
+        const val LAUNCH_ACTIVITY = "com.xj.landscape.launcher.ui.gamedetail.GameDetailActivity"
         const val EXTRA_STEAM_APP_ID = "steamAppId"
         const val EXTRA_AUTO_START = "autoStartGame"
         private const val TAG = "GameHubLiteProvider"
