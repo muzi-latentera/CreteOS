@@ -151,9 +151,9 @@ fun CreteGameDetailScreen(
                         // Divider
                         CreteStatDivider()
 
-                        // Play time from CreteOS tracking
-                        val playTimeStr = formatPlayTime(game.playCount)
-                        CreteStatItem(label = "Play Time", value = playTimeStr)
+                        // Sessions from CreteOS tracking (not actual duration yet)
+                        val sessionsStr = if (game.playCount == 0) "—" else "${game.playCount}"
+                        CreteStatItem(label = "Sessions", value = sessionsStr)
 
                         // Last played
                         game.lastPlayedMs?.let { ms ->
@@ -306,11 +306,6 @@ fun CreteGameDetailScreen(
         }   // end Column
         }   // end DynamicBackground
     }   // end outer Box
-}
-
-private fun formatPlayTime(playCount: Int): String {
-    // playCount is number of sessions — approximate as play count until Steam integration
-    return if (playCount == 0) "0 hrs" else "${playCount}× played"
 }
 
 private fun formatLastPlayed(ms: Long): String {
