@@ -52,26 +52,48 @@ class GeForceNowProvider @Inject constructor(
 
     override suspend fun launch(target: LaunchTarget, launchContext: LaunchContext): Result<Unit> {
         val data = runCatching { JSONObject(target.launchData) }.getOrElse { JSONObject() }
-        val gfnGameId = data.optString("gfnGameId").ifBlank { target.externalId }
+        val gfnGameId   = data.optString("gfnGameId").ifBlank { null }
+        val steamAppId  = data.optString("steamAppId").ifBlank { null }
 
         return runCatching {
-            if (gfnGameId.isNotBlank()) {
-                // Use NVIDIA's documented deep-link spec for game aggregators
-                val deepLink = "https://play.geforcenow.com/games?game-id=$gfnGameId"
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(deepLink)).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    // Prefer GFN app to handle the URL if installed
-                    if (isAvailable()) setPackage(PACKAGE)
+            when {
+                gfnGameId != null -> {
+                    // GFN native game ID — direct deep link
+                    val deepLink = "$GFN_DEEP_LINK_BASE$gfnGameId"
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(deepLink)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        if (isAvailable()) setPackage(PACKAGE)
+                    }
+                    context.startActivity(intent)
+                    Log.d(TAG, "Launched GFN via game ID: $deepLink")
                 }
-                context.startActivity(intent)
-                Log.d(TAG, "Launched GFN via deep link: $deepLink")
-            } else {
-                // No game ID — open GFN library
-                val launch = context.packageManager.getLaunchIntentForPackage(PACKAGE)
-                    ?: throw IllegalStateException("GeForce NOW is not installed")
-                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(launch)
-                Log.d(TAG, "Opened GFN library (no game ID for ${target.displayName})")
+                steamAppId != null -> {
+                    // No GFN ID — open GFN search/library; GFN will recognise most Steam games
+                    // Try steam app deep link which GFN may intercept
+                    val intent = Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://play.geforcenow.com/games?game-id=steam-$steamAppId")).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        if (isAvailable()) setPackage(PACKAGE)
+                    }
+                    try {
+                        context.startActivity(intent)
+                        Log.d(TAG, "Launched GFN via Steam ID: $steamAppId")
+                    } catch (_: Exception) {
+                        // Fall back to opening GFN library
+                        val fallback = context.packageManager.getLaunchIntentForPackage(PACKAGE)
+                            ?: throw IllegalStateException("GeForce NOW is not installed")
+                        fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(fallback)
+                        Log.d(TAG, "Opened GFN library (deep link failed for $steamAppId)")
+                    }
+                }
+                else -> {
+                    val launch = context.packageManager.getLaunchIntentForPackage(PACKAGE)
+                        ?: throw IllegalStateException("GeForce NOW is not installed")
+                    launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(launch)
+                    Log.d(TAG, "Opened GFN library")
+                }
             }
         }
     }

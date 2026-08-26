@@ -56,6 +56,13 @@ class UnifiedLaunchCoordinator @Inject constructor(
         return launchWithProvider(preferred)
     }
 
+    /**
+     * Launch [game] using a specific [target] — called from the "Play Using" picker
+     * when the user explicitly selects a provider.
+     */
+    suspend fun launchSpecific(target: LaunchTarget): Result<Unit> =
+        launchWithProvider(target)
+
     private suspend fun launchWithProvider(target: LaunchTarget): Result<Unit> {
         val provider = providers[target.provider]
         if (provider == null) {

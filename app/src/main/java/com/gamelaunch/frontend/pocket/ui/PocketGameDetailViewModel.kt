@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.usecase.LaunchGameUseCase
+import android.content.Context
 import com.gamelaunch.frontend.pocket.data.GameSessionDao
 import com.gamelaunch.frontend.pocket.data.GameSessionEntity
 import com.gamelaunch.frontend.pocket.data.HltbTimes
@@ -41,6 +42,7 @@ data class PocketLaunchUiState(
  */
 @HiltViewModel
 class PocketGameDetailViewModel @Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context,
     private val launchTargetRepository: LaunchTargetRepository,
     private val unifiedLaunchCoordinator: UnifiedLaunchCoordinator,
     private val launchGameUseCase: LaunchGameUseCase,
@@ -55,6 +57,7 @@ class PocketGameDetailViewModel @Inject constructor(
     val uiState: StateFlow<PocketLaunchUiState> = _uiState
 
     fun loadTargetsForGame(game: Game) {
+        // Observe targets reactively
         viewModelScope.launch {
             launchTargetRepository.getTargetsForGame(game.romPath).collectLatest { targets ->
                 _uiState.update { it.copy(targets = targets) }
@@ -64,7 +67,10 @@ class PocketGameDetailViewModel @Inject constructor(
         if (game.platformId.lowercase() == "steam") {
             val appId = game.romPath.substringAfterLast(":")
             if (appId.isNotBlank()) {
-                // Load Steam metadata from local cache immediately
+                // Auto-create provider targets
+                viewModelScope.launch { autoProvisionTargets(game, appId) }
+
+                // Load / sync Steam metadata
                 viewModelScope.launch {
                     val cached = steamMetadataDao.getByAppId(appId)
                     _uiState.update { it.copy(steamMetadata = cached) }
@@ -72,30 +78,15 @@ class PocketGameDetailViewModel @Inject constructor(
                     val now = System.currentTimeMillis()
                     val staleTtlMs = 7L * 24 * 60 * 60 * 1000  // 7 days
 
-                    // Sync library if never synced
-                    if (cached == null) {
-                        steamMetadataSync.syncLibrary()
-                    }
+                    if (cached == null) steamMetadataSync.syncLibrary()
 
-                    // Sync achievements if:
-                    //  - never fetched (achievementsSyncedAtMs == null), OR
-                    //  - last fetch was > 7 days ago
-                    // This is checked independently of library sync so achievements
-                    // are never stuck at 0/0 just because the record exists.
                     val needsAchievementSync = cached?.achievementsSyncedAtMs == null ||
                         (now - (cached.achievementsSyncedAtMs ?: 0L)) > staleTtlMs
+                    if (needsAchievementSync) steamMetadataSync.syncAchievements(appId)
 
-                    if (needsAchievementSync) {
-                        steamMetadataSync.syncAchievements(appId)
-                    }
-
-                    // Fetch developer/publisher/description if not yet populated
                     val afterSync = steamMetadataDao.getByAppId(appId)
-                    if (afterSync?.developer == null) {
-                        steamMetadataSync.fetchAppDetails(appId)
-                    }
+                    if (afterSync?.developer == null) steamMetadataSync.fetchAppDetails(appId)
 
-                    // Update UI with latest data
                     _uiState.update { it.copy(steamMetadata = steamMetadataDao.getByAppId(appId)) }
                 }
 
@@ -110,6 +101,59 @@ class PocketGameDetailViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Auto-create LaunchTarget rows for every installed provider that supports this Steam game.
+     * Uses REPLACE conflict strategy so re-running is safe and updates availability.
+     *
+     * Targets created:
+     * - GAME_NATIVE  — if app.gamenative is installed
+     * - GEFORCE_NOW  — if com.nvidia.geforcenow is installed (opens to game or library)
+     * - MOONLIGHT    — if com.limelight is installed (opens to PC stream list)
+     */
+    private suspend fun autoProvisionTargets(game: Game, steamAppId: String) {
+        val pm = context.packageManager
+        fun isInstalled(pkg: String) = runCatching { pm.getPackageInfo(pkg, 0); true }.getOrDefault(false)
+
+        val toUpsert = mutableListOf<LaunchTarget>()
+
+        if (isInstalled("app.gamenative")) {
+            toUpsert += LaunchTarget(
+                hostGameKey = game.romPath,
+                provider    = ProviderId.GAME_NATIVE,
+                externalId  = steamAppId,
+                source      = "STEAM",
+                displayName = "GameNative (Local PC)",
+                launchData  = """{"steamAppId":"$steamAppId"}"""
+            )
+        }
+
+        if (isInstalled("com.nvidia.geforcenow")) {
+            toUpsert += LaunchTarget(
+                hostGameKey = game.romPath,
+                provider    = ProviderId.GEFORCE_NOW,
+                externalId  = steamAppId,
+                source      = "STEAM",
+                displayName = "GeForce NOW (Cloud)",
+                launchData  = """{"steamAppId":"$steamAppId"}"""
+            )
+        }
+
+        if (isInstalled("com.limelight")) {
+            toUpsert += LaunchTarget(
+                hostGameKey = game.romPath,
+                provider    = ProviderId.MOONLIGHT,
+                externalId  = steamAppId,
+                source      = "STEAM",
+                displayName = "Moonlight (Stream)",
+                launchData  = """{"steamAppId":"$steamAppId"}"""
+            )
+        }
+
+        if (toUpsert.isNotEmpty()) {
+            launchTargetRepository.upsertTargets(toUpsert)
+        }
+    }
+
     fun showPlayUsing() = _uiState.update { it.copy(showPlayUsing = true) }
 
     fun dismissPlayUsing() = _uiState.update { it.copy(showPlayUsing = false) }
@@ -117,9 +161,8 @@ class PocketGameDetailViewModel @Inject constructor(
     fun launchWithTarget(game: Game, target: LaunchTarget) {
         _uiState.update { it.copy(showPlayUsing = false) }
         viewModelScope.launch {
-            val result = unifiedLaunchCoordinator.tryLaunch(game)
-            if (result?.isSuccess == true) {
-                // Record session start — end is recorded when CreteOS returns to foreground
+            val result = unifiedLaunchCoordinator.launchSpecific(target)
+            if (result.isSuccess) {
                 gameSessionDao.startSession(
                     GameSessionEntity(
                         gameKey     = game.romPath,
@@ -128,7 +171,7 @@ class PocketGameDetailViewModel @Inject constructor(
                     )
                 )
             }
-            result?.onFailure { e -> _uiState.update { it.copy(launchError = e.message) } }
+            result.onFailure { e -> _uiState.update { it.copy(launchError = e.message) } }
         }
     }
 
