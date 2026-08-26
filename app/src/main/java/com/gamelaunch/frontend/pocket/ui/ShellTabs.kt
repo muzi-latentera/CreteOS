@@ -84,8 +84,9 @@ fun CreteHomeLayout(
     newsViewModel: RedditNewsViewModel = hiltViewModel()   // hoisted here for correct scope
 ) {
     val state       by homeViewModel.uiState.collectAsState()
+    val libState    by libraryViewModel.uiState.collectAsState()  // all games — not platform-scoped
 
-    // Same provider app exclusion as the library — never show launcher shortcuts in the carousel
+    // Same provider app exclusion as the library
     val providerPackages = remember {
         setOf("com.nvidia.geforcenow", "com.limelight", "com.nytimes.crossword",
               "app.gamenative", "gamehub.lite")
@@ -95,12 +96,13 @@ fun CreteHomeLayout(
         platformId == "android" && romPath.startsWith("package:") &&
         romPath.removePrefix("package:") in providerPackages
 
-    val recentGames = remember(state.recentlyPlayed, state.games) {
+    val recentGames = remember(state.recentlyPlayed, libState.games) {
         // Smart 10: recently played first (in play-recency order),
         // then fill remaining slots with most recently added games not already in the list.
+        // Uses libState.games (all games) not homeState.games (platform-scoped, empty when null).
         val recentPlayed = state.recentlyPlayed.filter { !it.isProviderApp() }
         val playedIds    = recentPlayed.map { it.id }.toSet()
-        val recentlyAdded = state.games
+        val recentlyAdded = libState.games
             .filter { !it.isProviderApp() && it.id !in playedIds }
             .sortedByDescending { it.dateAdded }
         (recentPlayed + recentlyAdded).take(10)
