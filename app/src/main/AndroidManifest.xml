@@ -168,6 +168,15 @@
             </intent-filter>
         </receiver>
 
+        <!-- Debug only: ADB sync trigger and shortcut discovery testing -->
+        <receiver
+            android:name=".pocket.debug.DebugSyncReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="io.latent.creteos.DEBUG_SYNC" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>
