@@ -165,11 +165,12 @@ fun HomeTabContent(
 private fun LibrarySourceTile(label: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .width(140.dp)
-            .height(56.dp)
+            .width(130.dp)
+            .height(50.dp)
             .clip(RoundedCornerShape(CreteDS.radiusM))
-            .background(Color(0xCC0C1018))  // opaque dark glass
-            .border(0.5.dp, CreteDS.border, RoundedCornerShape(CreteDS.radiusM))
+            // frosted glass: light smoke, NOT dark block
+            .background(Color(0x28FFFFFF))
+            .border(0.5.dp, Color(0x33FFFFFF), RoundedCornerShape(CreteDS.radiusM))
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -191,10 +192,11 @@ private fun NewsCard(item: NewsItem) {
     Box(
         modifier = Modifier
             .width(280.dp)
-            .height(100.dp)
+            .height(90.dp)
             .clip(RoundedCornerShape(CreteDS.radiusM))
-            .background(Color(0xCC0C1018))
-            .border(0.5.dp, CreteDS.border, RoundedCornerShape(CreteDS.radiusM))
+            // frosted glass: light smoke
+            .background(Color(0x28FFFFFF))
+            .border(0.5.dp, Color(0x33FFFFFF), RoundedCornerShape(CreteDS.radiusM))
             .padding(CreteDS.spaceL)
     ) {
         Column {
@@ -342,12 +344,13 @@ private fun LibraryFilterChip(
         modifier = Modifier
             .clip(RoundedCornerShape(CreteDS.radiusPill))
             .background(
-                if (selected) Color(0x334D9FFF)   // accent tint
-                else Color(0xBB0D1525)             // opaque dark
+                if (selected) Color(0x554D9FFF)   // accent tint when selected
+                else Color(0x22FFFFFF)             // light smoky-glass when unselected
             )
             .border(
                 width = if (selected) 1.dp else 0.5.dp,
-                color = if (selected) CreteDS.accent.copy(alpha = 0.6f) else CreteDS.border,
+                color = if (selected) CreteDS.accent.copy(alpha = 0.7f)
+                        else Color(0x40FFFFFF),    // very subtle white border
                 shape = RoundedCornerShape(CreteDS.radiusPill)
             )
             .clickable(
@@ -435,14 +438,10 @@ fun GlassPanel(
         modifier = modifier
             .clip(RoundedCornerShape(CreteDS.radiusL))
             .background(
-                androidx.compose.ui.graphics.Brush.verticalGradient(
-                    listOf(
-                        Color(0xCC111B2A),  // 80% - top
-                        Color(0xDD0A1220)   // 87% - bottom
-                    )
-                )
+                // frosted glass - light smoke over the dark background
+                Color(0x28FFFFFF)
             )
-            .border(0.5.dp, CreteDS.border, RoundedCornerShape(CreteDS.radiusL))
+            .border(0.5.dp, Color(0x33FFFFFF), RoundedCornerShape(CreteDS.radiusL))
             .padding(CreteDS.spaceXXL),
         content = content
     )
@@ -461,8 +460,14 @@ private fun GlassSettingsCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(CreteDS.radiusM))
             .background(
-                if (selected) Color(0x554D9FFF)   // 33% accent
-                else Color(0xBB0F1825)            // 73% dark
+                if (selected) Color(0x554D9FFF)   // accent tint when selected
+                else Color(0x28FFFFFF)             // light frosted glass when unselected
+            )
+            .border(
+                width = if (selected) 1.dp else 0.5.dp,
+                color = if (selected) CreteDS.accent.copy(alpha = 0.5f)
+                        else Color(0x33FFFFFF),
+                shape = RoundedCornerShape(CreteDS.radiusM)
             )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -476,7 +481,9 @@ private fun GlassSettingsCard(
         androidx.compose.material3.Icon(
             imageVector = item.icon,
             contentDescription = null,
-            tint = if (selected) CreteDS.accent else CreteDS.textSecondary,
+            // softer: textSecondary at reduced alpha when unselected, accent when selected
+            tint = if (selected) CreteDS.accent
+                   else CreteDS.textSecondary.copy(alpha = 0.6f),
             modifier = Modifier.size(18.dp)
         )
         Column(modifier = Modifier.weight(1f)) {
@@ -577,7 +584,7 @@ private fun ColumnScope.SettingsPanelAction(
         androidx.compose.material3.Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = CreteDS.textSecondary,
+            tint = CreteDS.textSecondary.copy(alpha = 0.55f),   // softer grey
             modifier = Modifier.size(18.dp)
         )
         Text(
@@ -589,9 +596,9 @@ private fun ColumnScope.SettingsPanelAction(
         androidx.compose.material3.Icon(
             imageVector = Icons.Outlined.ChevronRight,
             contentDescription = null,
-            tint = CreteDS.textDisabled,
+            tint = CreteDS.textDisabled.copy(alpha = 0.5f),     // even softer chevron
             modifier = Modifier.size(16.dp)
         )
     }
-    Box(Modifier.fillMaxWidth().height(0.5.dp).background(CreteDS.border))
+    Box(Modifier.fillMaxWidth().height(0.5.dp).background(Color(0x20FFFFFF)))
 }

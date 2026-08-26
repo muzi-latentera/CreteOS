@@ -131,18 +131,18 @@ fun CreteGameDetailScreen(
             CreteGlassCard(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = CreteDS.spaceL)
-                    .padding(bottom = CreteDS.spaceL),
-                opacity = 0.93f
+                    .padding(horizontal = CreteDS.spaceM)
+                    .padding(bottom = CreteDS.spaceM),
+                opacity = 0.92f
             ) {
-                Column(modifier = Modifier.padding(CreteDS.spaceXL)) {
+                Column(modifier = Modifier.padding(horizontal = CreteDS.spaceXL, vertical = CreteDS.spaceL)) {
 
-                    // Play button + stats row + settings gear
+                    // ── Stats row: Play | Sessions | Last Played | Achievements | gear ──
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceXL)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        // Play button with dropdown if multiple targets
+                        // Play button — slightly less chunky
                         CretePlayButton(
                             onClick = { viewModel.launchGame() },
                             onDropdownClick = if (pocketState.targets.size > 1)
@@ -150,51 +150,52 @@ fun CreteGameDetailScreen(
                             focused = true
                         )
 
-                        // Divider
+                        Spacer(Modifier.width(CreteDS.spaceXL))
                         CreteStatDivider()
+                        Spacer(Modifier.width(CreteDS.spaceXL))
 
-                        // Sessions from CreteOS tracking (not actual duration yet)
+                        // Sessions
                         val sessionsStr = if (game.playCount == 0) "—" else "${game.playCount}"
                         CreteStatItem(label = "Sessions", value = sessionsStr)
 
                         Spacer(Modifier.width(CreteDS.spaceXL))
+                        CreteStatDivider()
+                        Spacer(Modifier.width(CreteDS.spaceXL))
 
                         // Last played
-                        game.lastPlayedMs?.let { ms ->
-                            CreteStatDivider()
-                            Spacer(Modifier.width(CreteDS.spaceS))
-                            CreteStatItem(
-                                label = "Last Played",
-                                value = formatLastPlayed(ms)
-                            )
-                            Spacer(Modifier.width(CreteDS.spaceXL))
-                        }
+                        CreteStatItem(
+                            label = "Last Played",
+                            value = game.lastPlayedMs?.let { formatLastPlayed(it) } ?: "—"
+                        )
 
-                        // Achievements placeholder — Steam integration would fill this
+                        Spacer(Modifier.width(CreteDS.spaceXL))
                         CreteStatDivider()
-                        Spacer(Modifier.width(CreteDS.spaceS))
+                        Spacer(Modifier.width(CreteDS.spaceXL))
+
+                        // Achievements placeholder
                         CreteStatItem(label = "Achievements", value = "—")
 
                         Spacer(Modifier.weight(1f))
 
-                        // Settings gear
+                        // Settings gear — softer
                         IconButton(onClick = { /* game settings — phase 2 */ }) {
                             Icon(
                                 Icons.Outlined.Settings,
                                 contentDescription = "Game settings",
-                                tint = CreteDS.textSecondary
+                                tint = CreteDS.textSecondary.copy(alpha = 0.55f)
                             )
                         }
                     }
 
-                    Spacer(Modifier.height(CreteDS.spaceXL))
+                    Spacer(Modifier.height(CreteDS.spaceL))
 
-                    // Cover + metadata row
+                    // ── Cover + metadata — compact, no wasted space ──────────
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceXL),
-                        verticalAlignment = Alignment.Top
+                        horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceL),
+                        verticalAlignment = Alignment.Top,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        // Small cover thumbnail
+                        // Cover thumbnail
                         if (coverUrl != null) {
                             AsyncImage(
                                 model = ImageRequest.Builder(context)
@@ -202,15 +203,15 @@ fun CreteGameDetailScreen(
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
-                                    .width(80.dp)
-                                    .height(120.dp)
-                                    .background(CreteDS.bgCardElevated, RoundedCornerShape(CreteDS.radiusM))
+                                    .width(72.dp)
+                                    .height(108.dp)
+                                    .background(CreteDS.bgCardElevated, RoundedCornerShape(CreteDS.radiusS))
                             )
                         }
 
-                        // Text metadata
+                        // Text metadata — fills remaining width
                         Column(modifier = Modifier.weight(1f)) {
-                            // Title + platform badge row
+                            // Title + platform on same row
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -222,7 +223,6 @@ fun CreteGameDetailScreen(
                                     fontWeight = FontWeight.Bold,
                                     color = CreteDS.textPrimary
                                 )
-                                // Provider badge
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -238,24 +238,26 @@ fun CreteGameDetailScreen(
 
                             Spacer(Modifier.height(CreteDS.spaceS))
 
-                            // Description
-                            game.description?.let { desc ->
-                                Text(
-                                    text = desc.take(220) + if (desc.length > 220) "…" else "",
-                                    style = CreteDS.typeMeta,
-                                    modifier = Modifier.padding(bottom = CreteDS.spaceS)
-                                )
-                            }
-
-                            // Release year
+                            // Release year — compact line
                             game.releaseYear?.let { year ->
                                 Text(
                                     text = "Released $year",
-                                    style = CreteDS.typeMeta
+                                    style = CreteDS.typeMeta,
+                                    color = CreteDS.textSecondary
                                 )
+                                Spacer(Modifier.height(CreteDS.spaceS))
                             }
 
-                            Spacer(Modifier.height(CreteDS.spaceS))
+                            // Description — 3 lines max to keep panel compact
+                            game.description?.let { desc ->
+                                Text(
+                                    text = desc,
+                                    style = CreteDS.typeMeta,
+                                    maxLines = 3,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                                Spacer(Modifier.height(CreteDS.spaceS))
+                            }
 
                             // Genre chips
                             game.genre?.let { genre ->
@@ -267,9 +269,7 @@ fun CreteGameDetailScreen(
                                         .map { it.trim() }
                                         .filter { it.isNotBlank() }
                                         .take(4)
-                                        .forEach { tag ->
-                                            CreteGenreChip(label = tag)
-                                        }
+                                        .forEach { tag -> CreteGenreChip(label = tag) }
                                 }
                             }
                         }
@@ -277,7 +277,7 @@ fun CreteGameDetailScreen(
                 }
             }
 
-            Spacer(Modifier.height(CreteDS.spaceL))
+            Spacer(Modifier.height(CreteDS.spaceS))
 
             // Bottom hints
             CreteBottomHints(

@@ -102,17 +102,30 @@ fun CreteRootShell(
         val showHeroArtwork = activeTab == ShellTab.HOME
 
         if (!showHeroArtwork) {
-            // Neutral dark blue-purple gradient for Library and Settings
+            // Library/Settings: deep navy-blue radial environment — feels like frosted acrylic
+            // Slightly lighter at center so it doesn't feel like a pure black void
             androidx.compose.foundation.layout.Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         androidx.compose.ui.graphics.Brush.radialGradient(
                             colors = listOf(
-                                androidx.compose.ui.graphics.Color(0xFF0A1628),
-                                androidx.compose.ui.graphics.Color(0xFF060C18)
+                                androidx.compose.ui.graphics.Color(0xFF0E1E35),  // lighter navy at center
+                                androidx.compose.ui.graphics.Color(0xFF060E1C)   // deeper at edges
                             ),
-                            radius = 1200f
+                            radius = 1400f
+                        )
+                    )
+            )
+            // Subtle vignette to add depth
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            0.0f to androidx.compose.ui.graphics.Color(0x15000000),
+                            0.5f to androidx.compose.ui.graphics.Color(0x00000000),
+                            1.0f to androidx.compose.ui.graphics.Color(0x33000000)
                         )
                     )
             )
@@ -140,9 +153,9 @@ fun CreteRootShell(
                     .fillMaxSize()
                     .background(
                         androidx.compose.ui.graphics.Brush.verticalGradient(
-                            0.0f to CreteDS.bgBase.copy(alpha = 0.35f),
-                            0.4f to CreteDS.bgBase.copy(alpha = 0.55f),
-                            1.0f to CreteDS.bgBase.copy(alpha = 0.92f)
+                            0.0f to CreteDS.bgBase.copy(alpha = 0.45f),  // more diffused at top
+                            0.35f to CreteDS.bgBase.copy(alpha = 0.60f),
+                            1.0f to CreteDS.bgBase.copy(alpha = 0.95f)
                         )
                     )
             )
@@ -190,15 +203,9 @@ fun CreteRootShell(
                 onTabSelected = { index -> activeTab = ShellTab.entries[index] }
             )
 
-            // Controller hints
-            CreteBottomHints(
-                hints = listOf(
-                    "A" to "Select",
-                    "B" to "Back",
-                    "LB" to "Prev",
-                    "RB" to "Next"
-                )
-            )
+            // No persistent controller hints — they add clutter.
+            // Contextual hints appear per-screen where needed (e.g. game detail).
+            Spacer(Modifier.height(8.dp))
         }
     }
 }
