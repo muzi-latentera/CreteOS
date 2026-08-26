@@ -11,11 +11,13 @@ import javax.inject.Singleton
  *
  * Uses eOr's [MediaRepository] exclusively — never writes raw SQL to gamelauncher.db.
  *
- * Priority order:
- *   Steam game   → Steam CDN cover + hero → eOr scraper fallback
- *   Non-Steam PC → eOr scraper only
- *   Emulated     → eOr scraper (unchanged, not touched here)
- *   Android app  → eOr app icon (unchanged, not touched here)
+ * IMPORTANT: Steam CDN URLs are only valid for actual Steam AppIDs.
+ * Never use GOG/Epic/Amazon IDs as Steam CDN AppIDs — they are different namespaces.
+ *
+ * Cover and hero are resolved independently:
+ * - Existing cover does NOT skip hero resolution
+ * - Cover download failure falls back to remote URL independently
+ * - Hero download failure falls back to remote URL independently
  */
 @Singleton
 class PcGameArtworkResolver @Inject constructor(
@@ -23,76 +25,94 @@ class PcGameArtworkResolver @Inject constructor(
 ) {
 
     /**
-     * Ensure [gameId] has artwork.
-     * If it already has a box art path, does nothing.
-     * For Steam games, fetches from Steam CDN and caches via eOr's download infrastructure.
+     * Immediately set remote Steam CDN URLs for [gameId] so Coil can display
+     * artwork before any background download completes.
+     * Only call this for actual Steam AppIDs (source == "STEAM").
+     *
+     * Cover and hero are resolved independently — existing cover does not
+     * prevent a missing hero from being set, and vice versa.
      */
-    suspend fun resolveForSteamGame(gameId: Long, steamAppId: Int) {
+    suspend fun setRemoteUrlsForSteamGame(gameId: Long, steamAppId: Int) {
         val existing = mediaRepository.getMediaForGame(gameId)
-        if (existing != null && existing.hasBoxArt) {
-            Log.d(TAG, "Game $gameId already has artwork — skipping")
-            return
-        }
+            ?: GameMedia(gameId = gameId)
 
         val coverUrl = steamCoverUrl(steamAppId)
         val heroUrl  = steamHeroUrl(steamAppId)
 
-        Log.d(TAG, "Fetching Steam artwork for appId=$steamAppId gameId=$gameId")
+        // Only update fields that are currently blank — don't overwrite locally-cached paths
+        val needsCover = existing.boxArtLocalPath.isNullOrBlank() && existing.boxArtRemoteUrl.isNullOrBlank()
+        val needsHero  = existing.screenshotLocalPath.isNullOrBlank() && existing.screenshotRemoteUrl.isNullOrBlank()
 
-        // Download and cache box art through eOr's repository — stores in eOr's media directory
-        // and writes the local path into game_media.box_art_local via MediaRepository
-        val localCoverPath = runCatching {
-            mediaRepository.downloadAndCacheBoxArt(gameId, coverUrl)
-        }.getOrElse {
-            Log.w(TAG, "Cover download failed for appId=$steamAppId: ${it.message}")
-            null
+        if (!needsCover && !needsHero) {
+            Log.d(TAG, "Game $gameId already has cover and hero — skipping remote URL set")
+            return
         }
 
-        // Download and cache hero/screenshot
-        val localScreenshotPath = runCatching {
-            mediaRepository.downloadAndCacheScreenshot(gameId, heroUrl)
-        }.getOrElse {
-            Log.w(TAG, "Hero download failed for appId=$steamAppId: ${it.message}")
-            null
-        }
+        val updated = existing.copy(
+            boxArtRemoteUrl     = if (needsCover) coverUrl else existing.boxArtRemoteUrl,
+            screenshotRemoteUrl = if (needsHero)  heroUrl  else existing.screenshotRemoteUrl
+        )
 
-        // If downloads succeeded, media rows are already updated by MediaRepository.
-        // If downloads failed, write remote URLs so Coil can load directly until cached.
-        if (localCoverPath == null && localScreenshotPath == null) {
-            // Fallback: write remote URLs into GameMedia via upsertMedia
-            val current = mediaRepository.getMediaForGame(gameId)
-            val updated = (current ?: GameMedia(gameId = gameId)).copy(
-                boxArtRemoteUrl       = coverUrl,
-                screenshotRemoteUrl   = heroUrl
-            )
-            runCatching { mediaRepository.upsertMedia(updated) }
-                .onSuccess { Log.d(TAG, "Wrote remote CDN URLs for appId=$steamAppId") }
-                .onFailure { Log.w(TAG, "upsertMedia failed for appId=$steamAppId: ${it.message}") }
-        } else {
-            Log.i(TAG, "Artwork cached for appId=$steamAppId — cover=$localCoverPath")
-        }
+        runCatching { mediaRepository.upsertMedia(updated) }
+            .onSuccess { Log.d(TAG, "Set remote URLs for appId=$steamAppId cover=$needsCover hero=$needsHero") }
+            .onFailure { Log.w(TAG, "upsertMedia failed for appId=$steamAppId: ${it.message}") }
     }
 
     /**
-     * Ensure artwork exists using remote URLs only (no download).
-     * Used when the game was just inserted and we want immediate display before caching completes.
+     * Download and cache Steam artwork for [gameId], then update the database.
+     * Cover and hero are downloaded and cached independently.
+     * Only call this for actual Steam AppIDs (source == "STEAM").
      */
-    suspend fun setRemoteUrlsForSteamGame(gameId: Long, steamAppId: Int) {
+    suspend fun resolveForSteamGame(gameId: Long, steamAppId: Int) {
         val existing = mediaRepository.getMediaForGame(gameId)
-        if (existing != null && existing.hasBoxArt) return
+            ?: GameMedia(gameId = gameId)
 
-        val media = (existing ?: GameMedia(gameId = gameId)).copy(
-            boxArtRemoteUrl     = steamCoverUrl(steamAppId),
-            screenshotRemoteUrl = steamHeroUrl(steamAppId)
-        )
-        runCatching { mediaRepository.upsertMedia(media) }
-            .onFailure { Log.w(TAG, "setRemoteUrls failed for appId=$steamAppId: ${it.message}") }
+        val needsCover = existing.boxArtLocalPath.isNullOrBlank()
+        val needsHero  = existing.screenshotLocalPath.isNullOrBlank()
+
+        // Cover: download independently
+        if (needsCover) {
+            val localCoverPath = runCatching {
+                mediaRepository.downloadAndCacheBoxArt(gameId, steamCoverUrl(steamAppId))
+            }.getOrElse {
+                Log.w(TAG, "Cover download failed for appId=$steamAppId: ${it.message}")
+                null
+            }
+
+            if (localCoverPath == null) {
+                // Fallback to remote URL if download fails
+                val updated = (mediaRepository.getMediaForGame(gameId) ?: GameMedia(gameId = gameId))
+                    .copy(boxArtRemoteUrl = steamCoverUrl(steamAppId))
+                runCatching { mediaRepository.upsertMedia(updated) }
+            } else {
+                Log.d(TAG, "Cached cover for appId=$steamAppId → $localCoverPath")
+            }
+        }
+
+        // Hero: download independently (separate from cover)
+        if (needsHero) {
+            val localHeroPath = runCatching {
+                mediaRepository.downloadAndCacheScreenshot(gameId, steamHeroUrl(steamAppId))
+            }.getOrElse {
+                Log.w(TAG, "Hero download failed for appId=$steamAppId: ${it.message}")
+                null
+            }
+
+            if (localHeroPath == null) {
+                // Fallback to remote URL if download fails
+                val updated = (mediaRepository.getMediaForGame(gameId) ?: GameMedia(gameId = gameId))
+                    .copy(screenshotRemoteUrl = steamHeroUrl(steamAppId))
+                runCatching { mediaRepository.upsertMedia(updated) }
+            } else {
+                Log.d(TAG, "Cached hero for appId=$steamAppId → $localHeroPath")
+            }
+        }
     }
 
     companion object {
         private const val TAG = "PcGameArtworkResolver"
 
-        fun steamCoverUrl(appId: Int)  = "https://cdn.steamstatic.com/steam/apps/$appId/library_600x900.jpg"
-        fun steamHeroUrl(appId: Int)   = "https://cdn.steamstatic.com/steam/apps/$appId/library_hero.jpg"
+        fun steamCoverUrl(appId: Int) = "https://cdn.steamstatic.com/steam/apps/$appId/library_600x900.jpg"
+        fun steamHeroUrl(appId: Int)  = "https://cdn.steamstatic.com/steam/apps/$appId/library_hero.jpg"
     }
 }

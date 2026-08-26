@@ -72,22 +72,25 @@ class MoonlightProvider @Inject constructor(
 
             shortcuts.mapNotNull { shortcut ->
                 val label = shortcut.shortLabel?.toString() ?: return@mapNotNull null
-                val id = shortcut.id
+                val shortcutId = shortcut.id
 
-                // Store shortcut ID for startShortcut() launch path
-                val launchData = JSONObject().apply {
-                    put("shortcutId", id)
+                // Store ONLY the shortcut ID and label — do not fabricate PC name or UUIDs.
+                // shortcut.activity is the Moonlight activity component, not a PC identifier.
+                // startShortcut() only needs package + shortcutId; PcName/UUID are NOT needed for that path.
+                val launchData = org.json.JSONObject().apply {
+                    put("shortcutId", shortcutId)
                     put("appName", label)
-                    put("pcName", shortcut.activity?.packageName ?: "")
+                    // pcName, uuid, appId intentionally omitted — unknown from shortcut metadata
+                    // User can supply these via manual linking if ShortcutTrampoline fallback is needed
                 }.toString()
 
                 DiscoveredProviderGame(
-                    provider     = ProviderId.MOONLIGHT,
-                    externalId   = id,
-                    source       = "STREAMING",
-                    displayName  = label,
-                    launchData   = launchData,
-                    hostGameKey  = null // needs manual or title-based matching
+                    provider    = ProviderId.MOONLIGHT,
+                    externalId  = shortcutId,
+                    source      = "STREAMING",
+                    displayName = label,
+                    launchData  = launchData,
+                    hostGameKey = null // requires manual or title-based matching
                 )
             }
         }.getOrElse { e ->
@@ -104,7 +107,8 @@ class MoonlightProvider @Inject constructor(
         val data = runCatching { JSONObject(target.launchData) }.getOrElse { JSONObject() }
         val shortcutId = data.optString("shortcutId").ifBlank { null }
 
-        // Preferred path: startShortcut() — most reliable for Android shortcuts
+        // Primary path: startShortcut() — requires only package + shortcutId
+        // This is reliable and does not require PC name/UUID
         if (shortcutId != null) {
             val shortcutResult = runCatching {
                 val launcherApps = context.getSystemService(LauncherApps::class.java)
@@ -114,36 +118,44 @@ class MoonlightProvider @Inject constructor(
                     null,
                     null,
                     Process.myUserHandle()
-                )
+                ) ?: throw IllegalStateException("LauncherApps service unavailable")
                 Log.d(TAG, "Launched via startShortcut: $shortcutId")
             }
             if (shortcutResult.isSuccess) return Result.success(Unit)
-            Log.w(TAG, "startShortcut failed, falling back to ShortcutTrampoline intent")
+            Log.w(TAG, "startShortcut failed: ${shortcutResult.exceptionOrNull()?.message}")
         }
 
-        // Fallback: ShortcutTrampoline intent — verified exported on Moonlight 12.1
-        val appName  = data.optString("appName").ifBlank { target.displayName }
-        val appId    = data.optString("appId").ifBlank { null }
-        val pcName   = data.optString("pcName").ifBlank { null }
-        val uuid     = data.optString("uuid").ifBlank { null }
+        // Secondary path: ShortcutTrampoline intent — only when we have verified PC + app metadata
+        // Do NOT fabricate missing fields.
+        val appName = data.optString("appName").ifBlank { null }
+        val appId   = data.optString("appId").ifBlank { null }
+        val pcName  = data.optString("pcName").ifBlank { null }  // only if user provided via manual link
+        val uuid    = data.optString("uuid").ifBlank { null }
 
+        val hasSufficientMetadata = appName != null && (uuid != null || pcName != null)
+
+        if (hasSufficientMetadata) {
+            return runCatching {
+                val intent = Intent().apply {
+                    setClassName(PACKAGE, SHORTCUT_TRAMPOLINE)
+                    appName?.let { putExtra("AppName", it) }
+                    appId?.let { putExtra("AppId", it) }
+                    pcName?.let { putExtra("PcName", it) }
+                    uuid?.let { putExtra("UUID", it) }
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                Log.d(TAG, "Launched via ShortcutTrampoline: appName=$appName")
+            }
+        }
+
+        // Final fallback: open Moonlight's library — user selects the game
+        Log.w(TAG, "Insufficient Moonlight metadata for direct launch — opening library")
         return runCatching {
-            val intent = Intent().apply {
-                setClassName(PACKAGE, SHORTCUT_TRAMPOLINE)
-                appName.let { putExtra("AppName", it) }
-                appId?.let { putExtra("AppId", it) }
-                pcName?.let { putExtra("PcName", it) }
-                uuid?.let { putExtra("UUID", it) }
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            runCatching { context.startActivity(intent) }.getOrElse {
-                Log.w(TAG, "ShortcutTrampoline failed, opening Moonlight library")
-                val launch = context.packageManager.getLaunchIntentForPackage(PACKAGE)
-                    ?: throw IllegalStateException("Cannot open Moonlight")
-                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(launch)
-            }
-            Log.d(TAG, "Launched Moonlight: appName=$appName")
+            val launch = context.packageManager.getLaunchIntentForPackage(PACKAGE)
+                ?: throw IllegalStateException("Moonlight not found")
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(launch)
         }
     }
 

@@ -6,6 +6,7 @@ import com.gamelaunch.frontend.pocket.data.db.entity.ManualGameLinkEntity
 import com.gamelaunch.frontend.pocket.data.repository.LaunchTargetRepository
 import com.gamelaunch.frontend.pocket.domain.DiscoveredProviderGame
 import com.gamelaunch.frontend.pocket.providers.ProviderId
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -14,20 +15,22 @@ import javax.inject.Singleton
  *
  * Priority order (false negatives preferred over false positives):
  *
- * 1. Exact universal store ID match (Steam AppID, GOG ID, etc.)
- *    romPath "steam:107100" matches externalId "107100" with source "STEAM"
+ * 1. Exact store ID match — romPath derivation from source field FIRST.
+ *    Source wins over provider identity:
+ *      source=STEAM  → steam:<id>
+ *      source=GOG    → steam:GOG:<id>
+ *      source=EPIC   → steam:EPIC:<id>
+ *      source=AMAZON → steam:AMAZON:<id>
+ *    A GameNative GOG game must NOT become steam:<id> merely because
+ *    GameNative is in STEAM_PROVIDERS.
  *
- * 2. Previously stored manual link
- *    User explicitly said "this provider game = this eOr game"
+ * 2. Previously stored manual link (user-confirmed)
  *
- * 3. Conservative normalised title match
- *    Only when title match is exact and unambiguous (single result)
- *    Never used when multiple candidates exist
+ * 3. Conservative normalised-title match
+ *    Exact normalised match only. Only used when exactly ONE eOr game matches.
+ *    Never when multiple candidates exist (prefer false negative).
  *
- * 4. Unresolved — null returned, caller must offer manual linking UI
- *
- * NOTE: Never aggressively fuzzy-match. An unlinked game shown separately
- * is far less harmful than incorrectly merging two different games.
+ * 4. Unresolved — returns null. Caller should offer manual linking UI.
  */
 @Singleton
 class GameIdentityResolver @Inject constructor(
@@ -54,12 +57,12 @@ class GameIdentityResolver @Inject constructor(
      */
     suspend fun resolve(discovered: DiscoveredProviderGame): ResolvedIdentity? {
 
-        // 1. Exact store ID match
-        val storeKey = buildStoreKey(discovered)
+        // 1. Exact store ID — SOURCE determines the key format, not the provider
+        val storeKey = buildStoreKey(discovered.externalId, discovered.source)
         if (storeKey != null) {
             val game = gameRepository.getGameByRomPath(storeKey)
             if (game != null) {
-                Log.d(TAG, "Resolved '${discovered.displayName}' via store ID → ${game.id}")
+                Log.d(TAG, "Resolved '${discovered.displayName}' via store ID ($storeKey) → ${game.id}")
                 return ResolvedIdentity(storeKey, game.id, Confidence.EXACT_STORE_ID)
             }
         }
@@ -77,28 +80,33 @@ class GameIdentityResolver @Inject constructor(
             }
         }
 
-        // 3. Conservative title match — only if exactly one result and title is an exact match
+        // 3. Conservative normalised title match
         val normalised = normaliseTitle(discovered.displayName)
-        if (normalised.length >= MIN_TITLE_LENGTH_FOR_MATCH) {
-            val allGames = gameRepository.getAllGames()
-            // Collect matching games - we need to check titles
-            // Use the repository's game list directly - can't do SQL LIKE without raw query
-            // This is intentionally conservative: only exact normalised matches
-            val candidates = mutableListOf<com.gamelaunch.frontend.domain.model.Game>()
-            // We don't have a getAllGames() suspend — it returns Flow
-            // Use getNonAndroidRomPaths as a proxy to check if we have any games at all,
-            // then fall through to unresolved for non-store-ID games (safer)
-            // Title matching requires a dedicated repository method — document as TODO
-            Log.d(TAG, "Title match for '${discovered.displayName}' skipped — no direct query API available")
+        if (normalised.length >= MIN_TITLE_LENGTH) {
+            val candidates = gameRepository.getAllGames()
+                .first()  // collect once — we don't want to stay subscribed here
+                .filter { normaliseTitle(it.title) == normalised }
+
+            when (candidates.size) {
+                1 -> {
+                    val game = candidates.first()
+                    Log.d(TAG, "Resolved '${discovered.displayName}' via title match → ${game.id}")
+                    return ResolvedIdentity(game.romPath, game.id, Confidence.TITLE_MATCH)
+                }
+                0 -> { /* no match */ }
+                else -> {
+                    Log.d(TAG, "Title '${discovered.displayName}' is ambiguous (${candidates.size} candidates) — not resolving")
+                }
+            }
         }
 
         // 4. Unresolved
-        Log.d(TAG, "Could not resolve '${discovered.displayName}' (${discovered.provider}/${discovered.externalId})")
+        Log.d(TAG, "Unresolved: '${discovered.displayName}' ${discovered.provider}/${discovered.externalId}")
         return null
     }
 
     /**
-     * Record a user-confirmed manual link between a provider game and an eOr host.
+     * Record a user-confirmed manual link.
      */
     suspend fun recordManualLink(
         provider: ProviderId,
@@ -107,25 +115,35 @@ class GameIdentityResolver @Inject constructor(
     ) {
         launchTargetRepository.addManualLink(
             ManualGameLinkEntity(
-                hostGameKey         = hostGameKey,
-                providerName        = provider.name,
-                providerExternalId  = providerExternalId
+                hostGameKey        = hostGameKey,
+                providerName       = provider.name,
+                providerExternalId = providerExternalId
             )
         )
-        Log.i(TAG, "Manual link recorded: ${provider.name}/$providerExternalId → $hostGameKey")
+        Log.i(TAG, "Manual link: ${provider.name}/$providerExternalId → $hostGameKey")
     }
 
-    private fun buildStoreKey(discovered: DiscoveredProviderGame): String? {
-        val id = discovered.externalId.toIntOrNull() ?: return null
-        return when {
-            discovered.source == "STEAM" ||
-            discovered.provider in STEAM_PROVIDERS -> "steam:$id"
-
-            discovered.source == "GOG"    -> "steam:GOG:$id"
-            discovered.source == "EPIC"   -> "steam:EPIC:$id"
-            discovered.source == "AMAZON" -> "steam:AMAZON:$id"
-
-            else -> null
+    /**
+     * Build the eOr romPath key from external ID + source.
+     * SOURCE determines the format — provider identity is irrelevant here.
+     *
+     *   STEAM        → steam:<id>          (no source prefix for Steam, matches eOr's format)
+     *   GOG          → steam:GOG:<id>
+     *   EPIC         → steam:EPIC:<id>
+     *   AMAZON       → steam:AMAZON:<id>
+     *   CUSTOM_GAME  → steam:CUSTOM_GAME:<id>
+     *
+     * Returns null for non-integer IDs or unrecognised sources.
+     */
+    fun buildStoreKey(externalId: String, source: String): String? {
+        val id = externalId.toIntOrNull() ?: return null
+        return when (source.uppercase()) {
+            "STEAM"       -> "steam:$id"
+            "GOG"         -> "steam:GOG:$id"
+            "EPIC"        -> "steam:EPIC:$id"
+            "AMAZON"      -> "steam:AMAZON:$id"
+            "CUSTOM_GAME" -> "steam:CUSTOM_GAME:$id"
+            else          -> null
         }
     }
 
@@ -137,11 +155,6 @@ class GameIdentityResolver @Inject constructor(
 
     companion object {
         private const val TAG = "GameIdentityResolver"
-        private const val MIN_TITLE_LENGTH_FOR_MATCH = 4
-
-        private val STEAM_PROVIDERS = setOf(
-            ProviderId.GAME_NATIVE,
-            ProviderId.GAME_HUB_LITE
-        )
+        private const val MIN_TITLE_LENGTH = 4
     }
 }

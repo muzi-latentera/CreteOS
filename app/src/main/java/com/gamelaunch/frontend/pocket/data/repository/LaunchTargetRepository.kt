@@ -29,6 +29,9 @@ class LaunchTargetRepository @Inject constructor(
     suspend fun getPreferredTarget(hostGameKey: String): LaunchTarget? =
         launchTargetDao.getPreferredTarget(hostGameKey)?.toDomain()
 
+    suspend fun getTargetsForProvider(provider: ProviderId): List<LaunchTarget> =
+        launchTargetDao.getTargetsForProvider(provider.name).map { it.toDomain() }
+
     suspend fun upsertTarget(target: LaunchTarget): Long =
         launchTargetDao.upsert(target.toEntity())
 
