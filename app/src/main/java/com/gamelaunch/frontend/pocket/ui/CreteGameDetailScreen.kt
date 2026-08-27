@@ -11,10 +11,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.SportsEsports
+import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -246,16 +249,29 @@ fun CreteGameDetailScreen(
                 val preferred = targets.firstOrNull { it.isPreferred } ?: targets.firstOrNull()
                 var showDropdown by remember { mutableStateOf(false) }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(0.dp)
-                ) {
-                    // Primary Play button
+                // Provider-aware styling
+                val playColor = when (preferred?.provider) {
+                    ProviderId.GEFORCE_NOW -> Color(0xFF76B900)
+                    ProviderId.MOONLIGHT   -> Color(0xFF5B4FCF)
+                    else                   -> V2RedPlay
+                }
+                val playIcon = when (preferred?.provider) {
+                    ProviderId.GEFORCE_NOW -> Icons.Outlined.Cloud
+                    ProviderId.MOONLIGHT   -> Icons.Outlined.Wifi
+                    else                   -> Icons.Outlined.SportsEsports
+                }
+                val chevronRadius = if (targets.size > 1)
+                    RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
+                else
+                    RoundedCornerShape(12.dp)
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Primary Play button — always says "Play"
                     Row(
                         modifier = Modifier
                             .height(52.dp)
-                            .clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
-                            .background(V2RedPlay)
+                            .clip(chevronRadius)
+                            .background(playColor)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
@@ -268,113 +284,76 @@ fun CreteGameDetailScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.PlayArrow,
-                            contentDescription = "Play",
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Text(
-                            text = if (preferred != null) preferred.displayName else "Play",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = V2Cream,
-                            maxLines = 1
-                        )
+                        Icon(imageVector = playIcon, contentDescription = "Play",
+                            tint = Color.White, modifier = Modifier.size(22.dp))
+                        Text("Play", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = V2Cream)
                     }
 
-                    // Chevron — opens provider dropdown
-                    Box(
-                        modifier = Modifier
-                            .height(52.dp)
-                            .clip(RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp))
-                            .background(V2RedPlay)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { showDropdown = true }
-                            )
-                            .padding(horizontal = 14.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.KeyboardArrowDown,
-                            contentDescription = "More options",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-
-                        // Provider dropdown
-                        DropdownMenu(
-                            expanded = showDropdown && targets.size > 1,
-                            onDismissRequest = { showDropdown = false },
+                    // Chevron + dropdown — only shown when >1 target
+                    if (targets.size > 1) {
+                        Box(Modifier.width(1.dp).height(52.dp).background(Color.White.copy(alpha = 0.18f)))
+                        Box(
                             modifier = Modifier
-                                .background(Color(0xFF131619))
-                                .border(1.dp, V2Cream.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
-                        ) {
-                            targets.forEach { target ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            // Provider colour dot
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(8.dp)
-                                                    .clip(RoundedCornerShape(4.dp))
-                                                    .background(
-                                                        when (target.provider) {
-                                                            ProviderId.GAME_NATIVE -> V2Green
-                                                            ProviderId.MOONLIGHT -> Color(0xFF5B9BD5)
-                                                            ProviderId.GEFORCE_NOW -> Color(0xFF76B900)
-                                                            else -> V2Amber
-                                                        }
-                                                    )
-                                            )
-                                            Text(
-                                                target.displayName,
-                                                color = if (target.isPreferred) V2Cream else V2Dim,
-                                                fontSize = 14.sp,
-                                                fontWeight = if (target.isPreferred) FontWeight.SemiBold else FontWeight.Normal
-                                            )
-                                            if (target.isPreferred) {
-                                                Text(
-                                                    "DEFAULT",
-                                                    fontSize = 9.sp,
-                                                    fontFamily = FontFamily.Monospace,
-                                                    letterSpacing = 1.sp,
-                                                    color = V2Amber.copy(alpha = 0.7f)
-                                                )
-                                            }
-                                        }
-                                    },
-                                    onClick = {
-                                        showDropdown = false
-                                        pocketViewModel.launchWithTarget(game, target)
-                                    }
+                                .height(52.dp)
+                                .clip(RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp))
+                                .background(playColor)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { showDropdown = true }
                                 )
+                                .padding(horizontal = 14.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(imageVector = Icons.Outlined.KeyboardArrowDown,
+                                contentDescription = "Switch provider",
+                                tint = Color.White, modifier = Modifier.size(20.dp))
+
+                            DropdownMenu(
+                                expanded = showDropdown,
+                                onDismissRequest = { showDropdown = false },
+                                modifier = Modifier
+                                    .background(Color(0xFF131619))
+                                    .border(1.dp, V2Cream.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                            ) {
+                                targets.forEach { target ->
+                                    val dotColor = when (target.provider) {
+                                        ProviderId.GAME_NATIVE -> V2Green
+                                        ProviderId.MOONLIGHT   -> Color(0xFF5B4FCF)
+                                        ProviderId.GEFORCE_NOW -> Color(0xFF76B900)
+                                        else                   -> V2Amber
+                                    }
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically) {
+                                                Box(modifier = Modifier.size(8.dp)
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(dotColor))
+                                                Text(
+                                                    providerShortName(target.provider),
+                                                    color = if (target == preferred) V2Cream else V2Dim,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = if (target == preferred) FontWeight.SemiBold else FontWeight.Normal
+                                                )
+                                                if (target == preferred) {
+                                                    Text("DEFAULT", fontSize = 9.sp,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        letterSpacing = 1.sp,
+                                                        color = V2Amber.copy(alpha = 0.7f))
+                                                }
+                                            }
+                                        },
+                                        onClick = {
+                                            showDropdown = false
+                                            pocketViewModel.launchWithTarget(game, target)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
                 }
-
-                    // Tune performance — outline
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .border(1.dp, V2Cream.copy(alpha = 0.22f), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 24.dp, vertical = 15.dp)
-                    ) {
-                        Text(
-                            "Game details",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            letterSpacing = 0.8.sp,
-                            color = V2Cream.copy(alpha = 0.85f)
-                        )
-                    }
 
                     // Favourite icon
                     Box(
@@ -489,8 +468,7 @@ fun CreteGameDetailScreen(
                         ?: game.lastPlayedMs?.let { formatLastPlayed(it) }
                         ?: "—")
                 V2InfoRow("Playtime", steam.formatPlaytime())
-                V2InfoRow("Sessions",
-                    if (game.playCount > 0) game.playCount.toString() else "—")
+
                 Spacer(Modifier.height(6.dp))
                 // Achievements from Steam metadata — real data when synced
                 Row(verticalAlignment = Alignment.CenterVertically,
@@ -626,6 +604,25 @@ fun CreteGameDetailScreen(
 // ── Avg FPS placeholder removed — no real data source yet ─────────────────
 
 // ── Helper composables ────────────────────────────────────────────────────
+
+private fun providerShortName(provider: ProviderId) = when (provider) {
+    ProviderId.GAME_NATIVE -> "Local (GameNative)"
+    ProviderId.GEFORCE_NOW -> "GeForce NOW"
+    ProviderId.MOONLIGHT   -> "Moonlight"
+    else                   -> provider.name
+}
+
+// Small platform logo URLs — 16×16 favicons from official domains
+private fun platformIconUrl(platformId: String): String? = when (platformId.lowercase()) {
+    "steam"              -> "https://store.steampowered.com/favicon.ico"
+    "gog"                -> "https://www.gog.com/favicon.ico"
+    "ea"                 -> "https://www.ea.com/favicon.ico"
+    "gamepass", "xbox"   -> "https://www.xbox.com/favicon.ico"
+    "ubisoft"            -> "https://www.ubisoft.com/favicon.ico"
+    "epic"               -> "https://www.epicgames.com/favicon.ico"
+    "amazon"             -> "https://gaming.amazon.com/favicon.ico"
+    else                 -> null
+}
 
 @Composable
 private fun V2InfoRow(label: String, value: String) {
