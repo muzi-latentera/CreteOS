@@ -953,6 +953,7 @@ private fun GameRail(
 enum class LibraryFilter(val label: String) {
     ALL("All Games"),
     LOCAL("Local"),
+    LOCAL("Local"),
     OWNED("Owned"),
     STREAMING("Streaming"),
     CLOUD("Cloud"),
@@ -1102,6 +1103,10 @@ fun LibraryTabContent(
         Spacer(Modifier.height(16.dp))
 
         // Sources view or game grid
+        val context = LocalContext.current
+        // Check once if GameNative is installed — all Steam games can run locally if it is
+            runCatching { context.packageManager.getPackageInfo("app.gamenative", 0); true }.getOrDefault(false)
+        }
 
         if (showSources) {
             SourcesGridView()
@@ -1558,6 +1563,4 @@ private fun ColumnScope.SettingsPanelAction(label: String, icon: ImageVector, on
         )
     }
     Box(Modifier.fillMaxWidth().height(0.5.dp).background(Color(0x20FFFFFF)))
-}
-
 }
