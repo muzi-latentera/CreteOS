@@ -12,7 +12,7 @@
          the brand navy while cold-start work runs and the first screen's box art is warmed; the
          app then swaps to the real theme via postSplashScreenTheme. -->
     <style name="Theme.GameLauncher.Splash" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">#06091A</item>
+        <item name="windowSplashScreenBackground">#08090B</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
         <item name="postSplashScreenTheme">@style/Theme.GameLauncher</item>
         <!-- Fallback the OS paints if the SplashScreen API doesn't render (e.g. on the Retroid) so a
