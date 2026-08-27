@@ -33,13 +33,10 @@ object EmulatorRegistry {
                 EmulatorSystem.SNES,
                 EmulatorSystem.GB,
                 EmulatorSystem.GBC,
-                EmulatorSystem.GBA,
                 EmulatorSystem.N64,
                 EmulatorSystem.DREAMCAST,
-                EmulatorSystem.SATURN,
-                EmulatorSystem.PS1,
-                EmulatorSystem.PSP,
-                EmulatorSystem.NDS
+                EmulatorSystem.SATURN
+                // GBA → Pizza Boy A, NDS → melonDS, PS1 → DuckStation, PSP → PPSSPP
             ),
             packageCandidates = listOf(
                 "com.retroarch.aarch64",  // 64-bit preferred

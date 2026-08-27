@@ -172,6 +172,14 @@ class PocketGameDetailViewModel @Inject constructor(
 
         val toUpsert = mutableListOf<LaunchTarget>()
 
+        // Skip GameNative/Moonlight/GFN for emulated games — they use dedicated emulators
+        val emulationPlatforms = setOf("gc","wii","wiiu","ps1","ps2","ps3","psp","psvita",
+            "gba","gb","gbc","nds","n3ds","switch","n64","dreamcast","saturn")
+        val isRomGame = game.romPath.startsWith("emu:") || game.platformId in emulationPlatforms
+        if (isRomGame) {
+            // Skip to emulator provisioning below
+        } else {
+
         // Priority 1: GameNative — local PC, best experience
         if (isInstalled("app.gamenative")) {
             toUpsert += LaunchTarget(
@@ -198,9 +206,11 @@ class PocketGameDetailViewModel @Inject constructor(
             )
         }
 
-        // Priority 3: GeForce NOW — only for verified canonical URLs
+        } // end !isRomGame
+
+        // Priority 3: GeForce NOW — only for verified canonical URLs, never for ROM games
         // Does NOT touch GameNative or Moonlight targets
-        if (isInstalled("com.nvidia.geforcenow")) {
+        if (!isRomGame && isInstalled("com.nvidia.geforcenow")) {
             val canonicalUrl = SteamMetadataSync.GFN_VERIFIED[steamAppId]
             val gfnId = canonicalUrl?.let { Regex("game-id=([^&]+)").find(it)?.groupValues?.get(1) }
 
