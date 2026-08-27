@@ -70,11 +70,24 @@ class DebugSeedReceiver : BroadcastReceiver() {
                         android.database.sqlite.SQLiteDatabase.OPEN_READWRITE
                     )
                     val now = System.currentTimeMillis()
+                    // Map source → platform_id used by the UI for icon/colour
+                    val platformId = when (source.uppercase()) {
+                        "STEAM"    -> "steam"
+                        "EA"       -> "ea"
+                        "GAMEPASS", "XBOX" -> "gamepass"
+                        "GOG"      -> "gog"
+                        "UBISOFT"  -> "ubisoft"
+                        "EPIC"     -> "epic"
+                        "ANDROID"  -> "android"
+                        "MOONLIGHT" -> "moonlight"
+                        "GFN"      -> "gfn"
+                        else       -> source.lowercase()
+                    }
                     val values = android.content.ContentValues().apply {
                         put("title", title)
                         put("rom_path", hostKey)
-                        put("rom_filename", "$title.steam")
-                        put("platform_id", "steam")
+                        put("rom_filename", "$title.$platformId")
+                        put("platform_id", platformId)
                         put("is_favorite", 0)
                         put("play_count", 0) // launch count only — Steam playtime goes into SteamMetadataEntity
                         put("date_added", now)
