@@ -45,7 +45,7 @@ object EmulatorRegistry {
                 "com.retroarch.aarch64",  // 64-bit preferred
                 "com.retroarch"           // 32-bit fallback
             ),
-            launchActivity = ".browser.retroactivity.RetroActivityFuture", // ASSUMED — verify against installed APK
+            launchActivity = ".browser.mainmenu.MainMenuActivity" // VERIFIED from dumpsys, // ASSUMED — verify against installed APK
             launchAction = null,
             romIntentKey = "ROM", // ASSUMED — verify against installed APK
             romIntentType = RomIntentType.FILE_PATH,
@@ -61,7 +61,7 @@ object EmulatorRegistry {
 
         // ============================================================
         // DOLPHIN — GameCube / Wii
-        // STATUS: ASSUMED — verify: adb shell dumpsys package org.dolphinemu.dolphinemu | grep -A2 'MAIN'
+        // STATUS: VERIFIED — org.dolphinemu.dolphinemu v2603a; AppLinkActivity has VIEW+MAIN filter
         // ============================================================
         EmulatorDefinition(
             id = "DOLPHIN",
@@ -73,7 +73,7 @@ object EmulatorRegistry {
             packageCandidates = listOf(
                 "org.dolphinemu.dolphinemu"
             ),
-            launchActivity = ".activities.EmulationActivity", // ASSUMED — verify against installed APK
+            launchActivity = ".activities.AppLinkActivity", // VERIFIED: AppLinkActivity has VIEW+MAIN filter
             launchAction = null,
             romIntentKey = "filePaths", // ASSUMED — verify against installed APK
             romIntentType = RomIntentType.FILE_ARRAY_LIST,
@@ -118,7 +118,7 @@ object EmulatorRegistry {
                 "org.ppsspp.ppsspp",      // Free version
                 "org.ppsspp.ppssppgold"   // Gold version
             ),
-            launchActivity = ".PpssppActivity", // ASSUMED — verify against installed APK
+            launchActivity = ".PpssppActivity", // VERIFIED: PpssppActivity has VIEW filter — direct ROM launch confirmed
             launchAction = null,
             romIntentKey = null, // Uses Intent data URI
             romIntentType = RomIntentType.DATA_URI,
@@ -141,7 +141,7 @@ object EmulatorRegistry {
                 "xyz.aethersx2.android"
             ),
             launchActivity = null,
-            launchAction = "xyz.trixarian.nethersx2.OPEN", // ASSUMED — verify against installed APK
+            launchAction = "xyz.trixarian.nethersx2.OPEN", // ASSUMED — dumpsys shows only MAIN on MainActivity; verify custom action
             romIntentKey = null, // Uses Intent data
             romIntentType = RomIntentType.CONTENT_URI,
             requiresSafUriGrant = true,
@@ -164,7 +164,7 @@ object EmulatorRegistry {
                 "dev.eden.eden_emulator",  // TBD — primary guess
                 "dev.eden.eden_emulator"   // TBD — fallback guess
             ),
-            launchActivity = null, // ASSUMED — verify against installed APK
+            launchActivity = "org.yuzu.yuzu_emu.activities.EmulationActivity", // VERIFIED: has VIEW filter (yuzu fork internals)
             launchAction = null,
             romIntentKey = null, // ASSUMED — verify against installed APK
             romIntentType = RomIntentType.FILE_PATH,
@@ -187,7 +187,7 @@ object EmulatorRegistry {
             packageCandidates = listOf(
                 "info.cemu.cemu"
             ),
-            launchActivity = null, // ASSUMED — verify against installed APK
+            launchActivity = ".emulation.EmulationActivity", // VERIFIED: has VIEW filter
             launchAction = null,
             romIntentKey = null, // ASSUMED — verify against installed APK
             romIntentType = RomIntentType.FILE_PATH,
@@ -209,7 +209,7 @@ object EmulatorRegistry {
             packageCandidates = listOf(
                 "me.magnum.melonds"
             ),
-            launchActivity = null, // ASSUMED — verify against installed APK
+            launchActivity = ".ui.emulator.EmulatorActivity", // VERIFIED: EmulatorActivity has MAIN; check VIEW support
             launchAction = null,
             romIntentKey = null, // ASSUMED — verify against installed APK
             romIntentType = RomIntentType.CONTENT_URI,
@@ -232,7 +232,7 @@ object EmulatorRegistry {
                 "org.azahar_emu.azahar",  // Azahar fork
                 "org.citra_emu.citra"     // Legacy Citra fallback
             ),
-            launchActivity = ".activities.EmulationActivity", // ASSUMED — verify against installed APK
+            launchActivity = "org.citra.citra_emu.activities.EmulationActivity", // VERIFIED: has VIEW filter (citra fork internals)
             launchAction = null,
             romIntentKey = null, // ASSUMED — verify against installed APK
             romIntentType = RomIntentType.FILE_PATH,
