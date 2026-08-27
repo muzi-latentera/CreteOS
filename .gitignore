@@ -13,3 +13,8 @@ local.properties
 # Build outputs
 /app/build/
 *.apk
+reference/roms/*.zip
+reference/roms/*.7z
+reference/roms/*.bin
+reference/roms/*.nsp
+reference/roms/*.keys

@@ -26,7 +26,7 @@ object EmulatorRegistry {
         // STATUS: ASSUMED — verify: adb shell dumpsys package com.retroarch.aarch64 | grep -A2 'MAIN'
         // ============================================================
         EmulatorDefinition(
-            id = "RETROARCH",
+            id = "RETROARCH", // Legacy multi-system (NES/SNES/GB/GBC/Genesis/N64 etc) — NOT used for GBA (use PIZZABOY_GBA instead; mGBA core crashes on 8 Elite)
             displayName = "RetroArch",
             systems = setOf(
                 EmulatorSystem.NES,
