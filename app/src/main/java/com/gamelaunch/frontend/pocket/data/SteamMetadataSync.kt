@@ -57,11 +57,15 @@ class SteamMetadataSync @Inject constructor(
             "1620730" to "https://play.geforcenow.com/games?game-id=6f5df9e0-9a34-4769-aaa3-e48f14805b99&lang=en_GB&asset-id=01_f5c72618-bff0-48bb-b26d-01a0029b9de1",  // Hell is Us ✓
             "2050650" to "https://play.geforcenow.com/games?game-id=d63e33a8-2f5e-4b4f-b6f5-f79c6938ca6a&lang=en_GB&asset-id=01_86a551ec-ad3e-43e8-b2c8-505df9868019",  // Resident Evil 4 Remake ✓
             "1903340" to "https://play.geforcenow.com/games?game-id=037a263a-adbf-4705-8509-76447080de75&lang=en_GB&asset-id=01_fba9542a-ad36-4ee4-a48b-96067a9ff491",  // Clair Obscur ✓
+            "1091500" to "https://play.geforcenow.com/games?game-id=e5fc8a96-2cda-49ef-bd13-513bdc68045b&lang=en_GB&asset-id=01_742eeb39-c372-4b14-b0ff-2b2e8f02ee97",  // Cyberpunk 2077 ✓ (UUID proven: Elden Ring accidentally launched this)
+            "2138710" to "https://play.geforcenow.com/games?game-id=ea68304b-9448-4002-a00e-3b816721bf1c&lang=en_GB&asset-id=01_5453e247-4a92-46f2-815b-3e7a8cad2f18",  // Sifu ✓ — AppID 2138710 (NOT 2767120 which is a DLC)
+            "1771300" to "https://play.geforcenow.com/games?game-id=8a9b10a6-b8f4-46f3-a479-e480c304d78c&lang=en_GB&asset-id=01_21338a23-06ed-44eb-b493-366a33b5bb9e",  // Kingdom Come: Deliverance II ✓ (Steam AppID 1771300 confirmed)
             // ── NOT verified — open GFN library for these until confirmed ────────────────
-            // Sifu 2767120 — user provided URL but not yet device-verified in latest build
-            // Cyberpunk 2077 1091500 — e5fc8a96 — does NOT open game page on device
-            // Elden Ring 1245620 — REMOVED (was wrongly using Cyberpunk's UUID)
-            // BG3, Star Wars Outlaws, Indiana Jones, KCD2 — not device-verified
+            // Sifu 2767120 — WRONG AppID (that's a DLC). Correct AppID 2138710 now in VERIFIED above
+            // Cyberpunk 2077 1091500 — now VERIFIED above (UUID proven via Elden Ring test)
+            // Elden Ring 1245620 — REMOVED (was wrongly using Cyberpunk's UUID e5fc8a96)
+            // BG3 1086940, Star Wars Outlaws 2379780, Indiana Jones 2677660 — not in Steam library (GOG/GamePass)
+            // KCD2 2358550 — WRONG AppID; correct 1771300 now in VERIFIED above
         )
 
         /** Legacy alias: Steam AppID → game-id only (for seedGfnIds compat) */
