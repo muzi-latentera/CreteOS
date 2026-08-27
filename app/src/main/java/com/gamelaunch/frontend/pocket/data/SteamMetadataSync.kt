@@ -203,7 +203,16 @@ class SteamMetadataSync @Inject constructor(
                 ?.let { arr -> (0 until arr.length()).map { arr.getString(it) }.joinToString(", ") }
             val publishers = data.optJSONArray("publishers")
                 ?.let { arr -> (0 until arr.length()).map { arr.getString(it) }.joinToString(", ") }
-            val description = data.optString("short_description").takeIf { it.isNotBlank() }
+
+            // Use detailed_description (richer), strip HTML tags
+            val rawDesc = data.optString("detailed_description").takeIf { it.isNotBlank() }
+                ?: data.optString("short_description").takeIf { it.isNotBlank() }
+            val description = rawDesc
+                ?.replace(Regex("<[^>]+>"), " ")
+                ?.replace(Regex("\\s{2,}"), " ")
+                ?.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ")
+                ?.trim()
+                ?.takeIf { it.length > 20 }
 
             if (developers == null && publishers == null && description == null) return@withContext
 
