@@ -283,11 +283,14 @@ fun AppNavGraph(
         }
 
         composable(Screen.CreteSettings.route) {
+            val emulationVm: com.gamelaunch.frontend.pocket.ui.EmulationSettingsViewModel = 
+                androidx.lifecycle.viewmodel.compose.viewModel()
             com.gamelaunch.frontend.pocket.ui.CreteSettingsScreen(
                 onBack = { navController.backOrHome() },
                 onOpenCategory = { navController.navigate(it.route) },
                 onProviderSettings = { navController.navigate(Screen.ProviderSettings.route) },
-                onDisplayDiagnostics = { navController.navigate(Screen.DisplayDiagnostics.route) }
+                onDisplayDiagnostics = { navController.navigate(Screen.DisplayDiagnostics.route) },
+                onScanEmulationRoms = { emulationVm.scanRoms() }
             )
         }
     }

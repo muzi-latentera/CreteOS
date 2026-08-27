@@ -294,9 +294,11 @@ private fun GeneralPanel(onOpenCategory: (SettingsCategory) -> Unit) {
 
 @Composable
 private fun PanelColumn(content: @Composable ColumnScope.() -> Unit) {
+    val scroll = androidx.compose.foundation.rememberScrollState()
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(scroll)
             .padding(CreteDS.spaceXXL),
         content = content
     )
