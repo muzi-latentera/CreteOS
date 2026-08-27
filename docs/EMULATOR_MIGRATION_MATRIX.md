@@ -21,6 +21,20 @@
 
 ---
 
+## ⚠️ Version Notes
+
+### NetherSX2
+- **Correct version:** v2.1-4248 STABLE
+- **Package:** xyz.aethersx2.android (fork kept original AetherSX2 package name)
+- **Note:** NetherSX2 2.2n exists as a "Development Build" — do NOT use as migration baseline. Always migrate from/to the stable 2.1-4248 release.
+
+### Azahar
+- **Correct version:** 2126.0-vanilla
+- **Package:** org.azahar_emu.azahar
+- **Note:** Version 2125.1.3 was incorrectly reported — 2126.0 is the verified version.
+
+---
+
 ## DO NOT Transfer
 
 These items are **device-specific** and will cause issues if transferred:
@@ -100,9 +114,13 @@ adb pull /sdcard/PSP/ ./Exports/PSP/
 3. Settings → System → PSP folder → select the folder
 4. Grant SAF permission
 
+**Storage note:** PPSSPP uses shared storage. Point to `CreteOS/Emulation/ROMs/psp` for ROMs.
+
 ---
 
 ### NetherSX2
+
+**Version:** v2.1-4248 STABLE (NOT 2.2n development build)
 
 **What transfers:**
 - BIOS files
@@ -165,6 +183,8 @@ adb pull /sdcard/melonDS/ ./Exports/melonDS/
 
 ### Azahar (3DS)
 
+**Version:** 2126.0-vanilla
+
 **What transfers:**
 - Save data from shared storage
 - Configuration files
@@ -198,7 +218,7 @@ adb pull /sdcard/melonDS/ ./Exports/melonDS/
 1. Copy all folders to appropriate locations
 2. Launch Eden
 3. Re-grant SAF permissions for all folders
-4. **Critical:** Re-select GPU driver (Settings → GPU Driver → install StevenMXZ v26.3.0-R4)
+4. **Critical:** Re-select GPU driver (Settings → GPU Driver → install Turnip Gen8 V35)
 
 ---
 
@@ -252,10 +272,10 @@ PS3Native is in early experimental stages. Do not attempt migration until:
 - [ ] RetroArch: Copy RetroArch/ folder
 - [ ] Dolphin: Export User Data ZIP
 - [ ] PPSSPP: Copy PSP/ folder
-- [ ] NetherSX2: Transfer Data export
+- [ ] NetherSX2: Transfer Data export (v2.1-4248 stable)
 - [ ] DuckStation: Transfer Data export
 - [ ] melonDS: Copy melonDS/ folder
-- [ ] Azahar: Copy save/config folder
+- [ ] Azahar: Copy save/config folder (2126.0)
 - [ ] Eden: Copy keys/, firmware/, mods/
 - [ ] Cemu: Copy Cemu folder
 - [ ] All exports saved to Exports/ folder
