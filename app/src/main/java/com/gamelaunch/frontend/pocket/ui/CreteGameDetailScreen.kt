@@ -20,6 +20,8 @@ import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Wifi
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -363,6 +365,36 @@ fun CreteGameDetailScreen(
                     }
                 }
 
+                    // ── LOCAL pin toggle ──────────────────────────────────
+                    // Pins/unpins this game to the LOCAL filter in the library
+                    val isLocal = pocketState.isLocal
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (isLocal) V2Green.copy(alpha = 0.18f)
+                                else V2Cream.copy(alpha = 0.06f)
+                            )
+                            .border(
+                                1.dp,
+                                if (isLocal) V2Green.copy(alpha = 0.5f) else V2Cream.copy(alpha = 0.18f),
+                                RoundedCornerShape(12.dp)
+                            )
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { pocketViewModel.toggleLocal(game) }
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isLocal) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                            contentDescription = if (isLocal) "Remove from Local" else "Add to Local",
+                            tint = if (isLocal) V2Green else V2Cream.copy(alpha = 0.7f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(38.dp))

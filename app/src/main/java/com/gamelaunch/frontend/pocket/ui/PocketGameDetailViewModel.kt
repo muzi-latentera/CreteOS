@@ -33,7 +33,8 @@ data class PocketLaunchUiState(
     val launchError: String? = null,
     val hltbTimes: HltbTimes = HltbTimes.EMPTY,
     val hltbLoading: Boolean = false,
-    val steamMetadata: SteamMetadataEntity? = null
+    val steamMetadata: SteamMetadataEntity? = null,
+    val isLocal: Boolean = false,
 )
 
 /**
@@ -115,7 +116,7 @@ class PocketGameDetailViewModel @Inject constructor(
 
                 // Update UI with latest metadata
                 val meta = steamMetadataDao.getByAppId(appId)
-                _uiState.update { it.copy(steamMetadata = meta) }
+                _uiState.update { it.copy(steamMetadata = meta, isLocal = meta?.isLocal ?: false) }
 
                 // TTB from cache (populated by seedIgdbData above)
                 val ttb = hltbProvider.getCached(appId)
@@ -209,6 +210,25 @@ class PocketGameDetailViewModel @Inject constructor(
             coverUrl              = entry.coverUrl,
             heroUrl               = entry.heroUrl,
         )
+    }
+
+    fun toggleLocal(game: Game) {
+        val appId = game.romPath.substringAfterLast(":")
+        if (appId.isBlank()) return
+        viewModelScope.launch {
+            val current = uiState.value.isLocal
+            val new = !current
+            // Ensure a metadata record exists first
+            if (steamMetadataDao.getByAppId(appId) == null) {
+                steamMetadataDao.upsert(SteamMetadataEntity(
+                    steamAppId = appId,
+                    playtimeMinutes = 0,
+                    updatedAtMs = System.currentTimeMillis()
+                ))
+            }
+            steamMetadataDao.setLocal(appId, new)
+            _uiState.update { it.copy(isLocal = new) }
+        }
     }
 
     fun showPlayUsing() = _uiState.update { it.copy(showPlayUsing = true) }

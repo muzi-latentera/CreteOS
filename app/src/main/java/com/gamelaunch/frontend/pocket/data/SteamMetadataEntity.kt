@@ -64,6 +64,10 @@ data class SteamMetadataEntity(
     @ColumnInfo(name = "igdb_hero_url")
     val igdbHeroUrl: String? = null,
 
+    /** Manually tagged as locally installed — shows in LOCAL library filter */
+    @ColumnInfo(name = "is_local")
+    val isLocal: Boolean = false,
+
     @ColumnInfo(name = "updated_at_ms")
     val updatedAtMs: Long = System.currentTimeMillis(),
 
@@ -95,6 +99,12 @@ interface SteamMetadataDao {
 
     @Query("UPDATE steam_metadata SET gfn_game_id = :gfnId, updated_at_ms = :now WHERE steam_app_id = :appId")
     suspend fun setGfnId(appId: String, gfnId: String, now: Long = System.currentTimeMillis())
+
+    @Query("UPDATE steam_metadata SET is_local = :isLocal, updated_at_ms = :now WHERE steam_app_id = :appId")
+    suspend fun setLocal(appId: String, isLocal: Boolean, now: Long = System.currentTimeMillis())
+
+    @Query("SELECT steam_app_id FROM steam_metadata WHERE is_local = 1")
+    suspend fun getLocalAppIds(): List<String>
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
