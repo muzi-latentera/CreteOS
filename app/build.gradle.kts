@@ -53,6 +53,10 @@ android {
         buildConfigField("String", "STEAM_API_KEY", "\"${(localProperties["STEAM_API_KEY"] as String?) ?: ""}\"")
         buildConfigField("String", "STEAM_ID",      "\"${(localProperties["STEAM_ID"] as String?) ?: ""}\"")
 
+        // IGDB (Twitch) credentials for game metadata + time to beat
+        buildConfigField("String", "IGDB_CLIENT_ID",     "\"${(localProperties["IGDB_CLIENT_ID"] as String?) ?: ""}\"")
+        buildConfigField("String", "IGDB_CLIENT_SECRET",  "\"${(localProperties["IGDB_CLIENT_SECRET"] as String?) ?: ""}\"")
+
         // CreteOS fork identity — used by CheckForUpdateUseCase and Settings UI
         buildConfigField("String", "UPDATE_REPO",       "\"muzi-latentera/CreteOS\"")
         buildConfigField("String", "UPSTREAM_REPO",     "\"keweis2/eOr\"")
