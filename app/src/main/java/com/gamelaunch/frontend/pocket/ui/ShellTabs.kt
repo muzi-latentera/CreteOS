@@ -1102,10 +1102,6 @@ fun LibraryTabContent(
         Spacer(Modifier.height(16.dp))
 
         // Sources view or game grid
-        val context = LocalContext.current
-        // Check once if GameNative is installed — all Steam games can run locally if it is
-            runCatching { context.packageManager.getPackageInfo("app.gamenative", 0); true }.getOrDefault(false)
-        }
 
         if (showSources) {
             SourcesGridView()
