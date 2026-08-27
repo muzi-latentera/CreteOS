@@ -372,8 +372,8 @@ fun CreteGameDetailScreen(
                             .size(52.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(
-                                if (isLocal) V2Green.copy(alpha = 0.25f)
-                                else Color(0xFF1A1D22)
+                                if (isLocal) Color(0xFF1E3D2A)   // solid dark green when active
+                                else Color(0xFF1A1D22)            // solid dark when inactive
                             )
                             .border(
                                 1.5.dp,
