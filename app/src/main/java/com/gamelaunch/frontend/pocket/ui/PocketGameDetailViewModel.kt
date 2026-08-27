@@ -123,13 +123,21 @@ class PocketGameDetailViewModel @Inject constructor(
                 _uiState.update { it.copy(steamMetadata = meta, isLocal = meta?.isLocal ?: false) }
 
                 // For emulated games, trigger IGDB search by title if no cover art yet
-                if (game.romPath.startsWith("emu:")) {
-                    val parts = game.romPath.split(":")
-                    val systemId = parts.getOrNull(1)
-                    val system = systemId?.let { EmulatorSystem.fromId(it) }
+                // Handles both emu: romPaths and eOr's native file path romPaths (detected via platform_id)
+                val emulationSystems = setOf("gc","wii","wiiu","ps1","ps2","ps3","psp","psvita",
+                    "gba","gb","gbc","nds","n3ds","switch","n64","dreamcast","saturn")
+                val isEmulatedGame = game.romPath.startsWith("emu:") || 
+                    game.platformId in emulationSystems
+                if (isEmulatedGame) {
+                    val system = when {
+                        game.romPath.startsWith("emu:") -> {
+                            val parts = game.romPath.split(":")
+                            parts.getOrNull(1)?.let { EmulatorSystem.fromId(it) }
+                        }
+                        else -> EmulatorSystem.fromId(game.platformId)
+                    }
                     if (system != null && meta?.igdbCoverUrl == null) {
                         igdbSync.syncEmulatedGame(game.romPath, game.title, system)
-                        // Reload metadata after sync
                         val updatedMeta = steamMetadataDao.getByAppId(game.romPath)
                         _uiState.update { it.copy(steamMetadata = updatedMeta) }
                     }
@@ -218,58 +226,65 @@ class PocketGameDetailViewModel @Inject constructor(
             }
         }
 
-        // Priority 4: Emulators — for emulated games (romPath starts with "emu:")
-        if (game.romPath.startsWith("emu:")) {
-            val parts = game.romPath.split(":")
-            val system = if (parts.size >= 2) EmulatorSystem.fromId(parts[1]) else null
+        // Priority 4: Emulators — for emulated games
+        // Handles both emu: romPaths (our seeder) and eOr's native file path romPaths (detected via platform_id)
+        val emulationSystemIds = setOf("gc","wii","wiiu","ps1","ps2","ps3","psp","psvita",
+            "gba","gb","gbc","nds","n3ds","switch","n64","dreamcast","saturn")
+        val isEmulatedGame = game.romPath.startsWith("emu:") || game.platformId in emulationSystemIds
+        if (isEmulatedGame) {
+            val system = when {
+                game.romPath.startsWith("emu:") -> {
+                    val parts = game.romPath.split(":")
+                    if (parts.size >= 2) EmulatorSystem.fromId(parts[1]) else null
+                }
+                else -> EmulatorSystem.fromId(game.platformId)
+            }
             if (system != null) {
                 val emulators = EmulatorRegistry.forSystem(system)
-
-                // Get existing emulator targets
                 val existingTargets = launchTargetRepository.getTargetsForGameOnce(game.romPath)
 
                 for (emulatorDef in emulators) {
                     val installedPkg = EmulatorRegistry.findInstalledPackage(context, emulatorDef) ?: continue
-                    val existingTarget = existingTargets.find { 
+                    val existingTarget = existingTargets.find {
                         it.provider == ProviderId.EMULATOR && it.launchData.contains("\"emulatorId\":\"${emulatorDef.id}\"")
                     }
                     if (existingTarget != null) {
                         android.util.Log.d("AutoProvision", "emu target exists: pkg=$installedPkg emulator=${emulatorDef.id}")
-                        continue // already provisioned
+                        continue
                     }
 
-                    // Get the ROM absolute path from steam_metadata
-                    val metadata = steamMetadataDao.getByAppId(game.romPath)
-                    var romAbsPath = metadata?.romAbsPath
-
-                    // Fallback: try to reconstruct path from romPath key
-                    // emu:gc:luigis_mansion -> scan common ROM locations
-                    if (romAbsPath == null && parts.size >= 3) {
-                        val systemId = parts[1]
-                        val romKey = parts[2]
-                        // Try common ROM base paths
-                        val basePaths = listOf(
-                            "/storage/emulated/0/CreteOS/Emulation/ROMs/$systemId",
-                            "/storage/emulated/0/ROMs/$systemId",
-                            "/storage/emulated/0/Roms/$systemId"
-                        )
-                        for (basePath in basePaths) {
-                            val dir = java.io.File(basePath)
-                            if (!dir.exists() || !dir.isDirectory) continue
-                            val matchingFile = dir.listFiles()?.firstOrNull { file ->
-                                val cleanName = file.nameWithoutExtension.lowercase()
-                                    .replace(Regex("[^a-z0-9]+"), "_")
-                                    .replace(Regex("^_+|_+$"), "")
-                                cleanName == romKey || cleanName.contains(romKey)
-                            }
-                            if (matchingFile != null) {
-                                romAbsPath = matchingFile.absolutePath
-                                android.util.Log.d("AutoProvision", "Found ROM via scan: $romAbsPath")
-                                // Update steam_metadata with the resolved path
-                                if (metadata != null) {
-                                    steamMetadataDao.upsert(metadata.copy(romAbsPath = romAbsPath))
+                    // For eOr native romPaths (file paths), romPath IS the absolute path
+                    val romAbsPath: String? = when {
+                        game.romPath.startsWith("emu:") -> {
+                            // Look up from steam_metadata or scan filesystem
+                            val metadata = steamMetadataDao.getByAppId(game.romPath)
+                            var path = metadata?.romAbsPath
+                            if (path == null) {
+                                val parts = game.romPath.split(":")
+                                val systemId = parts.getOrNull(1) ?: system.id
+                                val romKey = parts.getOrNull(2) ?: ""
+                                val basePaths = listOf(
+                                    "/storage/emulated/0/CreteOS/Emulation/ROMs/$systemId",
+                                    "/storage/emulated/0/ROMs/$systemId"
+                                )
+                                for (basePath in basePaths) {
+                                    val dir = java.io.File(basePath)
+                                    if (!dir.exists()) continue
+                                    val match = dir.listFiles()?.firstOrNull { f ->
+                                        val clean = f.nameWithoutExtension.lowercase().replace(Regex("[^a-z0-9]+"), "_")
+                                        clean == romKey || clean.contains(romKey)
+                                    }
+                                    if (match != null) { path = match.absolutePath; break }
                                 }
-                                break
+                            }
+                            path
+                        }
+                        else -> {
+                            // eOr native: romPath is already the absolute file path
+                            if (java.io.File(game.romPath).exists()) game.romPath
+                            else {
+                                android.util.Log.w("AutoProvision", "ROM file not found: ${game.romPath}")
+                                null
                             }
                         }
                     }
