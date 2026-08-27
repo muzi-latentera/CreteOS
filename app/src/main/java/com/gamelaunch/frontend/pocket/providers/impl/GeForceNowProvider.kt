@@ -52,30 +52,39 @@ class GeForceNowProvider @Inject constructor(
 
     override suspend fun launch(target: LaunchTarget, launchContext: LaunchContext): Result<Unit> {
         val data = runCatching { JSONObject(target.launchData) }.getOrElse { JSONObject() }
-        val gfnGameId  = data.optString("gfnGameId").ifBlank { null }
-        val gfnAssetId = data.optString("gfnAssetId").ifBlank { null }
+        // Prefer pre-built canonical URL; fall back to constructing from parts
+        val canonicalUrl = data.optString("canonicalGfnUrl").ifBlank { null }
+        val gfnGameId    = data.optString("gfnGameId").ifBlank { null }
 
         return runCatching {
-            if (gfnGameId != null) {
-                // Full canonical URL matching GFN's own share format
-                val deepLink = buildString {
-                    append("$GFN_DEEP_LINK_BASE$gfnGameId")
-                    append("&lang=en_GB")
-                    if (gfnAssetId != null) append("&asset-id=$gfnAssetId")
-                    append("&utm_source=creteos&utm_campaign=launcher")
+            val launchUrl = when {
+                canonicalUrl != null -> {
+                    // Use stored canonical URL, just swap utm_source
+                    canonicalUrl
+                        .replace("utm_source=shortcut", "utm_source=creteos")
+                        .let { if (!it.contains("utm_source=")) "$it&utm_source=creteos&utm_campaign=launcher" else it }
                 }
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(deepLink)).apply {
+                gfnGameId != null -> {
+                    // Fallback: construct from game-id alone
+                    "$GFN_DEEP_LINK_BASE$gfnGameId&lang=en_GB&utm_source=creteos&utm_campaign=launcher"
+                }
+                else -> null
+            }
+
+            if (launchUrl != null) {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(launchUrl)).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 }
                 context.startActivity(intent)
-                Log.d(TAG, "Launched GFN: $deepLink")
+                Log.d(TAG, "Launched GFN: $launchUrl")
             } else {
+                // No verified URL — open GFN library
                 val launch = context.packageManager.getLaunchIntentForPackage(PACKAGE)
                     ?: throw IllegalStateException("GeForce NOW is not installed")
                 launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(launch)
-                Log.d(TAG, "Opened GFN library (no game UUID)")
+                Log.d(TAG, "Opened GFN library (no verified URL)")
             }
         }
     }

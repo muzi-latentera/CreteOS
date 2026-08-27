@@ -175,26 +175,32 @@ class PocketGameDetailViewModel @Inject constructor(
             )
         }
 
-        // Priority 3: GeForce NOW — cloud, use real UUID if we have it
+        // Priority 3: GeForce NOW — only for verified canonical URLs
+        // Does NOT touch GameNative or Moonlight targets
         if (isInstalled("com.nvidia.geforcenow")) {
-            val gfnId = SteamMetadataSync.GFN_CATALOG[steamAppId]
-                ?: steamMetadataDao.getByAppId(steamAppId)?.gfnGameId
-            toUpsert += LaunchTarget(
-                hostGameKey = game.romPath,
-                provider    = ProviderId.GEFORCE_NOW,
-                externalId  = gfnId ?: steamAppId,
-                source      = "STEAM",
-                displayName = "Play on GeForce NOW",
-                launchData  = if (gfnId != null) {
-                    val assetId = SteamMetadataSync.GFN_ASSET_IDS[gfnId]
-                    if (assetId != null)
-                        """{"gfnGameId":"$gfnId","gfnAssetId":"$assetId","steamAppId":"$steamAppId"}"""
+            val canonicalUrl = SteamMetadataSync.GFN_VERIFIED[steamAppId]
+            val gfnId = canonicalUrl?.let { Regex("game-id=([^&]+)").find(it)?.groupValues?.get(1) }
+
+            // Check if existing GFN target needs upgrading to canonical URL
+            val currentGfnTargets = launchTargetRepository.getTargetsForGameOnce(game.romPath)
+                .filter { it.provider == ProviderId.GEFORCE_NOW }
+            val alreadyHasCanonical = currentGfnTargets.any { it.launchData.contains("canonicalGfnUrl") }
+
+            if (currentGfnTargets.isEmpty() || (!alreadyHasCanonical && canonicalUrl != null)) {
+                toUpsert += LaunchTarget(
+                    id          = currentGfnTargets.firstOrNull()?.id ?: 0L,
+                    hostGameKey = game.romPath,
+                    provider    = ProviderId.GEFORCE_NOW,
+                    externalId  = gfnId ?: steamAppId,
+                    source      = "STEAM",
+                    displayName = if (canonicalUrl != null) "GeForce NOW" else "GeForce NOW (library)",
+                    launchData  = if (canonicalUrl != null)
+                        """{"canonicalGfnUrl":"${canonicalUrl.replace("\"","\\\"")}","steamAppId":"$steamAppId"}"""
                     else
-                        """{"gfnGameId":"$gfnId","steamAppId":"$steamAppId"}"""
-                } else
-                    """{"steamAppId":"$steamAppId"}""",
-                isPreferred = toUpsert.isEmpty() // Preferred only if nothing else available
-            )
+                        """{"steamAppId":"$steamAppId"}""",
+                    isPreferred = currentGfnTargets.firstOrNull()?.isPreferred ?: toUpsert.isEmpty()
+                )
+            }
         }
 
         if (toUpsert.isNotEmpty()) {
