@@ -41,6 +41,7 @@ data class EmulatorDefinition(
     val packageCandidates: List<String>,
     val launchActivity: String? = null,
     val launchAction: String? = null,
+    val launchCategory: String? = null,  // e.g. Intent.CATEGORY_LEANBACK_LAUNCHER for Dolphin
     val romIntentKey: String? = null,
     val romIntentType: RomIntentType,
     val requiresSafUriGrant: Boolean = false,

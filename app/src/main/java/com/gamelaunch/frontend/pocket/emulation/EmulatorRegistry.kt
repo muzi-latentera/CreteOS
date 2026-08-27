@@ -58,7 +58,8 @@ object EmulatorRegistry {
 
         // ============================================================
         // DOLPHIN — GameCube / Wii
-        // STATUS: VERIFIED — org.dolphinemu.dolphinemu v2603a; AppLinkActivity has VIEW+MAIN filter
+        // STATUS: VERIFIED from ES-DE Android definitions + APK manifest dumpsys
+        // ES-DE uses: TvMainActivity, MAIN + LEANBACK_LAUNCHER, extra AutoStartFile = content URI
         // ============================================================
         EmulatorDefinition(
             id = "DOLPHIN",
@@ -70,15 +71,16 @@ object EmulatorRegistry {
             packageCandidates = listOf(
                 "org.dolphinemu.dolphinemu"
             ),
-            launchActivity = ".activities.AppLinkActivity", // VERIFIED: use VIEW action with file:// URI (not filePaths extra)
-            launchAction = null,
-            romIntentKey = "filePaths", // ASSUMED — verify against installed APK
-            romIntentType = RomIntentType.CONTENT_URI, // VERIFIED: VIEW with file:// URI works (filePaths extra breaks on special chars)
-            requiresSafUriGrant = false,
+            launchActivity = ".ui.main.TvMainActivity", // VERIFIED: ES-DE uses TvMainActivity not AppLinkActivity
+            launchAction = "android.intent.action.MAIN", // VERIFIED
+            launchCategory = "android.intent.category.LEANBACK_LAUNCHER", // VERIFIED
+            romIntentKey = "AutoStartFile", // VERIFIED: ES-DE es_find_rules.xml
+            romIntentType = RomIntentType.CONTENT_URI, // Content URI via FileProvider, FLAG_GRANT_READ_URI_PERMISSION
+            requiresSafUriGrant = true, // MUST grant read permission
             supportsCustomDriver = false,
             experimental = false,
             exportMethod = "Memory card files in Dolphin/GC/<region>/ and Dolphin/Wii/",
-            notes = "Uses ArrayList<String> for filePaths extra"
+            notes = "AutoStartFile must be a content:// URI. CreteOS grants FLAG_GRANT_READ_URI_PERMISSION."
         ),
 
         // ============================================================
@@ -332,21 +334,16 @@ object EmulatorRegistry {
             setPackage(installedPackage)
 
             // Set action
-            if (def.launchAction != null) {
-                action = def.launchAction
-            } else {
-                action = Intent.ACTION_MAIN
-            }
+            action = def.launchAction ?: Intent.ACTION_MAIN
 
             // Set component if specific activity is defined
             if (def.launchActivity != null) {
                 setClassName(installedPackage, "$installedPackage${def.launchActivity}")
             }
 
-            // Add category for MAIN action
-            if (action == Intent.ACTION_MAIN) {
-                addCategory(Intent.CATEGORY_LAUNCHER)
-            }
+            // Add category
+            val category = def.launchCategory ?: if (action == Intent.ACTION_MAIN) Intent.CATEGORY_LAUNCHER else Intent.CATEGORY_DEFAULT
+            addCategory(category)
 
             // Handle ROM path based on intent type
             when (def.romIntentType) {
@@ -365,9 +362,18 @@ object EmulatorRegistry {
                             file
                         )
                     } catch (e: Exception) {
+                        android.util.Log.w("EmulatorRegistry", "FileProvider failed, using file URI: ${e.message}")
                         Uri.fromFile(file)
                     }
-                    setDataAndType(uri, getMimeType(romPath))
+
+                    if (def.romIntentKey != null) {
+                        // Put URI as an extra (e.g. Dolphin's "AutoStartFile")
+                        putExtra(def.romIntentKey, uri.toString())
+                    } else {
+                        // Set as intent data
+                        setDataAndType(uri, getMimeType(romPath))
+                    }
+
                     if (def.requiresSafUriGrant) {
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
@@ -385,7 +391,7 @@ object EmulatorRegistry {
                 }
             }
 
-            // Add any extra keys (caller should handle dynamic ones like LIBRETRO)
+            // Add any extra keys
             def.extraKeys.forEach { (key, value) ->
                 putExtra(key, value)
             }
