@@ -1560,3 +1560,4 @@ private fun ColumnScope.SettingsPanelAction(label: String, icon: ImageVector, on
     Box(Modifier.fillMaxWidth().height(0.5.dp).background(Color(0x20FFFFFF)))
 }
 
+}
