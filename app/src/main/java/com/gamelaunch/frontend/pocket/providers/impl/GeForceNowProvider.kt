@@ -52,32 +52,31 @@ class GeForceNowProvider @Inject constructor(
 
     override suspend fun launch(target: LaunchTarget, launchContext: LaunchContext): Result<Unit> {
         val data = runCatching { JSONObject(target.launchData) }.getOrElse { JSONObject() }
-        val gfnGameId   = data.optString("gfnGameId").ifBlank { null }
-        val steamAppId  = data.optString("steamAppId").ifBlank { null }
+        val gfnGameId = data.optString("gfnGameId").ifBlank { null }
 
         return runCatching {
-            when {
-                gfnGameId != null -> {
-                    // Use the officially documented GFN deep link format
-                    // autoVerify=true in GFN manifest means this opens GFN app directly
-                    val deepLink = "$GFN_DEEP_LINK_BASE$gfnGameId" +
-                        "&utm_source=creteos&utm_campaign=launcher"
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(deepLink)).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        // Don't force setPackage — let Android App Link resolution handle it
-                        // GFN has autoVerify=true so it should claim play.geforcenow.com
-                    }
-                    context.startActivity(intent)
-                    Log.d(TAG, "Launched GFN via deep link: $deepLink")
+            if (gfnGameId != null) {
+                // Force-stop GFN first so the deeplink cold-starts to the game page
+                // (if GFN is already running, SINGLE_TASK reuse may not trigger navigation)
+                try {
+                    val am = context.getSystemService(android.app.ActivityManager::class.java)
+                    // We can't kill another app directly, but we can use the FLAG_ACTIVITY_CLEAR_TASK flag
+                } catch (_: Exception) {}
+
+                val deepLink = "$GFN_DEEP_LINK_BASE$gfnGameId" +
+                    "&utm_source=creteos&utm_campaign=launcher"
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(deepLink)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)  // clears existing GFN task
                 }
-                else -> {
-                    // No GFN UUID — open GFN library directly
-                    val launch = context.packageManager.getLaunchIntentForPackage(PACKAGE)
-                        ?: throw IllegalStateException("GeForce NOW is not installed")
-                    launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    context.startActivity(launch)
-                    Log.d(TAG, "Opened GFN library (no game UUID for ${target.displayName})")
-                }
+                context.startActivity(intent)
+                Log.d(TAG, "Launched GFN via deep link: $deepLink")
+            } else {
+                val launch = context.packageManager.getLaunchIntentForPackage(PACKAGE)
+                    ?: throw IllegalStateException("GeForce NOW is not installed")
+                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(launch)
+                Log.d(TAG, "Opened GFN library (no game UUID)")
             }
         }
     }
