@@ -953,7 +953,6 @@ private fun GameRail(
 enum class LibraryFilter(val label: String) {
     ALL("All Games"),
     LOCAL("Local"),
-    LOCAL("Local"),
     OWNED("Owned"),
     STREAMING("Streaming"),
     CLOUD("Cloud"),
