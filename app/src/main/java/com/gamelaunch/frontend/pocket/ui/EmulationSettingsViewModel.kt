@@ -45,6 +45,15 @@ class EmulationSettingsViewModel @Inject constructor(
     }
 
     /**
+     * Scan ROMs from the default CreteOS emulation path (no SAF picker needed
+     * when using the standard /CreteOS/Emulation/ROMs/ folder).
+     */
+    fun scanRoms() {
+        val defaultPath = "/storage/emulated/0/CreteOS/Emulation/ROMs"
+        scanRoms(android.net.Uri.parse("file://$defaultPath"))
+    }
+
+    /**
      * Scan ROMs from the given SAF tree URI and seed them into the database.
      * Then triggers IGDB metadata sync for each new game.
      */
