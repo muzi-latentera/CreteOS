@@ -655,7 +655,11 @@ private fun HeroTile(
                 ProfileRow(
                     label = "Last played",
                     value = formatLastPlayed(
-                        steamMeta?.lastPlayedMs ?: game.lastPlayedMs
+                        // Use the most recent timestamp: eOr records CreteOS launches,
+                        // Steam records last played on PC. Show whichever is newer.
+                        listOfNotNull(steamMeta?.lastPlayedMs, game.lastPlayedMs)
+                            .filter { it > 0 }
+                            .maxOrNull()
                     )
                 )
             }
