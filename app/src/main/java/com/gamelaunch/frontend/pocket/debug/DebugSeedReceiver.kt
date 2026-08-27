@@ -35,7 +35,9 @@ class DebugSeedReceiver : BroadcastReceiver() {
         val appId = intent.getStringExtra("appId") ?: run {
             Log.e(TAG, "Missing appId extra"); return
         }
-        val title          = intent.getStringExtra("title") ?: "Game $appId"
+        val rawTitle       = intent.getStringExtra("title") ?: "Game $appId"
+        // URL-decode if encoded (allows colons, apostrophes etc to survive adb --es)
+        val title          = try { java.net.URLDecoder.decode(rawTitle, "UTF-8") } catch (_: Exception) { rawTitle }
         val source         = intent.getStringExtra("source") ?: "STEAM"
         val hostKey        = if (source == "STEAM") "steam:$appId" else "steam:$source:$appId"
         val playtimeMins   = intent.getLongExtra("playtimeMinutes", 0L)
