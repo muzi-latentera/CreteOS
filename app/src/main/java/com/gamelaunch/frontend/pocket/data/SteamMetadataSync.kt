@@ -59,6 +59,13 @@ class SteamMetadataSync @Inject constructor(
             "1903340" to "https://play.geforcenow.com/games?game-id=037a263a-adbf-4705-8509-76447080de75&lang=en_GB&asset-id=01_fba9542a-ad36-4ee4-a48b-96067a9ff491",  // Clair Obscur ✓
             "1091500" to "https://play.geforcenow.com/games?game-id=e5fc8a96-2cda-49ef-bd13-513bdc68045b&lang=en_GB&asset-id=01_742eeb39-c372-4b14-b0ff-2b2e8f02ee97",  // Cyberpunk 2077 ✓ (UUID proven: Elden Ring accidentally launched this)
             "cp2077_gog" to "https://play.geforcenow.com/games?game-id=e5fc8a96-2cda-49ef-bd13-513bdc68045b&lang=en_GB&asset-id=01_742eeb39-c372-4b14-b0ff-2b2e8f02ee97",  // Cyberpunk 2077 GOG alias
+            // Non-Steam aliases (GOG/GamePass/Ubisoft — GFN doesn't care which store, opens game page then user selects their version)
+            "bg3_gog"       to "https://play.geforcenow.com/games?game-id=095ad0c3-2167-45f1-aa80-1eceacbdeebb&lang=en_GB&asset-id=01_a81c5653-1d0c-44fc-a6ea-3a3a290d4036",  // Baldur's Gate 3 (GOG)
+            "swo_gp"        to "https://play.geforcenow.com/games?game-id=5e99f1b6-6db5-404e-bd80-f9d5c86b64d5&lang=en_GB&asset-id=01_a15ad360-1b1f-4fb6-9be7-50f7e7db526b",  // Star Wars Outlaws (GamePass)
+            "indyjones_gp"  to "https://play.geforcenow.com/games?game-id=3d6f95b6-0aae-432f-ab4a-c31a01dc5de6&lang=en_GB&asset-id=01_27843f55-52e1-4a74-80ce-eb637ab5c406",  // Indiana Jones (GamePass)
+            "dis2_gp"       to "https://play.geforcenow.com/games?game-id=62dc8b5b-74a8-4172-9e78-d08f126813a9&lang=en_GB&asset-id=01_3833bbd1-9655-4ad9-8527-caea5c9e4777",  // Dishonored 2 (GamePass)
+            "fh6_gp"        to "https://play.geforcenow.com/games?game-id=326bf7cb-4bfc-4c8b-bfcb-4fdcafb4ef62&lang=en_GB&asset-id=01_7b3a959a-38b7-4ac8-b592-5ad73801f3a5",  // Forza Horizon 6 (GamePass)
+            "bf6_ea"        to "https://play.geforcenow.com/games?game-id=cb4e2225-1c30-456b-ac8e-1424f3218329&lang=en_GB&asset-id=01_8f7b8453-2ee0-4651-aab2-06c359a84a88",  // Battlefield 6 (EA)
             "2138710" to "https://play.geforcenow.com/games?game-id=ea68304b-9448-4002-a00e-3b816721bf1c&lang=en_GB&asset-id=01_5453e247-4a92-46f2-815b-3e7a8cad2f18",  // Sifu ✓ — AppID 2138710 (NOT 2767120 which is a DLC)
             "1771300" to "https://play.geforcenow.com/games?game-id=8a9b10a6-b8f4-46f3-a479-e480c304d78c&lang=en_GB&asset-id=01_21338a23-06ed-44eb-b493-366a33b5bb9e",  // Kingdom Come: Deliverance II ✓ (Steam AppID 1771300 confirmed)
             // ── NOT verified — open GFN library for these until confirmed ────────────────
