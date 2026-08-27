@@ -11,8 +11,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combineimport kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class LibraryUiState(
@@ -51,10 +50,4 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
-    fun refreshLocalIds() {
-        viewModelScope.launch {
-            val localIds = steamMetadataDao.getLocalAppIds().toSet()
-            _uiState.update { it.copy(localAppIds = localIds) }
-        }
-    }
 }
