@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.gamelaunch.frontend.pocket.data.db.PocketDatabase
+import com.gamelaunch.frontend.pocket.data.IgdbSeedData
 import com.gamelaunch.frontend.pocket.data.db.entity.LaunchTargetEntity
 import com.gamelaunch.frontend.pocket.providers.ProviderId
 import kotlinx.coroutines.CoroutineScope
@@ -103,27 +104,33 @@ class DebugSeedReceiver : BroadcastReceiver() {
                     )
                     Log.i(TAG, "eOr DB: inserted game rowId=$rowId for '$title' (romPath=$hostKey)")
 
-                    // 3. Insert Steam CDN artwork into game_media table
-                    // Try portrait (library_600x900) as box art; hero (library_hero) as background
-                    // Both are stored — Coil will load whichever succeeds at display time
-                    if (source == "STEAM" && rowId > 0) {
-                        val boxArtUrl  = "https://cdn.akamai.steamstatic.com/steam/apps/$appId/library_600x900.jpg"
-                        val heroUrl    = "https://cdn.akamai.steamstatic.com/steam/apps/$appId/library_hero.jpg"
-                        val capsuleUrl = "https://cdn.akamai.steamstatic.com/steam/apps/$appId/capsule_616x353.jpg"
+                    // 3. Insert artwork into game_media table
+                    if (rowId > 0) {
                         val mediaValues = android.content.ContentValues().apply {
                             put("game_id", rowId)
-                            // box_art_remote: portrait preferred, hero as fallback stored in wheel_logo_remote
-                            put("box_art_remote", boxArtUrl)
-                            put("wheel_logo_remote", heroUrl)   // repurposed as portrait fallback
-                            // screenshot_remote → effectiveBackground (hero for detail screen)
-                            put("screenshot_remote", heroUrl)
                             put("scraper_timestamp_ms", now)
                         }
+
+                        if (source == "STEAM") {
+                            // Steam CDN URLs — portrait + hero
+                            val boxArtUrl  = "https://cdn.akamai.steamstatic.com/steam/apps/$appId/library_600x900.jpg"
+                            val heroUrl    = "https://cdn.akamai.steamstatic.com/steam/apps/$appId/library_hero.jpg"
+                            mediaValues.put("box_art_remote", boxArtUrl)
+                            mediaValues.put("wheel_logo_remote", heroUrl)
+                            mediaValues.put("screenshot_remote", heroUrl)
+                        } else {
+                            // Non-Steam: use IGDB cover + hero from seed data
+                            val coverUrl = IgdbSeedData.coverUrlFor(appId)
+                            val heroUrl  = IgdbSeedData.heroUrlFor(appId)
+                            if (coverUrl != null) mediaValues.put("box_art_remote", coverUrl)
+                            if (heroUrl  != null) mediaValues.put("screenshot_remote", heroUrl)
+                        }
+
                         eorDb.insertWithOnConflict(
                             "game_media", null, mediaValues,
                             android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE
                         )
-                        Log.i(TAG, "eOr DB: inserted artwork for '$title' — cover=$boxArtUrl hero=$heroUrl")
+                        Log.i(TAG, "eOr DB: inserted artwork for '$title'")
                     }
                     eorDb.close()
                 } else {
