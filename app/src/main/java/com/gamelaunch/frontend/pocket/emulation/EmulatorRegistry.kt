@@ -73,10 +73,10 @@ object EmulatorRegistry {
             packageCandidates = listOf(
                 "org.dolphinemu.dolphinemu"
             ),
-            launchActivity = ".activities.AppLinkActivity", // VERIFIED: AppLinkActivity has VIEW+MAIN filter
+            launchActivity = ".activities.AppLinkActivity", // VERIFIED: use VIEW action with file:// URI (not filePaths extra)
             launchAction = null,
             romIntentKey = "filePaths", // ASSUMED — verify against installed APK
-            romIntentType = RomIntentType.FILE_ARRAY_LIST,
+            romIntentType = RomIntentType.CONTENT_URI, // VERIFIED: VIEW with file:// URI works (filePaths extra breaks on special chars)
             requiresSafUriGrant = false,
             supportsCustomDriver = false,
             experimental = false,
