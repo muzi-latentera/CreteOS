@@ -207,6 +207,7 @@ class PocketGameDetailViewModel @Inject constructor(
             publisher             = entry.publisher,
             summary               = entry.summary,
             coverUrl              = entry.coverUrl,
+            heroUrl               = entry.heroUrl,
         )
     }
 

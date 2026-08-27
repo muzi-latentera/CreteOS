@@ -188,6 +188,7 @@ class IgdbMetadataSync @Inject constructor(
         publisher: String?,
         summary: String?,
         coverUrl: String? = null,
+        heroUrl: String? = null,
     ): Unit = withContext(Dispatchers.IO) {
         if (mainSeconds > 0 || plusSeconds > 0) {
             hltbCacheDao.upsert(HltbCacheEntity(
@@ -206,6 +207,7 @@ class IgdbMetadataSync @Inject constructor(
                 publisher    = publisher ?: existing.publisher,
                 description  = summary   ?: existing.description,
                 igdbCoverUrl = coverUrl  ?: existing.igdbCoverUrl,
+                igdbHeroUrl  = heroUrl   ?: existing.igdbHeroUrl,
                 updatedAtMs  = System.currentTimeMillis()
             ))
         }

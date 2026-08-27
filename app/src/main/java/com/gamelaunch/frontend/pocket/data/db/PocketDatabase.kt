@@ -42,7 +42,7 @@ import com.gamelaunch.frontend.pocket.data.db.entity.ManualGameLinkEntity
         SteamMetadataEntity::class,
         GameSessionEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class PocketDatabase : RoomDatabase() {
@@ -142,9 +142,15 @@ abstract class PocketDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE steam_metadata ADD COLUMN igdb_hero_url TEXT")
+            }
+        }
+
         fun create(context: Context): PocketDatabase =
             Room.databaseBuilder(context, PocketDatabase::class.java, DATABASE_NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
     }
 }
