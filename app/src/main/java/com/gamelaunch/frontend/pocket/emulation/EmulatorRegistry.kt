@@ -45,7 +45,7 @@ object EmulatorRegistry {
                 "com.retroarch.aarch64",  // 64-bit preferred
                 "com.retroarch"           // 32-bit fallback
             ),
-            launchActivity = ".browser.mainmenu.MainMenuActivity" // VERIFIED from dumpsys, // ASSUMED — verify against installed APK
+            launchActivity = ".browser.mainmenu.MainMenuActivity", // VERIFIED from dumpsys (was RetroActivityFuture)
             launchAction = null,
             romIntentKey = "ROM", // ASSUMED — verify against installed APK
             romIntentType = RomIntentType.FILE_PATH,
