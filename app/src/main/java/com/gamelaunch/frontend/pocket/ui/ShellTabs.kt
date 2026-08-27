@@ -986,7 +986,10 @@ fun LibraryTabContent(
         }
         when (activeFilter) {
             LibraryFilter.ALL      -> base
-            LibraryFilter.LOCAL    -> emptyList()
+            LibraryFilter.LOCAL    -> base.filter {
+                val appId = it.romPath.substringAfterLast(":")
+                appId in state.localAppIds
+            }
             LibraryFilter.OWNED    -> base.filter { it.platformId in setOf("steam", "gog", "epic", "ea", "gamepass", "xbox", "ubisoft", "amazon") }
             LibraryFilter.STREAMING -> base.filter { it.platformId == "moonlight" }
             LibraryFilter.CLOUD    -> base.filter { it.platformId == "gfn" }
