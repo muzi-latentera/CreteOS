@@ -36,18 +36,25 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch {
             combine(
                 gameRepository.getAllGames(),
-                mediaRepository.observeAllMedia()
-            ) { games, mediaMap ->
-                val localIds = steamMetadataDao.getLocalAppIds().toSet()
+                mediaRepository.observeAllMedia(),
+                steamMetadataDao.observeLocalAppIds()
+            ) { games, mediaMap, localIds ->
                 LibraryUiState(
                     games         = games,
                     mediaForGames = mediaMap,
                     isLoading     = false,
-                    localAppIds   = localIds
+                    localAppIds   = localIds.toSet()
                 )
             }.collectLatest { state ->
                 _uiState.value = state
             }
+        }
+    }
+
+    fun refreshLocalIds() {
+        viewModelScope.launch {
+            val localIds = steamMetadataDao.getLocalAppIds().toSet()
+            _uiState.update { it.copy(localAppIds = localIds) }
         }
     }
 }
