@@ -105,6 +105,9 @@ interface SteamMetadataDao {
 
     @Query("SELECT steam_app_id FROM steam_metadata WHERE is_local = 1")
     suspend fun getLocalAppIds(): List<String>
+
+    @Query("SELECT steam_app_id FROM steam_metadata WHERE is_local = 1")
+    fun observeLocalAppIds(): kotlinx.coroutines.flow.Flow<List<String>>
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
