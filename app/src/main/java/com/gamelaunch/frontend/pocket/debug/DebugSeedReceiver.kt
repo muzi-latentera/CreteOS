@@ -169,7 +169,6 @@ class DebugSeedReceiver : BroadcastReceiver() {
                 Log.e(TAG, "Seed failed: ${e.message}", e)
             }
         }
-    }
 
         // Handle SEED_ROM action — insert/update a ROM game with a clean title
         if (intent.action == ACTION_SEED_ROM) {
@@ -201,6 +200,8 @@ class DebugSeedReceiver : BroadcastReceiver() {
             return
         }
     }
+
+    companion object {
         const val ACTION        = "io.latent.creteos.SEED_GAME"
         const val ACTION_DELETE   = "io.latent.creteos.DELETE_GAME"
         const val ACTION_SEED_ROM = "io.latent.creteos.SEED_ROM"
