@@ -367,8 +367,9 @@ object EmulatorRegistry {
                     }
 
                     if (def.romIntentKey != null) {
-                        // Put URI as an extra (e.g. Dolphin's "AutoStartFile")
-                        putExtra(def.romIntentKey, uri.toString())
+                        // Pass as a Uri parcelable extra (e.g. Dolphin's "AutoStartFile")
+                        // NOT as a string — emulators resolve it as a Uri, not a filesystem path
+                        putExtra(def.romIntentKey, uri)
                     } else {
                         // Set as intent data
                         setDataAndType(uri, getMimeType(romPath))
