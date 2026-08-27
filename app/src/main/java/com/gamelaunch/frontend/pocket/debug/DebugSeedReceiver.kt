@@ -36,18 +36,22 @@ class DebugSeedReceiver : BroadcastReceiver() {
         if (intent.action == ACTION_DELETE) {
             val appId = intent.getStringExtra("appId") ?: return
             val source = intent.getStringExtra("source") ?: "STEAM"
+            val rawTitle = intent.getStringExtra("title")
+            val title = rawTitle?.let { try { java.net.URLDecoder.decode(it, "UTF-8") } catch (_: Exception) { it } }
             val hostKey = if (source == "STEAM") "steam:$appId" else "steam:$source:$appId"
             CoroutineScope(Dispatchers.IO).launch {
-                // Delete from eOr DB
                 val eorDbFile = context.getDatabasePath("gamelauncher.db")
                 if (eorDbFile.exists()) {
                     val db = android.database.sqlite.SQLiteDatabase.openDatabase(
                         eorDbFile.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READWRITE)
-                    val rows = db.delete("games", "rom_path = ?", arrayOf(hostKey))
+                    // Try romPath match first
+                    var rows = db.delete("games", "rom_path = ?", arrayOf(hostKey))
+                    // Also try alternate romPath formats
+                    if (rows == 0) rows += db.delete("games", "rom_path LIKE ?", arrayOf("steam:%:$appId"))
+                    if (rows == 0 && title != null) rows += db.delete("games", "title = ?", arrayOf(title))
                     db.close()
-                    Log.i(TAG, "Deleted $rows game(s) with romPath=$hostKey")
+                    Log.i(TAG, "Deleted $rows game(s) with romPath=$hostKey title=$title")
                 }
-                // Delete from PocketDatabase
                 val pocketDb = PocketDatabase.create(context)
                 pocketDb.launchTargetDao().getTargetsForGameOnce(hostKey).forEach {
                     pocketDb.launchTargetDao().delete(it.id)
