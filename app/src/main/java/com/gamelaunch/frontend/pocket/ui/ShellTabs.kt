@@ -166,7 +166,6 @@ fun V1GameCard(
     fallbackUrl: String? = null,
     title: String,
     platformId: String,
-    isLocal: Boolean = false,
     focused: Boolean,
     width: Dp = 152.dp,
     height: Dp = 203.dp,
@@ -292,27 +291,6 @@ fun V1GameCard(
             // Artwork card: small platform pill bottom-left
             Box(modifier = Modifier.align(Alignment.BottomStart).padding(8.dp)) {
                 PlatformPill(platformId = platformId, label = platformLabel)
-            }
-        }
-
-        // LOCAL pill — top-right corner when game is installed locally via GameNative
-        if (isLocal) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFF2D6A3F).copy(alpha = 0.90f))
-                    .padding(horizontal = 5.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = "LOCAL",
-                    fontSize = 8.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
-                )
             }
         }
     }
@@ -957,7 +935,6 @@ private fun GameRail(
                     ),
                     title = game.title,
                     platformId = game.platformId,
-                    isLocal = game.platformId.lowercase() == "steam",  // GameNative check done in parent
                     focused = index == focusedIndex,
                     onClick = {
                         onFocusChange(index)
@@ -975,6 +952,7 @@ private fun GameRail(
 
 enum class LibraryFilter(val label: String) {
     ALL("All Games"),
+    LOCAL("Local"),
     OWNED("Owned"),
     STREAMING("Streaming"),
     CLOUD("Cloud"),
@@ -995,6 +973,17 @@ fun LibraryTabContent(
     var focusedGameId by remember { mutableStateOf<Long?>(null) }
     var showSources by remember { mutableStateOf(false) }
 
+    // Load GAME_NATIVE host keys from PocketDatabase for LOCAL filter
+    val context = LocalContext.current
+    val localGameKeys by produceState<Set<String>>(emptySet()) {
+        value = try {
+            val db = com.gamelaunch.frontend.pocket.data.db.PocketDatabase.create(context)
+            db.launchTargetDao().getTargetsForProvider(
+                com.gamelaunch.frontend.pocket.providers.ProviderId.GAME_NATIVE.name
+            ).map { it.hostGameKey }.toSet()
+        } catch (_: Exception) { emptySet() }
+    }
+
     val providerPackages = setOf(
         "com.nvidia.geforcenow", "com.limelight", "com.nytimes.crossword",
         "app.gamenative", "gamehub.lite"
@@ -1008,6 +997,7 @@ fun LibraryTabContent(
         }
         when (activeFilter) {
             LibraryFilter.ALL      -> base
+            LibraryFilter.LOCAL    -> base.filter { it.romPath in localGameKeys }
             LibraryFilter.OWNED    -> base.filter { it.platformId in setOf("steam", "gog", "epic", "ea", "gamepass", "xbox", "ubisoft", "amazon") }
             LibraryFilter.STREAMING -> base.filter { it.platformId == "moonlight" }
             LibraryFilter.CLOUD    -> base.filter { it.platformId == "gfn" }
@@ -1119,7 +1109,6 @@ fun LibraryTabContent(
         // Sources view or game grid
         val context = LocalContext.current
         // Check once if GameNative is installed — all Steam games can run locally if it is
-        val gameNativeInstalled = remember {
             runCatching { context.packageManager.getPackageInfo("app.gamenative", 0); true }.getOrDefault(false)
         }
 
@@ -1168,7 +1157,6 @@ fun LibraryTabContent(
                         ),
                         title = game.title,
                         platformId = game.platformId,
-                        isLocal = gameNativeInstalled && game.platformId.lowercase() == "steam",
                         focused = game.id == focusedGameId,
                         width = 152.dp,
                         height = 203.dp,
