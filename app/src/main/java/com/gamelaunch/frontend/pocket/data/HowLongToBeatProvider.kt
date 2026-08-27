@@ -80,6 +80,15 @@ class HowLongToBeatProvider @Inject constructor(
      * Get HLTB times for a Steam game.
      * Returns cached result if fresh, otherwise fetches from HLTB.
      */
+    /** Returns cached TTB times if they exist and haven't expired, null otherwise. */
+    suspend fun getCached(steamAppId: String): HltbTimes? = withContext(Dispatchers.IO) {
+        val cached = hltbCacheDao.getByAppId(steamAppId) ?: return@withContext null
+        if (System.currentTimeMillis() - cached.cachedAtMs > CACHE_TTL_MS) return@withContext null
+        val times = cached.toHltbTimes()
+        if (times.mainStoryHours == null && times.mainExtraHours == null) return@withContext null
+        times
+    }
+
     suspend fun getTimes(steamAppId: String, gameTitle: String): HltbTimes =
         withContext(Dispatchers.IO) {
             // Check cache first

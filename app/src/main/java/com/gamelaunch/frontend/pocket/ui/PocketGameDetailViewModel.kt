@@ -9,6 +9,8 @@ import com.gamelaunch.frontend.pocket.data.GameSessionDao
 import com.gamelaunch.frontend.pocket.data.GameSessionEntity
 import com.gamelaunch.frontend.pocket.data.HltbTimes
 import com.gamelaunch.frontend.pocket.data.HowLongToBeatProvider
+import com.gamelaunch.frontend.pocket.data.IgdbMetadataSync
+import com.gamelaunch.frontend.pocket.data.IgdbSeedData
 import com.gamelaunch.frontend.pocket.data.SteamMetadataDao
 import com.gamelaunch.frontend.pocket.data.SteamMetadataEntity
 import com.gamelaunch.frontend.pocket.data.SteamMetadataSync
@@ -50,7 +52,8 @@ class PocketGameDetailViewModel @Inject constructor(
     private val hltbProvider: HowLongToBeatProvider,
     private val steamMetadataDao: SteamMetadataDao,
     private val steamMetadataSync: SteamMetadataSync,
-    private val gameSessionDao: GameSessionDao
+    private val gameSessionDao: GameSessionDao,
+    private val igdbSync: IgdbMetadataSync,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PocketLaunchUiState())
@@ -93,12 +96,21 @@ class PocketGameDetailViewModel @Inject constructor(
                     _uiState.update { it.copy(steamMetadata = steamMetadataDao.getByAppId(appId)) }
                 }
 
-                // HLTB
+                // TTB via IGDB (replaces HLTB direct call)
                 viewModelScope.launch {
                     _uiState.update { it.copy(hltbLoading = true) }
-                    val times = try { hltbProvider.getTimes(appId, game.title) }
-                                catch (_: Exception) { HltbTimes.EMPTY }
-                    _uiState.update { it.copy(hltbTimes = times, hltbLoading = false) }
+                    // Seed pre-fetched data first (instant)
+                    seedIgdbData(appId, game.title)
+                    // Then check cache
+                    val cached = hltbProvider.getCached(appId)
+                    if (cached != null) {
+                        _uiState.update { it.copy(hltbTimes = cached, hltbLoading = false) }
+                    } else {
+                        // Not in seed data — try live IGDB fetch
+                        igdbSync.syncGame(appId, game.title)
+                        val fresh = hltbProvider.getCached(appId) ?: HltbTimes.EMPTY
+                        _uiState.update { it.copy(hltbTimes = fresh, hltbLoading = false) }
+                    }
                 }
             }
         }
@@ -166,6 +178,20 @@ class PocketGameDetailViewModel @Inject constructor(
         if (toUpsert.isNotEmpty()) {
             launchTargetRepository.upsertTargets(toUpsert)
         }
+    }
+
+    private suspend fun seedIgdbData(steamAppId: String, gameTitle: String) {
+        val entry = IgdbSeedData.entries.find { it.steamAppId == steamAppId } ?: return
+        igdbSync.seedPreFetchedData(
+            steamAppId            = entry.steamAppId,
+            gameTitle             = gameTitle,
+            mainSeconds           = entry.mainSec,
+            plusSeconds           = entry.plusSec,
+            completionistSeconds  = entry.compSec,
+            developer             = entry.developer,
+            publisher             = entry.publisher,
+            summary               = entry.summary,
+        )
     }
 
     fun showPlayUsing() = _uiState.update { it.copy(showPlayUsing = true) }
