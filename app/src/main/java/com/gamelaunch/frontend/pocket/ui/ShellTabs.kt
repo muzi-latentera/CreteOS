@@ -217,21 +217,23 @@ fun V1GameCard(
                 onClick = onClick
             )
     ) {
-        // Background — artwork or gradient
+        // Background — layered artwork:
+        // Layer 1: IGDB cover (always loads if available)
+        // Layer 2: Steam portrait art on top (may 404 on some games — Coil shows nothing, layer 1 shows through)
         val effectiveUrl = artworkUrl ?: fallbackUrl
         if (effectiveUrl != null) {
-            // Primary URL with IGDB cover as error fallback
+            // Show IGDB cover as base layer first
+            if (fallbackUrl != null && artworkUrl != null) {
+                AsyncImage(
+                    model = fallbackUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            // Then Steam art on top (transparent if 404)
             AsyncImage(
-                model = coil.request.ImageRequest.Builder(LocalContext.current)
-                    .data(effectiveUrl)
-                    .crossfade(true)
-                    .apply {
-                        if (artworkUrl != null && fallbackUrl != null) {
-                            error(coil.request.ImageRequest.Builder(LocalContext.current)
-                                .data(fallbackUrl).build())
-                        }
-                    }
-                    .build(),
+                model = effectiveUrl,
                 contentDescription = title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
