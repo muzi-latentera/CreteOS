@@ -65,6 +65,7 @@ class PocketGameDetailViewModel @Inject constructor(
     val uiState: StateFlow<PocketLaunchUiState> = _uiState
 
     fun loadTargetsForGame(game: Game) {
+        android.util.Log.e("PocketVM", "loadTargetsForGame: id=${game.id} title=${game.title} platformId=${game.platformId} romPath=${game.romPath.take(80)}")
         // Observe targets reactively
         viewModelScope.launch {
             launchTargetRepository.getTargetsForGame(game.romPath).collectLatest { targets ->
@@ -241,6 +242,7 @@ class PocketGameDetailViewModel @Inject constructor(
         val emulationSystemIds = setOf("gc","wii","wiiu","ps1","ps2","ps3","psp","psvita",
             "gba","gb","gbc","nds","n3ds","switch","n64","dreamcast","saturn")
         val isEmulatedGame = game.romPath.startsWith("emu:") || game.platformId in emulationSystemIds
+        android.util.Log.d("AutoProvision", "DIAG platformId=${game.platformId} romPath=${game.romPath.take(60)} isEmulatedGame=$isEmulatedGame")
         if (isEmulatedGame) {
             val system = when {
                 game.romPath.startsWith("emu:") -> {

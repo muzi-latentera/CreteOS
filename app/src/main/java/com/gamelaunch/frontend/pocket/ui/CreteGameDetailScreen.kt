@@ -137,7 +137,18 @@ fun CreteGameDetailScreen(
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (event.key) {
-                    GamepadA, Key.Enter                 -> { viewModel.launchGame(); true }
+                    GamepadA, Key.Enter -> {
+                        // Use pocket preferred target if available (emulators, GFN etc)
+                        // Fall back to eOr's launcher only for plain Steam games
+                        val preferredTarget = pocketState.targets.firstOrNull { it.isPreferred }
+                            ?: pocketState.targets.firstOrNull()
+                        if (preferredTarget != null) {
+                            pocketViewModel.launchWithTarget(game, preferredTarget)
+                        } else {
+                            viewModel.launchGame()
+                        }
+                        true
+                    }
                     GamepadB, Key.Backspace, Key.Escape -> { onBack(); true }
                     else -> false
                 }
