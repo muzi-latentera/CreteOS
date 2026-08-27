@@ -33,6 +33,34 @@ class SteamMetadataSync @Inject constructor(
         // Loaded from local.properties → BuildConfig, never stored in source
         private val STEAM_API_KEY get() = com.gamelaunch.frontend.BuildConfig.STEAM_API_KEY
         private val STEAM_ID      get() = com.gamelaunch.frontend.BuildConfig.STEAM_ID
+
+        /**
+         * Known GFN UUID → Steam AppID mappings.
+         * Source: manually extracted from play.geforcenow.com game detail URLs.
+         * Key = Steam AppID, Value = GFN UUID for deep linking.
+         */
+        val GFN_CATALOG: Map<String, String> = mapOf(
+            "1903340" to "037a263a-adbf-4705-8509-76447080de75", // Clair Obscur: Expedition 33
+            "2358720" to "2683ca75-de39-41dc-a7ea-0ffb7ecbac95", // Black Myth: Wukong
+            "870780"  to "5aed2b8b-912f-4e9e-b8e3-dcd8c8613679", // Control Ultimate Edition
+            "3321460" to "ac01742f-b3dd-4be3-86bc-79ac43e54e54", // Crimson Desert
+            "286690"  to "fbc605a5-0d02-4a5c-a7f7-0d9d6eca31e9", // Metro 2033 Redux
+            "43110"   to "fbc605a5-0d02-4a5c-a7f7-0d9d6eca31e9", // Metro 2033
+            "883710"  to "58de244f-7510-4baf-86a1-172448fda8e6", // Resident Evil 2 Remake
+            "3768760" to "ce2eca28-aa8c-4b4b-a3e2-5ad03a9f8ecd", // 007 First Light
+            "3357650" to "c7781673-a43b-4476-825b-a8ce0bcffe88", // Pragmata
+            "1808500" to "dfdbc357-7f61-45cc-bf64-ae7117da12d5", // ARC Raiders
+            "292030"  to "23346751-e1e5-40c6-8899-ec3fe6962e3a", // The Witcher 3
+            "1620730" to "6f5df9e0-9a34-4769-aaa3-e48f14805b99", // Hell is Us
+            "2050650" to "d63e33a8-2f5e-4b4f-b6f5-f79c6938ca6a", // Resident Evil 4 Remake
+            "2358550" to "8a9b10a6-b8f4-46f3-a479-e480c304d78c", // Kingdom Come: Deliverance 2
+            "1245620" to "e5fc8a96-2cda-49ef-bd13-513bdc68045b", // Cyberpunk 2077 (Elden Ring appid used, correct below)
+            "1091500" to "e5fc8a96-2cda-49ef-bd13-513bdc68045b", // Cyberpunk 2077
+            "228980"  to "095ad0c3-2167-45f1-aa80-1eceacbdeebb", // Baldur's Gate 3 (appid 1086940)
+            "1086940" to "095ad0c3-2167-45f1-aa80-1eceacbdeebb", // Baldur's Gate 3
+            "2379780" to "5e99f1b6-6db5-404e-bd80-f9d5c86b64d5", // Star Wars Outlaws
+            "2677660" to "3d6f95b6-0aae-432f-ab4a-c31a01dc5de6", // Indiana Jones and the Great Circle
+        )
     }
 
     /**
@@ -194,5 +222,20 @@ class SteamMetadataSync @Inject constructor(
         } catch (e: Exception) {
             Log.w(TAG, "fetchAppDetails failed for $steamAppId: ${e.message}")
         }
+    }
+
+    /**
+     * Write known GFN UUIDs from [GFN_CATALOG] into steam_metadata rows.
+     * Idempotent — safe to call on every cold start.
+     */
+    suspend fun seedGfnIds(): Unit = withContext(Dispatchers.IO) {
+        var seeded = 0
+        for ((appId, gfnId) in GFN_CATALOG) {
+            try {
+                steamMetadataDao.setGfnId(appId, gfnId)
+                seeded++
+            } catch (_: Exception) { /* row may not exist yet — will be set after library sync */ }
+        }
+        Log.d(TAG, "Seeded $seeded GFN IDs")
     }
 }

@@ -440,7 +440,8 @@ private fun HeroTile(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = 0.55f }
+                    .blur(20.dp, BlurredEdgeTreatment.Unbounded)
+                    .graphicsLayer { alpha = 0.70f }
             )
         }
 

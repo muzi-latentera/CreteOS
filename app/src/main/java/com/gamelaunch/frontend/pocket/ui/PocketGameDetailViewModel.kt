@@ -78,7 +78,10 @@ class PocketGameDetailViewModel @Inject constructor(
                     val now = System.currentTimeMillis()
                     val staleTtlMs = 7L * 24 * 60 * 60 * 1000  // 7 days
 
-                    if (cached == null) steamMetadataSync.syncLibrary()
+                    if (cached == null) {
+                        steamMetadataSync.syncLibrary()
+                        steamMetadataSync.seedGfnIds()
+                    }
 
                     val needsAchievementSync = cached?.achievementsSyncedAtMs == null ||
                         (now - (cached.achievementsSyncedAtMs ?: 0L)) > staleTtlMs
@@ -116,36 +119,47 @@ class PocketGameDetailViewModel @Inject constructor(
 
         val toUpsert = mutableListOf<LaunchTarget>()
 
+        // Priority 1: GameNative — local PC, best experience
         if (isInstalled("app.gamenative")) {
             toUpsert += LaunchTarget(
                 hostGameKey = game.romPath,
                 provider    = ProviderId.GAME_NATIVE,
                 externalId  = steamAppId,
                 source      = "STEAM",
-                displayName = "GameNative (Local PC)",
-                launchData  = """{"steamAppId":"$steamAppId"}"""
+                displayName = "Play on PC (GameNative)",
+                launchData  = """{"steamAppId":"$steamAppId"}""",
+                isPreferred = true   // Default to local when available
             )
         }
 
-        if (isInstalled("com.nvidia.geforcenow")) {
-            toUpsert += LaunchTarget(
-                hostGameKey = game.romPath,
-                provider    = ProviderId.GEFORCE_NOW,
-                externalId  = steamAppId,
-                source      = "STEAM",
-                displayName = "GeForce NOW (Cloud)",
-                launchData  = """{"steamAppId":"$steamAppId"}"""
-            )
-        }
-
+        // Priority 2: Moonlight — streaming from local PC
         if (isInstalled("com.limelight")) {
             toUpsert += LaunchTarget(
                 hostGameKey = game.romPath,
                 provider    = ProviderId.MOONLIGHT,
                 externalId  = steamAppId,
                 source      = "STEAM",
-                displayName = "Moonlight (Stream)",
-                launchData  = """{"steamAppId":"$steamAppId"}"""
+                displayName = "Stream via Moonlight",
+                launchData  = """{"steamAppId":"$steamAppId"}""",
+                isPreferred = toUpsert.isEmpty() // Preferred only if GameNative not installed
+            )
+        }
+
+        // Priority 3: GeForce NOW — cloud, use real UUID if we have it
+        if (isInstalled("com.nvidia.geforcenow")) {
+            val gfnId = SteamMetadataSync.GFN_CATALOG[steamAppId]
+                ?: steamMetadataDao.getByAppId(steamAppId)?.gfnGameId
+            toUpsert += LaunchTarget(
+                hostGameKey = game.romPath,
+                provider    = ProviderId.GEFORCE_NOW,
+                externalId  = gfnId ?: steamAppId,
+                source      = "STEAM",
+                displayName = "Play on GeForce NOW",
+                launchData  = if (gfnId != null)
+                    """{"gfnGameId":"$gfnId","steamAppId":"$steamAppId"}"""
+                else
+                    """{"steamAppId":"$steamAppId"}""",
+                isPreferred = toUpsert.isEmpty() // Preferred only if nothing else available
             )
         }
 

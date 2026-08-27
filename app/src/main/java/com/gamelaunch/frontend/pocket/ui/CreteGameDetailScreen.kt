@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.*
@@ -38,6 +39,7 @@ import com.gamelaunch.frontend.pocket.data.HltbTimes
 import com.gamelaunch.frontend.pocket.data.achievementPercent
 import com.gamelaunch.frontend.pocket.data.formatAchievements
 import com.gamelaunch.frontend.pocket.data.formatPlaytime
+import com.gamelaunch.frontend.pocket.providers.ProviderId
 import com.gamelaunch.frontend.pocket.ui.design.*
 import com.gamelaunch.frontend.pocket.ui.home.rememberDominantColor
 import com.gamelaunch.frontend.ui.component.platformDisplayName
@@ -238,20 +240,31 @@ fun CreteGameDetailScreen(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Play button — red, prominent, icon only (no A badge)
+                // ── Dropdown Play button (WinHanced style) ────────────────
+                // Primary action launches preferred target; chevron opens provider list
+                val targets = pocketState.targets
+                val preferred = targets.firstOrNull { it.isPreferred } ?: targets.firstOrNull()
+                var showDropdown by remember { mutableStateOf(false) }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(0.dp)
+                ) {
+                    // Primary Play button
                     Row(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
+                            .height(52.dp)
+                            .clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
                             .background(V2RedPlay)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                                 onClick = {
-                                    if (pocketState.targets.size > 1) pocketViewModel.showPlayUsing()
+                                    if (preferred != null) pocketViewModel.launchWithTarget(game, preferred)
                                     else viewModel.launchGame()
                                 }
                             )
-                            .padding(horizontal = 30.dp, vertical = 15.dp),
+                            .padding(horizontal = 28.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -262,13 +275,98 @@ fun CreteGameDetailScreen(
                             modifier = Modifier.size(22.dp)
                         )
                         Text(
-                            "Play",
-                            fontSize = 18.sp,
+                            text = if (preferred != null) preferred.displayName else "Play",
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.6.sp,
-                            color = V2Cream
+                            color = V2Cream,
+                            maxLines = 1
                         )
                     }
+
+                    // Divider
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(52.dp)
+                            .background(Color.White.copy(alpha = 0.25f))
+                    )
+
+                    // Chevron — opens provider dropdown
+                    Box(
+                        modifier = Modifier
+                            .height(52.dp)
+                            .clip(RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp))
+                            .background(V2RedPlay)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { showDropdown = true }
+                            )
+                            .padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.KeyboardArrowDown,
+                            contentDescription = "More options",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+
+                        // Provider dropdown
+                        DropdownMenu(
+                            expanded = showDropdown && targets.size > 1,
+                            onDismissRequest = { showDropdown = false },
+                            modifier = Modifier
+                                .background(Color(0xFF131619))
+                                .border(1.dp, V2Cream.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                        ) {
+                            targets.forEach { target ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // Provider colour dot
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(8.dp)
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(
+                                                        when (target.provider) {
+                                                            ProviderId.GAME_NATIVE -> V2Green
+                                                            ProviderId.MOONLIGHT -> Color(0xFF5B9BD5)
+                                                            ProviderId.GEFORCE_NOW -> Color(0xFF76B900)
+                                                            else -> V2Amber
+                                                        }
+                                                    )
+                                            )
+                                            Text(
+                                                target.displayName,
+                                                color = if (target.isPreferred) V2Cream else V2Dim,
+                                                fontSize = 14.sp,
+                                                fontWeight = if (target.isPreferred) FontWeight.SemiBold else FontWeight.Normal
+                                            )
+                                            if (target.isPreferred) {
+                                                Text(
+                                                    "DEFAULT",
+                                                    fontSize = 9.sp,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    letterSpacing = 1.sp,
+                                                    color = V2Amber.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        showDropdown = false
+                                        pocketViewModel.launchWithTarget(game, target)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
 
                     // Tune performance — outline
                     Box(
