@@ -243,8 +243,19 @@ class PocketGameDetailViewModel @Inject constructor(
             val result = unifiedLaunchCoordinator.launchSpecific(target)
             if (result.isSuccess) {
                 val now = System.currentTimeMillis()
-                // Update eOr's last_played_ms so hero tile "Continue where you stopped" updates
+                // Update eOr's last_played_ms so hero tile updates
                 gameDao.recordPlay(game.id, now)
+                // Also update steam_metadata so detail screen shows current time
+                val appId = game.romPath.substringAfterLast(":")
+                if (appId.isNotBlank()) {
+                    val meta = steamMetadataDao.getByAppId(appId)
+                    if (meta != null) {
+                        steamMetadataDao.upsert(meta.copy(
+                            lastPlayedMs = now,
+                            updatedAtMs  = now
+                        ))
+                    }
+                }
                 // Record CreteOS session
                 gameSessionDao.startSession(
                     GameSessionEntity(

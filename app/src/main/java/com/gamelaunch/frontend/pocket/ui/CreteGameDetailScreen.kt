@@ -479,9 +479,9 @@ fun CreteGameDetailScreen(
 
                 val steam = pocketState.steamMetadata
                 V2InfoRow("Last played",
-                    steam?.lastPlayedMs?.let { formatLastPlayed(it) }
-                        ?: game.lastPlayedMs?.let { formatLastPlayed(it) }
-                        ?: "—")
+                    listOfNotNull(steam?.lastPlayedMs, game.lastPlayedMs)
+                        .filter { it > 0 }.maxOrNull()
+                        ?.let { formatLastPlayed(it) } ?: "—")
                 V2InfoRow("Playtime", steam.formatPlaytime())
 
                 Spacer(Modifier.height(6.dp))
