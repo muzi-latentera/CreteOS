@@ -129,7 +129,7 @@ private fun PlatformPill(platformId: String, label: String) {
         modifier = Modifier
             .clip(RoundedCornerShape(4.dp))
             .background(platformPillColor(platformId).copy(alpha = 0.85f))
-            .padding(5.dp),
+            .padding(4.dp),
         contentAlignment = Alignment.Center
     ) {
         when {
@@ -138,7 +138,7 @@ private fun PlatformPill(platformId: String, label: String) {
                 AsyncImage(
                     model = iconUrl,
                     contentDescription = label,
-                    modifier = Modifier.size(12.dp),
+                    modifier = Modifier.size(16.dp),
                     contentScale = ContentScale.Fit
                 )
             }
@@ -147,7 +147,7 @@ private fun PlatformPill(platformId: String, label: String) {
                 Icon(
                     painter = androidx.compose.ui.res.painterResource(id = vectorIconRes),
                     contentDescription = label,
-                    modifier = Modifier.size(12.dp),
+                    modifier = Modifier.size(16.dp),
                     tint = Color.Unspecified  // Preserve original icon colors
                 )
             }
