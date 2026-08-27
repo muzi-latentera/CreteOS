@@ -52,6 +52,7 @@ import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.model.GameMedia
 import com.gamelaunch.frontend.pocket.data.SteamMetadataDao
 import com.gamelaunch.frontend.pocket.data.SteamMetadataEntity
+import com.gamelaunch.frontend.pocket.data.IgdbSeedData
 import com.gamelaunch.frontend.pocket.data.formatPlaytime
 import com.gamelaunch.frontend.pocket.ui.design.*
 import com.gamelaunch.frontend.pocket.ui.home.RedditNewsViewModel
@@ -160,6 +161,7 @@ private fun deterministicColor(title: String): Color =
 @Composable
 fun V1GameCard(
     artworkUrl: String?,
+    fallbackUrl: String? = null,
     title: String,
     platformId: String,
     focused: Boolean,
@@ -216,9 +218,20 @@ fun V1GameCard(
             )
     ) {
         // Background — artwork or gradient
-        if (artworkUrl != null) {
+        val effectiveUrl = artworkUrl ?: fallbackUrl
+        if (effectiveUrl != null) {
+            // Primary URL with IGDB cover as error fallback
             AsyncImage(
-                model = artworkUrl,
+                model = coil.request.ImageRequest.Builder(LocalContext.current)
+                    .data(effectiveUrl)
+                    .crossfade(true)
+                    .apply {
+                        if (artworkUrl != null && fallbackUrl != null) {
+                            error(coil.request.ImageRequest.Builder(LocalContext.current)
+                                .data(fallbackUrl).build())
+                        }
+                    }
+                    .build(),
                 contentDescription = title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -237,8 +250,8 @@ fun V1GameCard(
             )
         }
 
-        // Bottom scrim + text — only shown when no artwork
-        if (artworkUrl == null) {
+        // Bottom scrim + text — only shown when no artwork at all
+        if (effectiveUrl == null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -913,6 +926,9 @@ private fun GameRail(
             itemsIndexed(games, key = { _, game -> game.id }) { index, game ->
                 V1GameCard(
                     artworkUrl = mediaForGames[game.id]?.effectiveBoxArt,
+                    fallbackUrl = IgdbSeedData.coverUrlFor(
+                        game.romPath.substringAfterLast(":").takeIf { it.isNotBlank() } ?: ""
+                    ),
                     title = game.title,
                     platformId = game.platformId,
                     focused = index == focusedIndex,
@@ -1118,6 +1134,9 @@ fun LibraryTabContent(
                 items(filteredGames, key = { it.id }) { game ->
                     V1GameCard(
                         artworkUrl = state.mediaForGames[game.id]?.effectiveBoxArt,
+                        fallbackUrl = IgdbSeedData.coverUrlFor(
+                            game.romPath.substringAfterLast(":").takeIf { it.isNotBlank() } ?: ""
+                        ),
                         title = game.title,
                         platformId = game.platformId,
                         focused = game.id == focusedGameId,

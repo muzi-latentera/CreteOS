@@ -89,14 +89,18 @@ class DebugSeedReceiver : BroadcastReceiver() {
                     Log.i(TAG, "eOr DB: inserted game rowId=$rowId for '$title' (romPath=$hostKey)")
 
                     // 3. Insert Steam CDN artwork into game_media table
-                    // Steam provides portrait cover art and wide hero art at predictable CDN URLs
+                    // Try portrait (library_600x900) as box art; hero (library_hero) as background
+                    // Both are stored — Coil will load whichever succeeds at display time
                     if (source == "STEAM" && rowId > 0) {
-                        val boxArtUrl  = "https://cdn.steamstatic.com/steam/apps/$appId/library_600x900.jpg"
-                        val heroUrl    = "https://cdn.steamstatic.com/steam/apps/$appId/library_hero.jpg"
+                        val boxArtUrl  = "https://cdn.akamai.steamstatic.com/steam/apps/$appId/library_600x900.jpg"
+                        val heroUrl    = "https://cdn.akamai.steamstatic.com/steam/apps/$appId/library_hero.jpg"
+                        val capsuleUrl = "https://cdn.akamai.steamstatic.com/steam/apps/$appId/capsule_616x353.jpg"
                         val mediaValues = android.content.ContentValues().apply {
                             put("game_id", rowId)
+                            // box_art_remote: portrait preferred, hero as fallback stored in wheel_logo_remote
                             put("box_art_remote", boxArtUrl)
-                            // screenshot_remote maps to screenshotRemoteUrl → used by effectiveBackground
+                            put("wheel_logo_remote", heroUrl)   // repurposed as portrait fallback
+                            // screenshot_remote → effectiveBackground (hero for detail screen)
                             put("screenshot_remote", heroUrl)
                             put("scraper_timestamp_ms", now)
                         }
