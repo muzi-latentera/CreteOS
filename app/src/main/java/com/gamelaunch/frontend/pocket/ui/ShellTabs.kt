@@ -986,10 +986,7 @@ fun LibraryTabContent(
         }
         when (activeFilter) {
             LibraryFilter.ALL      -> base
-            LibraryFilter.LOCAL    -> base.filter {
-                it.platformId !in setOf("moonlight", "gfn") &&
-                it.platformId !in setOf("gamepass", "xbox", "ubisoft", "gog", "ea", "epic", "amazon")
-            }
+            LibraryFilter.LOCAL    -> emptyList()
             LibraryFilter.OWNED    -> base.filter { it.platformId in setOf("steam", "gog", "epic", "ea", "gamepass", "xbox", "ubisoft", "amazon") }
             LibraryFilter.STREAMING -> base.filter { it.platformId == "moonlight" }
             LibraryFilter.CLOUD    -> base.filter { it.platformId == "gfn" }
