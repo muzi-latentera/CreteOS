@@ -950,10 +950,9 @@ private fun GameRail(
 
 enum class LibraryFilter(val label: String) {
     ALL("All Games"),
-    LOCAL("Local"),
+    OWNED("Owned"),
     STREAMING("Streaming"),
     CLOUD("Cloud"),
-    RETRO("Retro"),
     ANDROID("Android")
 }
 
@@ -983,14 +982,11 @@ fun LibraryTabContent(
             } else true
         }
         when (activeFilter) {
-            LibraryFilter.ALL -> base
-            LibraryFilter.LOCAL -> base.filter { it.platformId in setOf("steam", "gog", "epic", "amazon") }
-            LibraryFilter.STREAMING -> base.filter { it.platformId in setOf("moonlight", "gfn") }
-            LibraryFilter.CLOUD -> base.filter { it.platformId == "gfn" }
-            LibraryFilter.RETRO -> base.filter {
-                it.platformId !in setOf("steam", "gog", "epic", "amazon", "moonlight", "gfn", "android")
-            }
-            LibraryFilter.ANDROID -> base.filter { it.platformId == "android" }
+            LibraryFilter.ALL      -> base
+            LibraryFilter.OWNED    -> base.filter { it.platformId in setOf("steam", "gog", "epic", "ea", "gamepass", "xbox", "ubisoft", "amazon") }
+            LibraryFilter.STREAMING -> base.filter { it.platformId == "moonlight" }
+            LibraryFilter.CLOUD    -> base.filter { it.platformId == "gfn" }
+            LibraryFilter.ANDROID  -> base.filter { it.platformId == "android" }
         }
     }
 
