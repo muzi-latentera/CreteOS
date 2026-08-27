@@ -233,6 +233,7 @@ class ProviderSyncCoordinator @Inject constructor(
         ProviderId.MOONLIGHT     -> "moonlight"
         ProviderId.GEFORCE_NOW   -> "gfn"
         ProviderId.ANDROID_SHORTCUT -> "android"
+        ProviderId.EMULATOR      -> "emulator"
     }
 
     companion object {

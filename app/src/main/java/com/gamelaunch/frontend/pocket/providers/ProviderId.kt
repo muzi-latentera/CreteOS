@@ -7,5 +7,6 @@ enum class ProviderId(val displayName: String) {
     WINLATOR("Winlator CMod"),
     MOONLIGHT("Moonlight"),
     GEFORCE_NOW("GeForce NOW"),
-    ANDROID_SHORTCUT("Android Shortcut")
+    ANDROID_SHORTCUT("Android Shortcut"),
+    EMULATOR("Emulator")
 }

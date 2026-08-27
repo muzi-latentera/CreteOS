@@ -34,7 +34,8 @@ fun CreteSettingsScreen(
     onBack: () -> Unit,
     onOpenCategory: (SettingsCategory) -> Unit,
     onProviderSettings: () -> Unit,
-    onDisplayDiagnostics: () -> Unit
+    onDisplayDiagnostics: () -> Unit,
+    onScanEmulationRoms: () -> Unit = {}
 ) {
     var selectedIndex by remember { mutableIntStateOf(0) }
 
@@ -116,7 +117,10 @@ fun CreteSettingsScreen(
                         .fillMaxHeight()
                 ) {
                     when (selectedIndex) {
-                        0 -> LibrariesPanel(onOpenCategory = onOpenCategory)
+                        0 -> LibrariesPanel(
+                            onOpenCategory = onOpenCategory,
+                            onScanEmulationRoms = onScanEmulationRoms
+                        )
                         1 -> PcStreamingPanel(
                             onProviderSettings   = onProviderSettings,
                             onDisplayDiagnostics = onDisplayDiagnostics
@@ -198,7 +202,10 @@ private fun SettingsCategoryCard(
 // ── Right panels ───────────────────────────────────────────────────────────
 
 @Composable
-private fun LibrariesPanel(onOpenCategory: (SettingsCategory) -> Unit) {
+private fun LibrariesPanel(
+    onOpenCategory: (SettingsCategory) -> Unit,
+    onScanEmulationRoms: () -> Unit = {}
+) {
     PanelColumn {
         PanelTitle("Libraries")
         PanelBody("Configure where CreteOS looks for games.")
@@ -211,6 +218,23 @@ private fun LibrariesPanel(onOpenCategory: (SettingsCategory) -> Unit) {
         ).forEach { (cat, label) ->
             PanelRow(label = label, onClick = { onOpenCategory(cat) })
         }
+
+        Spacer(Modifier.height(CreteDS.spaceXL))
+        
+        // Emulation section
+        Text(
+            text = "Emulation",
+            style = CreteDS.typeNavTab,
+            color = CreteDS.textPrimary,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = CreteDS.spaceS)
+        )
+        Text(
+            text = "Scan ROMs from your emulation folder to add them to the library.",
+            style = CreteDS.typeMeta,
+            modifier = Modifier.padding(bottom = CreteDS.spaceM)
+        )
+        PanelRow(label = "Scan ROMs", onClick = onScanEmulationRoms)
     }
 }
 

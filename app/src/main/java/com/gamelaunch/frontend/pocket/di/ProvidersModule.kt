@@ -2,6 +2,7 @@ package com.gamelaunch.frontend.pocket.di
 
 import com.gamelaunch.frontend.pocket.providers.GameProvider
 import com.gamelaunch.frontend.pocket.providers.ProviderId
+import com.gamelaunch.frontend.pocket.providers.impl.EmulatorProvider
 import com.gamelaunch.frontend.pocket.providers.impl.GameHubLiteProvider
 import com.gamelaunch.frontend.pocket.providers.impl.GameNativeProvider
 import com.gamelaunch.frontend.pocket.providers.impl.GeForceNowProvider
@@ -35,4 +36,7 @@ abstract class ProvidersModule {
 
     @Binds @IntoMap @ProviderKey(ProviderId.GEFORCE_NOW)
     abstract fun bindGeForceNow(impl: GeForceNowProvider): GameProvider
+
+    @Binds @IntoMap @ProviderKey(ProviderId.EMULATOR)
+    abstract fun bindEmulator(impl: EmulatorProvider): GameProvider
 }

@@ -42,7 +42,7 @@ import com.gamelaunch.frontend.pocket.data.db.entity.ManualGameLinkEntity
         SteamMetadataEntity::class,
         GameSessionEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class PocketDatabase : RoomDatabase() {
@@ -154,9 +154,16 @@ abstract class PocketDatabase : RoomDatabase() {
             }
         }
 
+        /** v7→v8: add rom_abs_path to steam_metadata for emulator launch */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE steam_metadata ADD COLUMN rom_abs_path TEXT")
+            }
+        }
+
         fun create(context: Context): PocketDatabase =
             Room.databaseBuilder(context, PocketDatabase::class.java, DATABASE_NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .build()
     }
 }

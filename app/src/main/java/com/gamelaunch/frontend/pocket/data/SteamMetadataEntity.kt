@@ -73,7 +73,11 @@ data class SteamMetadataEntity(
 
     /** Null = achievements never fetched. Non-null = last successful fetch timestamp. */
     @ColumnInfo(name = "achievements_synced_at_ms")
-    val achievementsSyncedAtMs: Long? = null
+    val achievementsSyncedAtMs: Long? = null,
+
+    /** Absolute file path to the ROM — used by EmulatorProvider for launching emulated games */
+    @ColumnInfo(name = "rom_abs_path")
+    val romAbsPath: String? = null
 )
 
 // ── DAO ────────────────────────────────────────────────────────────────────

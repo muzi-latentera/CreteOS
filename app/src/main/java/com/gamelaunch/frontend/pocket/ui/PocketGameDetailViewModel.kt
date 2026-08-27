@@ -17,6 +17,8 @@ import com.gamelaunch.frontend.pocket.data.SteamMetadataEntity
 import com.gamelaunch.frontend.pocket.data.SteamMetadataSync
 import com.gamelaunch.frontend.pocket.data.repository.LaunchTargetRepository
 import com.gamelaunch.frontend.pocket.domain.LaunchTarget
+import com.gamelaunch.frontend.pocket.emulation.EmulatorRegistry
+import com.gamelaunch.frontend.pocket.emulation.EmulatorSystem
 import com.gamelaunch.frontend.pocket.launch.UnifiedLaunchCoordinator
 import com.gamelaunch.frontend.pocket.providers.GameProvider
 import com.gamelaunch.frontend.pocket.providers.ProviderId
@@ -200,6 +202,46 @@ class PocketGameDetailViewModel @Inject constructor(
                         """{"steamAppId":"$steamAppId"}""",
                     isPreferred = currentGfnTargets.firstOrNull()?.isPreferred ?: toUpsert.isEmpty()
                 )
+            }
+        }
+
+        // Priority 4: Emulators — for emulated games (romPath starts with "emu:")
+        if (game.romPath.startsWith("emu:")) {
+            val parts = game.romPath.split(":")
+            val system = if (parts.size >= 2) EmulatorSystem.fromId(parts[1]) else null
+            if (system != null) {
+                val emulators = EmulatorRegistry.forSystem(system)
+
+                // Get existing emulator targets
+                val existingTargets = launchTargetRepository.getTargetsForGameOnce(game.romPath)
+
+                for (emulatorDef in emulators) {
+                    val installedPkg = EmulatorRegistry.findInstalledPackage(context, emulatorDef) ?: continue
+                    val existingTarget = existingTargets.find { 
+                        it.provider == ProviderId.EMULATOR && it.launchData.contains("\"emulatorId\":\"${emulatorDef.id}\"")
+                    }
+                    if (existingTarget != null) continue // already provisioned
+
+                    // Get the ROM absolute path from steam_metadata
+                    val metadata = steamMetadataDao.getByAppId(game.romPath)
+                    val romAbsPath = metadata?.romAbsPath ?: continue
+
+                    val launchDataJson = org.json.JSONObject().apply {
+                        put("romPath", romAbsPath)
+                        put("emulatorId", emulatorDef.id)
+                        put("system", system.id)
+                    }.toString()
+
+                    toUpsert += LaunchTarget(
+                        hostGameKey = game.romPath,
+                        provider    = ProviderId.EMULATOR,
+                        externalId  = emulatorDef.id,
+                        source      = "EMULATOR",
+                        displayName = "${system.displayName} • ${emulatorDef.displayName}",
+                        launchData  = launchDataJson,
+                        isPreferred = toUpsert.isEmpty() && existingTargets.isEmpty()
+                    )
+                }
             }
         }
 

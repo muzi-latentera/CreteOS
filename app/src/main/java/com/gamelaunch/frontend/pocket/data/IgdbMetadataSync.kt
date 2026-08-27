@@ -212,4 +212,137 @@ class IgdbMetadataSync @Inject constructor(
             ))
         }
     }
+
+    /**
+     * Sync metadata for an emulated game by searching IGDB by title.
+     * Only applies exact title matches to avoid false positives.
+     *
+     * @param romPath The canonical ROM path (e.g. "emu:gc:luigis_mansion")
+     * @param title The clean game title to search
+     * @param system The EmulatorSystem for platform hints
+     */
+    suspend fun syncEmulatedGame(
+        romPath: String,
+        title: String,
+        system: com.gamelaunch.frontend.pocket.emulation.EmulatorSystem
+    ): Unit = withContext(Dispatchers.IO) {
+        if (CLIENT_ID.isBlank() || CLIENT_SECRET.isBlank()) {
+            Log.w(TAG, "IGDB credentials not configured — skipping emulated game sync")
+            return@withContext
+        }
+
+        try {
+            Log.d(TAG, "Syncing emulated game: $title ($romPath)")
+
+            // Search IGDB by title
+            val searchQuery = """
+                fields name,cover.image_id,artworks.image_id,screenshots.image_id,summary,
+                       involved_companies.company.name,involved_companies.developer,involved_companies.publisher,
+                       game_modes.name;
+                search "$title";
+                limit 5;
+            """.trimIndent()
+
+            val results = igdbPost("games", searchQuery)
+            if (results.length() == 0) {
+                Log.d(TAG, "No IGDB results for: $title")
+                return@withContext
+            }
+
+            // Find best match by title similarity — prefer exact match
+            var bestMatch: JSONObject? = null
+            var bestScore = 0
+
+            for (i in 0 until results.length()) {
+                val game = results.getJSONObject(i)
+                val gameName = game.optString("name", "")
+                
+                val score = when {
+                    gameName.equals(title, ignoreCase = true) -> 100  // Exact match
+                    gameName.lowercase().startsWith(title.lowercase()) -> 80  // Starts with
+                    gameName.lowercase().contains(title.lowercase()) -> 60  // Contains
+                    else -> {
+                        // Compute simple similarity
+                        val titleLower = title.lowercase()
+                        val nameLower = gameName.lowercase()
+                        val commonChars = titleLower.count { nameLower.contains(it) }
+                        (commonChars * 100) / maxOf(title.length, 1)
+                    }
+                }
+
+                if (score > bestScore) {
+                    bestScore = score
+                    bestMatch = game
+                }
+            }
+
+            // Only use result if we have a good match (>= 80 score, i.e., exact or starts with)
+            if (bestMatch == null || bestScore < 80) {
+                Log.d(TAG, "No good IGDB match for '$title' (best score: $bestScore)")
+                return@withContext
+            }
+
+            val gameName = bestMatch.optString("name", title)
+            Log.d(TAG, "Found IGDB match: '$gameName' (score: $bestScore)")
+
+            // Extract cover URL
+            val coverId = bestMatch.optJSONObject("cover")?.optString("image_id")
+            val coverUrl = if (!coverId.isNullOrBlank()) {
+                "https://images.igdb.com/igdb/image/upload/t_cover_big_2x/$coverId.jpg"
+            } else null
+
+            // Extract hero URL from screenshots or artworks
+            val heroUrl = run {
+                val screenshots = bestMatch.optJSONArray("screenshots")
+                if (screenshots != null && screenshots.length() > 0) {
+                    val imageId = screenshots.getJSONObject(0).optString("image_id")
+                    if (imageId.isNotBlank()) {
+                        return@run "https://images.igdb.com/igdb/image/upload/t_1080p/$imageId.jpg"
+                    }
+                }
+                val artworks = bestMatch.optJSONArray("artworks")
+                if (artworks != null && artworks.length() > 0) {
+                    val imageId = artworks.getJSONObject(0).optString("image_id")
+                    if (imageId.isNotBlank()) {
+                        return@run "https://images.igdb.com/igdb/image/upload/t_1080p/$imageId.jpg"
+                    }
+                }
+                null
+            }
+
+            // Extract developer/publisher
+            var developer: String? = null
+            var publisher: String? = null
+            val companies = bestMatch.optJSONArray("involved_companies")
+            if (companies != null) {
+                for (i in 0 until companies.length()) {
+                    val ic = companies.getJSONObject(i)
+                    val name = ic.optJSONObject("company")?.optString("name") ?: continue
+                    if (ic.optBoolean("developer") && developer == null) developer = name
+                    if (ic.optBoolean("publisher") && publisher == null) publisher = name
+                }
+            }
+
+            val summary = bestMatch.optString("summary")?.takeIf { it.isNotBlank() }
+
+            // Update steam_metadata for this emulated game
+            val existing = steamMetadataDao.getByAppId(romPath)
+            if (existing != null) {
+                steamMetadataDao.upsert(existing.copy(
+                    developer    = developer    ?: existing.developer,
+                    publisher    = publisher    ?: existing.publisher,
+                    description  = summary      ?: existing.description,
+                    igdbCoverUrl = coverUrl     ?: existing.igdbCoverUrl,
+                    igdbHeroUrl  = heroUrl      ?: existing.igdbHeroUrl,
+                    updatedAtMs  = System.currentTimeMillis()
+                ))
+                Log.d(TAG, "Updated metadata for $title: dev=$developer cover=${coverUrl?.takeLast(30)}")
+            } else {
+                Log.w(TAG, "No steam_metadata record for $romPath — skipping update")
+            }
+
+        } catch (e: Exception) {
+            Log.w(TAG, "IGDB sync failed for emulated game '$title': ${e.message}")
+        }
+    }
 }
