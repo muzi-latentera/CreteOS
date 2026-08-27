@@ -275,6 +275,13 @@ class PocketGameDetailViewModel @Inject constructor(
             val active = gameSessionDao.getActiveSession()
             if (active != null) {
                 gameSessionDao.endSession(active.id, System.currentTimeMillis())
+                // Schedule Steam playtime re-sync 10 minutes after returning from a game.
+                // By then Steam has had time to record the session server-side.
+                viewModelScope.launch {
+                    kotlinx.coroutines.delay(10 * 60 * 1000L)  // 10 minutes
+                    steamMetadataSync.syncLibrary()
+                    android.util.Log.d("PocketVM", "Post-session Steam sync complete")
+                }
             }
         }
     }
