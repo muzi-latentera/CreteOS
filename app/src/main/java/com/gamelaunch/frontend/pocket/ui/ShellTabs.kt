@@ -973,15 +973,10 @@ fun LibraryTabContent(
     var focusedGameId by remember { mutableStateOf<Long?>(null) }
     var showSources by remember { mutableStateOf(false) }
 
-    // Load GAME_NATIVE host keys from PocketDatabase for LOCAL filter
+    // LOCAL filter: games with GAME_NATIVE targets = Steam games when GameNative is installed
     val context = LocalContext.current
-    val localGameKeys by produceState<Set<String>>(emptySet()) {
-        value = try {
-            val db = com.gamelaunch.frontend.pocket.data.db.PocketDatabase.create(context)
-            db.launchTargetDao().getTargetsForProvider(
-                com.gamelaunch.frontend.pocket.providers.ProviderId.GAME_NATIVE.name
-            ).map { it.hostGameKey }.toSet()
-        } catch (_: Exception) { emptySet() }
+    val gameNativeInstalled = remember {
+        runCatching { context.packageManager.getPackageInfo("app.gamenative", 0); true }.getOrDefault(false)
     }
 
     val providerPackages = setOf(
@@ -997,7 +992,7 @@ fun LibraryTabContent(
         }
         when (activeFilter) {
             LibraryFilter.ALL      -> base
-            LibraryFilter.LOCAL    -> base.filter { it.romPath in localGameKeys }
+            LibraryFilter.LOCAL    -> if (gameNativeInstalled) base.filter { it.platformId == "steam" } else emptyList()
             LibraryFilter.OWNED    -> base.filter { it.platformId in setOf("steam", "gog", "epic", "ea", "gamepass", "xbox", "ubisoft", "amazon") }
             LibraryFilter.STREAMING -> base.filter { it.platformId == "moonlight" }
             LibraryFilter.CLOUD    -> base.filter { it.platformId == "gfn" }
