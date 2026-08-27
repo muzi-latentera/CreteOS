@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.usecase.LaunchGameUseCase
 import android.content.Context
+import com.gamelaunch.frontend.data.db.dao.GameDao
 import com.gamelaunch.frontend.pocket.data.GameSessionDao
 import com.gamelaunch.frontend.pocket.data.GameSessionEntity
 import com.gamelaunch.frontend.pocket.data.HltbTimes
@@ -55,6 +56,7 @@ class PocketGameDetailViewModel @Inject constructor(
     private val steamMetadataSync: SteamMetadataSync,
     private val gameSessionDao: GameSessionDao,
     private val igdbSync: IgdbMetadataSync,
+    private val gameDao: GameDao,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PocketLaunchUiState())
@@ -240,10 +242,14 @@ class PocketGameDetailViewModel @Inject constructor(
         viewModelScope.launch {
             val result = unifiedLaunchCoordinator.launchSpecific(target)
             if (result.isSuccess) {
+                val now = System.currentTimeMillis()
+                // Update eOr's last_played_ms so hero tile "Continue where you stopped" updates
+                gameDao.recordPlay(game.id, now)
+                // Record CreteOS session
                 gameSessionDao.startSession(
                     GameSessionEntity(
                         gameKey     = game.romPath,
-                        startedAtMs = System.currentTimeMillis(),
+                        startedAtMs = now,
                         provider    = target.provider.name
                     )
                 )
