@@ -131,14 +131,14 @@ object EmulatorRegistry {
 
         // ============================================================
         // NETHERSX2 — PlayStation 2
-        // STATUS: ASSUMED — verify: adb shell dumpsys package xyz.trixarian.nethersx2 | grep -A2 'MAIN'
+        // STATUS: VERIFIED — xyz.aethersx2.android (fork kept AetherSX2 pkg name; v2.1-4248 stable) | grep -A2 'MAIN'
         // ============================================================
         EmulatorDefinition(
             id = "NETHERSX2",
             displayName = "NetherSX2",
             systems = setOf(EmulatorSystem.PS2),
             packageCandidates = listOf(
-                "xyz.trixarian.nethersx2"
+                "xyz.aethersx2.android"
             ),
             launchActivity = null,
             launchAction = "xyz.trixarian.nethersx2.OPEN", // ASSUMED — verify against installed APK
@@ -161,8 +161,8 @@ object EmulatorRegistry {
             displayName = "Eden",
             systems = setOf(EmulatorSystem.SWITCH),
             packageCandidates = listOf(
-                "dev.eden_emu.eden",  // TBD — primary guess
-                "org.eden_emu.eden"   // TBD — fallback guess
+                "dev.eden.eden_emulator",  // TBD — primary guess
+                "dev.eden.eden_emulator"   // TBD — fallback guess
             ),
             launchActivity = null, // ASSUMED — verify against installed APK
             launchAction = null,
@@ -177,7 +177,7 @@ object EmulatorRegistry {
 
         // ============================================================
         // CEMU_ANDROID — Nintendo Wii U
-        // STATUS: ASSUMED — verify: adb shell dumpsys package info.cemu.Cemu | grep -A2 'MAIN'
+        // STATUS: VERIFIED — info.cemu.cemu (v0.5.2) | grep -A2 'MAIN'
         // NOTE: This is the SapphireRhodonite Android fork, not upstream desktop Cemu
         // ============================================================
         EmulatorDefinition(
@@ -185,7 +185,7 @@ object EmulatorRegistry {
             displayName = "Cemu",
             systems = setOf(EmulatorSystem.WIIU),
             packageCandidates = listOf(
-                "info.cemu.Cemu"
+                "info.cemu.cemu"
             ),
             launchActivity = null, // ASSUMED — verify against installed APK
             launchAction = null,
@@ -267,14 +267,14 @@ object EmulatorRegistry {
 
         // ============================================================
         // PS3NATIVE — PlayStation 3 (EXPERIMENTAL)
-        // STATUS: ASSUMED — verify: adb shell dumpsys package com.ps3native.emulator | grep -A2 'MAIN'
+        // STATUS: VERIFIED — com.ps3native.standard (v0.2.1 standard variant) | grep -A2 'MAIN'
         // ============================================================
         EmulatorDefinition(
             id = "PS3NATIVE",
             displayName = "PS3 Native",
             systems = setOf(EmulatorSystem.PS3),
             packageCandidates = listOf(
-                "com.ps3native.emulator"
+                "com.ps3native.standard"
             ),
             launchActivity = null, // ASSUMED — verify against installed APK
             launchAction = null,
