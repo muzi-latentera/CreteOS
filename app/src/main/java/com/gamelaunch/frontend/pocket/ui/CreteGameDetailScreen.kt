@@ -283,14 +283,6 @@ fun CreteGameDetailScreen(
                         )
                     }
 
-                    // Divider
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .height(52.dp)
-                            .background(Color.White.copy(alpha = 0.25f))
-                    )
-
                     // Chevron — opens provider dropdown
                     Box(
                         modifier = Modifier
