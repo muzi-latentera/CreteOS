@@ -58,6 +58,7 @@ class SteamMetadataSync @Inject constructor(
             "2050650" to "https://play.geforcenow.com/games?game-id=d63e33a8-2f5e-4b4f-b6f5-f79c6938ca6a&lang=en_GB&asset-id=01_86a551ec-ad3e-43e8-b2c8-505df9868019",  // Resident Evil 4 Remake ✓
             "1903340" to "https://play.geforcenow.com/games?game-id=037a263a-adbf-4705-8509-76447080de75&lang=en_GB&asset-id=01_fba9542a-ad36-4ee4-a48b-96067a9ff491",  // Clair Obscur ✓
             "1091500" to "https://play.geforcenow.com/games?game-id=e5fc8a96-2cda-49ef-bd13-513bdc68045b&lang=en_GB&asset-id=01_742eeb39-c372-4b14-b0ff-2b2e8f02ee97",  // Cyberpunk 2077 ✓ (UUID proven: Elden Ring accidentally launched this)
+            "cp2077_gog" to "https://play.geforcenow.com/games?game-id=e5fc8a96-2cda-49ef-bd13-513bdc68045b&lang=en_GB&asset-id=01_742eeb39-c372-4b14-b0ff-2b2e8f02ee97",  // Cyberpunk 2077 GOG alias
             "2138710" to "https://play.geforcenow.com/games?game-id=ea68304b-9448-4002-a00e-3b816721bf1c&lang=en_GB&asset-id=01_5453e247-4a92-46f2-815b-3e7a8cad2f18",  // Sifu ✓ — AppID 2138710 (NOT 2767120 which is a DLC)
             "1771300" to "https://play.geforcenow.com/games?game-id=8a9b10a6-b8f4-46f3-a479-e480c304d78c&lang=en_GB&asset-id=01_21338a23-06ed-44eb-b493-366a33b5bb9e",  // Kingdom Come: Deliverance II ✓ (Steam AppID 1771300 confirmed)
             // ── NOT verified — open GFN library for these until confirmed ────────────────
