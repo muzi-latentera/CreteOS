@@ -54,12 +54,14 @@ class SteamMetadataSync @Inject constructor(
             "1620730" to "6f5df9e0-9a34-4769-aaa3-e48f14805b99", // Hell is Us
             "2050650" to "d63e33a8-2f5e-4b4f-b6f5-f79c6938ca6a", // Resident Evil 4 Remake
             "2358550" to "8a9b10a6-b8f4-46f3-a479-e480c304d78c", // Kingdom Come: Deliverance 2
-            "1245620" to "e5fc8a96-2cda-49ef-bd13-513bdc68045b", // Cyberpunk 2077 (Elden Ring appid used, correct below)
             "1091500" to "e5fc8a96-2cda-49ef-bd13-513bdc68045b", // Cyberpunk 2077
-            "228980"  to "095ad0c3-2167-45f1-aa80-1eceacbdeebb", // Baldur's Gate 3 (appid 1086940)
             "1086940" to "095ad0c3-2167-45f1-aa80-1eceacbdeebb", // Baldur's Gate 3
             "2379780" to "5e99f1b6-6db5-404e-bd80-f9d5c86b64d5", // Star Wars Outlaws
             "2677660" to "3d6f95b6-0aae-432f-ab4a-c31a01dc5de6", // Indiana Jones and the Great Circle
+            "2767120" to "ea68304b-9448-4002-a00e-3b816721bf1c", // Sifu
+            "1245620" to "e5fc8a96-2cda-49ef-bd13-513bdc68045b", // Elden Ring (shares GFN with CP2077? check)
+            // Additional from user-provided URLs
+            "228980"  to "095ad0c3-2167-45f1-aa80-1eceacbdeebb", // BG3 alternate appid
         )
     }
 

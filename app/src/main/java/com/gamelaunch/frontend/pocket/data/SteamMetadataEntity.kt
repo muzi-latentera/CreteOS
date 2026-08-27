@@ -56,6 +56,10 @@ data class SteamMetadataEntity(
     @ColumnInfo(name = "gfn_game_id")
     val gfnGameId: String? = null,
 
+    /** IGDB cover art URL — fallback when Steam CDN has no portrait art */
+    @ColumnInfo(name = "igdb_cover_url")
+    val igdbCoverUrl: String? = null,
+
     @ColumnInfo(name = "updated_at_ms")
     val updatedAtMs: Long = System.currentTimeMillis(),
 

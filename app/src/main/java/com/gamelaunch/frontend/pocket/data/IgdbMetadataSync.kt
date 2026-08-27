@@ -131,13 +131,23 @@ class IgdbMetadataSync @Inject constructor(
                 }
             }
 
-            // 5. Update steam_metadata with developer/publisher/description if missing
-            if (game != null) {
+            // 5. Fetch cover art from IGDB
+            val coversArr = igdbPost("covers",
+                "fields image_id; where game=$igdbId; limit 1;")
+            val igdbCoverUrl = if (coversArr.length() > 0) {
+                val imageId = coversArr.getJSONObject(0).optString("image_id")
+                if (imageId.isNotBlank())
+                    "https://images.igdb.com/igdb/image/upload/t_cover_big/$imageId.jpg"
+                else null
+            } else null
+
+            // 6. Update steam_metadata
+            if (game != null || igdbCoverUrl != null) {
                 val existing = steamMetadataDao.getByAppId(steamAppId)
-                if (existing != null && (existing.developer == null || existing.description == null)) {
+                if (existing != null) {
                     var developer: String? = null
                     var publisher: String? = null
-                    val companies = game.optJSONArray("involved_companies")
+                    val companies = game?.optJSONArray("involved_companies")
                     if (companies != null) {
                         for (i in 0 until companies.length()) {
                             val ic = companies.getJSONObject(i)
@@ -146,18 +156,16 @@ class IgdbMetadataSync @Inject constructor(
                             if (ic.optBoolean("publisher") && publisher == null) publisher = name
                         }
                     }
-                    val summary = game.optString("summary").takeIf { it.isNotBlank() }
-                    val genreStr = game.optJSONArray("genres")?.let { arr ->
-                        (0 until arr.length()).map { arr.getJSONObject(it).optString("name") }.joinToString(", ")
-                    }
+                    val summary = game?.optString("summary")?.takeIf { it.isNotBlank() }
 
                     steamMetadataDao.upsert(existing.copy(
-                        developer   = developer ?: existing.developer,
-                        publisher   = publisher ?: existing.publisher,
-                        description = summary   ?: existing.description,
-                        updatedAtMs = System.currentTimeMillis()
+                        developer    = developer    ?: existing.developer,
+                        publisher    = publisher    ?: existing.publisher,
+                        description  = summary      ?: existing.description,
+                        igdbCoverUrl = igdbCoverUrl ?: existing.igdbCoverUrl,
+                        updatedAtMs  = System.currentTimeMillis()
                     ))
-                    Log.d(TAG, "$gameTitle enriched: dev=$developer")
+                    Log.d(TAG, "$gameTitle enriched: dev=$developer cover=${igdbCoverUrl?.takeLast(20)}")
                 }
             }
         } catch (e: Exception) {
@@ -179,6 +187,7 @@ class IgdbMetadataSync @Inject constructor(
         developer: String?,
         publisher: String?,
         summary: String?,
+        coverUrl: String? = null,
     ): Unit = withContext(Dispatchers.IO) {
         if (mainSeconds > 0 || plusSeconds > 0) {
             hltbCacheDao.upsert(HltbCacheEntity(
@@ -191,12 +200,13 @@ class IgdbMetadataSync @Inject constructor(
             ))
         }
         val existing = steamMetadataDao.getByAppId(steamAppId) ?: return@withContext
-        if (existing.developer == null || existing.description == null) {
+        if (existing.developer == null || existing.description == null || existing.igdbCoverUrl == null) {
             steamMetadataDao.upsert(existing.copy(
-                developer   = developer ?: existing.developer,
-                publisher   = publisher ?: existing.publisher,
-                description = summary   ?: existing.description,
-                updatedAtMs = System.currentTimeMillis()
+                developer    = developer ?: existing.developer,
+                publisher    = publisher ?: existing.publisher,
+                description  = summary   ?: existing.description,
+                igdbCoverUrl = coverUrl  ?: existing.igdbCoverUrl,
+                updatedAtMs  = System.currentTimeMillis()
             ))
         }
     }
