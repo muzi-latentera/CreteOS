@@ -185,9 +185,13 @@ class PocketGameDetailViewModel @Inject constructor(
                 externalId  = gfnId ?: steamAppId,
                 source      = "STEAM",
                 displayName = "Play on GeForce NOW",
-                launchData  = if (gfnId != null)
-                    """{"gfnGameId":"$gfnId","steamAppId":"$steamAppId"}"""
-                else
+                launchData  = if (gfnId != null) {
+                    val assetId = SteamMetadataSync.GFN_ASSET_IDS[gfnId]
+                    if (assetId != null)
+                        """{"gfnGameId":"$gfnId","gfnAssetId":"$assetId","steamAppId":"$steamAppId"}"""
+                    else
+                        """{"gfnGameId":"$gfnId","steamAppId":"$steamAppId"}"""
+                } else
                     """{"steamAppId":"$steamAppId"}""",
                 isPreferred = toUpsert.isEmpty() // Preferred only if nothing else available
             )
