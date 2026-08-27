@@ -14,6 +14,8 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.navArgument
 import com.gamelaunch.frontend.ui.screen.detail.GameDetailScreen
 import com.gamelaunch.frontend.ui.screen.home.HomeScreen
+import com.gamelaunch.frontend.pocket.ui.home.CreteOSHomeScreen
+import com.gamelaunch.frontend.pocket.ui.library.CreteOSLibraryScreen
 import com.gamelaunch.frontend.ui.screen.onboarding.OnboardingScreen
 import com.gamelaunch.frontend.ui.screen.scan.ScanScreen
 import com.gamelaunch.frontend.ui.screen.scrape.ScrapeProgressScreen
@@ -87,17 +89,41 @@ fun AppNavGraph(
         }
 
         composable(Screen.Home.route) {
-            HomeScreen(
-                onGameClick = { gameId ->
-                    navController.navigate(Screen.GameDetail.route(gameId))
-                },
-                onSettingsClick = {
-                    if (canAccessProtectedRoutes) navController.navigate(Screen.Settings.route)
-                },
-                onScrapeSystem = { platformId ->
-                    navController.navigate(Screen.ScrapeProgress.route(platformId))
-                },
-                lockedModeViewModel = lockedModeViewModel
+            // Single persistent shell — What's New / Library / Settings are the only tabs
+            com.gamelaunch.frontend.pocket.ui.CreteRootShell(
+                onGameClick          = { gameId -> navController.navigate(Screen.GameDetail.route(gameId)) },
+                onOpenSettings       = { if (canAccessProtectedRoutes) navController.navigate(Screen.Settings.route) },
+                onOpenCreteSettings  = { navController.navigate(Screen.CreteSettings.route) },
+                onOpenProviders      = { navController.navigate(Screen.ProviderSettings.route) },
+                onOpenDisplay        = { navController.navigate(Screen.DisplayDiagnostics.route) },
+                onOpenLibrary        = { filter ->
+                    navController.navigate("${Screen.Library.route}?filter=${filter.name}")
+                }
+            )
+        }
+
+        composable(
+            route = "${Screen.Library.route}?filter={filter}",
+            arguments = listOf(
+                navArgument("filter") {
+                    type = androidx.navigation.NavType.StringType
+                    defaultValue = com.gamelaunch.frontend.pocket.ui.LibraryFilter.ALL.name
+                }
+            )
+        ) { backStackEntry ->
+            val filterName = backStackEntry.arguments?.getString("filter")
+                ?: com.gamelaunch.frontend.pocket.ui.LibraryFilter.ALL.name
+            val initialFilter = runCatching {
+                com.gamelaunch.frontend.pocket.ui.LibraryFilter.valueOf(filterName)
+            }.getOrDefault(com.gamelaunch.frontend.pocket.ui.LibraryFilter.ALL)
+
+            val libraryViewModel: com.gamelaunch.frontend.pocket.ui.library.LibraryViewModel =
+                androidx.hilt.navigation.compose.hiltViewModel()
+            com.gamelaunch.frontend.pocket.ui.LibraryScreen(
+                libraryViewModel = libraryViewModel,
+                initialFilter    = initialFilter,
+                onGameClick = { gameId -> navController.navigate(Screen.GameDetail.route(gameId)) },
+                onBack      = { navController.popBackStack() }
             )
         }
 
@@ -105,9 +131,9 @@ fun AppNavGraph(
             route = Screen.GameDetail.route,
             arguments = listOf(navArgument(Screen.GameDetail.ARG_GAME_ID) { type = NavType.LongType })
         ) {
-            GameDetailScreen(
-                onBack = { navController.backOrHome() },
-                isLocked = isLocked
+            // CreteOS v2 detail screen — WinHanced-style hero + stats + metadata
+            com.gamelaunch.frontend.pocket.ui.CreteGameDetailScreen(
+                onBack = { navController.backOrHome() }
             )
         }
 
@@ -240,6 +266,29 @@ fun AppNavGraph(
             ProtectedRoute(lockedModeState, navController) {
                 ScrapeProgressScreen(onBack = { navController.backOrHome() })
             }
+        }
+
+        // CreteOS pocket routes
+        composable(Screen.DisplayDiagnostics.route) {
+            com.gamelaunch.frontend.pocket.ui.DisplayDiagnosticsScreen(
+                onBack = { navController.backOrHome() }
+            )
+        }
+
+        composable(Screen.ProviderSettings.route) {
+            com.gamelaunch.frontend.pocket.ui.ProviderSettingsScreen(
+                onBack = { navController.backOrHome() },
+                onDisplayDiagnostics = { navController.navigate(Screen.DisplayDiagnostics.route) }
+            )
+        }
+
+        composable(Screen.CreteSettings.route) {
+            com.gamelaunch.frontend.pocket.ui.CreteSettingsScreen(
+                onBack = { navController.backOrHome() },
+                onOpenCategory = { navController.navigate(it.route) },
+                onProviderSettings = { navController.navigate(Screen.ProviderSettings.route) },
+                onDisplayDiagnostics = { navController.navigate(Screen.DisplayDiagnostics.route) }
+            )
         }
     }
 }

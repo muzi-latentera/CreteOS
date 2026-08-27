@@ -1,0 +1,78 @@
+name: Sync upstream eOr
+
+on:
+  schedule:
+    # Every Monday at 08:00 UTC
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout CreteOS
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: git remote add upstream https://github.com/keweis2/eOr.git
+
+      - name: Fetch upstream
+        run: git fetch upstream
+
+      - name: Check for new upstream commits
+        id: check
+        run: |
+          UPSTREAM_SHA=$(git rev-parse upstream/main)
+          LOCAL_SHA=$(git rev-parse origin/main)
+          echo "upstream_sha=$UPSTREAM_SHA" >> "$GITHUB_OUTPUT"
+          echo "local_sha=$LOCAL_SHA" >> "$GITHUB_OUTPUT"
+          if [ "$UPSTREAM_SHA" = "$LOCAL_SHA" ]; then
+            echo "has_new=false" >> "$GITHUB_OUTPUT"
+            echo "No new upstream commits."
+          else
+            echo "has_new=true" >> "$GITHUB_OUTPUT"
+            echo "New upstream commits found: $UPSTREAM_SHA"
+          fi
+
+      - name: Update main with upstream
+        if: steps.check.outputs.has_new == 'true'
+        run: |
+          git merge upstream/main --no-edit -m "chore: sync upstream eOr $(date +%Y-%m-%d)"
+          git push origin main
+
+      - name: Create PR into product
+        if: steps.check.outputs.has_new == 'true'
+        uses: repo-sync/pull-request@v2
+        with:
+          source_branch: main
+          destination_branch: product
+          pr_title: "chore: upstream eOr sync — ${{ steps.check.outputs.upstream_sha }}"
+          pr_body: |
+            Automated upstream sync from [keweis2/eOr](https://github.com/keweis2/eOr).
+
+            **Upstream commit:** `${{ steps.check.outputs.upstream_sha }}`
+            **Previous local main:** `${{ steps.check.outputs.local_sha }}`
+
+            ## Review checklist
+            - [ ] Build passes in CI
+            - [ ] `LaunchGameUseCase` constructor change (if any) — re-apply coordinator injection
+            - [ ] `CheckForUpdateUseCase` companion (if changed) — verify BuildConfig usage preserved
+            - [ ] `EmulatorLauncher` GameNative constants unchanged
+            - [ ] `build.gradle.kts` applicationId still `io.latent.creteos`
+            - [ ] No schema version bump in `AppDatabase` without migration
+
+            **Do not merge until CI passes.**
+          github_token: ${{ secrets.GITHUB_TOKEN }}

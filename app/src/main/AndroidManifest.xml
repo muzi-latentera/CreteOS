@@ -74,6 +74,21 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="obtainium" />
         </intent>
+        <!-- CreteOS PC/Streaming providers -->
+        <package android:name="app.gamenative" />
+        <package android:name="gamehub.lite" />
+        <package android:name="com.winlator" />
+        <package android:name="net.qiujuer.winlator" />
+        <package android:name="com.limelight" />
+        <package android:name="com.nvidia.geforcenow" />
+        <!-- WinNative — check current package at runtime -->
+        <package android:name="app.winnative" />
+        <intent>
+            <action android:name="app.gamenative.LAUNCH_GAME" />
+        </intent>
+        <intent>
+            <action android:name="gamehub.lite.LAUNCH_GAME" />
+        </intent>
     </queries>
 
     <application
@@ -143,6 +158,27 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Debug only: ADB game seeding for testing without Frontend Sync -->
+        <receiver
+            android:name=".pocket.debug.DebugSeedReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="io.latent.creteos.SEED_GAME" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="io.latent.creteos.DELETE_GAME" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Debug only: ADB sync trigger and shortcut discovery testing -->
+        <receiver
+            android:name=".pocket.debug.DebugSyncReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="io.latent.creteos.DEBUG_SYNC" />
+            </intent-filter>
+        </receiver>
 
     </application>
 

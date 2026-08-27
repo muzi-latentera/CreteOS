@@ -3,6 +3,7 @@ package com.gamelaunch.frontend.ui.navigation
 sealed class Screen(val route: String) {
     object Onboarding : Screen("onboarding")
     object Home : Screen("home")
+    object Library : Screen("library")
     object Scan : Screen("scan")
 
     /** Nested graph wrapping the settings index + its drill-in category screens. Navigating here
@@ -36,4 +37,9 @@ sealed class Screen(val route: String) {
         const val ARG_GAME_ID = "gameId"
         fun route(gameId: Long) = "game_detail/$gameId"
     }
+
+    // CreteOS pocket routes
+    object DisplayDiagnostics : Screen("display_diagnostics")
+    object ProviderSettings : Screen("provider_settings")
+    object CreteSettings : Screen("crete_settings")
 }

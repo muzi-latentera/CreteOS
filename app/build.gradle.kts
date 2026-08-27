@@ -34,7 +34,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.gamelaunch.frontend"
+        applicationId = "io.latent.creteos"
         minSdk = 26
         targetSdk = 34
         versionCode = 42
@@ -48,6 +48,19 @@ android {
         // obfuscateSecret above) and decoded at runtime by Secrets.reveal().
         buildConfigField("String", "SS_DEV_ID",       "\"${obfuscateSecret((localProperties["SS_DEV_ID"] as String?) ?: "")}\"")
         buildConfigField("String", "SS_DEV_PASSWORD",  "\"${obfuscateSecret((localProperties["SS_DEV_PASSWORD"] as String?) ?: "")}\"")
+
+        // Steam account credentials — set in local.properties, never committed to source
+        buildConfigField("String", "STEAM_API_KEY", "\"${(localProperties["STEAM_API_KEY"] as String?) ?: ""}\"")
+        buildConfigField("String", "STEAM_ID",      "\"${(localProperties["STEAM_ID"] as String?) ?: ""}\"")
+
+        // IGDB (Twitch) credentials for game metadata + time to beat
+        buildConfigField("String", "IGDB_CLIENT_ID",     "\"${(localProperties["IGDB_CLIENT_ID"] as String?) ?: ""}\"")
+        buildConfigField("String", "IGDB_CLIENT_SECRET",  "\"${(localProperties["IGDB_CLIENT_SECRET"] as String?) ?: ""}\"")
+
+        // CreteOS fork identity — used by CheckForUpdateUseCase and Settings UI
+        buildConfigField("String", "UPDATE_REPO",       "\"muzi-latentera/CreteOS\"")
+        buildConfigField("String", "UPSTREAM_REPO",     "\"keweis2/eOr\"")
+        buildConfigField("String", "EOR_BASE_VERSION",  "\"2.6.0\"")
     }
 
     externalNativeBuild {
@@ -84,6 +97,12 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+    }
+
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+        }
     }
 
     buildFeatures {
@@ -158,6 +177,9 @@ dependencies {
     // Coil
     implementation(libs.coil.compose)
     implementation(libs.coil.video)
+
+    // Palette API for color extraction
+    implementation("androidx.palette:palette:1.0.0")
 
     // DataStore
     implementation(libs.datastore.preferences)

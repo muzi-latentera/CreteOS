@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [product, main]
+  pull_request:
+    branches: [product]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build debug APK (full flavor)
+        run: ./gradlew assemblefullDebug --no-daemon
+
+      - name: Run unit tests
+        run: ./gradlew testfullDebugUnitTest --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/product'
+        with:
+          name: CreteOS-debug
+          path: app/build/outputs/apk/full/debug/*.apk
+          retention-days: 14
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Run lint
+        run: ./gradlew lintfullDebug --no-daemon
+
+      - name: Upload lint report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-*.html
+          retention-days: 7

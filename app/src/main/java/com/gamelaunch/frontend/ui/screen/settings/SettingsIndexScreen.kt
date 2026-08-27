@@ -1,16 +1,21 @@
 package com.gamelaunch.frontend.ui.screen.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -29,13 +34,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * The Settings landing screen: a scrollable, d-pad-navigable list of category rows. Tapping a row
@@ -81,6 +89,10 @@ enum class SettingsCategory(
         "settings_locked", "Locked Mode",
         "Restrict eOr to approved games and apps", Icons.Default.Lock
     ),
+    PC_STREAMING(
+        "provider_settings", "PC & Streaming",
+        "GameNative, Moonlight, GeForce NOW — sync and manage", Icons.Default.VideogameAsset
+    ),
 }
 
 @Composable
@@ -90,34 +102,116 @@ fun SettingsIndexScreen(
     onOpenCategory: (SettingsCategory) -> Unit,
     viewModel: SettingsViewModel,
 ) {
-    // Collected so the setup "Library" finish button can persist credentials entered on any
-    // sub-screen (the view model is shared across the whole settings graph).
     val state by viewModel.uiState.collectAsState()
 
-    SettingsDetailScaffold(
-        title = "Settings",
-        onBack = onBack,
-        actions = {
-            // First-launch setup only (no back button yet): a way to finish and enter the library.
-            if (onBack == null) {
-                SetupFinishAction(
-                    onClick = {
-                        viewModel.saveCredentials()
-                        viewModel.finishSetup()
-                        onGoToLibrary()
-                    }
+    // CreteOS-styled settings index — dark navy background, glass cards
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                androidx.compose.ui.graphics.Brush.radialGradient(
+                    colors = listOf(
+                        androidx.compose.ui.graphics.Color(0xFF0E1E35),
+                        androidx.compose.ui.graphics.Color(0xFF060E1C)
+                    ),
+                    radius = 1400f
                 )
-            }
-        }
+            )
     ) {
-        SettingsCategory.entries.forEach { category ->
-            SettingsCategoryRow(category = category, onClick = { onOpenCategory(category) })
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 32.dp, vertical = 24.dp)
+        ) {
+            // Header row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (onBack != null) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(androidx.compose.ui.graphics.Color(0x28FFFFFF))
+                                .border(0.5.dp, androidx.compose.ui.graphics.Color(0x33FFFFFF), RoundedCornerShape(10.dp))
+                                .clickable(onClick = onBack),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = "Back",
+                                tint = androidx.compose.ui.graphics.Color(0xFF8899BB),
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .graphicsLayer(rotationZ = 180f)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "Settings",
+                        color = androidx.compose.ui.graphics.Color(0xFFEEF2FF),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp
+                    )
+                }
+
+                // First-launch finish button
+                if (onBack == null) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(androidx.compose.ui.graphics.Color(0xFF4D9FFF))
+                            .clickable {
+                                viewModel.saveCredentials()
+                                viewModel.finishSetup()
+                                onGoToLibrary()
+                            }
+                            .padding(horizontal = 20.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Go to Library",
+                            color = androidx.compose.ui.graphics.Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = androidx.compose.ui.graphics.Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
+
+            // Settings category rows — glass cards
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(SettingsCategory.entries) { category ->
+                    CreteSettingsCategoryRow(
+                        category = category,
+                        onClick  = { onOpenCategory(category) }
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun SettingsCategoryRow(
+private fun CreteSettingsCategoryRow(
     category: SettingsCategory,
     onClick: () -> Unit,
 ) {
@@ -125,48 +219,48 @@ private fun SettingsCategoryRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .dpadFocusable(shape = RoundedCornerShape(14.dp), onClick = onClick)
+            .clip(RoundedCornerShape(12.dp))
+            .background(androidx.compose.ui.graphics.Color(0x28FFFFFF))
+            .border(0.5.dp, androidx.compose.ui.graphics.Color(0x33FFFFFF), RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Box(
             modifier = Modifier
                 .size(40.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(gradientBrush),
+                .background(androidx.compose.ui.graphics.Color(0x334D9FFF)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 category.icon,
                 contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(22.dp)
+                tint = androidx.compose.ui.graphics.Color(0xFF4D9FFF),
+                modifier = Modifier.size(20.dp)
             )
         }
         Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 category.title,
-                style = MaterialTheme.typography.titleMedium,
+                color = androidx.compose.ui.graphics.Color(0xFFEEF2FF),
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
+                fontSize = 15.sp
             )
             Text(
                 category.subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = androidx.compose.ui.graphics.Color(0xFF8899BB),
+                fontSize = 12.sp
             )
         }
         Spacer(Modifier.width(8.dp))
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(22.dp)
+            tint = androidx.compose.ui.graphics.Color(0xFF8899BB),
+            modifier = Modifier.size(20.dp)
         )
     }
-    Spacer(Modifier.size(2.dp))
 }
 
 @Composable
