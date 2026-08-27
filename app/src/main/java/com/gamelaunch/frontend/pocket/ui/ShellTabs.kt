@@ -1169,7 +1169,6 @@ fun LibraryTabContent(
             }
         }
     }
-}
 
 @Composable
 private fun V1FilterChip(
