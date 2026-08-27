@@ -44,13 +44,20 @@ class RedditNewsViewModel @Inject constructor(
             _state.value = NewsUiState(isLoading = true)
             try {
                 val posts = withContext(Dispatchers.IO) {
-                    subreddits
-                        .map { sub -> async { rssFetcher.fetch(sub, limit = 8) } }
+                    val buckets: List<List<RedditRssFetcher.RedditRssPost>> = subreddits
+                        .map { sub -> async { rssFetcher.fetch(sub, limit = 10) } }
                         .map { it.await() }
-                        .flatten()
-                        .sortedByDescending { it.publishedUtc }
-                        .distinctBy { it.title }
-                        .take(15)
+
+                    // Interleave posts from each subreddit so both r/Games and r/pcgaming appear
+                    val interleaved = mutableListOf<RedditRssFetcher.RedditRssPost>()
+                    val maxLen = buckets.maxOfOrNull { it.size } ?: 0
+                    for (i in 0 until maxLen) {
+                        buckets.forEach { list -> if (i < list.size) interleaved.add(list[i]) }
+                    }
+
+                    interleaved
+                        .distinctBy { it.title.take(40) }
+                        .take(16)
                         .map { post ->
                             NewsPost(
                                 headline     = post.title,

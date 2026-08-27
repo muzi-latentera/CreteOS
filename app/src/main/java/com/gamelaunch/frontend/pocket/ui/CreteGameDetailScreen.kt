@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -237,7 +238,7 @@ fun CreteGameDetailScreen(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Play button — red, prominent
+                    // Play button — red, prominent, icon only (no A badge)
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
@@ -252,17 +253,14 @@ fun CreteGameDetailScreen(
                             )
                             .padding(horizontal = 30.dp, vertical = 15.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.28f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("A", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = V2Cream)
-                        }
+                        Icon(
+                            imageVector = Icons.Outlined.PlayArrow,
+                            contentDescription = "Play",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
                         Text(
                             "Play",
                             fontSize = 18.sp,

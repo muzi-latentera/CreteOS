@@ -420,15 +420,17 @@ private fun HeroTile(
                 )
         )
 
-        // Artwork background — prefer high-res Steam header (460×215 sharp),
-        // fall back to page_bg_raw, then portrait box art
+        // Background image — same source as the detail screen hero:
+        // effectiveBackground → screenshotRemoteUrl → library_hero.jpg stored by DebugSeedReceiver
+        // For Steam games also try the higher-res header.jpg directly
         val appId = game.romPath.substringAfterLast(":").takeIf { it.isNotBlank() }
         val heroImageUrl = when {
-            appId != null && game.platformId.lowercase() == "steam" ->
-                // header.jpg is 460×215 crisp — much sharper than library_hero (blurry resize)
-                "https://cdn.akamai.steamstatic.com/steam/apps/$appId/header.jpg"
+            // Prefer the background/screenshot URL (library_hero) that detail screen uses
             media?.effectiveBackground != null -> media.effectiveBackground
-            media?.effectiveBoxArt != null     -> media.effectiveBoxArt
+            // Steam fallback: header.jpg (460×215, crisp)
+            appId != null && game.platformId.lowercase() == "steam" ->
+                "https://cdn.akamai.steamstatic.com/steam/apps/$appId/header.jpg"
+            media?.effectiveBoxArt != null -> media.effectiveBoxArt
             else -> null
         }
         if (heroImageUrl != null) {
@@ -1379,10 +1381,13 @@ private fun GlassSettingsCard(item: SettingsCategoryItem, selected: Boolean, onC
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(CreteDS.radiusM))
-            .background(if (selected) Color(0x554D9FFF) else Color(0x28FFFFFF))
+            .background(
+                if (selected) AmberAccent.copy(alpha = 0.10f)
+                else Color.White.copy(alpha = 0.04f)
+            )
             .border(
                 width = if (selected) 1.dp else 0.5.dp,
-                color = if (selected) CreteDS.accent.copy(alpha = 0.5f) else Color(0x33FFFFFF),
+                color = if (selected) AmberAccent.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(CreteDS.radiusM)
             )
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
@@ -1393,14 +1398,14 @@ private fun GlassSettingsCard(item: SettingsCategoryItem, selected: Boolean, onC
         Icon(
             imageVector = item.icon,
             contentDescription = null,
-            tint = if (selected) CreteDS.accent else CreteDS.textSecondary.copy(alpha = 0.6f),
+            tint = if (selected) AmberAccent else CreteDS.textSecondary.copy(alpha = 0.5f),
             modifier = Modifier.size(18.dp)
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = item.label,
                 style = CreteDS.typeNavTab,
-                color = if (selected) CreteDS.textPrimary else CreteDS.textSecondary,
+                color = if (selected) CreamText else CreteDS.textSecondary,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
             )
             Text(text = item.subtitle, style = CreteDS.typeMeta, color = CreteDS.textDisabled)
