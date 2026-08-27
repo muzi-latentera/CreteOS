@@ -89,6 +89,7 @@ private fun platformDisplayLabel(platformId: String) = when (platformId.lowercas
     "android"   -> "ANDROID"
     "moonlight" -> "MOONLIGHT"
     "gfn"       -> "GFN"
+    "local", "gamenative" -> "LOCAL"
     else        -> platformId.uppercase().take(8)
 }
 
@@ -102,6 +103,7 @@ private fun platformPillColor(platformId: String) = when (platformId.lowercase()
     "amazon"             -> Color(0xFF00A8E0)
     "moonlight"          -> Color(0xFF1A4A7A)
     "gfn"                -> Color(0xFF76B900)
+    "local", "gamenative" -> Color(0xFF2D6A3F)  // green = locally installed
     else                 -> Color(0xFF2A2A2A)
 }
 
@@ -164,6 +166,7 @@ fun V1GameCard(
     fallbackUrl: String? = null,
     title: String,
     platformId: String,
+    isLocal: Boolean = false,
     focused: Boolean,
     width: Dp = 152.dp,
     height: Dp = 203.dp,
@@ -289,6 +292,27 @@ fun V1GameCard(
             // Artwork card: small platform pill bottom-left
             Box(modifier = Modifier.align(Alignment.BottomStart).padding(8.dp)) {
                 PlatformPill(platformId = platformId, label = platformLabel)
+            }
+        }
+
+        // LOCAL pill — top-right corner when game is installed locally via GameNative
+        if (isLocal) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF2D6A3F).copy(alpha = 0.90f))
+                    .padding(horizontal = 5.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = "LOCAL",
+                    fontSize = 8.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                )
             }
         }
     }
@@ -933,6 +957,7 @@ private fun GameRail(
                     ),
                     title = game.title,
                     platformId = game.platformId,
+                    isLocal = game.platformId.lowercase() == "steam",  // GameNative check done in parent
                     focused = index == focusedIndex,
                     onClick = {
                         onFocusChange(index)
@@ -1092,6 +1117,12 @@ fun LibraryTabContent(
         Spacer(Modifier.height(16.dp))
 
         // Sources view or game grid
+        val context = LocalContext.current
+        // Check once if GameNative is installed — all Steam games can run locally if it is
+        val gameNativeInstalled = remember {
+            runCatching { context.packageManager.getPackageInfo("app.gamenative", 0); true }.getOrDefault(false)
+        }
+
         if (showSources) {
             SourcesGridView()
         } else if (state.isLoading) {
@@ -1137,8 +1168,8 @@ fun LibraryTabContent(
                         ),
                         title = game.title,
                         platformId = game.platformId,
+                        isLocal = gameNativeInstalled && game.platformId.lowercase() == "steam",
                         focused = game.id == focusedGameId,
-                        // Match home rail default size exactly — 152×203dp
                         width = 152.dp,
                         height = 203.dp,
                         onClick = {
