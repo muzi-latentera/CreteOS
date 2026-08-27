@@ -973,12 +973,6 @@ fun LibraryTabContent(
     var focusedGameId by remember { mutableStateOf<Long?>(null) }
     var showSources by remember { mutableStateOf(false) }
 
-    // LOCAL filter: games with GAME_NATIVE targets = Steam games when GameNative is installed
-    val context = LocalContext.current
-    val gameNativeInstalled = remember {
-        runCatching { context.packageManager.getPackageInfo("app.gamenative", 0); true }.getOrDefault(false)
-    }
-
     val providerPackages = setOf(
         "com.nvidia.geforcenow", "com.limelight", "com.nytimes.crossword",
         "app.gamenative", "gamehub.lite"
@@ -992,7 +986,7 @@ fun LibraryTabContent(
         }
         when (activeFilter) {
             LibraryFilter.ALL      -> base
-            LibraryFilter.LOCAL    -> if (gameNativeInstalled) base.filter { it.platformId == "steam" } else emptyList()
+            LibraryFilter.LOCAL    -> base.filter { it.romPath in state.localGameKeys }
             LibraryFilter.OWNED    -> base.filter { it.platformId in setOf("steam", "gog", "epic", "ea", "gamepass", "xbox", "ubisoft", "amazon") }
             LibraryFilter.STREAMING -> base.filter { it.platformId == "moonlight" }
             LibraryFilter.CLOUD    -> base.filter { it.platformId == "gfn" }

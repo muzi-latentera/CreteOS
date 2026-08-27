@@ -6,6 +6,8 @@ import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.model.GameMedia
 import com.gamelaunch.frontend.domain.repository.GameRepository
 import com.gamelaunch.frontend.domain.repository.MediaRepository
+import com.gamelaunch.frontend.pocket.data.repository.LaunchTargetRepository
+import com.gamelaunch.frontend.pocket.providers.ProviderId
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,13 +19,16 @@ import javax.inject.Inject
 data class LibraryUiState(
     val games: List<Game> = emptyList(),
     val mediaForGames: Map<Long, GameMedia> = emptyMap(),
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    /** romPaths of games that have a GAME_NATIVE launch target (actually installed locally) */
+    val localGameKeys: Set<String> = emptySet()
 )
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     private val gameRepository: GameRepository,
-    private val mediaRepository: MediaRepository
+    private val mediaRepository: MediaRepository,
+    private val launchTargetRepository: LaunchTargetRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LibraryUiState())
@@ -35,10 +40,17 @@ class LibraryViewModel @Inject constructor(
                 gameRepository.getAllGames(),
                 mediaRepository.observeAllMedia()
             ) { games, mediaMap ->
+                // Get GAME_NATIVE targets to identify locally installed games
+                val localKeys = launchTargetRepository
+                    .getTargetsForProvider(ProviderId.GAME_NATIVE)
+                    .map { it.hostGameKey }
+                    .toSet()
+
                 LibraryUiState(
-                    games        = games,
+                    games         = games,
                     mediaForGames = mediaMap,
-                    isLoading    = false
+                    isLoading     = false,
+                    localGameKeys = localKeys
                 )
             }.collectLatest { state ->
                 _uiState.value = state
