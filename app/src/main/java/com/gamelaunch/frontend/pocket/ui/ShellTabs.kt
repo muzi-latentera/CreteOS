@@ -77,7 +77,7 @@ private val CardPalette = listOf(
     0xFF123045, 0xFF0F4239, 0xFF241F19
 )
 
-private fun platformLabel(platformId: String) = when (platformId.lowercase()) {
+private fun platformDisplayLabel(platformId: String) = when (platformId.lowercase()) {
     "steam"     -> "STEAM"
     "gog"       -> "GOG"
     "epic"      -> "EPIC"
@@ -102,6 +102,48 @@ private fun platformPillColor(platformId: String) = when (platformId.lowercase()
     "moonlight"          -> Color(0xFF1A4A7A)
     "gfn"                -> Color(0xFF76B900)
     else                 -> Color(0xFF2A2A2A)
+}
+
+// Favicon URLs for platform logos shown in pills
+private fun platformIconUrl(platformId: String): String? = when (platformId.lowercase()) {
+    "steam"              -> "https://store.steampowered.com/favicon.ico"
+    "gog"                -> "https://www.gog.com/favicon.ico"
+    "ea"                 -> "https://www.ea.com/favicon.ico"
+    "gamepass", "xbox"   -> "https://www.xbox.com/favicon.ico"
+    "ubisoft"            -> "https://www.ubisoft.com/favicon.ico"
+    "epic"               -> "https://www.epicgames.com/favicon.ico"
+    "amazon"             -> "https://gaming.amazon.com/favicon.ico"
+    else                 -> null
+}
+
+@Composable
+private fun PlatformPill(platformId: String, label: String) {
+    val iconUrl = platformIconUrl(platformId)
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(platformPillColor(platformId).copy(alpha = 0.85f))
+            .padding(horizontal = 6.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        if (iconUrl != null) {
+            AsyncImage(
+                model = iconUrl,
+                contentDescription = null,
+                modifier = Modifier.size(10.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
+        Text(
+            text = label,
+            fontSize = 9.sp,
+            fontFamily = FontFamily.Monospace,
+            color = Color.White,
+            letterSpacing = 0.5.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
 }
 
 private fun deterministicColor(title: String): Color =
@@ -135,7 +177,7 @@ fun V1GameCard(
     val initial = title.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
 
     // Platform label
-    val platformLabel = platformLabel(platformId)
+    val platformLabel = platformDisplayLabel(platformId)
 
     Box(
         modifier = Modifier
@@ -197,7 +239,6 @@ fun V1GameCard(
 
         // Bottom scrim + text — only shown when no artwork
         if (artworkUrl == null) {
-            // Bottom scrim gradient
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -212,7 +253,6 @@ fun V1GameCard(
                         )
                     )
             )
-            // Title + platform label
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -228,41 +268,12 @@ fun V1GameCard(
                     lineHeight = 15.sp
                 )
                 Spacer(Modifier.height(4.dp))
-                // Platform pill
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(platformPillColor(platformId).copy(alpha = 0.85f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = platformLabel,
-                        fontSize = 9.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = Color.White,
-                        letterSpacing = 0.5.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+                PlatformPill(platformId = platformId, label = platformLabel)
             }
         } else {
-            // Artwork card: just show a small source pill bottom-left
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(8.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(platformPillColor(platformId).copy(alpha = 0.80f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = platformLabel,
-                    fontSize = 9.sp,
-                    fontFamily = FontFamily.Monospace,
-                    color = Color.White,
-                    letterSpacing = 0.5.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+            // Artwork card: small platform pill bottom-left
+            Box(modifier = Modifier.align(Alignment.BottomStart).padding(8.dp)) {
+                PlatformPill(platformId = platformId, label = platformLabel)
             }
         }
     }
@@ -424,7 +435,7 @@ private fun HeroTile(
     val bgColor = deterministicColor(game.title)
 
     // Platform label for chips
-    val platformLabel = platformLabel(game.platformId)
+    val platformLabel = platformDisplayLabel(game.platformId)
 
     Box(
         modifier = modifier
@@ -586,27 +597,6 @@ private fun HeroTile(
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         letterSpacing = 0.5.sp
-                    )
-                }
-
-                // Game details outline button
-                Row(
-                    modifier = Modifier
-                        .height(44.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .border(1.dp, CreamText.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onClick
-                        )
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Game details",
-                        color = CreamText,
-                        fontSize = 14.sp
                     )
                 }
             }
@@ -1119,21 +1109,21 @@ fun LibraryTabContent(
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 140.dp),
+                columns = GridCells.Adaptive(minSize = 152.dp),
                 contentPadding = PaddingValues(horizontal = 32.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(filteredGames, key = { it.id }) { game ->
-                    // Aspect ratio 3:4 — card height = width * 4/3
                     V1GameCard(
                         artworkUrl = state.mediaForGames[game.id]?.effectiveBoxArt,
                         title = game.title,
                         platformId = game.platformId,
                         focused = game.id == focusedGameId,
-                        width = 140.dp,
-                        height = 187.dp, // 140 * 4/3 ≈ 187
+                        // Match home rail default size exactly — 152×203dp
+                        width = 152.dp,
+                        height = 203.dp,
                         onClick = {
                             focusedGameId = game.id
                             onGameClick(game.id)
