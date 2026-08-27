@@ -63,6 +63,37 @@ class SteamMetadataSync @Inject constructor(
             // Additional from user-provided URLs
             "228980"  to "095ad0c3-2167-45f1-aa80-1eceacbdeebb", // BG3 alternate appid
         )
+
+        /**
+         * GFN game-id → asset-id mapping.
+         * Source: NVIDIA GFN share URLs (game-id + asset-id + lang).
+         * The asset-id identifies the specific playable catalog asset/edition.
+         */
+        val GFN_ASSET_IDS: Map<String, String> = mapOf(
+            "ea68304b-9448-4002-a00e-3b816721bf1c" to "01_5453e247-4a92-46f2-815b-3e7a8cad2f18", // Sifu
+            "8e1750d0-8502-45ec-9d0a-a7e97c0ca7bf" to "01_d5cfa8c7-9cf4-47e9-931c-e6f455c32e4f", // AC Shadows
+            "62dc8b5b-74a8-4172-9e78-d08f126813a9" to "01_3833bbd1-9655-4ad9-8527-caea5c9e4777", // Dishonored 2
+            "326bf7cb-4bfc-4c8b-bfcb-4fdcafb4ef62" to "01_7b3a959a-38b7-4ac8-b592-5ad73801f3a5", // Forza Horizon 6
+            "ce2eca28-aa8c-4b4b-a3e2-5ad03a9f8ecd" to "01_22df286c-76ed-4e85-94d1-bf3f3f0041e8", // 007 First Light
+            "c7781673-a43b-4476-825b-a8ce0bcffe88" to "01_883552ba-189a-4ea9-82b1-d842da11991b", // Pragmata
+            "cb4e2225-1c30-456b-ac8e-1424f3218329" to "01_8f7b8453-2ee0-4651-aab2-06c359a84a88", // Battlefield 6
+            "58de244f-7510-4baf-86a1-172448fda8e6" to "01_fc3c325e-290b-49d2-8c57-d082e0d4cd4a", // RE2 Remake
+            "5aed2b8b-912f-4e9e-b8e3-dcd8c8613679" to "01_57efc2f9-306d-478f-becc-ef43367a7068", // Control
+            "5e99f1b6-6db5-404e-bd80-f9d5c86b64d5" to "01_a15ad360-1b1f-4fb6-9be7-50f7e7db526b", // Star Wars Outlaws
+            "3d6f95b6-0aae-432f-ab4a-c31a01dc5de6" to "01_27843f55-52e1-4a74-80ce-eb637ab5c406", // Indiana Jones
+            "037a263a-adbf-4705-8509-76447080de75" to "01_fba9542a-ad36-4ee4-a48b-96067a9ff491", // Clair Obscur
+            "8a9b10a6-b8f4-46f3-a479-e480c304d78c" to "01_21338a23-06ed-44eb-b493-366a33b5bb9e", // KCD2
+            "2683ca75-de39-41dc-a7ea-0ffb7ecbac95" to "01_b42e33e0-bdad-4885-8c93-b92dc8f47a5d", // Black Myth
+            "fbc605a5-0d02-4a5c-a7f7-0d9d6eca31e9" to "01_69834672-8911-4064-9cee-85385a19916a", // Metro 2033
+            "095ad0c3-2167-45f1-aa80-1eceacbdeebb" to "01_a81c5653-1d0c-44fc-a6ea-3a3a290d4036", // BG3
+            "e5fc8a96-2cda-49ef-bd13-513bdc68045b" to "01_742eeb39-c372-4b14-b0ff-2b2e8f02ee97", // Cyberpunk
+            "dfdbc357-7f61-45cc-bf64-ae7117da12d5" to "01_6adbd882-66c7-40bc-b47d-784eb38fd170", // ARC Raiders
+            "23346751-e1e5-40c6-8899-ec3fe6962e3a" to "01_b6fede87-dc14-444f-a3b3-120a4202adf4", // Witcher 3
+            "6f5df9e0-9a34-4769-aaa3-e48f14805b99" to "01_f5c72618-bff0-48bb-b26d-01a0029b9de1", // Hell is Us
+            "d63e33a8-2f5e-4b4f-b6f5-f79c6938ca6a" to "01_86a551ec-ad3e-43e8-b2c8-505df9868019", // RE4 Remake
+            "ac01742f-b3dd-4be3-86bc-79ac43e54e54" to "01_95161de3-501c-4af1-8674-d32a31c2b977", // Crimson Desert
+            "3321460" to "ac01742f-b3dd-4be3-86bc-79ac43e54e54", // (appid alias)
+        )
     }
 
     /**

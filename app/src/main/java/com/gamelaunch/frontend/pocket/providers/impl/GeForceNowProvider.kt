@@ -52,25 +52,24 @@ class GeForceNowProvider @Inject constructor(
 
     override suspend fun launch(target: LaunchTarget, launchContext: LaunchContext): Result<Unit> {
         val data = runCatching { JSONObject(target.launchData) }.getOrElse { JSONObject() }
-        val gfnGameId = data.optString("gfnGameId").ifBlank { null }
+        val gfnGameId  = data.optString("gfnGameId").ifBlank { null }
+        val gfnAssetId = data.optString("gfnAssetId").ifBlank { null }
 
         return runCatching {
             if (gfnGameId != null) {
-                // Force-stop GFN first so the deeplink cold-starts to the game page
-                // (if GFN is already running, SINGLE_TASK reuse may not trigger navigation)
-                try {
-                    val am = context.getSystemService(android.app.ActivityManager::class.java)
-                    // We can't kill another app directly, but we can use the FLAG_ACTIVITY_CLEAR_TASK flag
-                } catch (_: Exception) {}
-
-                val deepLink = "$GFN_DEEP_LINK_BASE$gfnGameId" +
-                    "&utm_source=creteos&utm_campaign=launcher"
+                // Full canonical URL matching GFN's own share format
+                val deepLink = buildString {
+                    append("$GFN_DEEP_LINK_BASE$gfnGameId")
+                    append("&lang=en_GB")
+                    if (gfnAssetId != null) append("&asset-id=$gfnAssetId")
+                    append("&utm_source=creteos&utm_campaign=launcher")
+                }
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(deepLink)).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)  // clears existing GFN task
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 }
                 context.startActivity(intent)
-                Log.d(TAG, "Launched GFN via deep link: $deepLink")
+                Log.d(TAG, "Launched GFN: $deepLink")
             } else {
                 val launch = context.packageManager.getLaunchIntentForPackage(PACKAGE)
                     ?: throw IllegalStateException("GeForce NOW is not installed")
