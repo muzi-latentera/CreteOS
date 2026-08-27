@@ -5,6 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -208,7 +210,10 @@ fun CreteGameDetailScreen(
 
             // ── LEFT PANEL ─────────────────────────────────────────────────
             Column(
-                modifier = Modifier.weight(1f).fillMaxHeight()
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
             ) {
                 Spacer(Modifier.height(8.dp))
 
@@ -393,7 +398,7 @@ fun CreteGameDetailScreen(
                             fontSize = 13.sp,
                             color = V2Cream.copy(alpha = 0.75f),
                             lineHeight = 20.sp,
-                            maxLines = 5,
+                            maxLines = 10,
                             overflow = TextOverflow.Ellipsis
                         )
                     } else {
@@ -407,29 +412,22 @@ fun CreteGameDetailScreen(
 
                     Spacer(Modifier.height(28.dp))
 
-                    // ── QUICK STATS row ──────────────────────────────────
-                    // Shows non-duplicate info: playtime, release year, genre
+                    // ── QUICK INFO row — non-duplicate context ────────────
                     val steam = pocketState.steamMetadata
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(20.dp)
+                        horizontalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
-                        // Playtime
-                        if (steam != null && steam.playtimeMinutes > 0) {
-                            QuickStat(
-                                label = "PLAYTIME",
-                                value = steam.formatPlaytime()
-                            )
-                        }
-                        // Release year
                         game.releaseYear?.let {
                             QuickStat(label = "RELEASED", value = it.toString())
                         }
-                        // Genre
                         game.genre?.split(",", "/")?.firstOrNull()?.trim()
                             ?.takeIf { it.isNotBlank() }?.let {
                                 QuickStat(label = "GENRE", value = it)
                             }
+                        steam?.developer?.takeIf { it.isNotBlank() }?.let {
+                            QuickStat(label = "DEVELOPER", value = it)
+                        }
                     }
                 }
 
@@ -443,6 +441,7 @@ fun CreteGameDetailScreen(
                     .clip(RoundedCornerShape(16.dp))
                     .background(V2Glass)
                     .border(1.dp, V2GlassBorder, RoundedCornerShape(16.dp))
+                    .verticalScroll(rememberScrollState())
                     .padding(24.dp)
             ) {
                 // ── GAME INFO ────────────────────────────────────────────

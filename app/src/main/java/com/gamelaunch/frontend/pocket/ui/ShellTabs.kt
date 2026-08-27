@@ -501,9 +501,9 @@ private fun HeroTile(
                 .background(
                     Brush.horizontalGradient(
                         colorStops = arrayOf(
-                            0f to DarkBase.copy(alpha = 0.94f),
-                            0.5f to DarkBase.copy(alpha = 0.76f),
-                            1f to DarkBase.copy(alpha = 0.10f)
+                            0f   to DarkBase.copy(alpha = 0.82f),
+                            0.4f to DarkBase.copy(alpha = 0.60f),
+                            1f   to DarkBase.copy(alpha = 0.05f)
                         )
                     )
                 )
