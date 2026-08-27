@@ -170,10 +170,43 @@ class DebugSeedReceiver : BroadcastReceiver() {
             }
         }
     }
+    }
+
+
+        // Handle SEED_ROM action — insert/update a ROM game with a clean title
+        if (intent.action == ACTION_SEED_ROM) {
+            val rawTitle = intent.getStringExtra("title") ?: return
+            val title = try { java.net.URLDecoder.decode(rawTitle, "UTF-8") } catch (_: Exception) { rawTitle }
+            val platformId = intent.getStringExtra("platformId") ?: return
+            val romPath = intent.getStringExtra("romPath") ?: return
+            val romFilename = romPath.substringAfterLast("/")
+            CoroutineScope(Dispatchers.IO).launch {
+                val eorDbFile = context.getDatabasePath("gamelauncher.db")
+                if (!eorDbFile.exists()) { Log.w(TAG, "gamelauncher.db not found"); return@launch }
+                val db = android.database.sqlite.SQLiteDatabase.openDatabase(
+                    eorDbFile.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READWRITE)
+                val exists = db.rawQuery("SELECT id FROM games WHERE rom_path=?", arrayOf(romPath))
+                    .use { it.count > 0 }
+                if (exists) {
+                    db.execSQL("UPDATE games SET title=? WHERE rom_path=?", arrayOf(title, romPath))
+                } else {
+                    val cv = android.content.ContentValues().apply {
+                        put("title", title); put("rom_path", romPath); put("rom_filename", romFilename)
+                        put("platform_id", platformId); put("date_added", System.currentTimeMillis())
+                        put("is_favorite", 0); put("play_count", 0); put("is_scraped", 0)
+                    }
+                    db.insertWithOnConflict("games", null, cv, android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE)
+                }
+                db.close()
+                Log.d(TAG, "SEED_ROM: $title [$platformId]")
+            }
+            return
+        }
 
     companion object {
         const val ACTION        = "io.latent.creteos.SEED_GAME"
-        const val ACTION_DELETE = "io.latent.creteos.DELETE_GAME"
+        const val ACTION_DELETE   = "io.latent.creteos.DELETE_GAME"
+        const val ACTION_SEED_ROM = "io.latent.creteos.SEED_ROM"
         private const val TAG   = "DebugSeedReceiver"
     }
 }
