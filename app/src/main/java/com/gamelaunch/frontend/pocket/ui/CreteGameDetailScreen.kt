@@ -118,6 +118,8 @@ fun CreteGameDetailScreen(
     val context     = LocalContext.current
 
     val heroUrl     = media?.effectiveBackground ?: media?.effectiveBoxArt
+        ?: pocketState.steamMetadata?.igdbHeroUrl
+        ?: pocketState.steamMetadata?.igdbCoverUrl
     val coverUrl    = media?.effectiveBoxArt
     val accentColor = rememberDominantColor(coverUrl)
     val bgColor     = v2DeterministicColor(game.title)
@@ -157,15 +159,16 @@ fun CreteGameDetailScreen(
             )
         )
 
-        // ── Layer 3: dark directional overlay ─────────────────────────────
+        // ── Layer 3: dark directional overlay — stronger so text is always readable
+        // even over bright/white hero images
         Box(
             modifier = Modifier.fillMaxSize().background(
                 Brush.linearGradient(
                     colorStops = arrayOf(
-                        0.00f to V2Dark.copy(alpha = 0.96f),
-                        0.44f to V2Dark.copy(alpha = 0.70f),
-                        0.72f to V2Dark.copy(alpha = 0.42f),
-                        1.00f to V2Dark.copy(alpha = 0.86f)
+                        0.00f to V2Dark.copy(alpha = 0.97f),
+                        0.44f to V2Dark.copy(alpha = 0.82f),
+                        0.72f to V2Dark.copy(alpha = 0.55f),
+                        1.00f to V2Dark.copy(alpha = 0.88f)
                     ),
                     start = Offset(0f, 0f),
                     end   = Offset(2000f, 400f)

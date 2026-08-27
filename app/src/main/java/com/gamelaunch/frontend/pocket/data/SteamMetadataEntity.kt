@@ -60,6 +60,10 @@ data class SteamMetadataEntity(
     @ColumnInfo(name = "igdb_cover_url")
     val igdbCoverUrl: String? = null,
 
+    /** IGDB wide-format hero/banner URL for detail screen background */
+    @ColumnInfo(name = "igdb_hero_url")
+    val igdbHeroUrl: String? = null,
+
     @ColumnInfo(name = "updated_at_ms")
     val updatedAtMs: Long = System.currentTimeMillis(),
 
