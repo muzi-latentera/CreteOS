@@ -166,6 +166,9 @@
             <intent-filter>
                 <action android:name="io.latent.creteos.SEED_GAME" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="io.latent.creteos.DELETE_GAME" />
+            </intent-filter>
         </receiver>
 
         <!-- Debug only: ADB sync trigger and shortcut discovery testing -->
