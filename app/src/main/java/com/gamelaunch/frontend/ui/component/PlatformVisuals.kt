@@ -149,6 +149,10 @@ private val platformIconAlias: Map<String, String> = mapOf(
     "colecovision" to "col",
     "intellivision" to "itv",
     "pico8" to "pico",
+    // Emulation systems — these map to their icon pack keys
+    "ps2" to "ps2",
+    "gba" to "gba",
+    "nds" to "nds",
     // cps1/cps2/cps3 and c64 resolve to their own pack icons by id — no alias needed.
 )
 

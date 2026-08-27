@@ -122,6 +122,19 @@ class PocketGameDetailViewModel @Inject constructor(
                 val meta = steamMetadataDao.getByAppId(appId)
                 _uiState.update { it.copy(steamMetadata = meta, isLocal = meta?.isLocal ?: false) }
 
+                // For emulated games, trigger IGDB search by title if no cover art yet
+                if (game.romPath.startsWith("emu:")) {
+                    val parts = game.romPath.split(":")
+                    val systemId = parts.getOrNull(1)
+                    val system = systemId?.let { EmulatorSystem.fromId(it) }
+                    if (system != null && meta?.igdbCoverUrl == null) {
+                        igdbSync.syncEmulatedGame(game.romPath, game.title, system)
+                        // Reload metadata after sync
+                        val updatedMeta = steamMetadataDao.getByAppId(game.romPath)
+                        _uiState.update { it.copy(steamMetadata = updatedMeta) }
+                    }
+                }
+
                 // TTB from cache (populated by seedIgdbData above)
                 val ttb = hltbProvider.getCached(appId)
                 if (ttb != null) {
@@ -220,11 +233,53 @@ class PocketGameDetailViewModel @Inject constructor(
                     val existingTarget = existingTargets.find { 
                         it.provider == ProviderId.EMULATOR && it.launchData.contains("\"emulatorId\":\"${emulatorDef.id}\"")
                     }
-                    if (existingTarget != null) continue // already provisioned
+                    if (existingTarget != null) {
+                        android.util.Log.d("AutoProvision", "emu target exists: pkg=$installedPkg emulator=${emulatorDef.id}")
+                        continue // already provisioned
+                    }
 
                     // Get the ROM absolute path from steam_metadata
                     val metadata = steamMetadataDao.getByAppId(game.romPath)
-                    val romAbsPath = metadata?.romAbsPath ?: continue
+                    var romAbsPath = metadata?.romAbsPath
+
+                    // Fallback: try to reconstruct path from romPath key
+                    // emu:gc:luigis_mansion -> scan common ROM locations
+                    if (romAbsPath == null && parts.size >= 3) {
+                        val systemId = parts[1]
+                        val romKey = parts[2]
+                        // Try common ROM base paths
+                        val basePaths = listOf(
+                            "/storage/emulated/0/CreteOS/Emulation/ROMs/$systemId",
+                            "/storage/emulated/0/ROMs/$systemId",
+                            "/storage/emulated/0/Roms/$systemId"
+                        )
+                        for (basePath in basePaths) {
+                            val dir = java.io.File(basePath)
+                            if (!dir.exists() || !dir.isDirectory) continue
+                            val matchingFile = dir.listFiles()?.firstOrNull { file ->
+                                val cleanName = file.nameWithoutExtension.lowercase()
+                                    .replace(Regex("[^a-z0-9]+"), "_")
+                                    .replace(Regex("^_+|_+$"), "")
+                                cleanName == romKey || cleanName.contains(romKey)
+                            }
+                            if (matchingFile != null) {
+                                romAbsPath = matchingFile.absolutePath
+                                android.util.Log.d("AutoProvision", "Found ROM via scan: $romAbsPath")
+                                // Update steam_metadata with the resolved path
+                                if (metadata != null) {
+                                    steamMetadataDao.upsert(metadata.copy(romAbsPath = romAbsPath))
+                                }
+                                break
+                            }
+                        }
+                    }
+
+                    if (romAbsPath == null) {
+                        android.util.Log.w("AutoProvision", "emu target skipped - no romAbsPath for ${game.romPath}")
+                        continue
+                    }
+
+                    android.util.Log.d("AutoProvision", "emu target: pkg=$installedPkg romPath=$romAbsPath emulator=${emulatorDef.id}")
 
                     val launchDataJson = org.json.JSONObject().apply {
                         put("romPath", romAbsPath)

@@ -84,18 +84,28 @@ class EmulatorProvider @Inject constructor(
             )
         }
 
-        // Get ROM path from launchData, or fall back to steam_metadata.rom_abs_path
+        // Get ROM path from launchData first (should always be set during target provisioning)
         var romPath = data.optString("romPath").ifBlank { null }
+        Log.d(TAG, "launchData romPath: $romPath")
+        
+        // Fallback: look up from steam_metadata using the game's hostGameKey
         if (romPath == null) {
-            // Look up from steam_metadata using the game's hostGameKey (which is the romPath like "emu:gc:luigis_mansion")
             val appId = target.hostGameKey
             val metadata = steamMetadataDao.getByAppId(appId)
             romPath = metadata?.romAbsPath
+            Log.d(TAG, "Fallback to steam_metadata romAbsPath: $romPath (appId=$appId)")
         }
 
         if (romPath == null) {
-            Log.e(TAG, "No ROM path found for ${target.hostGameKey}")
+            Log.e(TAG, "No ROM path found for ${target.hostGameKey} - launchData=${target.launchData}")
             return Result.failure(IllegalStateException("ROM file path not found"))
+        }
+
+        // Verify file exists
+        val romFile = java.io.File(romPath)
+        if (!romFile.exists()) {
+            Log.e(TAG, "ROM file does not exist: $romPath")
+            return Result.failure(IllegalStateException("ROM file not found at: $romPath"))
         }
 
         Log.d(TAG, "Launching ${target.displayName} via ${emulatorDef.displayName}: $romPath")

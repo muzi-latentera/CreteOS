@@ -74,15 +74,28 @@ class EmulationSeeder @Inject constructor(
                 try {
                     // Check if game already exists by romPath
                     val cursor = eorDb.rawQuery(
-                        "SELECT id FROM games WHERE rom_path = ?",
+                        "SELECT id, title FROM games WHERE rom_path = ?",
                         arrayOf(rom.romPath)
                     )
                     val exists = cursor.count > 0
+                    var existingTitle: String? = null
+                    var existingId: Long? = null
+                    if (cursor.moveToFirst()) {
+                        existingId = cursor.getLong(0)
+                        existingTitle = cursor.getString(1)
+                    }
                     cursor.close()
 
-                    if (exists) {
+                    if (exists && existingId != null) {
+                        // Game exists — check if title needs updating (re-clean may produce better title)
+                        if (existingTitle != rom.title) {
+                            eorDb.execSQL(
+                                "UPDATE games SET title = ? WHERE id = ?",
+                                arrayOf(rom.title, existingId)
+                            )
+                            Log.d(TAG, "Updated title: '$existingTitle' -> '${rom.title}'")
+                        }
                         skipped++
-                        Log.d(TAG, "Skipping existing ROM: ${rom.title}")
                         continue
                     }
 

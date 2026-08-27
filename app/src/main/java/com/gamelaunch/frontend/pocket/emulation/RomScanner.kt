@@ -118,14 +118,20 @@ class RomScanner @Inject constructor() {
      * - Remove file extension
      * - Remove region codes in parentheses: (USA), (Europe), (En,Fr,De), etc.
      * - Remove revision/version codes in brackets: [v0], [vXXXXXX], [!]
+     * - Remove title IDs in brackets: [0100F2C0115B6000]
      * - Remove nkit suffix
-     * - Strip leading numbers like "4273 - " from DS ROM names
+     * - Strip leading numbers like "4273 - " from DS ROM names (3-8 digits)
+     * - Strip "The Legend of Zelda, The - " prefix for cleaner Zelda titles
+     * - Strip leading "The " from titles
      * - Trim whitespace
      *
      * Examples:
      * - "Luigi's Mansion (USA).nkit.iso" → "Luigi's Mansion"
      * - "4273 - Pokemon Mystery Dungeon - Explorers of Sky (US)(XenoPhobia).nds" → "Pokemon Mystery Dungeon Explorers of Sky"
      * - "Super Mario Sunshine [v0].gcz" → "Super Mario Sunshine"
+     * - "The Legend of Zelda Tears of the Kingdom [0100F2C0115B6000][v0].nsp" → "Tears of the Kingdom"
+     * - "Legend of Zelda, The - A Link Between Worlds (Europe) (En,Fr,De,Es,It).3ds" → "Zelda A Link Between Worlds"
+     * - "Devil May Cry 3 - Dante's Awakening (USA) (En,Ja) (Special Edition).iso" → "Devil May Cry 3 Dantes Awakening Special Edition"
      */
     private fun cleanRomTitle(filename: String): String {
         var title = filename
@@ -145,18 +151,28 @@ class RomScanner @Inject constructor() {
         // Remove any remaining parenthetical region codes
         title = title.replace(Regex("\\s*\\([A-Z]{1,2}(?:,[A-Z]{1,2})*\\)"), "")
 
-        // Remove version/revision codes in brackets: [v0], [vXXXXXX], [!], [b], etc.
+        // Keep "(Special Edition)" etc but strip region/group tags
+        // Remove version/revision codes in brackets: [v0], [vXXXXXX], [!], [b], [titleID], etc.
         title = title.replace(Regex("\\s*\\[[^\\]]*\\]"), "")
 
         // Remove nkit suffix
         title = title.replace(Regex("\\s*\\.?nkit", RegexOption.IGNORE_CASE), "")
 
-        // Strip leading numbers like "4273 - " from DS ROM names
-        title = title.replace(Regex("^\\d{3,5}\\s*-\\s*"), "")
+        // Strip leading numbers like "4273 - " or "12345678-" from scene ROM names (3-8 digits)
+        title = title.replace(Regex("^\\d{3,8}\\s*[-.]+\\s*"), "")
+
+        // Strip "Legend of Zelda, The - " or "Legend of Zelda The - " prefix for cleaner titles
+        title = title.replace(Regex("^(?:The\\s+)?Legend\\s+of\\s+Zelda[,]?\\s*(?:The)?\\s*[-:]?\\s*", RegexOption.IGNORE_CASE), "Zelda ")
+
+        // Strip leading "The " from remaining titles
+        title = title.replace(Regex("^The\\s+", RegexOption.IGNORE_CASE), "")
 
         // Replace remaining hyphens with spaces for better readability (but preserve internal hyphens)
         // Only do this for spaced hyphens like " - "
         title = title.replace(" - ", " ")
+
+        // Remove apostrophes for cleaner matching (they cause issues with IGDB searches)
+        title = title.replace("'", "")
 
         // Clean up multiple spaces and trim
         title = title.replace(Regex("\\s+"), " ").trim()

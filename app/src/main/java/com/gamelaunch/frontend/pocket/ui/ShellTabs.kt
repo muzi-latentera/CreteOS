@@ -108,20 +108,23 @@ private fun platformPillColor(platformId: String) = when (platformId.lowercase()
 }
 
 // Favicon URLs for platform logos shown in pills
+// Note: EA favicon is just an orange square — skip it so we fall back to the vector icon
 private fun platformIconUrl(platformId: String): String? = when (platformId.lowercase()) {
     "steam"              -> "https://store.steampowered.com/favicon.ico"
     "gog"                -> "https://www.gog.com/favicon.ico"
-    "ea"                 -> "https://www.ea.com/favicon.ico"
     "gamepass", "xbox"   -> "https://www.xbox.com/favicon.ico"
-    "ubisoft"            -> "https://www.ubisoft.com/favicon.ico"
     "epic"               -> "https://www.epicgames.com/favicon.ico"
     "amazon"             -> "https://gaming.amazon.com/favicon.ico"
+    // EA and Ubisoft favicons are poor quality — use vector icons instead
     else                 -> null
 }
 
 @Composable
 private fun PlatformPill(platformId: String, label: String) {
     val iconUrl = platformIconUrl(platformId)
+    // Try vector/drawable icon from PlatformVisuals for emulation systems and platforms without good favicons
+    val vectorIconRes = com.gamelaunch.frontend.ui.component.platformIcon(platformId)
+    
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(4.dp))
@@ -129,22 +132,35 @@ private fun PlatformPill(platformId: String, label: String) {
             .padding(5.dp),
         contentAlignment = Alignment.Center
     ) {
-        if (iconUrl != null) {
-            AsyncImage(
-                model = iconUrl,
-                contentDescription = label,
-                modifier = Modifier.size(12.dp),
-                contentScale = ContentScale.Fit
-            )
-        } else {
-            // Fallback: first 2 chars of label for platforms without a favicon
-            Text(
-                text = label.take(2),
-                fontSize = 8.sp,
-                fontFamily = FontFamily.Monospace,
-                color = Color.White,
-                fontWeight = FontWeight.Bold
-            )
+        when {
+            // 1. Store platforms with good favicons — use the favicon
+            iconUrl != null -> {
+                AsyncImage(
+                    model = iconUrl,
+                    contentDescription = label,
+                    modifier = Modifier.size(12.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+            // 2. Emulation systems and platforms with vector icons — use the drawable
+            vectorIconRes != null -> {
+                Icon(
+                    painter = androidx.compose.ui.res.painterResource(id = vectorIconRes),
+                    contentDescription = label,
+                    modifier = Modifier.size(12.dp),
+                    tint = Color.Unspecified  // Preserve original icon colors
+                )
+            }
+            // 3. Fallback: first 2 chars of label
+            else -> {
+                Text(
+                    text = label.take(2),
+                    fontSize = 8.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
