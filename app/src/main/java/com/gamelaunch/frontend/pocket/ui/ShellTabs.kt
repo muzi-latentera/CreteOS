@@ -77,6 +77,33 @@ private val CardPalette = listOf(
     0xFF123045, 0xFF0F4239, 0xFF241F19
 )
 
+private fun platformLabel(platformId: String) = when (platformId.lowercase()) {
+    "steam"     -> "STEAM"
+    "gog"       -> "GOG"
+    "epic"      -> "EPIC"
+    "ea"        -> "EA"
+    "gamepass", "xbox" -> "GAME PASS"
+    "ubisoft"   -> "UBISOFT"
+    "amazon"    -> "PRIME"
+    "android"   -> "ANDROID"
+    "moonlight" -> "MOONLIGHT"
+    "gfn"       -> "GFN"
+    else        -> platformId.uppercase().take(8)
+}
+
+private fun platformPillColor(platformId: String) = when (platformId.lowercase()) {
+    "steam"              -> Color(0xFF1B2838)
+    "gog"                -> Color(0xFF5C2D91)
+    "epic"               -> Color(0xFF313131)
+    "ea"                 -> Color(0xFFE8620A)
+    "gamepass", "xbox"   -> Color(0xFF107C10)
+    "ubisoft"            -> Color(0xFF0070CC)
+    "amazon"             -> Color(0xFF00A8E0)
+    "moonlight"          -> Color(0xFF1A4A7A)
+    "gfn"                -> Color(0xFF76B900)
+    else                 -> Color(0xFF2A2A2A)
+}
+
 private fun deterministicColor(title: String): Color =
     Color(CardPalette[abs(title.hashCode()) % CardPalette.size])
 
@@ -108,16 +135,7 @@ fun V1GameCard(
     val initial = title.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
 
     // Platform label
-    val platformLabel = when (platformId.lowercase()) {
-        "steam" -> "STEAM"
-        "gog" -> "GOG"
-        "epic" -> "EPIC"
-        "amazon" -> "PRIME"
-        "android" -> "ANDROID"
-        "moonlight" -> "MOONLIGHT"
-        "gfn" -> "GFN"
-        else -> platformId.uppercase().take(6)
-    }
+    val platformLabel = platformLabel(platformId)
 
     Box(
         modifier = Modifier
@@ -209,13 +227,41 @@ fun V1GameCard(
                     overflow = TextOverflow.Ellipsis,
                     lineHeight = 15.sp
                 )
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(4.dp))
+                // Platform pill
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(platformPillColor(platformId).copy(alpha = 0.85f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = platformLabel,
+                        fontSize = 9.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = Color.White,
+                        letterSpacing = 0.5.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        } else {
+            // Artwork card: just show a small source pill bottom-left
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(platformPillColor(platformId).copy(alpha = 0.80f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
                 Text(
                     text = platformLabel,
                     fontSize = 9.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = DimCream,
-                    letterSpacing = 0.5.sp
+                    color = Color.White,
+                    letterSpacing = 0.5.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
@@ -378,16 +424,7 @@ private fun HeroTile(
     val bgColor = deterministicColor(game.title)
 
     // Platform label for chips
-    val platformLabel = when (game.platformId.lowercase()) {
-        "steam" -> "STEAM"
-        "gog" -> "GOG"
-        "epic" -> "EPIC"
-        "amazon" -> "PRIME"
-        "android" -> "ANDROID"
-        "moonlight" -> "MOONLIGHT"
-        "gfn" -> "GFN"
-        else -> game.platformId.uppercase().take(8)
-    }
+    val platformLabel = platformLabel(game.platformId)
 
     Box(
         modifier = modifier
@@ -440,8 +477,7 @@ private fun HeroTile(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .blur(20.dp, BlurredEdgeTreatment.Unbounded)
-                    .graphicsLayer { alpha = 0.70f }
+                    .graphicsLayer { alpha = 0.65f }
             )
         }
 
