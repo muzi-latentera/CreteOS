@@ -207,12 +207,13 @@ class SteamMetadataSync @Inject constructor(
             // Use detailed_description (richer), strip HTML tags
             val rawDesc = data.optString("detailed_description").takeIf { it.isNotBlank() }
                 ?: data.optString("short_description").takeIf { it.isNotBlank() }
-            val description = rawDesc
-                ?.replace(Regex("<[^>]+>"), " ")
-                ?.replace(Regex("\\s{2,}"), " ")
-                ?.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ")
-                ?.trim()
-                ?.takeIf { it.length > 20 }
+            val description = rawDesc?.let { raw ->
+                raw.replace(Regex("<[^>]+>"), " ")
+                    .replace(Regex("\\s{2,}"), " ")
+                    .replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ")
+                    .trim()
+                    .takeIf { it.length > 20 }
+            }
 
             if (developers == null && publishers == null && description == null) return@withContext
 
