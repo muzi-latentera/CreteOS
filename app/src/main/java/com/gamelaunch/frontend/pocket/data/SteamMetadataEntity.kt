@@ -52,6 +52,10 @@ data class SteamMetadataEntity(
     @ColumnInfo(name = "release_date")
     val releaseDate: String? = null,   // e.g. "Aug 16, 2011"
 
+    /** GFN UUID for deep linking — e.g. "59013b48-11cb-4307-8ac1-a3480a89ecb7" */
+    @ColumnInfo(name = "gfn_game_id")
+    val gfnGameId: String? = null,
+
     @ColumnInfo(name = "updated_at_ms")
     val updatedAtMs: Long = System.currentTimeMillis(),
 
@@ -80,6 +84,9 @@ interface SteamMetadataDao {
     /** All synced entries, for bulk operations */
     @Query("SELECT * FROM steam_metadata ORDER BY playtime_minutes DESC")
     suspend fun getAll(): List<SteamMetadataEntity>
+
+    @Query("UPDATE steam_metadata SET gfn_game_id = :gfnId, updated_at_ms = :now WHERE steam_app_id = :appId")
+    suspend fun setGfnId(appId: String, gfnId: String, now: Long = System.currentTimeMillis())
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────

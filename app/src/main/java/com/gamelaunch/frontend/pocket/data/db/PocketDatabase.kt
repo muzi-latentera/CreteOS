@@ -42,7 +42,7 @@ import com.gamelaunch.frontend.pocket.data.db.entity.ManualGameLinkEntity
         SteamMetadataEntity::class,
         GameSessionEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class PocketDatabase : RoomDatabase() {
@@ -128,9 +128,16 @@ abstract class PocketDatabase : RoomDatabase() {
             }
         }
 
+        /** v3→v4: add gfn_game_id to steam_metadata for deep-link support */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE steam_metadata ADD COLUMN gfn_game_id TEXT")
+            }
+        }
+
         fun create(context: Context): PocketDatabase =
             Room.databaseBuilder(context, PocketDatabase::class.java, DATABASE_NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_1_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_1_3, MIGRATION_3_4)
                 // NO fallbackToDestructiveMigration — user data must survive upgrades
                 .build()
     }
