@@ -67,19 +67,25 @@ class PocketGameDetailViewModel @Inject constructor(
             }
         }
 
-        if (game.platformId.lowercase() == "steam") {
-            val appId = game.romPath.substringAfterLast(":")
-            if (appId.isNotBlank()) {
-                // Auto-create provider targets
-                viewModelScope.launch { autoProvisionTargets(game, appId) }
+        // The game key suffix (last segment of romPath) is used as the lookup ID
+        // for both Steam AppIDs (107100) and non-Steam fake IDs (bf6_ea, acs_ubi etc)
+        val appId = game.romPath.substringAfterLast(":")
+        if (appId.isNotBlank()) {
+            // Auto-provision launch targets (GFN/Moonlight/GameNative) for all games
+            viewModelScope.launch { autoProvisionTargets(game, appId) }
 
-                // Load / sync Steam metadata
-                viewModelScope.launch {
+            // IGDB seed — runs for ALL platforms (instant, from bundled IgdbSeedData)
+            viewModelScope.launch {
+                _uiState.update { it.copy(hltbLoading = true) }
+                seedIgdbData(appId, game.title)
+
+                // For Steam games, also sync live Steam metadata (playtime, achievements etc)
+                if (game.platformId.lowercase() == "steam") {
                     val cached = steamMetadataDao.getByAppId(appId)
                     _uiState.update { it.copy(steamMetadata = cached) }
 
                     val now = System.currentTimeMillis()
-                    val staleTtlMs = 7L * 24 * 60 * 60 * 1000  // 7 days
+                    val staleTtlMs = 7L * 24 * 60 * 60 * 1000
 
                     if (cached == null) {
                         steamMetadataSync.syncLibrary()
@@ -92,25 +98,34 @@ class PocketGameDetailViewModel @Inject constructor(
 
                     val afterSync = steamMetadataDao.getByAppId(appId)
                     if (afterSync?.developer == null) steamMetadataSync.fetchAppDetails(appId)
-
-                    _uiState.update { it.copy(steamMetadata = steamMetadataDao.getByAppId(appId)) }
                 }
 
-                // TTB via IGDB (replaces HLTB direct call)
-                viewModelScope.launch {
-                    _uiState.update { it.copy(hltbLoading = true) }
-                    // Seed pre-fetched data first (instant)
-                    seedIgdbData(appId, game.title)
-                    // Then check cache
-                    val cached = hltbProvider.getCached(appId)
-                    if (cached != null) {
-                        _uiState.update { it.copy(hltbTimes = cached, hltbLoading = false) }
-                    } else {
-                        // Not in seed data — try live IGDB fetch
-                        igdbSync.syncGame(appId, game.title)
-                        val fresh = hltbProvider.getCached(appId) ?: HltbTimes.EMPTY
-                        _uiState.update { it.copy(hltbTimes = fresh, hltbLoading = false) }
+                // For non-Steam games, create a stub steam_metadata record so IGDB data has somewhere to land
+                if (game.platformId.lowercase() != "steam") {
+                    if (steamMetadataDao.getByAppId(appId) == null) {
+                        steamMetadataDao.upsert(SteamMetadataEntity(
+                            steamAppId = appId,
+                            playtimeMinutes = 0,
+                            updatedAtMs = System.currentTimeMillis()
+                        ))
                     }
+                    // Re-run seed now the record exists
+                    seedIgdbData(appId, game.title)
+                }
+
+                // Update UI with latest metadata
+                val meta = steamMetadataDao.getByAppId(appId)
+                _uiState.update { it.copy(steamMetadata = meta) }
+
+                // TTB from cache (populated by seedIgdbData above)
+                val ttb = hltbProvider.getCached(appId)
+                if (ttb != null) {
+                    _uiState.update { it.copy(hltbTimes = ttb, hltbLoading = false) }
+                } else {
+                    // Try live IGDB fetch as last resort
+                    igdbSync.syncGame(appId, game.title)
+                    val fresh = hltbProvider.getCached(appId) ?: HltbTimes.EMPTY
+                    _uiState.update { it.copy(hltbTimes = fresh, hltbLoading = false) }
                 }
             }
         }

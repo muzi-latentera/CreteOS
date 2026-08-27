@@ -137,7 +137,7 @@ class IgdbMetadataSync @Inject constructor(
             val igdbCoverUrl = if (coversArr.length() > 0) {
                 val imageId = coversArr.getJSONObject(0).optString("image_id")
                 if (imageId.isNotBlank())
-                    "https://images.igdb.com/igdb/image/upload/t_cover_big/$imageId.jpg"
+                    "https://images.igdb.com/igdb/image/upload/t_cover_big_2x/$imageId.jpg"
                 else null
             } else null
 
