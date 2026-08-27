@@ -119,30 +119,30 @@ private fun platformIconUrl(platformId: String): String? = when (platformId.lowe
 @Composable
 private fun PlatformPill(platformId: String, label: String) {
     val iconUrl = platformIconUrl(platformId)
-    Row(
+    Box(
         modifier = Modifier
             .clip(RoundedCornerShape(4.dp))
             .background(platformPillColor(platformId).copy(alpha = 0.85f))
-            .padding(horizontal = 6.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+            .padding(5.dp),
+        contentAlignment = Alignment.Center
     ) {
         if (iconUrl != null) {
             AsyncImage(
                 model = iconUrl,
-                contentDescription = null,
-                modifier = Modifier.size(10.dp),
+                contentDescription = label,
+                modifier = Modifier.size(12.dp),
                 contentScale = ContentScale.Fit
             )
+        } else {
+            // Fallback: first 2 chars of label for platforms without a favicon
+            Text(
+                text = label.take(2),
+                fontSize = 8.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
         }
-        Text(
-            text = label,
-            fontSize = 9.sp,
-            fontFamily = FontFamily.Monospace,
-            color = Color.White,
-            letterSpacing = 0.5.sp,
-            fontWeight = FontWeight.SemiBold
-        )
     }
 }
 

@@ -360,21 +360,6 @@ fun CreteGameDetailScreen(
                     }
                 }
 
-                    // Favourite icon
-                    Box(
-                        modifier = Modifier
-                            .size(54.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .border(1.dp, V2Cream.copy(alpha = 0.18f), RoundedCornerShape(12.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Outlined.FavoriteBorder,
-                            contentDescription = "Favourite",
-                            tint = V2Cream.copy(alpha = 0.7f),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
                 }
 
                 Spacer(Modifier.height(38.dp))
@@ -425,9 +410,6 @@ fun CreteGameDetailScreen(
                             ?.takeIf { it.isNotBlank() }?.let {
                                 QuickStat(label = "GENRE", value = it)
                             }
-                        steam?.developer?.takeIf { it.isNotBlank() }?.let {
-                            QuickStat(label = "DEVELOPER", value = it)
-                        }
                     }
                 }
 
