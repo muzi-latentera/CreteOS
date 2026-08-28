@@ -125,12 +125,12 @@ private fun PlatformPill(platformId: String, label: String) {
     val iconUrl = platformIconUrl(platformId)
     val vectorIconRes = com.gamelaunch.frontend.ui.component.platformIcon(platformId)
 
-    // Per-platform icon size — larger for complex shapes that disappear at 16dp
+    // Per-platform icon fill — what fraction of the fixed 24dp container the icon occupies
     val iconSize = when (platformId.lowercase()) {
-        "gc"                   -> 22.dp  // GameCube logo is detailed
-        "ps2", "ps3"           -> 20.dp
+        "gc"                   -> 22.dp  // GameCube — complex logo, needs more space
+        "ps2", "ps3"           -> 21.dp
         "gba", "nds", "n3ds",
-        "psp", "psvita"        -> 19.dp
+        "psp", "psvita"        -> 20.dp
         else                   -> 16.dp
     }
     // PS2 disc logo looks better rotated 90°
@@ -139,15 +139,15 @@ private fun PlatformPill(platformId: String, label: String) {
         else  -> 0f
     }
 
+    // Fixed container — icon size varies but the box stays the same
     Box(
         modifier = Modifier
+            .size(24.dp)
             .clip(RoundedCornerShape(4.dp))
-            .background(platformPillColor(platformId).copy(alpha = 0.85f))
-            .padding(4.dp),
+            .background(platformPillColor(platformId).copy(alpha = 0.85f)),
         contentAlignment = Alignment.Center
     ) {
         when {
-            // 1. Store platforms with good favicons — use the favicon
             iconUrl != null -> {
                 AsyncImage(
                     model = iconUrl,
