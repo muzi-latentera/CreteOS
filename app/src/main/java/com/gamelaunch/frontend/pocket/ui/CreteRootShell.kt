@@ -229,11 +229,6 @@ private fun CreteBottomNavBar(
             .fillMaxWidth()
             .height(64.dp)
             .background(Color(0xFF0B0E11))
-            .border(
-                width = 1.dp,
-                color = Color(0x14F2E8D5),
-                shape = RoundedCornerShape(0.dp)
-            )
             .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
