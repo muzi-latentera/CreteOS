@@ -15,6 +15,22 @@ import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
+internal data class IgdbTtbSeconds(
+    val main: Int,
+    val mainExtra: Int,
+    val completionist: Int
+)
+
+/** IGDB averages can occasionally contradict their own main < extras < completion semantics. */
+internal fun consistentIgdbTtb(hastily: Int, normally: Int, completely: Int): IgdbTtbSeconds {
+    var main = hastily.coerceAtLeast(0)
+    var mainExtra = normally.coerceAtLeast(0)
+    val completionist = completely.coerceAtLeast(0)
+    if ((mainExtra > 0 && main > mainExtra) || (completionist > 0 && main > completionist)) main = 0
+    if (completionist > 0 && mainExtra > completionist) mainExtra = 0
+    return IgdbTtbSeconds(main, mainExtra, completionist)
+}
+
 /**
  * Fetches game metadata (time to beat, developer, publisher, summary) from IGDB
  * using Twitch OAuth client credentials (stored in BuildConfig / local.properties).
@@ -115,19 +131,25 @@ class IgdbMetadataSync @Inject constructor(
 
             // 4. Store TTB in hltb_cache
             if (ttb != null) {
-                val mainSec = ttb.optInt("hastily", 0)
-                val plusSec = ttb.optInt("normally", 0)
-                val compSec = ttb.optInt("completely", 0)
-                if (mainSec > 0 || plusSec > 0) {
+                val times = consistentIgdbTtb(
+                    ttb.optInt("hastily", 0),
+                    ttb.optInt("normally", 0),
+                    ttb.optInt("completely", 0)
+                )
+                if (times.main > 0 || times.mainExtra > 0 || times.completionist > 0) {
                     hltbCacheDao.upsert(HltbCacheEntity(
                         steamAppId           = steamAppId,
                         gameTitle            = gameTitle,
                         hltbId               = igdbId,
-                        mainStorySeconds     = mainSec,
-                        mainExtraSeconds     = plusSec,
-                        completionistSeconds = compSec
+                        mainStorySeconds     = times.main,
+                        mainExtraSeconds     = times.mainExtra,
+                        completionistSeconds = times.completionist
                     ))
-                    Log.d(TAG, "$gameTitle TTB: ${mainSec/3600}h / ${plusSec/3600}h / ${compSec/3600}h")
+                    Log.d(
+                        TAG,
+                        "$gameTitle TTB: ${times.main / 3600}h / ${times.mainExtra / 3600}h / " +
+                            "${times.completionist / 3600}h"
+                    )
                 }
             }
 
@@ -236,11 +258,11 @@ class IgdbMetadataSync @Inject constructor(
 
             // Search IGDB by title
             val searchQuery = """
-                fields name,cover.image_id,artworks.image_id,screenshots.image_id,summary,platforms.name,platforms.abbreviation,
+                fields id,name,cover.image_id,artworks.image_id,screenshots.image_id,summary,platforms.name,platforms.abbreviation,
                        involved_companies.company.name,involved_companies.developer,involved_companies.publisher,
                        game_modes.name;
                 search "$title";
-                limit 5;
+                limit 20;
             """.trimIndent()
 
             val results = igdbPost("games", searchQuery)
@@ -291,14 +313,46 @@ class IgdbMetadataSync @Inject constructor(
                 }
             }
 
-            // Only use result if we have a good match (>= 80 score, i.e., exact or starts with)
-            if (bestMatch == null || bestScore < 80) {
+            // Require both an exact normalized title and the emulated platform. A looser prefix
+            // match can select fan projects such as "New Super Mario Bros. Deluxe".
+            if (bestMatch == null || bestScore < 120) {
                 Log.d(TAG, "No good IGDB match for '$title' (best score: $bestScore)")
                 return@withContext
             }
 
             val gameName = bestMatch.optString("name", title)
+            val igdbId = bestMatch.optInt("id", 0)
             Log.d(TAG, "Found IGDB match: '$gameName' (score: $bestScore)")
+
+            // ROMs do not have a Steam external ID, so use the platform-matched IGDB game ID
+            // directly for the same time-to-beat data that Steam games receive.
+            if (igdbId > 0) {
+                val ttbResults = igdbPost(
+                    "game_time_to_beats",
+                    "fields game_id,hastily,normally,completely; where game_id=$igdbId; limit 1;"
+                )
+                val ttb = ttbResults.optJSONObject(0)
+                val times = consistentIgdbTtb(
+                    ttb?.optInt("hastily", 0) ?: 0,
+                    ttb?.optInt("normally", 0) ?: 0,
+                    ttb?.optInt("completely", 0) ?: 0
+                )
+                hltbCacheDao.upsert(
+                    HltbCacheEntity(
+                        steamAppId = romPath,
+                        gameTitle = title,
+                        hltbId = igdbId,
+                        mainStorySeconds = times.main,
+                        mainExtraSeconds = times.mainExtra,
+                        completionistSeconds = times.completionist
+                    )
+                )
+                Log.d(
+                    TAG,
+                    "$title TTB: ${times.main / 3600}h / ${times.mainExtra / 3600}h / " +
+                        "${times.completionist / 3600}h"
+                )
+            }
 
             // Extract cover URL
             val coverId = bestMatch.optJSONObject("cover")?.optString("image_id")

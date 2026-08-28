@@ -5,6 +5,7 @@ import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.model.GameMedia
 import com.gamelaunch.frontend.domain.repository.GameRepository
 import com.gamelaunch.frontend.domain.repository.MediaRepository
+import com.gamelaunch.frontend.pocket.data.HowLongToBeatProvider
 import com.gamelaunch.frontend.pocket.data.IgdbMetadataSync
 import com.gamelaunch.frontend.pocket.data.SteamMetadataDao
 import com.gamelaunch.frontend.pocket.data.SteamMetadataEntity
@@ -23,19 +24,20 @@ class RomLibraryMetadataReconciler @Inject constructor(
     private val gameRepository: GameRepository,
     private val mediaRepository: MediaRepository,
     private val steamMetadataDao: SteamMetadataDao,
+    private val hltbProvider: HowLongToBeatProvider,
     private val igdbSync: IgdbMetadataSync
 ) {
-    suspend fun reconcile(games: List<Game>) = withContext(Dispatchers.IO) {
+    suspend fun reconcile(games: List<Game>, forceRefresh: Boolean = false) = withContext(Dispatchers.IO) {
         games.forEach { game ->
             val system = emulatorSystemFor(game) ?: return@forEach
-            runCatching { reconcileGame(game, system) }
+            runCatching { reconcileGame(game, system, forceRefresh) }
                 .onFailure { error ->
                     Log.w(TAG, "Could not reconcile ROM metadata for ${game.romPath}", error)
                 }
         }
     }
 
-    private suspend fun reconcileGame(game: Game, system: EmulatorSystem) {
+    private suspend fun reconcileGame(game: Game, system: EmulatorSystem, forceRefresh: Boolean) {
         val canonicalTitle = RomTitleNormalizer.fromFilename(game.romFilename)
         val titleNeedsRepair = RomTitleNormalizer.shouldRepair(game.title, game.romFilename)
         if (titleNeedsRepair) {
@@ -61,7 +63,9 @@ class RomLibraryMetadataReconciler @Inject constructor(
 
         // A repaired title gets one fresh, platform-aware lookup so an old ambiguous result (for
         // example the 3DS remake of Luigi's Mansion) is replaced with the correct platform entry.
-        if (metadata.igdbCoverUrl.isNullOrBlank() || titleNeedsRepair) {
+        // Existing ROMs also get a one-time TTB backfill now that the IGDB ROM path supports it.
+        val ttbNeedsRefresh = hltbProvider.needsRefresh(game.romPath)
+        if (forceRefresh || metadata.igdbCoverUrl.isNullOrBlank() || titleNeedsRepair || ttbNeedsRefresh) {
             igdbSync.syncEmulatedGame(game.romPath, canonicalTitle, system)
             metadata = steamMetadataDao.getByAppId(game.romPath) ?: metadata
         }

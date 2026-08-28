@@ -48,7 +48,10 @@ class DebugSeedReceiver : BroadcastReceiver() {
             val pendingResult = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
                 runCatching {
-                    romMetadataReconciler.reconcile(gameRepository.getAllGames().first())
+                    romMetadataReconciler.reconcile(
+                        gameRepository.getAllGames().first(),
+                        forceRefresh = true
+                    )
                 }.onSuccess {
                     Log.i(TAG, "ROM metadata reconciliation complete")
                 }.onFailure { error ->

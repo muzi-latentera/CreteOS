@@ -85,8 +85,16 @@ class HowLongToBeatProvider @Inject constructor(
         val cached = hltbCacheDao.getByAppId(steamAppId) ?: return@withContext null
         if (System.currentTimeMillis() - cached.cachedAtMs > CACHE_TTL_MS) return@withContext null
         val times = cached.toHltbTimes()
-        if (times.mainStoryHours == null && times.mainExtraHours == null) return@withContext null
+        if (times.mainStoryHours == null && times.mainExtraHours == null &&
+            times.completionistHours == null
+        ) return@withContext null
         times
+    }
+
+    /** Whether a lookup, including a legitimate no-data result, is still fresh. */
+    suspend fun needsRefresh(gameKey: String): Boolean = withContext(Dispatchers.IO) {
+        val cached = hltbCacheDao.getByAppId(gameKey) ?: return@withContext true
+        System.currentTimeMillis() - cached.cachedAtMs > CACHE_TTL_MS
     }
 
     suspend fun getTimes(steamAppId: String, gameTitle: String): HltbTimes =
