@@ -68,6 +68,19 @@ class SteamMetadataSync @Inject constructor(
             "bf6_ea"        to "https://play.geforcenow.com/games?game-id=cb4e2225-1c30-456b-ac8e-1424f3218329&lang=en_GB&asset-id=01_8f7b8453-2ee0-4651-aab2-06c359a84a88",  // Battlefield 6 (EA)
             "2138710" to "https://play.geforcenow.com/games?game-id=ea68304b-9448-4002-a00e-3b816721bf1c&lang=en_GB&asset-id=01_5453e247-4a92-46f2-815b-3e7a8cad2f18",  // Sifu ✓ — AppID 2138710 (NOT 2767120 which is a DLC)
             "1771300" to "https://play.geforcenow.com/games?game-id=8a9b10a6-b8f4-46f3-a479-e480c304d78c&lang=en_GB&asset-id=01_21338a23-06ed-44eb-b493-366a33b5bb9e",  // Kingdom Come: Deliverance II ✓ (Steam AppID 1771300 confirmed)
+            // ── New verified entries ────────────────────────────────────────────────────────
+            "753640"  to "https://play.geforcenow.com/games?game-id=90170f79-53af-4db4-a6f5-b9504c11ccae&lang=en_GB&asset-id=01_72ad3036-e505-4f4e-803d-b69931f135c2",  // Outer Wilds ✓
+            "1588550" to "https://play.geforcenow.com/games?game-id=3dd3d248-2723-45b3-afc3-a4f5ddb83f57&lang=en_GB&asset-id=01_1618c3c1-6a35-4490-9b97-a41defce54c6",  // Cairn ✓
+            "238010"  to "https://play.geforcenow.com/games?game-id=e94347b4-0da0-438b-b12a-93e08613bd3a&lang=en_GB&asset-id=01_31f9b1ab-38d4-4fbb-8c9d-77055ed56c60",  // Deus Ex: Human Revolution - Director's Cut ✓
+            "601150"  to "https://play.geforcenow.com/games?game-id=60871823-032b-4cad-a72a-e8b34b17a582&lang=en_GB&asset-id=01_99b089fc-3431-4354-af4c-f137120f5f6c",  // Devil May Cry 5 ✓
+            "594650"  to "https://play.geforcenow.com/games?game-id=25cee06b-1f6d-4cf3-a390-7192d81cbf6b&lang=en_GB&asset-id=01_b6e44802-ae8c-4751-a14e-cdb8e3a4f4a5",  // Hunt: Showdown 1896 ✓
+            "990080"  to "https://play.geforcenow.com/games?game-id=deee193c-00b7-4ecc-aa5f-55f031a86c93&lang=en_GB&asset-id=01_d1e78ccc-f94f-4770-935c-9a352d76601e",  // Hogwarts Legacy ✓
+            "1977170" to "https://play.geforcenow.com/games?game-id=cce5a383-6c09-4e4f-b7aa-7f25e0921f11&lang=en_GB&asset-id=01_6d93c05a-0280-4f3a-aeaa-a9760bdd7493",  // Jusant ✓
+            "43160"   to "https://play.geforcenow.com/games?game-id=3526f2bb-081f-4e5f-8edc-430d316b028e&lang=en_GB&asset-id=01_5b3ee542-757a-4d97-83e5-8254b5921025",  // Metro: Last Light Redux ✓
+            "607080"  to "https://play.geforcenow.com/games?game-id=03391802-fc05-4219-9cd2-862688421bde&lang=en_GB&asset-id=01_4383bf5d-321f-4b6a-9563-a0fa546c9f8d",  // Psychonauts 2 ✓
+            "1604030" to "https://play.geforcenow.com/games?game-id=a19f2f4b-9649-4e4e-855d-47033d5d2694&lang=en_GB&asset-id=01_8ebb0630-cdb5-46dd-b499-c8c167d83336",  // V Rising ✓
+            "2054970" to "https://play.geforcenow.com/games?game-id=0e0fa489-80ce-4944-953f-99193b10dfdf&lang=en_GB&asset-id=01_2edb5f63-6995-4fc1-9e6e-9c1529b820dd",  // Dragon's Dogma 2 ✓
+            "379720"  to "https://play.geforcenow.com/games?game-id=93a7671e-2a34-44a6-aeba-e8fc35f4329c&lang=en_GB&asset-id=01_1c5e938a-f7b1-4858-a925-fea2e2732461",  // DOOM ✓
             // ── NOT verified — open GFN library for these until confirmed ────────────────
             // Sifu 2767120 — WRONG AppID (that's a DLC). Correct AppID 2138710 now in VERIFIED above
             // Cyberpunk 2077 1091500 — now VERIFIED above (UUID proven via Elden Ring test)
