@@ -127,10 +127,12 @@ private fun PlatformPill(platformId: String, label: String) {
 
     // Per-platform icon fill — what fraction of the fixed 24dp container the icon occupies
     val iconSize = when (platformId.lowercase()) {
-        "gc"                   -> 24.dp  // GameCube — fill the container
+        "gc"                   -> 24.dp
         "switch"               -> 23.dp
         "ps2", "ps3"           -> 23.dp
-        "gba", "nds", "n3ds",
+        "wiiu"                 -> 23.dp
+        "3ds", "n3ds"          -> 23.dp
+        "gba", "nds",
         "psp", "psvita"        -> 22.dp
         else                   -> 16.dp
     }
@@ -154,7 +156,9 @@ private fun PlatformPill(platformId: String, label: String) {
                 AsyncImage(
                     model = iconUrl,
                     contentDescription = label,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(
+                        if (platformId.lowercase() in setOf("gamepass","xbox")) 13.dp else 16.dp
+                    ),
                     contentScale = ContentScale.Fit
                 )
             }
