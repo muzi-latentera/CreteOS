@@ -6,7 +6,7 @@ package com.gamelaunch.frontend.pocket.emulation
 enum class RomIntentType {
     /** ROM path as a String extra (most common) */
     FILE_PATH,
-    /** Content URI (content://) as a Uri extra */
+    /** Content URI (content://) as Intent data, or as a Uri extra when romIntentKey is set */
     CONTENT_URI,
     /** File URI set as Intent data (setData) */
     DATA_URI,

@@ -54,6 +54,20 @@ class LaunchTargetRepository @Inject constructor(
 
     suspend fun deleteTarget(id: Long) = launchTargetDao.delete(id)
 
+    /**
+     * Remove targets that cannot launch this game through [provider].
+     *
+     * This lets ROM auto-provisioning repair targets created by older builds without
+     * replacing or editing the database outside Room. Any saved preference is cleared
+     * because its target may have been one of the removed rows; the caller selects a
+     * valid preferred target after provisioning completes.
+     */
+    suspend fun retainOnlyProvider(hostGameKey: String, provider: ProviderId): Int {
+        val removed = launchTargetDao.deleteTargetsExceptProvider(hostGameKey, provider.name)
+        if (removed > 0) preferenceDao.delete(hostGameKey)
+        return removed
+    }
+
     suspend fun countAvailableForProvider(provider: ProviderId): Int =
         launchTargetDao.countAvailableForProvider(provider.name)
 

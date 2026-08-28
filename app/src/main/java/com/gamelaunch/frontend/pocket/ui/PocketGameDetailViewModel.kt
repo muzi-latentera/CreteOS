@@ -65,7 +65,6 @@ class PocketGameDetailViewModel @Inject constructor(
     val uiState: StateFlow<PocketLaunchUiState> = _uiState
 
     fun loadTargetsForGame(game: Game) {
-        android.util.Log.e("PocketVM", "loadTargetsForGame: id=${game.id} title=${game.title} platformId=${game.platformId} romPath=${game.romPath.take(80)}")
         // Observe targets reactively
         viewModelScope.launch {
             launchTargetRepository.getTargetsForGame(game.romPath).collectLatest { targets ->
@@ -125,18 +124,8 @@ class PocketGameDetailViewModel @Inject constructor(
 
                 // For emulated games, trigger IGDB search by title if no cover art yet
                 // Handles both emu: romPaths and eOr's native file path romPaths (detected via platform_id)
-                val emulationSystems = setOf("gc","wii","wiiu","ps1","ps2","ps3","psp","psvita",
-                    "gba","gb","gbc","nds","n3ds","switch","n64","dreamcast","saturn")
-                val isEmulatedGame = game.romPath.startsWith("emu:") || 
-                    game.platformId in emulationSystems
-                if (isEmulatedGame) {
-                    val system = when {
-                        game.romPath.startsWith("emu:") -> {
-                            val parts = game.romPath.split(":")
-                            parts.getOrNull(1)?.let { EmulatorSystem.fromId(it) }
-                        }
-                        else -> EmulatorSystem.fromId(game.platformId)
-                    }
+                if (isEmulatedGame(game)) {
+                    val system = emulatorSystemFor(game)
                     if (system != null && meta?.igdbCoverUrl == null) {
                         igdbSync.syncEmulatedGame(game.romPath, game.title, system)
                         val updatedMeta = steamMetadataDao.getByAppId(game.romPath)
@@ -173,41 +162,40 @@ class PocketGameDetailViewModel @Inject constructor(
 
         val toUpsert = mutableListOf<LaunchTarget>()
 
-        // Skip GameNative/Moonlight/GFN for emulated games — they use dedicated emulators
-        val emulationPlatforms = setOf("gc","wii","wiiu","ps1","ps2","ps3","psp","psvita",
-            "gba","gb","gbc","nds","n3ds","switch","n64","dreamcast","saturn")
-        val isRomGame = game.romPath.startsWith("emu:") || game.platformId in emulationPlatforms
+        // Older builds provisioned PC/cloud targets before ROM detection existed. Repair
+        // those rows through Room whenever the ROM detail page is opened.
+        val isRomGame = isEmulatedGame(game)
         if (isRomGame) {
-            // Skip to emulator provisioning below
-        } else {
-
-        // Priority 1: GameNative — local PC, best experience
-        if (isInstalled("app.gamenative")) {
-            toUpsert += LaunchTarget(
-                hostGameKey = game.romPath,
-                provider    = ProviderId.GAME_NATIVE,
-                externalId  = steamAppId,
-                source      = "STEAM",
-                displayName = "Play on PC (GameNative)",
-                launchData  = """{"steamAppId":"$steamAppId"}""",
-                isPreferred = true   // Default to local when available
-            )
+            launchTargetRepository.retainOnlyProvider(game.romPath, ProviderId.EMULATOR)
         }
 
-        // Priority 2: Moonlight — streaming from local PC
-        if (isInstalled("com.limelight")) {
-            toUpsert += LaunchTarget(
-                hostGameKey = game.romPath,
-                provider    = ProviderId.MOONLIGHT,
-                externalId  = steamAppId,
-                source      = "STEAM",
-                displayName = "Stream via Moonlight",
-                launchData  = """{"steamAppId":"$steamAppId"}""",
-                isPreferred = toUpsert.isEmpty() // Preferred only if GameNative not installed
-            )
-        }
+        if (!isRomGame) {
+            // Priority 1: GameNative — local PC, best experience
+            if (isInstalled("app.gamenative")) {
+                toUpsert += LaunchTarget(
+                    hostGameKey = game.romPath,
+                    provider    = ProviderId.GAME_NATIVE,
+                    externalId  = steamAppId,
+                    source      = "STEAM",
+                    displayName = "Play on PC (GameNative)",
+                    launchData  = """{"steamAppId":"$steamAppId"}""",
+                    isPreferred = true   // Default to local when available
+                )
+            }
 
-        } // end !isRomGame
+            // Priority 2: Moonlight — streaming from local PC
+            if (isInstalled("com.limelight")) {
+                toUpsert += LaunchTarget(
+                    hostGameKey = game.romPath,
+                    provider    = ProviderId.MOONLIGHT,
+                    externalId  = steamAppId,
+                    source      = "STEAM",
+                    displayName = "Stream via Moonlight",
+                    launchData  = """{"steamAppId":"$steamAppId"}""",
+                    isPreferred = toUpsert.isEmpty() // Preferred only if GameNative not installed
+                )
+            }
+        }
 
         // Priority 3: GeForce NOW — only for verified canonical URLs, never for ROM games
         // Does NOT touch GameNative or Moonlight targets
@@ -239,18 +227,8 @@ class PocketGameDetailViewModel @Inject constructor(
 
         // Priority 4: Emulators — for emulated games
         // Handles both emu: romPaths (our seeder) and eOr's native file path romPaths (detected via platform_id)
-        val emulationSystemIds = setOf("gc","wii","wiiu","ps1","ps2","ps3","psp","psvita",
-            "gba","gb","gbc","nds","n3ds","switch","n64","dreamcast","saturn")
-        val isEmulatedGame = game.romPath.startsWith("emu:") || game.platformId in emulationSystemIds
-        android.util.Log.d("AutoProvision", "DIAG platformId=${game.platformId} romPath=${game.romPath.take(60)} isEmulatedGame=$isEmulatedGame")
-        if (isEmulatedGame) {
-            val system = when {
-                game.romPath.startsWith("emu:") -> {
-                    val parts = game.romPath.split(":")
-                    if (parts.size >= 2) EmulatorSystem.fromId(parts[1]) else null
-                }
-                else -> EmulatorSystem.fromId(game.platformId)
-            }
+        if (isRomGame) {
+            val system = emulatorSystemFor(game)
             if (system != null) {
                 val emulators = EmulatorRegistry.forSystem(system)
                 val existingTargets = launchTargetRepository.getTargetsForGameOnce(game.romPath)
@@ -330,6 +308,36 @@ class PocketGameDetailViewModel @Inject constructor(
         if (toUpsert.isNotEmpty()) {
             launchTargetRepository.upsertTargets(toUpsert)
         }
+
+        // A legacy GameNative target may have been preferred. Ensure a surviving or newly
+        // created emulator target becomes the one-tap Play target after cleanup.
+        if (isRomGame) {
+            val emulatorTarget = launchTargetRepository.getTargetsForGameOnce(game.romPath)
+                .firstOrNull { it.provider == ProviderId.EMULATOR && it.isAvailable }
+            if (emulatorTarget != null) {
+                launchTargetRepository.setPreferredTarget(game.romPath, emulatorTarget.id)
+            }
+        }
+    }
+
+    private fun isEmulatedGame(game: Game): Boolean =
+        game.romPath.startsWith("emu:") ||
+            game.platformId.trim().lowercase() in EMULATION_PLATFORM_IDS
+
+    private fun emulatorSystemFor(game: Game): EmulatorSystem? {
+        val rawSystemId = if (game.romPath.startsWith("emu:")) {
+            game.romPath.split(":").getOrNull(1)
+        } else {
+            game.platformId
+        } ?: return null
+
+        // eOr platform IDs predate the ES-DE IDs used by EmulatorSystem.
+        val systemId = when (rawSystemId.trim().lowercase()) {
+            "ps1" -> "psx"
+            "n3ds" -> "3ds"
+            else -> rawSystemId.trim()
+        }
+        return EmulatorSystem.fromId(systemId)
     }
 
     private suspend fun seedIgdbData(steamAppId: String, gameTitle: String) {
@@ -345,6 +353,14 @@ class PocketGameDetailViewModel @Inject constructor(
             summary               = entry.summary,
             coverUrl              = entry.coverUrl,
             heroUrl               = entry.heroUrl,
+        )
+    }
+
+    private companion object {
+        val EMULATION_PLATFORM_IDS = setOf(
+            "nes", "snes", "gb", "gbc", "gba", "n64", "dreamcast", "saturn",
+            "switch", "wiiu", "gc", "wii", "ps1", "psx", "ps2", "ps3", "psp",
+            "psvita", "nds", "n3ds", "3ds"
         )
     }
 

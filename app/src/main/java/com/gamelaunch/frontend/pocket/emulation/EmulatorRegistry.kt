@@ -59,7 +59,8 @@ object EmulatorRegistry {
         // ============================================================
         // DOLPHIN — GameCube / Wii
         // STATUS: VERIFIED from ES-DE Android definitions + APK manifest dumpsys
-        // ES-DE uses: TvMainActivity, MAIN + LEANBACK_LAUNCHER, extra AutoStartFile = content URI
+        // Dolphin 2603a uses: TvMainActivity, MAIN + LEANBACK_LAUNCHER.
+        // Its StartupHandler prioritizes a content URI in Intent.data for scoped storage.
         // ============================================================
         EmulatorDefinition(
             id = "DOLPHIN",
@@ -74,13 +75,15 @@ object EmulatorRegistry {
             launchActivity = ".ui.main.TvMainActivity", // VERIFIED: ES-DE uses TvMainActivity not AppLinkActivity
             launchAction = "android.intent.action.MAIN", // VERIFIED
             launchCategory = "android.intent.category.LEANBACK_LAUNCHER", // VERIFIED
-            romIntentKey = "AutoStartFile", // VERIFIED: ES-DE es_find_rules.xml
-            romIntentType = RomIntentType.CONTENT_URI, // Content URI via FileProvider, FLAG_GRANT_READ_URI_PERMISSION
-            requiresSafUriGrant = true, // MUST grant read permission
+            // AutoStartFile is Dolphin's legacy raw-path fallback. A content URI must be placed in
+            // Intent.data so Android can grant it to Dolphin and StartupHandler selects it first.
+            romIntentKey = null,
+            romIntentType = RomIntentType.CONTENT_URI,
+            requiresSafUriGrant = true,
             supportsCustomDriver = false,
             experimental = false,
             exportMethod = "Memory card files in Dolphin/GC/<region>/ and Dolphin/Wii/",
-            notes = "AutoStartFile must be a content:// URI. CreteOS grants FLAG_GRANT_READ_URI_PERMISSION."
+            notes = "Pass a FileProvider content URI as Intent.data with a temporary read grant."
         ),
 
         // ============================================================
@@ -367,8 +370,6 @@ object EmulatorRegistry {
                     }
 
                     if (def.romIntentKey != null) {
-                        // Pass as a Uri parcelable extra (e.g. Dolphin's "AutoStartFile")
-                        // NOT as a string — emulators resolve it as a Uri, not a filesystem path
                         putExtra(def.romIntentKey, uri)
                     } else {
                         // Set as intent data

@@ -37,6 +37,9 @@ interface LaunchTargetDao {
     @Query("DELETE FROM launch_targets WHERE id = :id")
     suspend fun delete(id: Long)
 
+    @Query("DELETE FROM launch_targets WHERE hostGameKey = :key AND provider != :provider")
+    suspend fun deleteTargetsExceptProvider(key: String, provider: String): Int
+
     @Query("SELECT COUNT(*) FROM launch_targets WHERE provider = :provider AND isAvailable = 1")
     suspend fun countAvailableForProvider(provider: String): Int
 }
