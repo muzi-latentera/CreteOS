@@ -127,10 +127,11 @@ private fun PlatformPill(platformId: String, label: String) {
 
     // Per-platform icon fill — what fraction of the fixed 24dp container the icon occupies
     val iconSize = when (platformId.lowercase()) {
-        "gc"                   -> 22.dp  // GameCube — complex logo, needs more space
-        "ps2", "ps3"           -> 21.dp
+        "gc"                   -> 24.dp  // GameCube — fill the container
+        "switch"               -> 23.dp
+        "ps2", "ps3"           -> 23.dp
         "gba", "nds", "n3ds",
-        "psp", "psvita"        -> 20.dp
+        "psp", "psvita"        -> 22.dp
         else                   -> 16.dp
     }
     // PS2 disc logo looks better rotated 90°
@@ -148,6 +149,7 @@ private fun PlatformPill(platformId: String, label: String) {
         contentAlignment = Alignment.Center
     ) {
         when {
+            // 1. Store platforms with good favicons — use the favicon
             iconUrl != null -> {
                 AsyncImage(
                     model = iconUrl,
@@ -156,15 +158,15 @@ private fun PlatformPill(platformId: String, label: String) {
                     contentScale = ContentScale.Fit
                 )
             }
-            // 2. Emulation systems and platforms with vector icons — use the drawable
+            // 2. Emulation systems and platforms with vector/PNG icons
             vectorIconRes != null -> {
-                Icon(
+                androidx.compose.foundation.Image(
                     painter = androidx.compose.ui.res.painterResource(id = vectorIconRes),
                     contentDescription = label,
+                    contentScale = ContentScale.Inside,
                     modifier = Modifier
                         .size(iconSize)
                         .then(if (rotation != 0f) Modifier.rotate(rotation) else Modifier),
-                    tint = Color.Unspecified
                 )
             }
             // 3. Fallback: first 2 chars of label
