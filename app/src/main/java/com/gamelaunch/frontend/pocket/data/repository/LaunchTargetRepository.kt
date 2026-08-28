@@ -46,6 +46,25 @@ class LaunchTargetRepository @Inject constructor(
         )
     }
 
+    /** The saved row exists only when the user explicitly chose a target in Play Using. */
+    suspend fun getSavedPreferredTargetId(hostGameKey: String): Long? =
+        preferenceDao.getPreference(hostGameKey)?.preferredTargetId
+
+    /**
+     * Apply the deterministic fallback without turning it into a user preference.
+     * This lets the fallback change when a local install appears or disappears.
+     */
+    suspend fun setAutomaticPreferredTarget(hostGameKey: String, targetId: Long) {
+        launchTargetDao.clearPreferred(hostGameKey)
+        launchTargetDao.setPreferred(targetId)
+        preferenceDao.delete(hostGameKey)
+    }
+
+    suspend fun clearAutomaticPreference(hostGameKey: String) {
+        launchTargetDao.clearPreferred(hostGameKey)
+        preferenceDao.delete(hostGameKey)
+    }
+
     suspend fun markProviderUnavailable(provider: ProviderId) =
         launchTargetDao.setProviderAvailability(provider.name, false)
 

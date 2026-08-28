@@ -120,19 +120,18 @@ class SteamMetadataSync @Inject constructor(
             val lastMs = g.optLong("rtime_last_played", 0L)
                 .let { if (it > 0) it * 1000L else null }
 
-            // Preserve existing achievement data if already fetched
+            // Preserve all sidecar data (IGDB, HLTB, GFN link, ROM path and local state).
+            // A Steam playtime refresh must never reset fields owned by another sync.
             val existing = steamMetadataDao.getByAppId(appId)
             steamMetadataDao.upsert(
-                SteamMetadataEntity(
+                existing?.copy(
+                    playtimeMinutes = mins,
+                    lastPlayedMs    = lastMs,
+                    updatedAtMs     = System.currentTimeMillis()
+                ) ?: SteamMetadataEntity(
                     steamAppId           = appId,
                     playtimeMinutes      = mins,
                     lastPlayedMs         = lastMs,
-                    achievementsUnlocked = existing?.achievementsUnlocked ?: 0,
-                    achievementsTotal    = existing?.achievementsTotal ?: 0,
-                    developer            = existing?.developer,
-                    publisher            = existing?.publisher,
-                    description          = existing?.description,
-                    releaseDate          = existing?.releaseDate,
                     updatedAtMs          = System.currentTimeMillis()
                 )
             )

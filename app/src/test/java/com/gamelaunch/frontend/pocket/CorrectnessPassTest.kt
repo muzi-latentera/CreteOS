@@ -3,6 +3,7 @@ package com.gamelaunch.frontend.pocket
 import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.repository.GameRepository
 import com.gamelaunch.frontend.pocket.data.repository.LaunchTargetRepository
+import com.gamelaunch.frontend.pocket.data.SteamMetadataDao
 import com.gamelaunch.frontend.pocket.domain.DiscoveredProviderGame
 import com.gamelaunch.frontend.pocket.domain.LaunchTarget
 import com.gamelaunch.frontend.pocket.providers.GameProvider
@@ -35,6 +36,7 @@ class CorrectnessPassTest {
     // ---- shared mocks ----
     private lateinit var gameRepository: GameRepository
     private lateinit var launchTargetRepository: LaunchTargetRepository
+    private lateinit var steamMetadataDao: SteamMetadataDao
     private lateinit var artworkResolver: PcGameArtworkResolver
     private lateinit var identityResolver: GameIdentityResolver
     private lateinit var coordinator: ProviderSyncCoordinator
@@ -43,6 +45,7 @@ class CorrectnessPassTest {
     fun setup() {
         gameRepository = mock()
         launchTargetRepository = mock()
+        steamMetadataDao = mock()
         artworkResolver = mock()
         identityResolver = GameIdentityResolver(gameRepository, launchTargetRepository)
         
@@ -55,6 +58,7 @@ class CorrectnessPassTest {
         return ProviderSyncCoordinator(
             gameRepository = gameRepository,
             launchTargetRepository = launchTargetRepository,
+            steamMetadataDao = steamMetadataDao,
             artworkResolver = artworkResolver,
             identityResolver = identityResolver,
             providers = mapOf(provider.id to provider)

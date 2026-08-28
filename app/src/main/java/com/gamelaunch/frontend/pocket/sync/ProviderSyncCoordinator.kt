@@ -3,6 +3,8 @@ package com.gamelaunch.frontend.pocket.sync
 import android.util.Log
 import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.repository.GameRepository
+import com.gamelaunch.frontend.pocket.data.SteamMetadataDao
+import com.gamelaunch.frontend.pocket.data.SteamMetadataEntity
 import com.gamelaunch.frontend.pocket.data.repository.LaunchTargetRepository
 import com.gamelaunch.frontend.pocket.domain.DiscoveredProviderGame
 import com.gamelaunch.frontend.pocket.domain.LaunchTarget
@@ -37,6 +39,7 @@ import javax.inject.Singleton
 class ProviderSyncCoordinator @Inject constructor(
     private val gameRepository: GameRepository,
     private val launchTargetRepository: LaunchTargetRepository,
+    private val steamMetadataDao: SteamMetadataDao,
     private val artworkResolver: PcGameArtworkResolver,
     private val identityResolver: GameIdentityResolver,
     private val providers: Map<ProviderId, @JvmSuppressWildcards GameProvider>
@@ -63,6 +66,11 @@ class ProviderSyncCoordinator @Inject constructor(
     suspend fun syncProvider(providerId: ProviderId, provider: GameProvider): SyncResult {
         if (!provider.isAvailable()) {
             Log.d(TAG, "$providerId not installed — marking unavailable")
+            if (providerId == ProviderId.GAME_NATIVE) {
+                launchTargetRepository.getTargetsForProvider(providerId).forEach {
+                    setLocalState(it.hostGameKey, false)
+                }
+            }
             launchTargetRepository.markProviderUnavailable(providerId)
             return SyncResult(providerId, 0, 0, 0, 0, emptyList())
         }
@@ -83,14 +91,16 @@ class ProviderSyncCoordinator @Inject constructor(
             .associateBy { it.externalId }
 
         val seenExternalIds = mutableSetOf<String>()
+        val seenHostGameKeys = mutableSetOf<String>()
         var added = 0; var updated = 0
         val errors = mutableListOf<String>()
 
         for (game in discovered) {
             runCatching {
-                val wasNew = processDiscoveredGame(game, existingTargets[game.externalId], libraryIndex)
+                val processed = processDiscoveredGame(game, existingTargets[game.externalId], libraryIndex)
                 seenExternalIds += game.externalId
-                if (wasNew) added++ else updated++
+                seenHostGameKeys += processed.hostGameKey
+                if (processed.wasNew) added++ else updated++
             }.onFailure { e ->
                 Log.w(TAG, "Failed to process ${game.displayName}: ${e.message}")
                 errors += "${game.displayName}: ${e.message}"
@@ -103,6 +113,11 @@ class ProviderSyncCoordinator @Inject constructor(
             runCatching {
                 // Mark unavailable but preserve the row and any isPreferred flag
                 launchTargetRepository.upsertTarget(staleTarget.copy(isAvailable = false))
+                // A host can have a stale legacy target and a newly discovered current target.
+                // Only clear Local when no target for that host was seen in this sync.
+                if (providerId == ProviderId.GAME_NATIVE && staleTarget.hostGameKey !in seenHostGameKeys) {
+                    setLocalState(staleTarget.hostGameKey, false)
+                }
                 Log.d(TAG, "Marked stale: ${providerId}/${staleTarget.externalId}")
             }
         }
@@ -120,13 +135,14 @@ class ProviderSyncCoordinator @Inject constructor(
      * 4. Upsert launch target — PRESERVING isPreferred if target already exists
      * 5. Resolve artwork for new games (Steam source only for CDN)
      *
-     * Returns true if a new eOr Game row was inserted.
+     * Returns whether a new eOr row was inserted plus the resolved host key, which is also
+     * used to reconcile GameNative's per-game Local state safely.
      */
     private suspend fun processDiscoveredGame(
         discovered: DiscoveredProviderGame,
         existingTarget: LaunchTarget?,
         libraryIndex: GameIdentityResolver.LibraryIndex
-    ): Boolean {
+    ): ProcessedGame {
 
         // 1+2. Try identity resolution
         val resolved = discovered.hostGameKey?.let { key ->
@@ -164,7 +180,7 @@ class ProviderSyncCoordinator @Inject constructor(
                 if (newId <= 0L) {
                     // Race condition — fetch it
                     val refetched = gameRepository.getGameByRomPath(syntheticKey)
-                        ?: return false
+                        ?: return ProcessedGame(wasNew = false, hostGameKey = syntheticKey)
                     hostGameKey = syntheticKey
                     hostGameId  = refetched.id
                     wasNew      = false
@@ -191,6 +207,9 @@ class ProviderSyncCoordinator @Inject constructor(
             isPreferred = currentPreferred  // never reset by sync
         )
         launchTargetRepository.upsertTarget(target)
+        if (discovered.provider == ProviderId.GAME_NATIVE) {
+            setLocalState(hostGameKey, true)
+        }
         Log.d(TAG, "Upserted target: ${discovered.provider}/${discovered.externalId} preferred=$currentPreferred")
 
         // 5. Artwork — Steam CDN only for source==STEAM
@@ -198,8 +217,10 @@ class ProviderSyncCoordinator @Inject constructor(
             resolveArtwork(hostGameId, discovered)
         }
 
-        return wasNew
+        return ProcessedGame(wasNew = wasNew, hostGameKey = hostGameKey)
     }
+
+    private data class ProcessedGame(val wasNew: Boolean, val hostGameKey: String)
 
     private suspend fun resolveArtwork(gameId: Long, discovered: DiscoveredProviderGame) {
         // Steam CDN ONLY for actual Steam AppIDs (source == "STEAM")
@@ -209,6 +230,23 @@ class ProviderSyncCoordinator @Inject constructor(
             artworkResolver.setRemoteUrlsForSteamGame(gameId, steamAppId)
         }
         // All other sources: eOr scraper handles artwork through its existing path
+    }
+
+    private suspend fun setLocalState(hostGameKey: String, isLocal: Boolean) {
+        val metadataKey = hostGameKey.substringAfterLast(":")
+        if (metadataKey.isBlank()) return
+        val existing = steamMetadataDao.getByAppId(metadataKey)
+        if (existing == null) {
+            steamMetadataDao.upsert(
+                SteamMetadataEntity(
+                    steamAppId = metadataKey,
+                    isLocal = isLocal,
+                    updatedAtMs = System.currentTimeMillis()
+                )
+            )
+        } else {
+            steamMetadataDao.setLocal(metadataKey, isLocal)
+        }
     }
 
     /**

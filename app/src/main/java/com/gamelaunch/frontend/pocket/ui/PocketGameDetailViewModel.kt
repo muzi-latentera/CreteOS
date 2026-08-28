@@ -19,6 +19,7 @@ import com.gamelaunch.frontend.pocket.data.repository.LaunchTargetRepository
 import com.gamelaunch.frontend.pocket.domain.LaunchTarget
 import com.gamelaunch.frontend.pocket.emulation.EmulatorRegistry
 import com.gamelaunch.frontend.pocket.emulation.EmulatorSystem
+import com.gamelaunch.frontend.pocket.launch.LaunchPreferencePolicy
 import com.gamelaunch.frontend.pocket.launch.UnifiedLaunchCoordinator
 import com.gamelaunch.frontend.pocket.providers.GameProvider
 import com.gamelaunch.frontend.pocket.providers.ProviderId
@@ -168,6 +169,7 @@ class PocketGameDetailViewModel @Inject constructor(
         fun isInstalled(pkg: String) = runCatching { pm.getPackageInfo(pkg, 0); true }.getOrDefault(false)
 
         val toUpsert = mutableListOf<LaunchTarget>()
+        val existingAtStart = launchTargetRepository.getTargetsForGameOnce(game.romPath)
 
         val isRomGame = isEmulatedGame(game)
         if (isRomGame) {
@@ -186,58 +188,87 @@ class PocketGameDetailViewModel @Inject constructor(
         }
 
         if (!isRomGame) {
-            // Priority 1: GameNative — local PC, best experience
-            if (isInstalled("app.gamenative")) {
-                toUpsert += LaunchTarget(
-                    hostGameKey = game.romPath,
-                    provider    = ProviderId.GAME_NATIVE,
-                    externalId  = steamAppId,
-                    source      = "STEAM",
-                    displayName = "Play on PC (GameNative)",
-                    launchData  = """{"steamAppId":"$steamAppId"}""",
-                    isPreferred = true   // Default to local when available
-                )
+            val source = sourceForGame(game)
+            val gameNativeInstalled = isInstalled("app.gamenative")
+            val isLocallyInstalled = steamMetadataDao.getByAppId(steamAppId)?.isLocal == true &&
+                gameNativeInstalled
+            val existingGameNative = existingAtStart.filter { it.provider == ProviderId.GAME_NATIVE }
+
+            // GameNative is a game-level target, not an app-level target. Installing the runtime
+            // alone does not mean every game in the library is installed locally.
+            if (isLocallyInstalled) {
+                // Preserve provider-discovered numeric IDs for GOG/Epic/Amazon. Their library
+                // aliases are not valid GameNative app_id values.
+                val existing = existingGameNative.firstOrNull {
+                    (it.externalId.toIntOrNull() ?: 0) > 0
+                }
+                existingGameNative.filter { it.id != existing?.id }.forEach {
+                    launchTargetRepository.deleteTarget(it.id)
+                }
+                if (existing != null) {
+                    toUpsert += existing.copy(isAvailable = true)
+                } else if ((steamAppId.toIntOrNull() ?: 0) > 0) {
+                    toUpsert += LaunchTarget(
+                        hostGameKey = game.romPath,
+                        provider    = ProviderId.GAME_NATIVE,
+                        externalId  = steamAppId,
+                        source      = source,
+                        displayName = "Play on PC (GameNative)",
+                        launchData  = """{"steamAppId":"$steamAppId"}""",
+                        isAvailable = true,
+                        isPreferred = false
+                    )
+                }
+            } else {
+                // Remove targets created by older builds merely because the GameNative APK existed.
+                existingGameNative.forEach { launchTargetRepository.deleteTarget(it.id) }
+                if (!gameNativeInstalled) steamMetadataDao.setLocal(steamAppId, false)
             }
 
-            // Priority 2: Moonlight — streaming from local PC
+            // Moonlight remains available in Play Using whenever the client is installed.
             if (isInstalled("com.limelight")) {
+                val existing = existingAtStart.firstOrNull { it.provider == ProviderId.MOONLIGHT }
                 toUpsert += LaunchTarget(
+                    id          = existing?.id ?: 0L,
                     hostGameKey = game.romPath,
                     provider    = ProviderId.MOONLIGHT,
                     externalId  = steamAppId,
-                    source      = "STEAM",
+                    source      = source,
                     displayName = "Stream via Moonlight",
                     launchData  = """{"steamAppId":"$steamAppId"}""",
-                    isPreferred = toUpsert.isEmpty() // Preferred only if GameNative not installed
+                    isAvailable = true,
+                    isPreferred = existing?.isPreferred ?: false
                 )
+            } else {
+                existingAtStart.filter { it.provider == ProviderId.MOONLIGHT }.forEach {
+                    launchTargetRepository.upsertTarget(it.copy(isAvailable = false))
+                }
             }
         }
 
-        // Priority 3: GeForce NOW — only for verified canonical URLs, never for ROM games
-        // Does NOT touch GameNative or Moonlight targets
+        // GeForce NOW is preferred over Moonlight only when we have a device-verified direct URL.
+        // Unverified games still get a library target, with Moonlight as the safer default.
         if (!isRomGame && isInstalled("com.nvidia.geforcenow")) {
             val canonicalUrl = SteamMetadataSync.GFN_VERIFIED[steamAppId]
             val gfnId = canonicalUrl?.let { Regex("game-id=([^&]+)").find(it)?.groupValues?.get(1) }
-
-            // Check if existing GFN target needs upgrading to canonical URL
-            val currentGfnTargets = launchTargetRepository.getTargetsForGameOnce(game.romPath)
-                .filter { it.provider == ProviderId.GEFORCE_NOW }
-            val alreadyHasCanonical = currentGfnTargets.any { it.launchData.contains("canonicalGfnUrl") }
-
-            if (currentGfnTargets.isEmpty() || (!alreadyHasCanonical && canonicalUrl != null)) {
-                toUpsert += LaunchTarget(
-                    id          = currentGfnTargets.firstOrNull()?.id ?: 0L,
-                    hostGameKey = game.romPath,
-                    provider    = ProviderId.GEFORCE_NOW,
-                    externalId  = gfnId ?: steamAppId,
-                    source      = "STEAM",
-                    displayName = if (canonicalUrl != null) "GeForce NOW" else "GeForce NOW (library)",
-                    launchData  = if (canonicalUrl != null)
-                        """{"canonicalGfnUrl":"${canonicalUrl.replace("\"","\\\"")}","steamAppId":"$steamAppId"}"""
-                    else
-                        """{"steamAppId":"$steamAppId"}""",
-                    isPreferred = currentGfnTargets.firstOrNull()?.isPreferred ?: toUpsert.isEmpty()
-                )
+            val existing = existingAtStart.firstOrNull { it.provider == ProviderId.GEFORCE_NOW }
+            toUpsert += LaunchTarget(
+                id          = existing?.id ?: 0L,
+                hostGameKey = game.romPath,
+                provider    = ProviderId.GEFORCE_NOW,
+                externalId  = gfnId ?: steamAppId,
+                source      = sourceForGame(game),
+                displayName = if (canonicalUrl != null) "GeForce NOW" else "GeForce NOW (library)",
+                launchData  = if (canonicalUrl != null)
+                    """{"canonicalGfnUrl":"${canonicalUrl.replace("\"","\\\"")}","steamAppId":"$steamAppId"}"""
+                else
+                    """{"steamAppId":"$steamAppId"}""",
+                isAvailable = true,
+                isPreferred = existing?.isPreferred ?: false
+            )
+        } else if (!isRomGame) {
+            existingAtStart.filter { it.provider == ProviderId.GEFORCE_NOW }.forEach {
+                launchTargetRepository.upsertTarget(it.copy(isAvailable = false))
             }
         }
 
@@ -325,15 +356,33 @@ class PocketGameDetailViewModel @Inject constructor(
             launchTargetRepository.upsertTargets(toUpsert)
         }
 
-        // A legacy GameNative target may have been preferred. Ensure a surviving or newly
-        // created emulator target becomes the one-tap Play target after cleanup.
-        if (isRomGame) {
-            val emulatorTarget = launchTargetRepository.getTargetsForGameOnce(game.romPath)
-                .firstOrNull { it.provider == ProviderId.EMULATOR && it.isAvailable }
-            if (emulatorTarget != null) {
-                launchTargetRepository.setPreferredTarget(game.romPath, emulatorTarget.id)
+        val availableTargets = launchTargetRepository.getTargetsForGameOnce(game.romPath)
+            .filter { it.isAvailable }
+        val savedTargetId = launchTargetRepository.getSavedPreferredTargetId(game.romPath)
+        val savedTarget = availableTargets.firstOrNull { it.id == savedTargetId }
+
+        if (savedTarget != null) {
+            // Explicit stars always win while the selected target remains available.
+            launchTargetRepository.setPreferredTarget(game.romPath, savedTarget.id)
+        } else {
+            val automaticProvider = LaunchPreferencePolicy.chooseProvider(
+                isLocallyInstalled = !isRomGame &&
+                    steamMetadataDao.getByAppId(steamAppId)?.isLocal == true,
+                availableProviders = availableTargets.mapTo(mutableSetOf()) { it.provider },
+                hasVerifiedGfnLink = !isRomGame && SteamMetadataSync.GFN_VERIFIED.containsKey(steamAppId),
+            )
+            val automaticTarget = availableTargets.firstOrNull { it.provider == automaticProvider }
+            if (automaticTarget != null) {
+                launchTargetRepository.setAutomaticPreferredTarget(game.romPath, automaticTarget.id)
+            } else {
+                launchTargetRepository.clearAutomaticPreference(game.romPath)
             }
         }
+    }
+
+    private fun sourceForGame(game: Game): String {
+        val parts = game.romPath.split(":")
+        return if (parts.size >= 3) parts[parts.lastIndex - 1].uppercase() else "STEAM"
     }
 
     private fun isEmulatedGame(game: Game): Boolean =
@@ -396,6 +445,7 @@ class PocketGameDetailViewModel @Inject constructor(
             }
             steamMetadataDao.setLocal(appId, new)
             _uiState.update { it.copy(isLocal = new) }
+            autoProvisionTargets(game, appId)
         }
     }
 
