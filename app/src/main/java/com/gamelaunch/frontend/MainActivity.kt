@@ -63,6 +63,7 @@ import com.gamelaunch.frontend.domain.repository.SettingsRepository
 import com.gamelaunch.frontend.domain.model.EmulatorUpdate
 import com.gamelaunch.frontend.domain.usecase.AppUpdate
 import com.gamelaunch.frontend.domain.usecase.CheckEmulatorUpdatesUseCase
+import com.gamelaunch.frontend.domain.usecase.EmulatorUpdateNoticePolicy
 import com.gamelaunch.frontend.launcher.ObtainiumLauncher
 import com.gamelaunch.frontend.ui.component.EmulatorUpdateBanner
 import com.gamelaunch.frontend.domain.usecase.CheckForUpdateUseCase
@@ -327,9 +328,9 @@ class MainActivity : ComponentActivity() {
                             count = updates.size,
                             onOpen = {
                                 if (!obtainiumLauncher.refresh()) obtainiumLauncher.open()
-                                emulatorUpdatesState.value = emptyList()
+                                dismissEmulatorUpdates(updates)
                             },
-                            onDismiss = { emulatorUpdatesState.value = emptyList() },
+                            onDismiss = { dismissEmulatorUpdates(updates) },
                             modifier = Modifier.align(Alignment.TopCenter)
                         )
                     }
@@ -581,18 +582,31 @@ class MainActivity : ComponentActivity() {
             // banner or post a system notification. (The Settings card still checks on demand.)
             val notificationsOn = settingsRepository.emulatorUpdateNotifications.first()
             val updates = runCatching { checkEmulatorUpdatesUseCase() }.getOrDefault(emptyList())
-            emulatorUpdatesState.value = if (notificationsOn) updates else emptyList()
+            val signature = EmulatorUpdateNoticePolicy.signature(updates)
+            val prefs = getSharedPreferences("app_updates", MODE_PRIVATE)
+            val dismissedSignature = prefs.getString("dismissed_emulator_sig", null)
+            emulatorUpdatesState.value = if (
+                EmulatorUpdateNoticePolicy.shouldShow(notificationsOn, updates, dismissedSignature)
+            ) updates else emptyList()
             if (!notificationsOn || updates.isEmpty()) return@launch
             // De-dupe the system notification by the exact set of pending package→version pairs, so
             // we only nag once per new batch of emulator releases.
-            val signature = updates.sortedBy { it.packageName }
-                .joinToString(",") { "${it.packageName}:${it.latestVersion}" }
-            val prefs = getSharedPreferences("app_updates", MODE_PRIVATE)
             if (prefs.getString("notified_emulator_sig", null) != signature) {
                 notifyEmulatorUpdates(updates)
                 prefs.edit().putString("notified_emulator_sig", signature).apply()
             }
         }
+    }
+
+    private fun dismissEmulatorUpdates(updates: List<EmulatorUpdate>) {
+        val signature = EmulatorUpdateNoticePolicy.signature(updates)
+        if (signature.isNotEmpty()) {
+            getSharedPreferences("app_updates", MODE_PRIVATE)
+                .edit()
+                .putString("dismissed_emulator_sig", signature)
+                .apply()
+        }
+        emulatorUpdatesState.value = emptyList()
     }
 
     private fun notifyEmulatorUpdates(updates: List<EmulatorUpdate>) {

@@ -1,5 +1,6 @@
 package com.gamelaunch.frontend.domain.usecase
 
+import android.util.Log
 import com.gamelaunch.frontend.domain.model.EmulatorUpdate
 import com.gamelaunch.frontend.domain.model.PackApp
 import com.gamelaunch.frontend.domain.repository.ObtainiumPackRepository
@@ -56,6 +57,7 @@ class CheckEmulatorUpdatesUseCase @Inject constructor(
             .filter { it.isInstalled && !it.versionName.isNullOrBlank() }
 
         val result = installed.mapNotNull { emu ->
+            if (!EmulatorReleasePolicy.canComparePackage(emu.packageName)) return@mapNotNull null
             val entry = packRepository.entryForPackage(emu.packageName) ?: return@mapNotNull null
             if (!entry.isGitHubSource) return@mapNotNull null
             val latest = latestGitHubVersion(entry) ?: return@mapNotNull null
@@ -71,6 +73,7 @@ class CheckEmulatorUpdatesUseCase @Inject constructor(
         }
         lastSweepAt = now
         lastResult = result
+        Log.i(TAG, "Update check complete: ${result.joinToString { "${it.packageName} ${it.installedVersion}→${it.latestVersion}" }}")
         result
     }
 
@@ -101,6 +104,12 @@ class CheckEmulatorUpdatesUseCase @Inject constructor(
 
             val tag = json.optString("tag_name").ifBlank { json.optString("name") }
             if (tag.isBlank()) return null
+            val releaseName = json.optString("name")
+            // Some projects publish development builds as ordinary GitHub releases instead of
+            // setting prerelease=true. Honour the pack's stable channel intent conservatively.
+            if (!includePrereleases && !EmulatorReleasePolicy.isStableRelease(tag, releaseName)) {
+                return null
+            }
             val version = extractVersion(tag, versionRegEx) ?: tag.trimStart('v', 'V')
             repoCache[repoPath] = RepoCache(etag, version)
             version
@@ -125,6 +134,7 @@ class CheckEmulatorUpdatesUseCase @Inject constructor(
     }
 
     companion object {
+        private const val TAG = "EmulatorUpdateCheck"
         // Skip a fresh network sweep if one ran this recently (unless forced by an explicit tap).
         private const val SWEEP_THROTTLE_MS = 10 * 60 * 1000L
     }

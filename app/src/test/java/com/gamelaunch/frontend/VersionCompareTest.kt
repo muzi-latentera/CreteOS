@@ -30,10 +30,12 @@ class VersionCompareTest {
 
     @Test
     fun `non-numeric parts are ignored`() {
-        // Tags like "v2.1.0" are trimmed before compare; dashes/suffixes are dropped.
+        // Channel/build suffixes do not alter the dotted version core.
         assertTrue(VersionCompare.isNewer("2.1.0", "2.0.0-beta"))
         assertFalse(VersionCompare.isNewer("2.0.0-rc1", "2.0.0"))
         assertTrue(VersionCompare.isNewer("2024.05.01", "2024.04.30"))
+        assertFalse(VersionCompare.isNewer("2.0.1", "2.0.1 GH"))
+        assertFalse(VersionCompare.isNewer("2126.0", "2126.0-vanilla"))
     }
 
     @Test
