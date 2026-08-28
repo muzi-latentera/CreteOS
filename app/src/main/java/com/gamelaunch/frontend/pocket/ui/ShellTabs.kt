@@ -36,6 +36,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -98,7 +99,7 @@ private fun platformPillColor(platformId: String) = when (platformId.lowercase()
     "gog"                -> Color(0xFF5C2D91)
     "epic"               -> Color(0xFF313131)
     "ea"                 -> Color(0xFFE8620A)
-    "gamepass", "xbox"   -> Color(0xFF107C10)
+    "gamepass", "xbox"   -> Color(0xFF1A1A1A)  // dark neutral — Xbox green box looks weird
     "ubisoft"            -> Color(0xFF0070CC)
     "amazon"             -> Color(0xFF00A8E0)
     "moonlight"          -> Color(0xFF1A4A7A)
@@ -122,9 +123,22 @@ private fun platformIconUrl(platformId: String): String? = when (platformId.lowe
 @Composable
 private fun PlatformPill(platformId: String, label: String) {
     val iconUrl = platformIconUrl(platformId)
-    // Try vector/drawable icon from PlatformVisuals for emulation systems and platforms without good favicons
     val vectorIconRes = com.gamelaunch.frontend.ui.component.platformIcon(platformId)
-    
+
+    // Per-platform icon size — larger for complex shapes that disappear at 16dp
+    val iconSize = when (platformId.lowercase()) {
+        "gc"                   -> 22.dp  // GameCube logo is detailed
+        "ps2", "ps3"           -> 20.dp
+        "gba", "nds", "n3ds",
+        "psp", "psvita"        -> 19.dp
+        else                   -> 16.dp
+    }
+    // PS2 disc logo looks better rotated 90°
+    val rotation = when (platformId.lowercase()) {
+        "ps2" -> 90f
+        else  -> 0f
+    }
+
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(4.dp))
@@ -147,8 +161,10 @@ private fun PlatformPill(platformId: String, label: String) {
                 Icon(
                     painter = androidx.compose.ui.res.painterResource(id = vectorIconRes),
                     contentDescription = label,
-                    modifier = Modifier.size(16.dp),
-                    tint = Color.Unspecified  // Preserve original icon colors
+                    modifier = Modifier
+                        .size(iconSize)
+                        .then(if (rotation != 0f) Modifier.rotate(rotation) else Modifier),
+                    tint = Color.Unspecified
                 )
             }
             // 3. Fallback: first 2 chars of label
