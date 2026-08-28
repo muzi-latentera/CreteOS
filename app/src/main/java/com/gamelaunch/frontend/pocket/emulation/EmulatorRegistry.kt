@@ -57,6 +57,26 @@ object EmulatorRegistry {
         ),
 
         // ============================================================
+        // PIZZA BOY A — Game Boy Advance
+        // STATUS: VERIFIED from Pizza Boy A 2.3.3 package manifest
+        // ============================================================
+        EmulatorDefinition(
+            id = "PIZZABOY_GBA",
+            displayName = "Pizza Boy A",
+            systems = setOf(EmulatorSystem.GBA),
+            packageCandidates = listOf("it.dbtecno.pizzaboygba"),
+            launchActivity = ".MainActivity",
+            launchAction = "android.intent.action.VIEW",
+            romIntentKey = null,
+            romIntentType = RomIntentType.CONTENT_URI,
+            requiresSafUriGrant = true,
+            supportsCustomDriver = false,
+            experimental = false,
+            exportMethod = "Export saves from Pizza Boy A's settings.",
+            notes = "Pass a FileProvider content URI as Intent.data with a temporary read grant."
+        ),
+
+        // ============================================================
         // DOLPHIN — GameCube / Wii
         // STATUS: VERIFIED from ES-DE Android definitions + APK manifest dumpsys
         // Dolphin 2603a uses: TvMainActivity, MAIN + LEANBACK_LAUNCHER.
@@ -110,7 +130,7 @@ object EmulatorRegistry {
 
         // ============================================================
         // PPSSPP — PlayStation Portable
-        // STATUS: ASSUMED — verify: adb shell dumpsys package org.ppsspp.ppsspp | grep -A2 'MAIN'
+        // STATUS: VERIFIED from PPSSPP 1.20.4 manifest: PpssppActivity accepts VIEW content URIs.
         // ============================================================
         EmulatorDefinition(
             id = "PPSSPP",
@@ -120,20 +140,21 @@ object EmulatorRegistry {
                 "org.ppsspp.ppsspp",      // Free version
                 "org.ppsspp.ppssppgold"   // Gold version
             ),
-            launchActivity = ".PpssppActivity", // VERIFIED: PpssppActivity has VIEW filter — direct ROM launch confirmed
-            launchAction = null,
+            launchActivity = ".PpssppActivity",
+            launchAction = "android.intent.action.VIEW",
             romIntentKey = null, // Uses Intent data URI
-            romIntentType = RomIntentType.DATA_URI,
-            requiresSafUriGrant = false,
+            romIntentType = RomIntentType.CONTENT_URI,
+            requiresSafUriGrant = true,
             supportsCustomDriver = false,
             experimental = false,
             exportMethod = "Save data in PSP/SAVEDATA/",
-            notes = "ROM path passed via setData(Uri)"
+            notes = "Pass a FileProvider content URI as Intent.data with a temporary read grant."
         ),
 
         // ============================================================
         // NETHERSX2 — PlayStation 2
-        // STATUS: VERIFIED — xyz.aethersx2.android (fork kept AetherSX2 pkg name; v2.1-4248 stable) | grep -A2 'MAIN'
+        // STATUS: VERIFIED from NetherSX2 2.1-4248 APK: exported EmulationActivity reads
+        // the ROM path from the String extra named "bootPath".
         // ============================================================
         EmulatorDefinition(
             id = "NETHERSX2",
@@ -142,44 +163,42 @@ object EmulatorRegistry {
             packageCandidates = listOf(
                 "xyz.aethersx2.android"
             ),
-            launchActivity = null,
-            launchAction = "xyz.trixarian.nethersx2.OPEN", // ASSUMED — dumpsys shows only MAIN on MainActivity; verify custom action
-            romIntentKey = null, // Uses Intent data
+            launchActivity = ".EmulationActivity",
+            launchAction = "android.intent.action.VIEW",
+            romIntentKey = "bootPath",
             romIntentType = RomIntentType.CONTENT_URI,
             requiresSafUriGrant = true,
             supportsCustomDriver = false,
             experimental = false,
             exportMethod = "Memory cards in NetherSX2/memcards/",
-            notes = "Requires SAF URI permission grant"
+            notes = "Launch the exported EmulationActivity with a granted content URI String in bootPath."
         ),
 
         // ============================================================
         // EDEN — Nintendo Switch
-        // STATUS: ASSUMED — verify: adb shell dumpsys package | grep eden
-        // NOTE: Package name unconfirmed — verify with installed APK
+        // STATUS: VERIFIED from dumpsys: EmulationActivity has VIEW + content:// scheme filter
         // ============================================================
         EmulatorDefinition(
             id = "EDEN",
             displayName = "Eden",
             systems = setOf(EmulatorSystem.SWITCH),
             packageCandidates = listOf(
-                "dev.eden.eden_emulator",  // TBD — primary guess
-                "dev.eden.eden_emulator"   // TBD — fallback guess
+                "dev.eden.eden_emulator"
             ),
-            launchActivity = "org.yuzu.yuzu_emu.activities.EmulationActivity", // VERIFIED: has VIEW filter (yuzu fork internals)
-            launchAction = null,
-            romIntentKey = null, // ASSUMED — verify against installed APK
-            romIntentType = RomIntentType.FILE_PATH,
-            requiresSafUriGrant = false,
+            launchActivity = "org.yuzu.yuzu_emu.activities.EmulationActivity",
+            launchAction = "android.intent.action.VIEW",
+            romIntentKey = null,
+            romIntentType = RomIntentType.CONTENT_URI,
+            requiresSafUriGrant = true,
             supportsCustomDriver = true,
             experimental = false,
             exportMethod = "Save data in Eden/nand/user/save/",
-            notes = "Package unconfirmed — verify with: adb shell dumpsys package | grep eden"
+            notes = "VIEW + content:// URI in Intent.data, same pattern as Azahar/Cemu."
         ),
 
         // ============================================================
         // CEMU_ANDROID — Nintendo Wii U
-        // STATUS: VERIFIED — info.cemu.cemu (v0.5.2) | grep -A2 'MAIN'
+        // STATUS: VERIFIED from Cemu 0.5.2 manifest: EmulationActivity accepts VIEW content URIs.
         // NOTE: This is the SapphireRhodonite Android fork, not upstream desktop Cemu
         // ============================================================
         EmulatorDefinition(
@@ -189,20 +208,20 @@ object EmulatorRegistry {
             packageCandidates = listOf(
                 "info.cemu.cemu"
             ),
-            launchActivity = ".emulation.EmulationActivity", // VERIFIED: has VIEW filter
-            launchAction = null,
-            romIntentKey = null, // ASSUMED — verify against installed APK
-            romIntentType = RomIntentType.FILE_PATH,
-            requiresSafUriGrant = false,
+            launchActivity = ".emulation.EmulationActivity",
+            launchAction = "android.intent.action.VIEW",
+            romIntentKey = null,
+            romIntentType = RomIntentType.CONTENT_URI,
+            requiresSafUriGrant = true,
             supportsCustomDriver = false,
             experimental = false,
             exportMethod = "Save data in Cemu/mlc01/usr/save/",
-            notes = "SapphireRhodonite Android fork, not upstream desktop Cemu"
+            notes = "SapphireRhodonite Android fork; pass a granted content URI in Intent.data."
         ),
 
         // ============================================================
         // MELONDS — Nintendo DS
-        // STATUS: ASSUMED — verify: adb shell dumpsys package me.magnum.melonds | grep -A2 'MAIN'
+        // STATUS: VERIFIED from melonDS 2.0.1 manifest and frontend integration docs
         // ============================================================
         EmulatorDefinition(
             id = "MELONDS",
@@ -211,20 +230,21 @@ object EmulatorRegistry {
             packageCandidates = listOf(
                 "me.magnum.melonds"
             ),
-            launchActivity = ".ui.emulator.EmulatorActivity", // VERIFIED: EmulatorActivity has MAIN; check VIEW support
-            launchAction = null,
-            romIntentKey = null, // ASSUMED — verify against installed APK
+            launchActivity = ".ui.emulator.EmulatorActivity",
+            launchAction = "me.magnum.melonds.LAUNCH_ROM",
+            romIntentKey = null,
             romIntentType = RomIntentType.CONTENT_URI,
             requiresSafUriGrant = true,
             supportsCustomDriver = false,
             experimental = false,
             exportMethod = "Save files alongside ROMs or in melonDS/saves/",
-            notes = "Requires SAF URI permission grant"
+            notes = "Pass a content URI as Intent.data with a temporary read grant."
         ),
 
         // ============================================================
         // AZAHAR — Nintendo 3DS
-        // STATUS: ASSUMED — verify: adb shell dumpsys package org.azahar_emu.azahar | grep -A2 'MAIN'
+        // STATUS: VERIFIED from Azahar 2126.0 manifest: EmulationActivity accepts a VIEW
+        // content URI with application/octet-stream.
         // ============================================================
         EmulatorDefinition(
             id = "AZAHAR",
@@ -234,15 +254,15 @@ object EmulatorRegistry {
                 "org.azahar_emu.azahar",  // Azahar fork
                 "org.citra_emu.citra"     // Legacy Citra fallback
             ),
-            launchActivity = "org.citra.citra_emu.activities.EmulationActivity", // VERIFIED: has VIEW filter (citra fork internals)
-            launchAction = null,
-            romIntentKey = null, // ASSUMED — verify against installed APK
-            romIntentType = RomIntentType.FILE_PATH,
-            requiresSafUriGrant = false,
+            launchActivity = "org.citra.citra_emu.activities.EmulationActivity",
+            launchAction = "android.intent.action.VIEW",
+            romIntentKey = null,
+            romIntentType = RomIntentType.CONTENT_URI,
+            requiresSafUriGrant = true,
             supportsCustomDriver = false,
             experimental = false,
             exportMethod = "Save data in Azahar/sdmc/ or Citra/sdmc/",
-            notes = ""
+            notes = "Pass a FileProvider content URI as Intent.data with a temporary read grant."
         ),
 
         // ============================================================
@@ -341,7 +361,12 @@ object EmulatorRegistry {
 
             // Set component if specific activity is defined
             if (def.launchActivity != null) {
-                setClassName(installedPackage, "$installedPackage${def.launchActivity}")
+                val activityClass = if (def.launchActivity.startsWith('.')) {
+                    "$installedPackage${def.launchActivity}"
+                } else {
+                    def.launchActivity
+                }
+                setClassName(installedPackage, activityClass)
             }
 
             // Add category
@@ -370,7 +395,11 @@ object EmulatorRegistry {
                     }
 
                     if (def.romIntentKey != null) {
-                        putExtra(def.romIntentKey, uri)
+                        // Emulator contracts such as NetherSX2 call getStringExtra() and then
+                        // pass this value to their native URI-aware file layer. Keep the URI in
+                        // Intent.data too so Android applies FLAG_GRANT_READ_URI_PERMISSION to it.
+                        putExtra(def.romIntentKey, uri.toString())
+                        setDataAndType(uri, getMimeType(romPath))
                     } else {
                         // Set as intent data
                         setDataAndType(uri, getMimeType(romPath))

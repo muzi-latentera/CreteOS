@@ -162,11 +162,20 @@ class PocketGameDetailViewModel @Inject constructor(
 
         val toUpsert = mutableListOf<LaunchTarget>()
 
-        // Older builds provisioned PC/cloud targets before ROM detection existed. Repair
-        // those rows through Room whenever the ROM detail page is opened.
         val isRomGame = isEmulatedGame(game)
         if (isRomGame) {
-            launchTargetRepository.retainOnlyProvider(game.romPath, ProviderId.EMULATOR)
+            // Older builds provisioned PC/cloud targets and emulator definitions that no longer
+            // support this system. Reconcile both through Room whenever detail is opened.
+            val system = emulatorSystemFor(game)
+            val installedEmulatorIds = system?.let { EmulatorRegistry.forSystem(it) }
+                .orEmpty()
+                .filter { EmulatorRegistry.findInstalledPackage(context, it) != null }
+                .map { it.id }
+            launchTargetRepository.retainOnlyTargets(
+                game.romPath,
+                ProviderId.EMULATOR,
+                installedEmulatorIds
+            )
         }
 
         if (!isRomGame) {
