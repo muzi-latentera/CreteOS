@@ -215,7 +215,7 @@ class IgdbMetadataSync @Inject constructor(
 
     /**
      * Sync metadata for an emulated game by searching IGDB by title.
-     * Only applies exact title matches to avoid false positives.
+     * Uses title similarity plus the emulated platform to avoid same-name ports and remakes.
      *
      * @param romPath The canonical ROM path (e.g. "emu:gc:luigis_mansion")
      * @param title The clean game title to search
@@ -236,7 +236,7 @@ class IgdbMetadataSync @Inject constructor(
 
             // Search IGDB by title
             val searchQuery = """
-                fields name,cover.image_id,artworks.image_id,screenshots.image_id,summary,
+                fields name,cover.image_id,artworks.image_id,screenshots.image_id,summary,platforms.name,platforms.abbreviation,
                        involved_companies.company.name,involved_companies.developer,involved_companies.publisher,
                        game_modes.name;
                 search "$title";
@@ -257,17 +257,32 @@ class IgdbMetadataSync @Inject constructor(
                 val game = results.getJSONObject(i)
                 val gameName = game.optString("name", "")
                 
-                val score = when {
-                    gameName.equals(title, ignoreCase = true) -> 100  // Exact match
-                    gameName.lowercase().startsWith(title.lowercase()) -> 80  // Starts with
-                    gameName.lowercase().contains(title.lowercase()) -> 60  // Contains
+                val normalizedGameName = normalizeTitle(gameName)
+                val normalizedSearchTitle = normalizeTitle(title)
+                val titleScore = when {
+                    normalizedGameName == normalizedSearchTitle -> 100
+                    normalizedGameName.startsWith(normalizedSearchTitle) -> 80
+                    normalizedGameName.contains(normalizedSearchTitle) -> 60
                     else -> {
-                        // Compute simple similarity
-                        val titleLower = title.lowercase()
-                        val nameLower = gameName.lowercase()
-                        val commonChars = titleLower.count { nameLower.contains(it) }
-                        (commonChars * 100) / maxOf(title.length, 1)
+                        val commonChars = normalizedSearchTitle.count { normalizedGameName.contains(it) }
+                        (commonChars * 100) / maxOf(normalizedSearchTitle.length, 1)
                     }
+                }
+                val platforms = game.optJSONArray("platforms")
+                val platformMatch = platforms?.let { resultPlatforms ->
+                    (0 until resultPlatforms.length()).any { index ->
+                        val platform = resultPlatforms.optJSONObject(index) ?: return@any false
+                        platformMatches(
+                            system,
+                            platform.optString("name"),
+                            platform.optString("abbreviation")
+                        )
+                    }
+                } == true
+                val score = titleScore + when {
+                    platformMatch -> 30
+                    platforms != null && platforms.length() > 0 -> -10
+                    else -> 0
                 }
 
                 if (score > bestScore) {
@@ -343,6 +358,40 @@ class IgdbMetadataSync @Inject constructor(
 
         } catch (e: Exception) {
             Log.w(TAG, "IGDB sync failed for emulated game '$title': ${e.message}")
+        }
+    }
+
+    private fun normalizeTitle(value: String): String = java.text.Normalizer
+        .normalize(value, java.text.Normalizer.Form.NFD)
+        .replace(Regex("\\p{M}+"), "")
+        .lowercase()
+        .replace(Regex("[^a-z0-9]+"), " ")
+        .trim()
+
+    private fun platformMatches(
+        system: com.gamelaunch.frontend.pocket.emulation.EmulatorSystem,
+        name: String,
+        abbreviation: String
+    ): Boolean {
+        val normalizedName = normalizeTitle(name)
+        val normalizedAbbreviation = normalizeTitle(abbreviation)
+        val aliases = when (system) {
+            com.gamelaunch.frontend.pocket.emulation.EmulatorSystem.GAMECUBE ->
+                listOf("nintendo gamecube", "gamecube", "gcn")
+            com.gamelaunch.frontend.pocket.emulation.EmulatorSystem.WII -> listOf("nintendo wii", "wii")
+            com.gamelaunch.frontend.pocket.emulation.EmulatorSystem.WIIU -> listOf("nintendo wii u", "wii u")
+            com.gamelaunch.frontend.pocket.emulation.EmulatorSystem.SWITCH -> listOf("nintendo switch", "switch")
+            com.gamelaunch.frontend.pocket.emulation.EmulatorSystem.GBA -> listOf("game boy advance", "gba")
+            com.gamelaunch.frontend.pocket.emulation.EmulatorSystem.NDS -> listOf("nintendo ds", "nds")
+            com.gamelaunch.frontend.pocket.emulation.EmulatorSystem.N3DS -> listOf("nintendo 3ds", "3ds")
+            com.gamelaunch.frontend.pocket.emulation.EmulatorSystem.PS2 -> listOf("playstation 2", "ps2")
+            com.gamelaunch.frontend.pocket.emulation.EmulatorSystem.PSP ->
+                listOf("playstation portable", "psp")
+            else -> listOf(system.displayName, system.id)
+        }
+        return aliases.any { alias ->
+            val normalizedAlias = normalizeTitle(alias)
+            normalizedName == normalizedAlias || normalizedAbbreviation == normalizedAlias
         }
     }
 }

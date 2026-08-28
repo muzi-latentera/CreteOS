@@ -4,13 +4,18 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.gamelaunch.frontend.domain.repository.GameRepository
 import com.gamelaunch.frontend.pocket.data.db.PocketDatabase
 import com.gamelaunch.frontend.pocket.data.IgdbSeedData
 import com.gamelaunch.frontend.pocket.data.db.entity.LaunchTargetEntity
+import com.gamelaunch.frontend.pocket.emulation.RomLibraryMetadataReconciler
 import com.gamelaunch.frontend.pocket.providers.ProviderId
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * Debug broadcast receiver for seeding games via ADB.
@@ -24,11 +29,33 @@ import kotlinx.coroutines.launch
  *     --es title "Bastion" \
  *     --es source STEAM
  */
+@AndroidEntryPoint
 class DebugSeedReceiver : BroadcastReceiver() {
+
+    @Inject lateinit var gameRepository: GameRepository
+    @Inject lateinit var romMetadataReconciler: RomLibraryMetadataReconciler
 
     override fun onReceive(context: Context, intent: Intent) {
         if (!com.gamelaunch.frontend.BuildConfig.DEBUG) {
             Log.w(TAG, "DebugSeedReceiver called in non-debug build — ignoring")
+            return
+        }
+
+        // ADB-only verification hook for the production repository reconciler. Unlike the legacy
+        // seed actions below, this never opens either database directly, and goAsync keeps the
+        // receiver alive until title repair and IGDB promotion have completed.
+        if (intent.action == ACTION_REPAIR_ROM_METADATA) {
+            val pendingResult = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                runCatching {
+                    romMetadataReconciler.reconcile(gameRepository.getAllGames().first())
+                }.onSuccess {
+                    Log.i(TAG, "ROM metadata reconciliation complete")
+                }.onFailure { error ->
+                    Log.e(TAG, "ROM metadata reconciliation failed", error)
+                }
+                pendingResult.finish()
+            }
             return
         }
 
@@ -205,6 +232,7 @@ class DebugSeedReceiver : BroadcastReceiver() {
         const val ACTION        = "io.latent.creteos.SEED_GAME"
         const val ACTION_DELETE   = "io.latent.creteos.DELETE_GAME"
         const val ACTION_SEED_ROM = "io.latent.creteos.SEED_ROM"
+        const val ACTION_REPAIR_ROM_METADATA = "io.latent.creteos.REPAIR_ROM_METADATA"
         private const val TAG   = "DebugSeedReceiver"
     }
 }
