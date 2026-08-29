@@ -54,6 +54,7 @@ data class HltbTimes(
     fun formatMain()         = mainStoryHours?.let  { formatH(it) } ?: "—"
     fun formatExtra()        = mainExtraHours?.let  { formatH(it) } ?: "—"
     fun formatCompletionist()= completionistHours?.let { formatH(it) } ?: "—"
+    fun hasAnyData() = mainStoryHours != null || mainExtraHours != null || completionistHours != null
 
     private fun formatH(h: Float): String =
         if (h < 1f) "${(h * 60).toInt()}m"

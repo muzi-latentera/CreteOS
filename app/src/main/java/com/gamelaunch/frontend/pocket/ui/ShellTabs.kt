@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -732,18 +733,25 @@ private fun HeroChip(
 private fun ProfileRow(label: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = label,
+            modifier = Modifier.width(84.dp),
             fontSize = 13.sp,
-            color = DimCream
+            color = DimCream,
+            maxLines = 1
         )
+        Spacer(Modifier.width(8.dp))
         Text(
             text = value,
+            modifier = Modifier.weight(1f),
             fontSize = 13.sp,
             fontFamily = FontFamily.Monospace,
-            color = CreamText
+            color = CreamText,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.End
         )
     }
 }

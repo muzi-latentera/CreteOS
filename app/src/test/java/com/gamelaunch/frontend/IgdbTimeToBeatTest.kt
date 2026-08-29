@@ -1,8 +1,10 @@
 package com.gamelaunch.frontend
 
 import com.gamelaunch.frontend.pocket.data.IgdbTtbSeconds
+import com.gamelaunch.frontend.pocket.data.HltbTimes
 import com.gamelaunch.frontend.pocket.data.consistentIgdbTtb
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class IgdbTimeToBeatTest {
@@ -25,5 +27,16 @@ class IgdbTimeToBeatTest {
             IgdbTtbSeconds(main = 4, mainExtra = 0, completionist = 8),
             consistentIgdbTtb(hastily = 4, normally = 10, completely = 8)
         )
+    }
+
+    @Test
+    fun `reports timing data when IGDB omits the fastest field`() {
+        val times = HltbTimes(
+            mainStoryHours = null,
+            mainExtraHours = 5f,
+            completionistHours = 12f
+        )
+
+        assertTrue(times.hasAnyData())
     }
 }

@@ -1,5 +1,6 @@
 package com.gamelaunch.frontend.pocket.emulation
 
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -407,6 +408,23 @@ object EmulatorRegistry {
 
                     if (def.requiresSafUriGrant) {
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        // Keep the URI visible to emulator activities launched by the entry
+                        // activity. Dolphin's TvMainActivity immediately finishes after handing
+                        // the URI to EmulationActivity, which otherwise ends the activity-scoped
+                        // grant before native emulation opens the image.
+                        clipData = ClipData.newRawUri(file.name, uri)
+                        runCatching {
+                            context.grantUriPermission(
+                                installedPackage,
+                                uri,
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION
+                            )
+                        }.onFailure { error ->
+                            android.util.Log.w(
+                                "EmulatorRegistry",
+                                "Could not grant $installedPackage read access to $uri: ${error.message}"
+                            )
+                        }
                     }
                 }
 

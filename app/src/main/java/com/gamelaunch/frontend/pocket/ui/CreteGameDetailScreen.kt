@@ -33,9 +33,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -535,10 +535,10 @@ fun CreteGameDetailScreen(
                         color = V2Amber, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                 } else {
                     val hltb = pocketState.hltbTimes
-                    val hasData = hltb.formatMain() != "—"
+                    val hasData = hltb.hasAnyData()
                     if (!hasData) {
                         Text(
-                            "Currently unavailable — HLTB blocks direct requests. Check howlongtobeat.com",
+                            "Timing data is currently unavailable for this title.",
                             fontSize = 11.sp,
                             color = V2VeryDim,
                             lineHeight = 15.sp
@@ -654,13 +654,21 @@ private fun platformIconUrl(platformId: String): String? = when (platformId.lowe
 private fun V2InfoRow(label: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, fontSize = 12.sp, color = V2Dim)
-        Text(value, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+        Text(
+            text = label,
+            modifier = Modifier.width(96.dp),
+            fontSize = 12.sp,
+            color = V2Dim,
+            maxLines = 1
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(value, modifier = Modifier.weight(1f),
+            fontSize = 12.sp, fontFamily = FontFamily.Monospace,
             color = if (value == "—") V2VeryDim else V2Cream,
-            maxLines = 1, overflow = TextOverflow.Ellipsis)
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.End)
     }
     Box(Modifier.fillMaxWidth().height(0.5.dp).background(V2Cream.copy(alpha = 0.04f)))
 }
