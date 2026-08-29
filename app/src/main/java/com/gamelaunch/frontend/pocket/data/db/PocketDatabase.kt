@@ -28,6 +28,7 @@ import com.gamelaunch.frontend.pocket.data.db.entity.ManualGameLinkEntity
  *   1 → original (launch_targets, game_launch_preferences, manual_game_links)
  *   2 → added hltb_cache
  *   3 → added steam_metadata, game_sessions
+ *   9 → include provider source in launch-target identity (Steam/Epic IDs may overlap)
  *
  * NEVER use fallbackToDestructiveMigration — the launch_targets and preferences
  * tables contain user-owned data (GameNative links, preferred providers) that
@@ -42,7 +43,7 @@ import com.gamelaunch.frontend.pocket.data.db.entity.ManualGameLinkEntity
         SteamMetadataEntity::class,
         GameSessionEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 abstract class PocketDatabase : RoomDatabase() {
@@ -161,9 +162,21 @@ abstract class PocketDatabase : RoomDatabase() {
             }
         }
 
+        /** v8→v9: GameNative numeric IDs are only unique within a source/store. */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS index_launch_targets_hostGameKey_provider_externalId")
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                        "index_launch_targets_hostGameKey_provider_source_externalId " +
+                        "ON launch_targets(hostGameKey, provider, source, externalId)"
+                )
+            }
+        }
+
         fun create(context: Context): PocketDatabase =
             Room.databaseBuilder(context, PocketDatabase::class.java, DATABASE_NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_1_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .build()
     }
 }

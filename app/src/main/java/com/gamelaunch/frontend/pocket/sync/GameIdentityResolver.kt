@@ -140,6 +140,14 @@ class GameIdentityResolver @Inject constructor(
                 }
                 0 -> { /* no match */ }
                 else -> {
+                    // Store duplicates can already exist from older scans. A single canonical
+                    // Steam row wins over Epic/GOG/etc so future syncs converge on one tile.
+                    val steamCandidates = candidates.filter { it.isCanonicalSteamGame() }
+                    if (steamCandidates.size == 1) {
+                        val game = steamCandidates.first()
+                        Log.d(TAG, "Resolved '${discovered.displayName}' to canonical Steam title → ${game.id}")
+                        return ResolvedIdentity(game.romPath, game.id, Confidence.TITLE_MATCH)
+                    }
                     Log.d(TAG, "Title '${discovered.displayName}' is ambiguous (${candidates.size} candidates) — not resolving")
                 }
             }
@@ -197,6 +205,10 @@ class GameIdentityResolver @Inject constructor(
             .replace(Regex("[^a-z0-9 ]"), "")
             .replace(Regex("\\s+"), " ")
             .trim()
+
+    private fun Game.isCanonicalSteamGame(): Boolean =
+        platformId.equals("steam", ignoreCase = true) &&
+            romPath.matches(Regex("steam:\\d+"))
 
     companion object {
         private const val TAG = "GameIdentityResolver"

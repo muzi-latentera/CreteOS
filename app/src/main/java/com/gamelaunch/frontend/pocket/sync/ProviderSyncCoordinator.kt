@@ -88,17 +88,18 @@ class ProviderSyncCoordinator @Inject constructor(
         // Collect existing targets for this provider BEFORE processing — for reconciliation
         val existingTargets = launchTargetRepository
             .getTargetsForProvider(providerId)
-            .associateBy { it.externalId }
+            .associateBy { targetIdentity(providerId, it.source, it.externalId) }
 
-        val seenExternalIds = mutableSetOf<String>()
+        val seenTargets = mutableSetOf<TargetIdentity>()
         val seenHostGameKeys = mutableSetOf<String>()
         var added = 0; var updated = 0
         val errors = mutableListOf<String>()
 
         for (game in discovered) {
             runCatching {
-                val processed = processDiscoveredGame(game, existingTargets[game.externalId], libraryIndex)
-                seenExternalIds += game.externalId
+                val identity = targetIdentity(providerId, game.source, game.externalId)
+                val processed = processDiscoveredGame(game, existingTargets[identity], libraryIndex)
+                seenTargets += identity
                 seenHostGameKeys += processed.hostGameKey
                 if (processed.wasNew) added++ else updated++
             }.onFailure { e ->
@@ -108,7 +109,7 @@ class ProviderSyncCoordinator @Inject constructor(
         }
 
         // Stale-target reconciliation: mark targets not seen in this sync as unavailable
-        val stale = existingTargets.filterKeys { it !in seenExternalIds }
+        val stale = existingTargets.filterKeys { it !in seenTargets }
         stale.values.forEach { staleTarget ->
             runCatching {
                 // Mark unavailable but preserve the row and any isPreferred flag
@@ -174,7 +175,7 @@ class ProviderSyncCoordinator @Inject constructor(
                     title       = discovered.displayName,
                     romPath     = syntheticKey,
                     romFilename = "${discovered.displayName}.${discovered.source.lowercase()}",
-                    platformId  = platformForProvider(discovered.provider)
+                    platformId  = platformForDiscovery(discovered)
                 )
                 val newId = gameRepository.insertGame(game)
                 if (newId <= 0L) {
@@ -221,6 +222,13 @@ class ProviderSyncCoordinator @Inject constructor(
     }
 
     private data class ProcessedGame(val wasNew: Boolean, val hostGameKey: String)
+    private data class TargetIdentity(val source: String, val externalId: String)
+
+    private fun targetIdentity(provider: ProviderId, source: String, externalId: String) =
+        TargetIdentity(
+            source = if (provider == ProviderId.GAME_NATIVE) source.uppercase() else "",
+            externalId = externalId
+        )
 
     private suspend fun resolveArtwork(gameId: Long, discovered: DiscoveredProviderGame) {
         // Steam CDN ONLY for actual Steam AppIDs (source == "STEAM")
@@ -254,24 +262,36 @@ class ProviderSyncCoordinator @Inject constructor(
      * Provider-namespaced to avoid collisions between providers.
      */
     private fun buildSyntheticKey(discovered: DiscoveredProviderGame): String = when (discovered.provider) {
+        ProviderId.GAME_NATIVE   -> identityResolver.buildStoreKey(discovered.externalId, discovered.source)
+            ?: "game_native:${discovered.source.lowercase()}:${discovered.externalId}"
         ProviderId.MOONLIGHT     -> "moonlight:${discovered.externalId}"
         ProviderId.GEFORCE_NOW   -> "gfn:${discovered.externalId}"
         ProviderId.WIN_NATIVE    -> "winnative:${discovered.externalId}"
         ProviderId.WINLATOR      -> "winlator:${discovered.externalId}"
         ProviderId.ANDROID_SHORTCUT -> "shortcut:${discovered.externalId}"
-        // GameNative/GameHub with unknown source — shouldn't happen after identity resolver runs
+        // GameHub with unknown source — shouldn't happen after identity resolver runs
         else -> "${discovered.provider.name.lowercase()}:${discovered.externalId}"
     }
 
-    private fun platformForProvider(provider: ProviderId): String = when (provider) {
-        ProviderId.GAME_NATIVE,
-        ProviderId.GAME_HUB_LITE,
-        ProviderId.WIN_NATIVE,
-        ProviderId.WINLATOR      -> "steam"
-        ProviderId.MOONLIGHT     -> "moonlight"
-        ProviderId.GEFORCE_NOW   -> "gfn"
-        ProviderId.ANDROID_SHORTCUT -> "android"
-        ProviderId.EMULATOR      -> "emulator"
+    private fun platformForDiscovery(discovered: DiscoveredProviderGame): String {
+        if (discovered.provider == ProviderId.GAME_NATIVE) {
+            return when (discovered.source.uppercase()) {
+                "EPIC" -> "epic"
+                "GOG" -> "gog"
+                "AMAZON" -> "amazon"
+                else -> "steam"
+            }
+        }
+        return when (discovered.provider) {
+            ProviderId.GAME_HUB_LITE,
+            ProviderId.WIN_NATIVE,
+            ProviderId.WINLATOR      -> "steam"
+            ProviderId.MOONLIGHT     -> "moonlight"
+            ProviderId.GEFORCE_NOW   -> "gfn"
+            ProviderId.ANDROID_SHORTCUT -> "android"
+            ProviderId.EMULATOR      -> "emulator"
+            ProviderId.GAME_NATIVE   -> "steam"
+        }
     }
 
     companion object {

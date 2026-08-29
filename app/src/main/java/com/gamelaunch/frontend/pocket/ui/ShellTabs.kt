@@ -23,6 +23,8 @@ import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.produceState
@@ -39,6 +41,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
@@ -60,6 +64,8 @@ import com.gamelaunch.frontend.pocket.ui.design.*
 import com.gamelaunch.frontend.pocket.ui.home.RedditNewsViewModel
 import com.gamelaunch.frontend.pocket.ui.library.LibraryViewModel
 import com.gamelaunch.frontend.ui.screen.home.HomeViewModel
+import kotlinx.coroutines.delay
+import java.text.Normalizer
 import kotlin.math.abs
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1009,6 +1015,23 @@ enum class LibraryFilter(val label: String) {
     ANDROID("Android")
 }
 
+internal fun matchesLibrarySearch(title: String, query: String): Boolean {
+    val normalizedQuery = normalizeLibrarySearchText(query)
+    if (normalizedQuery.isBlank()) return true
+    val titleWords = normalizeLibrarySearchText(title).split(' ').filter { it.isNotBlank() }
+    return normalizedQuery.split(' ').filter { it.isNotBlank() }.all { queryWord ->
+        titleWords.any { titleWord -> titleWord.contains(queryWord) }
+    }
+}
+
+private fun normalizeLibrarySearchText(value: String): String = Normalizer
+    .normalize(value, Normalizer.Form.NFD)
+    .replace(Regex("\\p{M}+"), "")
+    .lowercase()
+    .replace(Regex("[^a-z0-9]+"), " ")
+    .trim()
+    .replace(Regex("^(the|a|an)\\s+"), "")
+
 /**
  * Library tab content — v1 design with styled filter chips and game grid.
  */
@@ -1022,19 +1045,34 @@ fun LibraryTabContent(
     var activeFilter by remember { mutableStateOf(initialFilter) }
     var focusedGameId by remember { mutableStateOf<Long?>(null) }
     var showSources by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
+    var searchText by remember { mutableStateOf("") }
+    var debouncedSearch by remember { mutableStateOf("") }
+    val searchFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(searchText) {
+        delay(250)
+        debouncedSearch = searchText
+    }
+    LaunchedEffect(showSearch) {
+        if (showSearch) {
+            delay(100)
+            searchFocusRequester.requestFocus()
+        }
+    }
 
     val providerPackages = setOf(
         "com.nvidia.geforcenow", "com.limelight", "com.nytimes.crossword",
         "app.gamenative", "gamehub.lite"
     )
 
-    val filteredGames = remember(state.games, activeFilter) {
+    val filteredGames = remember(state.games, activeFilter, debouncedSearch) {
         val base = state.games.filter { game ->
             if (game.platformId == "android" && game.romPath.startsWith("package:")) {
                 game.romPath.removePrefix("package:") !in providerPackages
             } else true
         }
-        when (activeFilter) {
+        val platformFiltered = when (activeFilter) {
             LibraryFilter.ALL      -> base
             LibraryFilter.LOCAL    -> base.filter {
                 val appId = it.romPath.substringAfterLast(":")
@@ -1045,6 +1083,7 @@ fun LibraryTabContent(
             LibraryFilter.CLOUD    -> base.filter { it.platformId == "gfn" }
             LibraryFilter.ANDROID  -> base.filter { it.platformId == "android" }
         }
+        platformFiltered.filter { matchesLibrarySearch(it.title, debouncedSearch) }
     }
 
     Column(
@@ -1123,6 +1162,45 @@ fun LibraryTabContent(
 
             Spacer(Modifier.width(8.dp))
 
+            // Search toggle button
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        if (showSearch) AmberAccent.copy(alpha = 0.16f)
+                        else CreamText.copy(alpha = 0.05f)
+                    )
+                    .border(
+                        1.dp,
+                        if (showSearch) AmberAccent.copy(alpha = 0.5f)
+                        else CreamText.copy(alpha = 0.10f),
+                        RoundedCornerShape(8.dp)
+                    )
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {
+                            showSearch = !showSearch
+                            if (showSearch) showSources = false
+                            else {
+                                searchText = ""
+                                debouncedSearch = ""
+                            }
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Search,
+                    contentDescription = if (showSearch) "Close search" else "Search library",
+                    tint = if (showSearch) AmberAccent else DimCream,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Spacer(Modifier.width(8.dp))
+
             // Sort button
             Box(
                 modifier = Modifier
@@ -1146,7 +1224,34 @@ fun LibraryTabContent(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        if (showSearch) {
+            OutlinedTextField(
+                value = searchText,
+                onValueChange = { searchText = it },
+                singleLine = true,
+                leadingIcon = {
+                    Icon(Icons.Outlined.Search, contentDescription = null, tint = DimCream)
+                },
+                trailingIcon = {
+                    if (searchText.isNotEmpty()) {
+                        IconButton(onClick = {
+                            searchText = ""
+                            debouncedSearch = ""
+                        }) {
+                            Icon(Icons.Outlined.Close, contentDescription = "Clear search", tint = DimCream)
+                        }
+                    }
+                },
+                placeholder = { Text("Search games…", color = DimCream) },
+                textStyle = androidx.compose.ui.text.TextStyle(color = CreamText, fontSize = 15.sp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 32.dp, vertical = 4.dp)
+                    .focusRequester(searchFocusRequester)
+            )
+        }
+
+        Spacer(Modifier.height(if (showSearch) 8.dp else 16.dp))
 
         // Sources view or game grid
         if (showSources) {

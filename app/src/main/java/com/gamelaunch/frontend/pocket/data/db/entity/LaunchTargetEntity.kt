@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "launch_targets",
     indices = [
-        Index(value = ["hostGameKey", "provider", "externalId"], unique = true),
+        Index(value = ["hostGameKey", "provider", "source", "externalId"], unique = true),
         Index(value = ["hostGameKey"])
     ]
 )

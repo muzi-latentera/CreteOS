@@ -119,7 +119,9 @@ class GameNativeProvider @Inject constructor(
             }
 
         Log.i(TAG, "GameNative frontend sync: found ${results.size} games in ${exportDir.absolutePath}")
-        return results
+        // Deterministic source order makes Steam the canonical/local target when both stores own
+        // and install the same title. Unique Epic games are unaffected.
+        return results.sortedBy { if (it.source == DEFAULT_SOURCE) 0 else 1 }
     }
 
     /**

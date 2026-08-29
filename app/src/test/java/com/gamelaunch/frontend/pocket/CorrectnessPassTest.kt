@@ -407,6 +407,68 @@ class CorrectnessPassTest {
         assertNull("Ambiguous title should NOT resolve", result)
     }
 
+    @Test
+    fun `resolve prefers one canonical Steam row among store duplicates`() = runTest {
+        whenever(gameRepository.getAllGames()).thenReturn(flowOf(listOf(
+            Game(id = 1L, title = "Hades", romPath = "steam:1145360",
+                romFilename = "Hades", platformId = "steam"),
+            Game(id = 2L, title = "Hades", romPath = "steam:EPIC:41",
+                romFilename = "Hades", platformId = "epic")
+        )))
+
+        val result = identityResolver.resolve(
+            DiscoveredProviderGame(
+                provider = ProviderId.MOONLIGHT,
+                externalId = "hades-shortcut",
+                source = "STREAMING",
+                displayName = "Hades"
+            )
+        )
+
+        assertNotNull(result)
+        assertEquals("steam:1145360", result!!.hostGameKey)
+        assertEquals(GameIdentityResolver.Confidence.TITLE_MATCH, result.confidence)
+    }
+
+    @Test
+    fun `GameNative Steam and Epic targets with same numeric id remain distinct`() = runTest {
+        val steamGame = Game(
+            id = 42L, title = "Hades", romPath = "steam:1145360",
+            romFilename = "Hades", platformId = "steam"
+        )
+        whenever(gameRepository.getAllGames()).thenReturn(flowOf(listOf(steamGame)))
+        whenever(launchTargetRepository.getTargetsForProvider(ProviderId.GAME_NATIVE))
+            .thenReturn(emptyList())
+        whenever(launchTargetRepository.upsertTarget(any())).thenReturn(1L)
+
+        val gameNativeProvider = mock<GameProvider> {
+            on { id } doReturn ProviderId.GAME_NATIVE
+            onBlocking { isAvailable() } doReturn true
+            onBlocking { discoverGames() } doReturn listOf(
+                DiscoveredProviderGame(
+                    provider = ProviderId.GAME_NATIVE,
+                    externalId = "41",
+                    source = "STEAM",
+                    displayName = "Hades"
+                ),
+                DiscoveredProviderGame(
+                    provider = ProviderId.GAME_NATIVE,
+                    externalId = "41",
+                    source = "EPIC",
+                    displayName = "Hades"
+                )
+            )
+        }
+
+        createCoordinator(gameNativeProvider)
+            .syncProvider(ProviderId.GAME_NATIVE, gameNativeProvider)
+
+        val targets = argumentCaptor<LaunchTarget>()
+        verify(launchTargetRepository, times(2)).upsertTarget(targets.capture())
+        assertEquals(setOf("STEAM", "EPIC"), targets.allValues.map { it.source }.toSet())
+        assertTrue(targets.allValues.all { it.hostGameKey == "steam:1145360" })
+    }
+
     // ==========================================================================
     // GameNative host key format verification
     // ==========================================================================

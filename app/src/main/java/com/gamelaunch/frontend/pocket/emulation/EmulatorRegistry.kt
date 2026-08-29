@@ -65,7 +65,7 @@ object EmulatorRegistry {
             id = "PIZZABOY_GBA",
             displayName = "Pizza Boy A",
             systems = setOf(EmulatorSystem.GBA),
-            packageCandidates = listOf("it.dbtecno.pizzaboygba"),
+            packageCandidates = listOf("it.dbtecno.pizzaboygbapro", "it.dbtecno.pizzaboygba"),
             launchActivity = ".MainActivity",
             launchAction = "android.intent.action.VIEW",
             romIntentKey = null,

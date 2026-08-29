@@ -13,7 +13,7 @@ import java.io.File
 import javax.inject.Inject
 
 /**
- * Adds PC games to the "steam" platform from a folder the user points
+ * Adds PC games from a folder the user points
  * [SettingsRepository.steamLibraryPath] at. Two folder shapes are understood:
  *
  *  1. **A GameNative "Export for ES-DE" directory (preferred).** GameNative writes one small file
@@ -46,6 +46,22 @@ class ScanSteamLibraryUseCase @Inject constructor(
 
         // Prefer GameNative's export files; only fall back to raw steamapps manifests if none exist.
         val entries = findExportEntries(root).ifEmpty { findManifestEntries(root) }
+            // Steam is canonical when two stores export the same title. Process it first so the
+            // result is independent of filesystem traversal order.
+            .sortedBy { if (it.source == SOURCE_STEAM) 0 else 1 }
+
+        val existingGames = gameRepository.getAllGames().first()
+        val steamTitles = existingGames
+            .asSequence()
+            .filter { it.platformId.equals("steam", ignoreCase = true) }
+            .map { normaliseTitle(it.title) }
+            .filter { it.isNotBlank() }
+            .toMutableSet()
+        entries.asSequence()
+            .filter { it.source == SOURCE_STEAM }
+            .map { normaliseTitle(it.title) }
+            .filter { it.isNotBlank() }
+            .forEach(steamTitles::add)
 
         emit(ScanProgress(0, entries.size, "Scanning Steam library…"))
 
@@ -53,6 +69,11 @@ class ScanSteamLibraryUseCase @Inject constructor(
         entries.forEachIndexed { index, entry ->
             emit(ScanProgress(index, entries.size, entry.title, added))
             if (entry.appId in IGNORED_APP_IDS || entry.looksLikeRuntime()) return@forEachIndexed
+            // One library tile per game: if Steam owns this exact normalised title, retain the
+            // Steam row and let provider sync attach the Epic/GOG/etc launch target to it.
+            if (entry.source != SOURCE_STEAM && normaliseTitle(entry.title) in steamTitles) {
+                return@forEachIndexed
+            }
             // "steam:<appid>" for the default STEAM source keeps the path short; other stores carry
             // their source so the launcher can pass the right game_source to GameNative.
             val romPath =
@@ -62,7 +83,7 @@ class ScanSteamLibraryUseCase @Inject constructor(
                 title       = entry.title,
                 romPath     = romPath,
                 romFilename = entry.installDir.ifBlank { entry.title },
-                platformId  = "steam"
+                platformId  = platformForSource(entry.source)
             )
             // insertGame ignores rows that clash on the unique romPath (returns <= 0), so a rescan
             // only counts genuinely new games — mirrors ScanAndroidGamesUseCase.
@@ -147,5 +168,17 @@ class ScanSteamLibraryUseCase @Inject constructor(
         val KEY_APPID = Regex("\"appid\"\\s+\"(\\d+)\"", RegexOption.IGNORE_CASE)
         val KEY_NAME = Regex("\"name\"\\s+\"([^\"]*)\"", RegexOption.IGNORE_CASE)
         val KEY_INSTALLDIR = Regex("\"installdir\"\\s+\"([^\"]*)\"", RegexOption.IGNORE_CASE)
+
+        fun platformForSource(source: String): String = when (source) {
+            "EPIC" -> "epic"
+            "GOG" -> "gog"
+            "AMAZON" -> "amazon"
+            else -> "steam"
+        }
+
+        fun normaliseTitle(title: String): String = title.lowercase()
+            .replace(Regex("[^a-z0-9 ]"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
     }
 }

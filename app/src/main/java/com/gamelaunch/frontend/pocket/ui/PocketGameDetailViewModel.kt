@@ -199,8 +199,15 @@ class PocketGameDetailViewModel @Inject constructor(
             if (isLocallyInstalled) {
                 // Preserve provider-discovered numeric IDs for GOG/Epic/Amazon. Their library
                 // aliases are not valid GameNative app_id values.
-                val existing = existingGameNative.firstOrNull {
+                val validExisting = existingGameNative.filter {
                     (it.externalId.toIntOrNull() ?: 0) > 0
+                }
+                val existing = if (source == "STEAM") {
+                    validExisting.firstOrNull { it.source.equals("STEAM", ignoreCase = true) }
+                        ?: validExisting.firstOrNull()
+                } else {
+                    validExisting.firstOrNull { it.source.equals(source, ignoreCase = true) }
+                        ?: validExisting.firstOrNull()
                 }
                 existingGameNative.filter { it.id != existing?.id }.forEach {
                     launchTargetRepository.deleteTarget(it.id)
