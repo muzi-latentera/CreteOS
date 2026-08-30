@@ -106,6 +106,7 @@ private val VeryDimCream = CreamText.copy(alpha = 0.27f)
 private val DarkBase = Color(0xFF0A0D10)
 private val GreenSync = Color(0xFF4ADE80)
 private val RedPlay = Color(0xFFC9482A)
+private val GameFocusBorderWidth = 1.dp
 
 internal fun Context.launchInstalledPackage(packageName: String) {
     packageManager.getLaunchIntentForPackage(packageName)?.let { launchIntent ->
@@ -289,7 +290,7 @@ fun V1GameCard(
                                 )
                             )
                         }
-                        .border(2.dp, AmberAccent, RoundedCornerShape(12.dp))
+                        .border(GameFocusBorderWidth, AmberAccent, RoundedCornerShape(12.dp))
                 } else {
                     Modifier.border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
                 }
@@ -634,7 +635,7 @@ private fun HeroTile(
             .clip(RoundedCornerShape(20.dp))
             .then(
                 if (focused) {
-                    Modifier.border(2.dp, AmberAccent, RoundedCornerShape(20.dp))
+                    Modifier.border(GameFocusBorderWidth, AmberAccent, RoundedCornerShape(20.dp))
                 } else {
                     Modifier.border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
                 }
