@@ -22,6 +22,18 @@ interface LaunchTargetDao {
     @Query("SELECT DISTINCT hostGameKey FROM launch_targets WHERE provider = :provider AND isAvailable = 1")
     fun observeAvailableHostGameKeys(provider: String): Flow<List<String>>
 
+    /**
+     * Games with a real provider-level deep link, excluding generic targets that only open the
+     * provider's library. The latter are useful in Play Using but do not prove cloud availability.
+     */
+    @Query(
+        """SELECT DISTINCT hostGameKey FROM launch_targets
+           WHERE provider = :provider
+             AND isAvailable = 1
+             AND (launchData LIKE '%"canonicalGfnUrl"%' OR launchData LIKE '%"gfnGameId"%')"""
+    )
+    fun observeDirectCloudHostGameKeys(provider: String): Flow<List<String>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(target: LaunchTargetEntity): Long
 
