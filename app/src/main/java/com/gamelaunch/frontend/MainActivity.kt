@@ -71,6 +71,7 @@ import com.gamelaunch.frontend.domain.usecase.CheckForUpdateUseCase
 import com.gamelaunch.frontend.ui.component.LoadingScreen
 import com.gamelaunch.frontend.ui.component.UpdateBanner
 import com.gamelaunch.frontend.platform.display.DualScreenManager
+import com.gamelaunch.frontend.pocket.performance.AyaPerformanceModeManager
 import com.gamelaunch.frontend.ui.dualscreen.ArtworkBus
 import com.gamelaunch.frontend.ui.dualscreen.GameSessionState
 import com.gamelaunch.frontend.ui.dualscreen.LocalDualScreenActive
@@ -121,6 +122,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var artworkBus: ArtworkBus
     @Inject lateinit var performanceState: PerformanceState
     @Inject lateinit var gameSessionState: GameSessionState
+    @Inject lateinit var ayaPerformanceModeManager: AyaPerformanceModeManager
 
     // True after a game was launched on the top panel and eOr lost focus to it; the next focus
     // regain means the user quit back to eOr, so we restore the artwork screen.
@@ -522,6 +524,9 @@ class MainActivity : ComponentActivity() {
      */
     override fun onStart() {
         super.onStart()
+        // CreteOS and cloud streams run in Eco. A local launch changes this to Gaming immediately
+        // before starting its provider; returning here restores Eco automatically.
+        ayaPerformanceModeManager.useEcoMode()
         // Re-check for updates whenever the app comes to the foreground (cold start included), so a
         // release published while the app is open/backgrounded surfaces without a force-close.
         checkForUpdate()

@@ -8,6 +8,7 @@ import com.gamelaunch.frontend.pocket.domain.DisplayPolicy
 import com.gamelaunch.frontend.pocket.domain.LaunchContext
 import com.gamelaunch.frontend.pocket.domain.LaunchTarget
 import com.gamelaunch.frontend.pocket.launch.UnifiedLaunchCoordinator
+import com.gamelaunch.frontend.pocket.performance.AyaPerformanceModeManager
 import com.gamelaunch.frontend.pocket.providers.GameProvider
 import com.gamelaunch.frontend.pocket.providers.ProviderId
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +23,7 @@ class UnifiedLaunchCoordinatorTest {
     private val repository: LaunchTargetRepository = mock()
     private val displayManager: GamingDisplayManager = mock()
     private val gameNativeProvider: GameProvider = mock()
+    private val performanceModeManager: AyaPerformanceModeManager = mock()
 
     private lateinit var coordinator: UnifiedLaunchCoordinator
 
@@ -57,6 +59,7 @@ class UnifiedLaunchCoordinatorTest {
         coordinator = UnifiedLaunchCoordinator(
             launchTargetRepository = repository,
             gamingDisplayManager = displayManager,
+            ayaPerformanceModeManager = performanceModeManager,
             providers = mapOf(ProviderId.GAME_NATIVE to gameNativeProvider)
         )
     }
@@ -81,6 +84,42 @@ class UnifiedLaunchCoordinatorTest {
         assertNotNull("Should return a result (not null)", result)
         assertTrue("Should succeed", result!!.isSuccess)
         verify(gameNativeProvider).launch(eq(availableTarget), any())
+        verify(performanceModeManager).useGamingMode()
+    }
+
+    @Test
+    fun `cloud launch stays in eco mode`() = runTest {
+        val cloudProvider: GameProvider = mock()
+        val cloudTarget = availableTarget.copy(provider = ProviderId.GEFORCE_NOW)
+        whenever(cloudProvider.isAvailable()).thenReturn(true)
+        whenever(cloudProvider.launch(eq(cloudTarget), any())).thenReturn(Result.success(Unit))
+        coordinator = UnifiedLaunchCoordinator(
+            launchTargetRepository = repository,
+            gamingDisplayManager = displayManager,
+            ayaPerformanceModeManager = performanceModeManager,
+            providers = mapOf(ProviderId.GEFORCE_NOW to cloudProvider)
+        )
+
+        val result = coordinator.launchSpecific(cloudTarget)
+
+        assertTrue(result.isSuccess)
+        verify(performanceModeManager).useEcoMode()
+        verify(performanceModeManager, never()).useGamingMode()
+    }
+
+    @Test
+    fun `failed local launch restores eco mode`() = runTest {
+        whenever(gameNativeProvider.isAvailable()).thenReturn(true)
+        whenever(gameNativeProvider.launch(eq(availableTarget), any()))
+            .thenReturn(Result.failure(IllegalStateException("launch failed")))
+
+        val result = coordinator.launchSpecific(availableTarget)
+
+        assertTrue(result.isFailure)
+        inOrder(performanceModeManager) {
+            verify(performanceModeManager).useGamingMode()
+            verify(performanceModeManager).useEcoMode()
+        }
     }
 
     @Test
@@ -127,6 +166,7 @@ class UnifiedLaunchCoordinatorTest {
         coordinator = UnifiedLaunchCoordinator(
             launchTargetRepository = repository,
             gamingDisplayManager = displayManager,
+            ayaPerformanceModeManager = performanceModeManager,
             providers = mapOf(ProviderId.GAME_NATIVE to gameNativeProvider)
         )
 

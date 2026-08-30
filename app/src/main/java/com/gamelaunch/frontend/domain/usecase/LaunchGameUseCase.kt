@@ -6,6 +6,7 @@ import com.gamelaunch.frontend.domain.repository.GameRepository
 import com.gamelaunch.frontend.domain.lockedmode.LockedModeRepository
 import com.gamelaunch.frontend.launcher.EmulatorLauncher
 import com.gamelaunch.frontend.pocket.launch.UnifiedLaunchCoordinator
+import com.gamelaunch.frontend.pocket.performance.AyaPerformanceModeManager
 import javax.inject.Inject
 
 class LaunchGameUseCase @Inject constructor(
@@ -13,7 +14,8 @@ class LaunchGameUseCase @Inject constructor(
     private val gameRepository: GameRepository,
     private val friendRepository: FriendRepository,
     private val lockedModeRepository: LockedModeRepository,
-    private val unifiedLaunchCoordinator: UnifiedLaunchCoordinator
+    private val unifiedLaunchCoordinator: UnifiedLaunchCoordinator,
+    private val ayaPerformanceModeManager: AyaPerformanceModeManager
 ) {
     suspend operator fun invoke(game: Game): Result<Unit> {
         if (lockedModeRepository.isLocked()) {
@@ -24,8 +26,16 @@ class LaunchGameUseCase @Inject constructor(
         }
         // Try pocket provider layer first; fall through to eOr's existing launcher
         // if no custom target is registered for this game.
-        val result = unifiedLaunchCoordinator.tryLaunch(game)
-            ?: emulatorLauncher.launch(game)
+        val coordinatedResult = unifiedLaunchCoordinator.tryLaunch(game)
+        val result = if (coordinatedResult != null) {
+            coordinatedResult
+        } else {
+            // eOr's fallback path launches an emulator or Android app on-device.
+            ayaPerformanceModeManager.useGamingMode()
+            emulatorLauncher.launch(game).also { fallbackResult ->
+                if (fallbackResult.isFailure) ayaPerformanceModeManager.useEcoMode()
+            }
+        }
         if (result.isSuccess) {
             gameRepository.recordPlay(game.id)
             // Refresh the profile we share with friends (no-op when Friends is disabled).

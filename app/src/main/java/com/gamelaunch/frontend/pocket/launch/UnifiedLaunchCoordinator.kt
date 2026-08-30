@@ -7,6 +7,7 @@ import com.gamelaunch.frontend.pocket.display.GamingDisplayManager
 import com.gamelaunch.frontend.pocket.domain.DisplayPolicy
 import com.gamelaunch.frontend.pocket.domain.LaunchContext
 import com.gamelaunch.frontend.pocket.domain.LaunchTarget
+import com.gamelaunch.frontend.pocket.performance.AyaPerformanceModeManager
 import com.gamelaunch.frontend.pocket.providers.GameProvider
 import com.gamelaunch.frontend.pocket.providers.ProviderId
 import javax.inject.Inject
@@ -26,6 +27,7 @@ import javax.inject.Singleton
 class UnifiedLaunchCoordinator @Inject constructor(
     private val launchTargetRepository: LaunchTargetRepository,
     private val gamingDisplayManager: GamingDisplayManager,
+    private val ayaPerformanceModeManager: AyaPerformanceModeManager,
     private val providers: Map<ProviderId, @JvmSuppressWildcards GameProvider>
 ) {
 
@@ -101,7 +103,16 @@ class UnifiedLaunchCoordinator @Inject constructor(
             displayPolicy = DisplayPolicy.AUTO_MATCH_DISPLAY // default; per-game override in Phase 11
         )
 
-        return provider.launch(target, launchContext)
+        if (target.provider.runsLocally) {
+            ayaPerformanceModeManager.useGamingMode()
+        } else {
+            ayaPerformanceModeManager.useEcoMode()
+        }
+
+        return provider.launch(target, launchContext).also { result ->
+            // A failed launch leaves CreteOS in the foreground, where Eco is the intended profile.
+            if (result.isFailure) ayaPerformanceModeManager.useEcoMode()
+        }
     }
 
     companion object {

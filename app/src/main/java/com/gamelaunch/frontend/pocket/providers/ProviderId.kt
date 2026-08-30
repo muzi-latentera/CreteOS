@@ -8,5 +8,9 @@ enum class ProviderId(val displayName: String) {
     MOONLIGHT("Moonlight"),
     GEFORCE_NOW("GeForce NOW"),
     ANDROID_SHORTCUT("Android Shortcut"),
-    EMULATOR("Emulator")
+    EMULATOR("Emulator");
+
+    /** Cloud video decoding is cheap enough for Eco; every other provider runs on this device. */
+    val runsLocally: Boolean
+        get() = this != MOONLIGHT && this != GEFORCE_NOW
 }
