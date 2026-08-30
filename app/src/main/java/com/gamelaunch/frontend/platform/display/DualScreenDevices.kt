@@ -11,6 +11,22 @@ import android.os.Build
  */
 object DualScreenDevices {
 
+    /**
+     * True only for handhelds whose two panels are part of the device itself. A generic external
+     * monitor or AR-glasses display must never be claimed by the artwork Presentation.
+     */
+    fun isDualScreenHandheld(
+        manufacturer: String = Build.MANUFACTURER,
+        model: String = Build.MODEL,
+        device: String = Build.DEVICE
+    ): Boolean {
+        val m = model.lowercase()
+        val d = device.lowercase()
+        return m.contains("thor") || d.contains("thor") ||
+            m.contains("rg ds") || m.contains("rgds") ||
+            d.contains("rgds") || d.contains("rg_ds")
+    }
+
     enum class Layout {
         /**
          * The bottom (menu) panel is already the primary display, so the Activity stays where it
@@ -31,26 +47,24 @@ object DualScreenDevices {
     }
 
     /**
-     * Classify the running device. Unknown devices default to [Layout.ARTWORK_ON_SECONDARY], which
-     * never relaunches the Activity — the safe choice — and can be corrected with the manual
-     * "Swap screens" setting (see [layoutFor]'s `swap` handling in DualScreenManager).
+     * Classify a supported dual-screen handheld. Callers first gate this with
+     * [isDualScreenHandheld], so the fallback is never used to claim an external display.
      */
     fun layoutFor(
         manufacturer: String = Build.MANUFACTURER,
         model: String = Build.MODEL,
         device: String = Build.DEVICE
     ): Layout {
-        val mf = manufacturer.lowercase()
         val m = model.lowercase()
         val d = device.lowercase()
         return when {
             // AYN Thor — top screen is primary; the menu belongs on the secondary (bottom) panel.
-            mf.contains("ayn") || m.contains("thor") || d.contains("thor") ->
+            m.contains("thor") || d.contains("thor") ->
                 Layout.MENU_ON_SECONDARY
 
             // Anbernic RG DS — bottom (menu) is already primary; artwork goes on the secondary (top).
-            mf.contains("anbernic") || m.contains("rg ds") || m.contains("rgds") ||
-                d.contains("rgds") || d.contains("rg_ds") ->
+            m.contains("rg ds") || m.contains("rgds") || d.contains("rgds") ||
+                d.contains("rg_ds") ->
                 Layout.ARTWORK_ON_SECONDARY
 
             else -> Layout.ARTWORK_ON_SECONDARY

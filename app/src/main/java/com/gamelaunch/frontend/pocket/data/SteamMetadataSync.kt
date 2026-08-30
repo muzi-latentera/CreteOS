@@ -34,6 +34,15 @@ class SteamMetadataSync @Inject constructor(
         private val STEAM_API_KEY get() = com.gamelaunch.frontend.BuildConfig.STEAM_API_KEY
         private val STEAM_ID      get() = com.gamelaunch.frontend.BuildConfig.STEAM_ID
 
+        /**
+         * Store ownership for legacy entries that were originally imported as `gfn` games.
+         * GeForce NOW is a launch provider, not a storefront; these values drive library identity
+         * while the verified GFN URL remains available as a Play target.
+         */
+        val OWNERSHIP_PLATFORM_OVERRIDES: Map<String, String> = mapOf(
+            "1182900" to "gamepass" // A Plague Tale: Requiem
+        )
+
 
         /**
          * VERIFIED GFN canonical URLs — confirmed by device navigation to correct game page.
@@ -64,6 +73,7 @@ class SteamMetadataSync @Inject constructor(
             "swo_gp"        to "https://play.geforcenow.com/games?game-id=5e99f1b6-6db5-404e-bd80-f9d5c86b64d5&lang=en_GB&asset-id=01_a15ad360-1b1f-4fb6-9be7-50f7e7db526b",  // Star Wars Outlaws (GamePass)
             "indyjones_gp"  to "https://play.geforcenow.com/games?game-id=3d6f95b6-0aae-432f-ab4a-c31a01dc5de6&lang=en_GB&asset-id=01_27843f55-52e1-4a74-80ce-eb637ab5c406",  // Indiana Jones (GamePass)
             "dis2_gp"       to "https://play.geforcenow.com/games?game-id=62dc8b5b-74a8-4172-9e78-d08f126813a9&lang=en_GB&asset-id=01_3833bbd1-9655-4ad9-8527-caea5c9e4777",  // Dishonored 2 (GamePass)
+            "1182900"       to "https://play.geforcenow.com/games?game-id=5aa78bb8-6af4-49d9-b678-4b7c3685a98c&lang=en_GB&asset-id=01_c165be90-e557-4bc7-8c45-ee7860d7ef14",  // A Plague Tale: Requiem (user-verified GFN URL)
             "fh6_gp"        to "https://play.geforcenow.com/games?game-id=326bf7cb-4bfc-4c8b-bfcb-4fdcafb4ef62&lang=en_GB&asset-id=01_7b3a959a-38b7-4ac8-b592-5ad73801f3a5",  // Forza Horizon 6 (GamePass)
             "bf6_ea"        to "https://play.geforcenow.com/games?game-id=cb4e2225-1c30-456b-ac8e-1424f3218329&lang=en_GB&asset-id=01_8f7b8453-2ee0-4651-aab2-06c359a84a88",  // Battlefield 6 (EA)
             "2138710" to "https://play.geforcenow.com/games?game-id=ea68304b-9448-4002-a00e-3b816721bf1c&lang=en_GB&asset-id=01_5453e247-4a92-46f2-815b-3e7a8cad2f18",  // Sifu ✓ — AppID 2138710 (NOT 2767120 which is a DLC)

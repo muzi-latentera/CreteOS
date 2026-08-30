@@ -73,6 +73,13 @@ data class HomeUiState(
     val isScanningLibrary: Boolean = false
 )
 
+/** Controller selection for the Pocket home, kept outside Compose so detail navigation cannot
+ * discard the active row/card while the Home destination is off-screen. */
+data class PocketHomeFocusState(
+    val row: Int = 0,
+    val railIndex: Int = 0
+)
+
 @HiltViewModel
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class HomeViewModel @Inject constructor(
@@ -88,6 +95,17 @@ class HomeViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState
+
+    private val _pocketFocusState = MutableStateFlow(PocketHomeFocusState())
+    val pocketFocusState: StateFlow<PocketHomeFocusState> = _pocketFocusState
+
+    fun setPocketFocusRow(row: Int) {
+        _pocketFocusState.update { it.copy(row = row.coerceIn(0, 1)) }
+    }
+
+    fun setPocketRailFocusIndex(index: Int) {
+        _pocketFocusState.update { it.copy(railIndex = index.coerceAtLeast(0)) }
+    }
 
     private var videoDelayJob: Job? = null
     private val isLocked = lockedModeRepository.state

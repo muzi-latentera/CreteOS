@@ -1,8 +1,8 @@
 package com.gamelaunch.frontend.pocket.ui
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Monitor
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -16,6 +16,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gamelaunch.frontend.pocket.display.GamingDisplayInfo
 import com.gamelaunch.frontend.pocket.display.GamingDisplayManager
+import com.gamelaunch.frontend.pocket.ui.design.rememberCreteLayoutMetrics
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -56,7 +57,7 @@ class DisplayDiagnosticsViewModel @Inject constructor(
  * Purpose: verify GamingDisplayManager behaviour before Pocket FIT + XREAL hardware test.
  * Expected output with XREAL connected:
  *   Display 0 — Internal — 1920×1080 @ 144Hz
- *   Display N — External — 1920×1200 @ 60Hz  ← XREAL One S
+ *   USB profile — External — 1920×1200 @ 90Hz  ← XREAL 1S mirrored by Pocket FIT
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +67,7 @@ fun DisplayDiagnosticsScreen(
 ) {
     val displays by viewModel.displays.collectAsState()
     val active   by viewModel.activeDisplay.collectAsState()
+    val layout = rememberCreteLayoutMetrics()
 
     Scaffold(
         topBar = {
@@ -82,49 +84,57 @@ fun DisplayDiagnosticsScreen(
             )
         }
     ) { padding ->
-        LazyColumn(
+        Row(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp)
+                .padding(
+                    horizontal = layout.horizontalPadding,
+                    vertical = if (layout.compactHandheld) 12.dp else 20.dp
+                ),
+            horizontalArrangement = Arrangement.spacedBy(if (layout.compactHandheld) 18.dp else 24.dp)
         ) {
-
-            item {
+            Column(
+                modifier = Modifier
+                    .weight(0.9f)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+            ) {
                 SectionLabel("Active Gaming Display")
                 DisplayCard(info = active, isActive = true)
                 Spacer(Modifier.height(16.dp))
-                SectionLabel("All Detected Displays (${displays.size})")
+                HorizontalDivider()
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Connect XREAL glasses via USB-C, then tap Refresh. " +
+                        "The Pocket FIT may expose it as an XREAL USB mirror profile at " +
+                        "1920×1200 @ 90Hz instead of a numbered Android display.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
             }
 
-            if (displays.isEmpty()) {
-                item {
+            Column(
+                modifier = Modifier
+                    .weight(1.1f)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                SectionLabel("All Detected Displays (${displays.size})")
+                if (displays.isEmpty()) {
                     Text(
                         "No displays detected. Tap Refresh.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(vertical = 16.dp)
                     )
+                } else {
+                    displays.forEach { display ->
+                        DisplayCard(info = display, isActive = display.displayId == active.displayId)
+                        Spacer(Modifier.height(8.dp))
+                    }
                 }
-            } else {
-                items(displays) { display ->
-                    DisplayCard(info = display, isActive = display.displayId == active.displayId)
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
-
-            item {
-                Spacer(Modifier.height(16.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Connect XREAL glasses via USB-C, then tap Refresh. " +
-                    "External display should appear with 1920×1200 resolution. " +
-                    "The active gaming display should switch to External.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-                Spacer(Modifier.height(32.dp))
             }
         }
     }

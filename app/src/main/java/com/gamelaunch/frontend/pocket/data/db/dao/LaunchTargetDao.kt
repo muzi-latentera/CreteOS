@@ -19,6 +19,9 @@ interface LaunchTargetDao {
     @Query("SELECT * FROM launch_targets WHERE provider = :provider")
     suspend fun getTargetsForProvider(provider: String): List<LaunchTargetEntity>
 
+    @Query("SELECT DISTINCT hostGameKey FROM launch_targets WHERE provider = :provider AND isAvailable = 1")
+    fun observeAvailableHostGameKeys(provider: String): Flow<List<String>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(target: LaunchTargetEntity): Long
 

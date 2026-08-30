@@ -6,17 +6,14 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.net.wifi.WifiManager
 import android.os.BatteryManager
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,7 +29,7 @@ import java.util.*
 
 /**
  * Floating system pill — top-right corner, like WinHanced.
- * Shows: clock | wifi | battery | power
+ * Shows: clock | wifi | battery
  * No "CreteOS" wordmark. No full-width bar.
  */
 @Composable
@@ -40,12 +37,11 @@ fun CreteSystemPill(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val layout = rememberCreteLayoutMetrics()
     var batteryPct  by remember { mutableIntStateOf(100) }
     var isCharging  by remember { mutableStateOf(false) }
     var wifiLevel   by remember { mutableIntStateOf(-1) }
     var clock       by remember { mutableStateOf(currentTime()) }
-    var showPower   by remember { mutableStateOf(false) }
-
     // Battery + WiFi receiver
     DisposableEffect(Unit) {
         val receiver = object : BroadcastReceiver() {
@@ -84,19 +80,15 @@ fun CreteSystemPill(
         }
     }
 
-    if (showPower) {
-        PowerActionDialog(onDismiss = { showPower = false })
-    }
-
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(CreteDS.radiusPill))
             .background(CreteDS.pillBg)
             .border(0.5.dp, CreteDS.border, RoundedCornerShape(CreteDS.radiusPill))
-            .padding(horizontal = 14.dp, vertical = 0.dp)
-            .height(CreteDS.pillHeight),
+            .padding(horizontal = if (layout.compactHandheld) 12.dp else 14.dp, vertical = 0.dp)
+            .height(if (layout.compactHandheld) 36.dp else CreteDS.pillHeight),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(if (layout.compactHandheld) 8.dp else 10.dp)
     ) {
         // Clock
         Text(
@@ -112,7 +104,7 @@ fun CreteSystemPill(
             imageVector = wifiIcon(wifiLevel),
             contentDescription = "WiFi",
             tint = CreteDS.textSecondary,
-            modifier = Modifier.size(16.dp)
+            modifier = Modifier.size(if (layout.compactHandheld) 15.dp else 16.dp)
         )
 
         // Battery
@@ -125,18 +117,6 @@ fun CreteSystemPill(
                 else -> CreteDS.textPrimary
             }
         )
-
-        PillDivider()
-
-        // Power
-        Icon(
-            imageVector = Icons.Outlined.PowerSettingsNew,
-            contentDescription = "Power",
-            tint = CreteDS.textSecondary,
-            modifier = Modifier
-                .size(16.dp)
-                .clickable { showPower = true }
-        )
     }
 }
 
@@ -147,38 +127,6 @@ private fun PillDivider() {
             .width(0.5.dp)
             .height(16.dp)
             .background(CreteDS.border)
-    )
-}
-
-@Composable
-private fun PowerActionDialog(onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = CreteDS.bgCard,
-        titleContentColor = CreteDS.textPrimary,
-        textContentColor = CreteDS.textSecondary,
-        title = { Text("Power", fontWeight = FontWeight.SemiBold) },
-        text = {
-            Text(
-                "Lock Screen requires device admin permission " +
-                "(Settings → Security → Device admin apps → CreteOS)."
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                onDismiss()
-                runCatching {
-                    val dpm = context.getSystemService(android.app.admin.DevicePolicyManager::class.java)
-                    dpm?.lockNow()
-                }
-            }) { Text("Lock Screen", color = CreteDS.accent) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = CreteDS.textSecondary)
-            }
-        }
     )
 }
 

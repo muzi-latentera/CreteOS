@@ -196,6 +196,110 @@ class IgdbMetadataSync @Inject constructor(
     }
 
     /**
+     * Fetch metadata for a game that has no Steam AppID (Epic/GOG/Amazon imports, for example).
+     * These stores expose provider-local IDs that IGDB cannot resolve through `external_games`, so
+     * use a conservative exact-normalised title match instead. Results are stored under [gameKey]
+     * in the same sidecar tables consumed by the detail screen and HLTB panel.
+     */
+    suspend fun syncGameByTitle(gameKey: String, gameTitle: String): Unit = withContext(Dispatchers.IO) {
+        if (CLIENT_ID.isBlank() || CLIENT_SECRET.isBlank()) {
+            Log.w(TAG, "IGDB credentials not configured — skipping title sync")
+            return@withContext
+        }
+
+        try {
+            val escapedTitle = gameTitle.replace("\\", "\\\\").replace("\"", "\\\"")
+            val results = igdbPost(
+                "games",
+                """
+                    fields id,name,cover.image_id,artworks.image_id,screenshots.image_id,summary,
+                           involved_companies.company.name,involved_companies.developer,
+                           involved_companies.publisher;
+                    search "$escapedTitle";
+                    limit 20;
+                """.trimIndent()
+            )
+            val requestedTitle = normalizeTitle(gameTitle)
+            val match = (0 until results.length())
+                .map { results.getJSONObject(it) }
+                .firstOrNull { normalizeTitle(it.optString("name")) == requestedTitle }
+            if (match == null) {
+                Log.d(TAG, "No exact IGDB title match for '$gameTitle'")
+                return@withContext
+            }
+
+            val igdbId = match.optInt("id", 0)
+            if (igdbId <= 0) return@withContext
+
+            val ttbResults = igdbPost(
+                "game_time_to_beats",
+                "fields game_id,hastily,normally,completely; where game_id=$igdbId; limit 1;"
+            )
+            val ttb = ttbResults.optJSONObject(0)
+            val times = consistentIgdbTtb(
+                ttb?.optInt("hastily", 0) ?: 0,
+                ttb?.optInt("normally", 0) ?: 0,
+                ttb?.optInt("completely", 0) ?: 0
+            )
+            // Cache legitimate no-TTB results too, preventing a fresh network request on every
+            // library emission for games where IGDB has metadata but no duration aggregate.
+            hltbCacheDao.upsert(
+                HltbCacheEntity(
+                    steamAppId = gameKey,
+                    gameTitle = gameTitle,
+                    hltbId = igdbId,
+                    mainStorySeconds = times.main,
+                    mainExtraSeconds = times.mainExtra,
+                    completionistSeconds = times.completionist
+                )
+            )
+
+            val coverId = match.optJSONObject("cover")?.optString("image_id")
+            val coverUrl = coverId?.takeIf { it.isNotBlank() }?.let {
+                "https://images.igdb.com/igdb/image/upload/t_cover_big_2x/$it.jpg"
+            }
+            // Screenshots are reliably full-frame landscape images. IGDB's artwork collection
+            // can also contain ultra-wide wordmarks/logos, which look broken when cropped into
+            // the detail hero (Dishonored 2's 1920x273 monochrome logo was one such result).
+            val heroId = match.optJSONArray("screenshots")?.optJSONObject(0)?.optString("image_id")
+                ?.takeIf { it.isNotBlank() }
+                ?: match.optJSONArray("artworks")?.optJSONObject(0)?.optString("image_id")
+                    ?.takeIf { it.isNotBlank() }
+            val heroUrl = heroId?.let {
+                "https://images.igdb.com/igdb/image/upload/t_1080p/$it.jpg"
+            }
+
+            var developer: String? = null
+            var publisher: String? = null
+            match.optJSONArray("involved_companies")?.let { companies ->
+                for (index in 0 until companies.length()) {
+                    val involvement = companies.optJSONObject(index) ?: continue
+                    val name = involvement.optJSONObject("company")?.optString("name")
+                        ?.takeIf { it.isNotBlank() } ?: continue
+                    if (involvement.optBoolean("developer") && developer == null) developer = name
+                    if (involvement.optBoolean("publisher") && publisher == null) publisher = name
+                }
+            }
+            val summary = match.optString("summary").takeIf { it.isNotBlank() }
+            val existing = steamMetadataDao.getByAppId(gameKey)
+                ?: SteamMetadataEntity(steamAppId = gameKey)
+            steamMetadataDao.upsert(
+                existing.copy(
+                    developer = developer ?: existing.developer,
+                    publisher = publisher ?: existing.publisher,
+                    description = summary ?: existing.description,
+                    igdbCoverUrl = coverUrl ?: existing.igdbCoverUrl,
+                    igdbHeroUrl = heroUrl ?: existing.igdbHeroUrl,
+                    updatedAtMs = System.currentTimeMillis()
+                )
+            )
+            Log.d(TAG, "$gameTitle title-enriched: IGDB=$igdbId cover=${coverUrl != null}")
+        } catch (error: Exception) {
+            Log.w(TAG, "IGDB title sync failed for '$gameTitle': ${error.message}")
+        }
+    }
+
+    /**
      * Seed pre-fetched IGDB results from the Python batch run into hltb_cache.
      * This is called once on first launch with a hardcoded dataset,
      * so users get TTB data immediately without waiting for network.

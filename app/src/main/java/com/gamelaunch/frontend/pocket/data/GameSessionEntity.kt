@@ -74,6 +74,10 @@ interface GameSessionDao {
     """)
     suspend fun totalMinutesForGame(gameKey: String): Int
 
+    /** Preserve play history when a legacy provider-namespaced key gains its real store identity. */
+    @Query("UPDATE game_sessions SET game_key = :newKey WHERE game_key = :oldKey")
+    suspend fun migrateGameKey(oldKey: String, newKey: String)
+
     /** Any session currently in progress (no end time). */
     @Query("""
         SELECT * FROM game_sessions

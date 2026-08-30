@@ -30,10 +30,11 @@ fun CreteTopNavigation(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val layout = rememberCreteLayoutMetrics()
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(CreteDS.navBarHeight),
+            .height(if (layout.compactHandheld) 46.dp else CreteDS.navBarHeight),
         contentAlignment = Alignment.Center
     ) {
         Row(

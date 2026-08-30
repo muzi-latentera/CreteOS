@@ -1,26 +1,32 @@
 package com.gamelaunch.frontend.pocket.ui
 
 import android.content.Intent
+import android.content.Context
 import android.net.Uri
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,6 +51,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -57,18 +69,29 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import coil.compose.AsyncImage
 import com.gamelaunch.frontend.domain.model.Game
 import com.gamelaunch.frontend.domain.model.GameMedia
 import com.gamelaunch.frontend.pocket.data.SteamMetadataDao
 import com.gamelaunch.frontend.pocket.data.SteamMetadataEntity
+import com.gamelaunch.frontend.pocket.data.SteamMetadataSync
 import com.gamelaunch.frontend.pocket.data.IgdbSeedData
 import com.gamelaunch.frontend.pocket.data.formatPlaytime
 import com.gamelaunch.frontend.pocket.ui.design.*
 import com.gamelaunch.frontend.pocket.ui.home.RedditNewsViewModel
 import com.gamelaunch.frontend.pocket.ui.library.LibraryViewModel
 import com.gamelaunch.frontend.ui.screen.home.HomeViewModel
+import com.gamelaunch.frontend.ui.input.GamepadA
+import com.gamelaunch.frontend.ui.input.GamepadB
+import com.gamelaunch.frontend.ui.input.GamepadL2
+import com.gamelaunch.frontend.ui.input.GamepadR2
+import com.gamelaunch.frontend.ui.input.GamepadX
+import com.gamelaunch.frontend.ui.input.GamepadY
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.text.Normalizer
 import kotlin.math.abs
 
@@ -83,6 +106,13 @@ private val VeryDimCream = CreamText.copy(alpha = 0.27f)
 private val DarkBase = Color(0xFF0A0D10)
 private val GreenSync = Color(0xFF4ADE80)
 private val RedPlay = Color(0xFFC9482A)
+
+internal fun Context.launchInstalledPackage(packageName: String) {
+    packageManager.getLaunchIntentForPackage(packageName)?.let { launchIntent ->
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(launchIntent)
+    }
+}
 
 // Deterministic colour palette for game cards without artwork
 private val CardPalette = listOf(
@@ -227,7 +257,9 @@ fun V1GameCard(
     )
 
     val bgColor = deterministicColor(title)
-    val initial = title.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+    val distinctFallbackUrl = fallbackUrl?.takeUnless { it == artworkUrl }
+    var primaryArtworkLoaded by remember(artworkUrl) { mutableStateOf(false) }
+    var fallbackArtworkLoaded by remember(distinctFallbackUrl) { mutableStateOf(false) }
 
     // Platform label
     val platformLabel = platformDisplayLabel(platformId)
@@ -257,7 +289,7 @@ fun V1GameCard(
                                 )
                             )
                         }
-                        .border(3.dp, AmberAccent, RoundedCornerShape(12.dp))
+                        .border(2.dp, AmberAccent, RoundedCornerShape(12.dp))
                 } else {
                     Modifier.border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
                 }
@@ -268,43 +300,43 @@ fun V1GameCard(
                 onClick = onClick
             )
     ) {
-        // Background — layered artwork:
-        // Layer 1: IGDB cover (always loads if available)
-        // Layer 2: Steam portrait art on top (may 404 on some games — Coil shows nothing, layer 1 shows through)
-        val effectiveUrl = artworkUrl ?: fallbackUrl
-        if (effectiveUrl != null) {
-            // Show IGDB cover as base layer first
-            if (fallbackUrl != null && artworkUrl != null) {
-                AsyncImage(
-                    model = fallbackUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+        // Always start with a readable title background. A non-null path may still point at a
+        // removed scraper file, so artwork only suppresses the title after Coil loads it.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(bgColor, bgColor.copy(alpha = 0.6f)),
+                        radius = 400f
+                    )
                 )
-            }
-            // Then Steam art on top (transparent if 404)
+        )
+        if (distinctFallbackUrl != null) {
             AsyncImage(
-                model = effectiveUrl,
+                model = distinctFallbackUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                onSuccess = { fallbackArtworkLoaded = true },
+                onError = { fallbackArtworkLoaded = false }
+            )
+        }
+        if (artworkUrl != null) {
+            AsyncImage(
+                model = artworkUrl,
                 contentDescription = title,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            // Gradient background from deterministic colour
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(bgColor, bgColor.copy(alpha = 0.6f)),
-                            radius = 400f
-                        )
-                    )
+                modifier = Modifier.fillMaxSize(),
+                onSuccess = { primaryArtworkLoaded = true },
+                onError = { primaryArtworkLoaded = false }
             )
         }
 
+        val artworkVisible = primaryArtworkLoaded || fallbackArtworkLoaded
+
         // Bottom scrim + text — only shown when no artwork at all
-        if (effectiveUrl == null) {
+        if (!artworkVisible) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -373,6 +405,7 @@ fun CreteHomeLayout(
 ) {
     val steamMetadataDao = heroSteamViewModel.steamMetadataDao
     val libState by libraryViewModel.uiState.collectAsState()
+    val layout = rememberCreteLayoutMetrics()
 
     // Provider apps to exclude
     val providerPackages = remember {
@@ -411,12 +444,90 @@ fun CreteHomeLayout(
         value = heroAppId?.let { steamMetadataDao.getByAppId(it) }
     }
 
-    // Focus states
-    var heroFocused by remember { mutableStateOf(false) }
-    var jumpBackInFocusIndex by remember { mutableIntStateOf(-1) }
+    // Controller focus: hero first, then the Jump Back In rail.
+    val railGames = remember(jumpBackInGames) { jumpBackInGames.drop(1) }
+    val pocketFocusState by homeViewModel.pocketFocusState.collectAsState()
+    val homeFocusRow = pocketFocusState.row
+    val jumpBackInFocusIndex = pocketFocusState.railIndex
+    val homeFocusRequester = remember { FocusRequester() }
+    val homeListState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    var homeHasFocus by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        delay(120)
+        runCatching { homeFocusRequester.requestFocus() }
+    }
+
+    // Navigation keeps the Home destination composed while detail is on top. Re-acquire its
+    // controller focus every time it resumes, otherwise focus remains attached to the removed
+    // detail destination and the remembered selection appears frozen after pressing B.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        scope.launch {
+            var tries = 0
+            do {
+                runCatching { homeFocusRequester.requestFocus() }
+                delay(80)
+            } while (!homeHasFocus && tries++ < 14)
+        }
+    }
+    LaunchedEffect(railGames.size) {
+        if (railGames.isEmpty()) homeViewModel.setPocketFocusRow(0)
+        homeViewModel.setPocketRailFocusIndex(
+            jumpBackInFocusIndex.coerceIn(0, (railGames.size - 1).coerceAtLeast(0))
+        )
+    }
 
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
+        state = homeListState,
+        modifier = modifier
+            .fillMaxSize()
+            .focusRequester(homeFocusRequester)
+            .onFocusChanged { homeHasFocus = it.hasFocus }
+            .focusable()
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                when (event.key) {
+                    Key.DirectionUp -> {
+                        homeViewModel.setPocketFocusRow(0)
+                        scope.launch { homeListState.animateScrollToItem(0) }
+                        true
+                    }
+                    Key.DirectionDown -> {
+                        if (railGames.isNotEmpty()) {
+                            homeViewModel.setPocketFocusRow(1)
+                            scope.launch { homeListState.animateScrollToItem(1) }
+                        }
+                        true
+                    }
+                    Key.DirectionLeft -> {
+                        if (homeFocusRow == 1) {
+                            homeViewModel.setPocketRailFocusIndex(
+                                (jumpBackInFocusIndex - 1).coerceAtLeast(0)
+                            )
+                        }
+                        true
+                    }
+                    Key.DirectionRight -> {
+                        if (homeFocusRow == 1) {
+                            homeViewModel.setPocketRailFocusIndex(
+                                (jumpBackInFocusIndex + 1)
+                                    .coerceAtMost((railGames.size - 1).coerceAtLeast(0))
+                            )
+                        }
+                        true
+                    }
+                    GamepadA, Key.DirectionCenter, Key.Enter -> {
+                        if (homeFocusRow == 0) {
+                            heroGame?.let { onGameClick(it.id) }
+                        } else {
+                            railGames.getOrNull(jumpBackInFocusIndex)?.let { onGameClick(it.id) }
+                        }
+                        true
+                    }
+                    else -> false
+                }
+            },
         contentPadding = PaddingValues(bottom = 32.dp)
     ) {
         // ── HERO TILE ──────────────────────────────────────────────────────
@@ -426,17 +537,25 @@ fun CreteHomeLayout(
                     game = heroGame,
                     media = heroMedia,
                     steamMeta = heroSteamMeta,
-                    focused = heroFocused,
+                    focused = homeFocusRow == 0,
                     onClick = { onGameClick(heroGame.id) },
-                    modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 80.dp, bottom = 12.dp)
+                    modifier = Modifier.padding(
+                        start = layout.horizontalPadding,
+                        end = layout.horizontalPadding,
+                        top = layout.homeHeroTopPadding,
+                        bottom = if (layout.compactHandheld) 8.dp else 12.dp
+                    )
                 )
             } else {
                 // Empty state hero
                 Box(
                     modifier = Modifier
-                        .padding(horizontal = 32.dp, vertical = 24.dp)
+                        .padding(
+                            horizontal = layout.horizontalPadding,
+                            vertical = if (layout.compactHandheld) 16.dp else 24.dp
+                        )
                         .fillMaxWidth()
-                        .height(340.dp)
+                        .height(layout.homeHeroHeight)
                         .clip(RoundedCornerShape(20.dp))
                         .background(Color(0xFF0F1317))
                         .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp)),
@@ -471,10 +590,14 @@ fun CreteHomeLayout(
             item {
                 GameRail(
                     title = "Jump back in",
-                    games = jumpBackInGames.drop(1), // Skip hero game
+                    games = railGames, // Skip hero game
                     mediaForGames = libState.mediaForGames,
+                    rowFocused = homeFocusRow == 1,
                     focusedIndex = jumpBackInFocusIndex,
-                    onFocusChange = { jumpBackInFocusIndex = it },
+                    onFocusChange = {
+                        homeViewModel.setPocketFocusRow(1)
+                        homeViewModel.setPocketRailFocusIndex(it)
+                    },
                     onGameClick = onGameClick
                 )
             }
@@ -498,6 +621,7 @@ private fun HeroTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val layout = rememberCreteLayoutMetrics()
     val bgColor = deterministicColor(game.title)
 
     // Platform label for chips
@@ -506,11 +630,11 @@ private fun HeroTile(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(340.dp)
+            .height(layout.homeHeroHeight)
             .clip(RoundedCornerShape(20.dp))
             .then(
                 if (focused) {
-                    Modifier.border(3.dp, AmberAccent, RoundedCornerShape(20.dp))
+                    Modifier.border(2.dp, AmberAccent, RoundedCornerShape(20.dp))
                 } else {
                     Modifier.border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
                 }
@@ -562,7 +686,7 @@ private fun HeroTile(
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .width(500.dp)
+                .width(if (layout.compactHandheld) 420.dp else 500.dp)
                 .align(Alignment.CenterStart)
                 .background(
                     Brush.horizontalGradient(
@@ -579,8 +703,12 @@ private fun HeroTile(
         Column(
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .padding(start = 32.dp, top = 32.dp, bottom = 32.dp)
-                .widthIn(max = 420.dp)
+                .padding(
+                    start = layout.heroContentPadding,
+                    top = layout.heroContentPadding,
+                    bottom = layout.heroContentPadding
+                )
+                .widthIn(max = if (layout.compactHandheld) 360.dp else 420.dp)
         ) {
             // Subtitle
             Text(
@@ -592,44 +720,42 @@ private fun HeroTile(
                 letterSpacing = 2.8.sp
             )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(if (layout.compactHandheld) 7.dp else 12.dp))
 
             // Game title
             Text(
                 text = game.title,
-                fontSize = 40.sp,
+                fontSize = layout.heroTitleSize,
                 fontWeight = FontWeight.Bold,
                 color = CreamText,
                 letterSpacing = (-0.5).sp,
-                lineHeight = 42.sp,
+                lineHeight = layout.heroTitleLineHeight,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(if (layout.compactHandheld) 10.dp else 16.dp))
 
-                // Tag row — platform + provider only (playtime shown in right panel)
+                // Identity row: the store owns the game; LOCAL is availability. Launch providers
+                // such as GeForce NOW and Moonlight belong in Play Using, not ownership badges.
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     HeroChip(text = platformLabel)
 
-                    // Provider chip
-                    HeroChip(
-                        text = when (game.platformId.lowercase()) {
-                            "steam"     -> "GAME NATIVE"
-                            "gfn"       -> "GEFORCE NOW"
-                            "moonlight" -> "MOONLIGHT"
-                            "android"   -> "ANDROID"
-                            else        -> "READY"
-                        },
-                        textColor = GreenSync,
-                    borderColor = GreenSync.copy(alpha = 0.3f)
-                )
-            }
+                    if (steamMeta?.isLocal == true &&
+                        game.platformId.lowercase() !in setOf("local", "gamenative")
+                    ) {
+                        HeroChip(
+                            text = "LOCAL",
+                            textColor = GreenSync,
+                            borderColor = GreenSync.copy(alpha = 0.3f)
+                        )
+                    }
+                }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(if (layout.compactHandheld) 14.dp else 24.dp))
 
             // Button row
             Row(
@@ -639,7 +765,7 @@ private fun HeroTile(
                 // Red PLAY button
                 Row(
                     modifier = Modifier
-                        .height(44.dp)
+                        .height(if (layout.compactHandheld) 40.dp else 44.dp)
                         .clip(RoundedCornerShape(10.dp))
                         .background(RedPlay)
                         .clickable(
@@ -668,19 +794,20 @@ private fun HeroTile(
             }
         }
 
-        // Right side — frosted glass panel
-        Box(
+        // Roomy layouts can afford the profile panel. On a handheld it competes
+        // with the title and artwork; the same information remains on game detail.
+        if (!layout.compactHandheld) Box(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .padding(end = 32.dp)
-                .width(296.dp)
+                .padding(end = layout.heroContentPadding)
+                .width(layout.heroInfoWidth)
                 .clip(RoundedCornerShape(16.dp))
                 .background(Color(0xFF0A0D10).copy(alpha = 0.66f))
                 .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
-                .padding(20.dp)
+                .padding(layout.heroInfoPadding)
         ) {
             Column(
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(if (layout.compactHandheld) 8.dp else 14.dp)
             ) {
                 Text(
                     "GAME INFO",
@@ -791,18 +918,19 @@ private fun formatLastPlayed(lastPlayedMs: Long?): String {
 
 @Composable
 private fun RedditNewsRail(newsViewModel: RedditNewsViewModel) {
+    val layout = rememberCreteLayoutMetrics()
     val newsState by newsViewModel.state.collectAsState()
     val uriHandler = LocalUriHandler.current
     val posts = newsState.posts
 
     if (posts.isEmpty()) return
 
-    Column(modifier = Modifier.padding(top = 24.dp)) {
+    Column(modifier = Modifier.padding(top = if (layout.compactHandheld) 16.dp else 24.dp)) {
         // Rail header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 32.dp, vertical = 8.dp),
+                .padding(horizontal = layout.horizontalPadding, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -834,7 +962,7 @@ private fun RedditNewsRail(newsViewModel: RedditNewsViewModel) {
 
         // Horizontal scrolling news cards
         LazyRow(
-            contentPadding = PaddingValues(horizontal = 32.dp),
+            contentPadding = PaddingValues(horizontal = layout.horizontalPadding),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.padding(top = 8.dp)
         ) {
@@ -859,10 +987,11 @@ private fun RedditNewsCard(
     thumbnailUrl: String?,
     onClick: () -> Unit
 ) {
+    val layout = rememberCreteLayoutMetrics()
     Box(
         modifier = Modifier
-            .width(300.dp)
-            .height(160.dp)
+            .width(if (layout.compactHandheld) 260.dp else 300.dp)
+            .height(if (layout.compactHandheld) 140.dp else 160.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(Color(0xFF0F1317))
             .border(1.dp, CreamText.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
@@ -929,20 +1058,27 @@ private fun GameRail(
     title: String,
     games: List<Game>,
     mediaForGames: Map<Long, GameMedia>,
+    rowFocused: Boolean,
     focusedIndex: Int,
     onFocusChange: (Int) -> Unit,
     onGameClick: (Long) -> Unit
 ) {
     if (games.isEmpty()) return
+    val layout = rememberCreteLayoutMetrics()
+    val railState = rememberLazyListState()
+
+    LaunchedEffect(focusedIndex, games.size) {
+        if (focusedIndex in games.indices) railState.animateScrollToItem(focusedIndex)
+    }
 
     Column(
-        modifier = Modifier.padding(top = 24.dp)
+        modifier = Modifier.padding(top = if (layout.compactHandheld) 14.dp else 24.dp)
     ) {
         // Title row: label + fading line + count
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 32.dp, vertical = 8.dp),
+                .padding(horizontal = layout.horizontalPadding, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -983,19 +1119,25 @@ private fun GameRail(
 
         // Game cards row
         LazyRow(
-            contentPadding = PaddingValues(horizontal = 32.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.padding(top = 8.dp)
+            state = railState,
+            contentPadding = PaddingValues(horizontal = layout.horizontalPadding),
+            horizontalArrangement = Arrangement.spacedBy(if (layout.compactHandheld) 10.dp else 12.dp),
+            modifier = Modifier.padding(top = if (layout.compactHandheld) 4.dp else 8.dp)
         ) {
             itemsIndexed(games, key = { _, game -> game.id }) { index, game ->
+                val media = mediaForGames[game.id]
+                val seedCover = IgdbSeedData.coverUrlFor(
+                    game.romPath.substringAfterLast(":").takeIf { it.isNotBlank() } ?: ""
+                )
                 V1GameCard(
-                    artworkUrl = mediaForGames[game.id]?.effectiveBoxArt,
-                    fallbackUrl = IgdbSeedData.coverUrlFor(
-                        game.romPath.substringAfterLast(":").takeIf { it.isNotBlank() } ?: ""
-                    ),
+                    artworkUrl = media?.effectiveBoxArt,
+                    fallbackUrl = media?.boxArtRemoteUrl?.takeUnless { it == media.effectiveBoxArt }
+                        ?: seedCover,
                     title = game.title,
                     platformId = game.platformId,
-                    focused = index == focusedIndex,
+                    focused = rowFocused && index == focusedIndex,
+                    width = layout.libraryMinCardWidth,
+                    height = layout.libraryMinCardWidth * (203f / 152f),
                     onClick = {
                         onFocusChange(index)
                         onGameClick(game.id)
@@ -1046,14 +1188,33 @@ fun LibraryTabContent(
     initialFilter: LibraryFilter = LibraryFilter.ALL
 ) {
     val state by libraryViewModel.uiState.collectAsState()
-    var activeFilter by remember { mutableStateOf(initialFilter) }
-    var focusedGameId by remember { mutableStateOf<Long?>(null) }
-    var showSources by remember { mutableStateOf(false) }
-    var showSearch by remember { mutableStateOf(false) }
-    var searchText by remember { mutableStateOf("") }
-    var debouncedSearch by remember { mutableStateOf("") }
+    val activeFilter = runCatching { LibraryFilter.valueOf(state.activeFilterName) }
+        .getOrDefault(initialFilter)
+    val focusedGameId = state.focusedGameId
+    val showSources = state.showSources
+    val showSearch = state.showSearch
+    val searchText = state.searchText
+    var debouncedSearch by remember { mutableStateOf(searchText) }
     val searchFocusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
+    val layout = rememberCreteLayoutMetrics()
+    var sourceFocusIndex by remember { mutableIntStateOf(0) }
+    val gridState = rememberLazyGridState(
+        initialFirstVisibleItemIndex = state.gridFirstVisibleItemIndex,
+        initialFirstVisibleItemScrollOffset = state.gridFirstVisibleItemScrollOffset
+    )
+
+    LaunchedEffect(libraryViewModel, initialFilter) {
+        libraryViewModel.initializeFilter(initialFilter.name)
+    }
+    LaunchedEffect(gridState) {
+        snapshotFlow {
+            gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset
+        }.distinctUntilChanged().collect { (index, offset) ->
+            libraryViewModel.setGridPosition(index, offset)
+        }
+    }
 
     LaunchedEffect(searchText) {
         delay(250)
@@ -1071,7 +1232,7 @@ fun LibraryTabContent(
         "app.gamenative", "gamehub.lite"
     )
 
-    val filteredGames = remember(state.games, activeFilter, debouncedSearch) {
+    val filteredGames = remember(state.games, state.localAppIds, state.cloudGameKeys, activeFilter, debouncedSearch) {
         val base = state.games.filter { game ->
             if (game.platformId == "android" && game.romPath.startsWith("package:")) {
                 game.romPath.removePrefix("package:") !in providerPackages
@@ -1085,22 +1246,129 @@ fun LibraryTabContent(
             }
             LibraryFilter.OWNED    -> base.filter { it.platformId in setOf("steam", "gog", "epic", "ea", "gamepass", "xbox", "ubisoft", "amazon") }
             LibraryFilter.STREAMING -> base.filter { it.platformId == "moonlight" }
-            LibraryFilter.CLOUD    -> base.filter { it.platformId == "gfn" }
+            LibraryFilter.CLOUD    -> base.filter {
+                it.platformId == "gfn" ||
+                    it.romPath in state.cloudGameKeys ||
+                    SteamMetadataSync.GFN_VERIFIED.containsKey(it.romPath.substringAfterLast(":"))
+            }
             LibraryFilter.ANDROID  -> base.filter { it.platformId == "android" }
         }
         platformFiltered.filter { matchesLibrarySearch(it.title, debouncedSearch) }
     }
 
+    val controllerFocusRequester = remember { FocusRequester() }
+    val controllerScope = rememberCoroutineScope()
+    val gridGap = if (layout.compactHandheld) 10.dp else 12.dp
+    val availableGridWidth = layout.screenWidth.value - (layout.horizontalPadding.value * 2f)
+    val controllerColumns = (
+        (availableGridWidth + gridGap.value) /
+            (layout.libraryMinCardWidth.value + gridGap.value)
+        ).toInt().coerceAtLeast(1)
+    val gridCardWidth = (
+        (availableGridWidth - gridGap.value * (controllerColumns - 1)) / controllerColumns
+        ).dp
+    val gridCardHeight = gridCardWidth * (203f / 152f)
+
+    LaunchedEffect(filteredGames, focusedGameId, showSources) {
+        if (!showSources && filteredGames.isNotEmpty() &&
+            filteredGames.none { it.id == focusedGameId }) {
+            libraryViewModel.setFocusedGame(filteredGames.first().id)
+        }
+    }
+    LaunchedEffect(showSearch, showSources) {
+        if (!showSearch) {
+            delay(80)
+            runCatching { controllerFocusRequester.requestFocus() }
+        }
+    }
+
+    fun moveLibraryFocus(delta: Int): Boolean {
+        if (filteredGames.isEmpty() || showSources) return false
+        val current = filteredGames.indexOfFirst { it.id == focusedGameId }.coerceAtLeast(0)
+        val next = (current + delta).coerceIn(0, filteredGames.lastIndex)
+        libraryViewModel.setFocusedGame(filteredGames[next].id)
+        controllerScope.launch { gridState.animateScrollToItem(next) }
+        return true
+    }
+
+    fun cycleLibraryFilter(delta: Int) {
+        val filters = LibraryFilter.entries
+        val index = filters.indexOf(activeFilter).coerceAtLeast(0)
+        libraryViewModel.selectFilter(filters[(index + delta + filters.size) % filters.size].name)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 68.dp) // clear system pill (≈56dp pill + 12dp gap)
+            .padding(top = layout.topClearance)
+            .focusRequester(controllerFocusRequester)
+            .focusable()
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+
+                if (showSearch) {
+                    return@onKeyEvent when (event.key) {
+                        GamepadB, GamepadX, Key.Escape -> {
+                            libraryViewModel.setSearchVisible(false)
+                            true
+                        }
+                        else -> false
+                    }
+                }
+
+                if (showSources) {
+                    return@onKeyEvent when (event.key) {
+                        Key.DirectionLeft -> {
+                            sourceFocusIndex = (sourceFocusIndex - 1).coerceAtLeast(0); true
+                        }
+                        Key.DirectionRight -> {
+                            sourceFocusIndex = (sourceFocusIndex + 1).coerceAtMost(CRETE_SOURCES.lastIndex); true
+                        }
+                        Key.DirectionUp -> {
+                            sourceFocusIndex = (sourceFocusIndex - 3).coerceAtLeast(0); true
+                        }
+                        Key.DirectionDown -> {
+                            sourceFocusIndex = (sourceFocusIndex + 3).coerceAtMost(CRETE_SOURCES.lastIndex); true
+                        }
+                        GamepadA, Key.DirectionCenter, Key.Enter -> {
+                            CRETE_SOURCES.getOrNull(sourceFocusIndex)?.packageName
+                                ?.let(context::launchInstalledPackage)
+                            true
+                        }
+                        GamepadB, GamepadY, Key.Escape -> {
+                            libraryViewModel.setSourcesVisible(false); true
+                        }
+                        else -> false
+                    }
+                }
+
+                when (event.key) {
+                    Key.DirectionLeft -> moveLibraryFocus(-1)
+                    Key.DirectionRight -> moveLibraryFocus(1)
+                    Key.DirectionUp -> moveLibraryFocus(-controllerColumns)
+                    Key.DirectionDown -> moveLibraryFocus(controllerColumns)
+                    GamepadA, Key.DirectionCenter, Key.Enter -> {
+                        filteredGames.firstOrNull { it.id == focusedGameId }
+                            ?.let { onGameClick(it.id) }
+                        true
+                    }
+                    GamepadL2 -> { cycleLibraryFilter(-1); true }
+                    GamepadR2 -> { cycleLibraryFilter(1); true }
+                    GamepadX -> { libraryViewModel.setSearchVisible(true); true }
+                    GamepadY -> { libraryViewModel.setSourcesVisible(!showSources); true }
+                    GamepadB, Key.Escape -> if (showSources) {
+                        libraryViewModel.setSourcesVisible(false)
+                        true
+                    } else false
+                    else -> false
+                }
+            }
     ) {
         // Filter chips row + count + sort
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 32.dp, vertical = 8.dp),
+                .padding(horizontal = layout.horizontalPadding, vertical = if (layout.compactHandheld) 5.dp else 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Filter chips
@@ -1112,7 +1380,7 @@ fun LibraryTabContent(
                     V1FilterChip(
                         label = filter.label,
                         selected = filter == activeFilter,
-                        onClick = { activeFilter = filter }
+                        onClick = { libraryViewModel.selectFilter(filter.name) }
                     )
                 }
             }
@@ -1145,7 +1413,7 @@ fun LibraryTabContent(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = { showSources = !showSources }
+                        onClick = { libraryViewModel.setSourcesVisible(!showSources) }
                     )
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1186,12 +1454,8 @@ fun LibraryTabContent(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = {
-                            showSearch = !showSearch
-                            if (showSearch) showSources = false
-                            else {
-                                searchText = ""
-                                debouncedSearch = ""
-                            }
+                            libraryViewModel.setSearchVisible(!showSearch)
+                            if (showSearch) debouncedSearch = ""
                         }
                     ),
                 contentAlignment = Alignment.Center
@@ -1232,7 +1496,7 @@ fun LibraryTabContent(
         if (showSearch) {
             OutlinedTextField(
                 value = searchText,
-                onValueChange = { searchText = it },
+                onValueChange = libraryViewModel::setSearchText,
                 singleLine = true,
                 leadingIcon = {
                     Icon(Icons.Outlined.Search, contentDescription = null, tint = DimCream)
@@ -1240,7 +1504,7 @@ fun LibraryTabContent(
                 trailingIcon = {
                     if (searchText.isNotEmpty()) {
                         IconButton(onClick = {
-                            searchText = ""
+                            libraryViewModel.setSearchText("")
                             debouncedSearch = ""
                         }) {
                             Icon(Icons.Outlined.Close, contentDescription = "Clear search", tint = DimCream)
@@ -1253,16 +1517,16 @@ fun LibraryTabContent(
                 keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 32.dp, vertical = 4.dp)
+                    .padding(horizontal = layout.horizontalPadding, vertical = 4.dp)
                     .focusRequester(searchFocusRequester)
             )
         }
 
-        Spacer(Modifier.height(if (showSearch) 8.dp else 16.dp))
+        Spacer(Modifier.height(if (showSearch) 8.dp else if (layout.compactHandheld) 8.dp else 16.dp))
 
         // Sources view or game grid
         if (showSources) {
-            SourcesGridView()
+            SourcesGridView(focusedIndex = sourceFocusIndex)
         } else if (state.isLoading) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -1292,25 +1556,29 @@ fun LibraryTabContent(
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 152.dp),
-                contentPadding = PaddingValues(horizontal = 32.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                columns = GridCells.Fixed(controllerColumns),
+                state = gridState,
+                contentPadding = PaddingValues(horizontal = layout.horizontalPadding, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(gridGap),
+                verticalArrangement = Arrangement.spacedBy(gridGap),
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(filteredGames, key = { it.id }) { game ->
+                    val media = state.mediaForGames[game.id]
+                    val seedCover = IgdbSeedData.coverUrlFor(
+                        game.romPath.substringAfterLast(":").takeIf { it.isNotBlank() } ?: ""
+                    )
                     V1GameCard(
-                        artworkUrl = state.mediaForGames[game.id]?.effectiveBoxArt,
-                        fallbackUrl = IgdbSeedData.coverUrlFor(
-                            game.romPath.substringAfterLast(":").takeIf { it.isNotBlank() } ?: ""
-                        ),
+                        artworkUrl = media?.effectiveBoxArt,
+                        fallbackUrl = media?.boxArtRemoteUrl?.takeUnless { it == media.effectiveBoxArt }
+                            ?: seedCover,
                         title = game.title,
                         platformId = game.platformId,
                         focused = game.id == focusedGameId,
-                        width = 152.dp,
-                        height = 203.dp,
+                        width = gridCardWidth,
+                        height = gridCardHeight,
                         onClick = {
-                            focusedGameId = game.id
+                            libraryViewModel.setFocusedGame(game.id)
                             onGameClick(game.id)
                         }
                     )
@@ -1369,28 +1637,30 @@ private data class SourceCard(
     val bgColor: Long,
     val count: String,
     val note: String,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    val packageName: String? = null
+)
+
+private val CRETE_SOURCES = listOf(
+    SourceCard("GameNative", "Windows runtime", "N", 0xFF2E7D96, "Steam library", "Handles PC games via GameNative bridge.", packageName = "app.gamenative"),
+    SourceCard("Moonlight", "PC streaming", "M", 0xFF1A4A7A, "PC games", "Stream games from your gaming PC.", packageName = "com.limelight"),
+    SourceCard("GeForce NOW", "Cloud streaming", "G", 0xFF76B900, "Cloud library", "NVIDIA cloud gaming service.", packageName = "com.nvidia.geforcenow"),
+    SourceCard("RetroArch", "Emulator frontend", "R", 0xFFC9482A, "ROMs", "Multi-system emulation via RetroArch.", packageName = "com.retroarch.aarch64"),
+    SourceCard("Android", "Native apps", "A", 0xFF3DDC84, "Android games", "Games installed directly on device.", packageName = "com.ayaneo.gamelauncher"),
+    SourceCard("GameHub", "Windows runtime", "H", 0xFF3E6FB8, "PC games", "Alternative Windows compatibility layer.")
 )
 
 @Composable
-private fun SourcesGridView() {
-    val sources = listOf(
-        SourceCard("Game Native",  "Windows runtime",    "N", 0xFF2E7D96, "Steam library", "Handles PC games via GameNative bridge."),
-        SourceCard("Moonlight",    "PC streaming",       "M", 0xFF1A4A7A, "PC games",      "Stream games from your gaming PC."),
-        SourceCard("GeForce NOW",  "Cloud streaming",    "G", 0xFF76B900, "Cloud library", "NVIDIA cloud gaming service."),
-        SourceCard("RetroArch",    "Emulator frontend",  "R", 0xFFC9482A, "ROMs",          "Multi-system emulation via RetroArch."),
-        SourceCard("Android",      "Native apps",        "A", 0xFF3DDC84, "Android games", "Games installed directly on device."),
-        SourceCard("GameHub",      "Windows runtime",    "H", 0xFF3E6FB8, "PC games",      "Alternative Windows compatibility layer.")
-    )
-
+private fun SourcesGridView(focusedIndex: Int) {
+    val layout = rememberCreteLayoutMetrics()
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 32.dp)
+            .padding(horizontal = layout.horizontalPadding)
     ) {
         Text(
             text = "Everything CreteOS can see",
-            fontSize = 22.sp,
+            fontSize = if (layout.compactHandheld) 18.sp else 22.sp,
             fontWeight = FontWeight.Bold,
             color = CreamText
         )
@@ -1401,31 +1671,38 @@ private fun SourcesGridView() {
             color = DimCream,
             lineHeight = 18.sp
         )
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(if (layout.compactHandheld) 12.dp else 20.dp))
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (layout.compactHandheld) 12.dp else 16.dp),
+            verticalArrangement = Arrangement.spacedBy(if (layout.compactHandheld) 12.dp else 16.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            items(sources) { source ->
-                SourceCardItem(source = source)
+            itemsIndexed(CRETE_SOURCES) { index, source ->
+                SourceCardItem(source = source, focused = index == focusedIndex)
             }
         }
     }
 }
 
 @Composable
-private fun SourceCardItem(source: SourceCard) {
+private fun SourceCardItem(source: SourceCard, focused: Boolean) {
     var enabled by remember { mutableStateOf(source.enabled) }
+    val context = LocalContext.current
+    val layout = rememberCreteLayoutMetrics()
 
     Column(
         modifier = Modifier
+            .height(layout.sourceCardHeight)
             .clip(RoundedCornerShape(14.dp))
             .background(Color(0xFF0F1317))
-            .border(1.dp, CreamText.copy(alpha = 0.09f), RoundedCornerShape(14.dp))
-            .padding(18.dp)
+            .border(
+                if (focused) 2.dp else 1.dp,
+                if (focused) AmberAccent else CreamText.copy(alpha = 0.09f),
+                RoundedCornerShape(14.dp)
+            )
+            .padding(if (layout.compactHandheld) 14.dp else 18.dp)
     ) {
         // Header: icon + name + kind + toggle
         Row(
@@ -1435,9 +1712,17 @@ private fun SourceCardItem(source: SourceCard) {
             // Icon box
             Box(
                 modifier = Modifier
-                    .size(42.dp)
+                    .size(if (layout.compactHandheld) 36.dp else 42.dp)
                     .clip(RoundedCornerShape(11.dp))
-                    .background(Color(source.bgColor).copy(alpha = 0.9f)),
+                    .background(Color(source.bgColor).copy(alpha = 0.9f))
+                    .then(
+                        source.packageName?.let { packageName ->
+                            Modifier.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { context.launchInstalledPackage(packageName) }
+                        } ?: Modifier
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -1446,16 +1731,36 @@ private fun SourceCardItem(source: SourceCard) {
                     fontWeight = FontWeight.ExtraBold,
                     color = Color.White
                 )
+                if (source.packageName != null) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
+                        contentDescription = "Open ${source.name}",
+                        tint = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(3.dp)
+                            .size(10.dp)
+                    )
+                }
             }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = source.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CreamText)
+                Text(
+                    text = source.name,
+                    fontSize = if (layout.compactHandheld) 14.sp else 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = CreamText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Text(
                     text = source.kind.uppercase(),
                     fontSize = 10.sp,
                     fontFamily = FontFamily.Monospace,
                     letterSpacing = 1.2.sp,
-                    color = DimCream
+                    color = DimCream,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             // Toggle
@@ -1482,25 +1787,42 @@ private fun SourceCardItem(source: SourceCard) {
             }
         }
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(if (layout.compactHandheld) 9.dp else 14.dp))
         Box(Modifier.fillMaxWidth().height(0.5.dp).background(CreamText.copy(alpha = 0.08f)))
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(if (layout.compactHandheld) 9.dp else 14.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Bottom
         ) {
-            Text(text = source.count, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = CreamText)
             Text(
-                text = "SCANNED RECENTLY",
-                fontSize = 10.sp,
+                text = source.count,
+                fontSize = if (layout.compactHandheld) 15.sp else 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = CreamText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = "READY",
+                fontSize = 8.sp,
                 fontFamily = FontFamily.Monospace,
-                color = DimCream.copy(alpha = 0.7f)
+                letterSpacing = 1.sp,
+                color = DimCream.copy(alpha = 0.65f),
+                maxLines = 1
             )
         }
-        Spacer(Modifier.height(8.dp))
-        Text(text = source.note, fontSize = 12.sp, color = DimCream, lineHeight = 16.sp)
+        Spacer(Modifier.height(if (layout.compactHandheld) 5.dp else 8.dp))
+        Text(
+            text = source.note,
+            fontSize = 12.sp,
+            color = DimCream,
+            lineHeight = 16.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -1534,6 +1856,9 @@ fun SettingsTabContent(
     onOpenDisplay: () -> Unit
 ) {
     var selectedIndex by remember { mutableIntStateOf(0) }
+    val context = LocalContext.current
+    val settingsFocusRequester = remember { FocusRequester() }
+    val layout = rememberCreteLayoutMetrics()
 
     val categories = listOf(
         SettingsCategoryItem("PC & Streaming", "GameNative, Moonlight, GeForce NOW", Icons.Outlined.Stream),
@@ -1543,15 +1868,55 @@ fun SettingsTabContent(
         SettingsCategoryItem("General", "Emulators, metadata, achievements", Icons.Outlined.Settings)
     )
 
+    fun activateSelectedCategory() {
+        when (selectedIndex) {
+            0 -> onOpenProviders()
+            1 -> onOpenSettings()
+            2 -> onOpenDisplay()
+            3, 4 -> onOpenSettings()
+            5 -> context.launchInstalledPackage("com.ayaneo.home")
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        delay(120)
+        runCatching { settingsFocusRequester.requestFocus() }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = CreteDS.spaceXXL)
-            .padding(top = 68.dp, bottom = CreteDS.spaceXL), // clear system pill
-        horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceXL)
+            .padding(horizontal = layout.horizontalPadding)
+            .padding(
+                top = layout.topClearance,
+                bottom = if (layout.compactHandheld) CreteDS.spaceL else CreteDS.spaceXL
+            )
+            .focusRequester(settingsFocusRequester)
+            .focusable()
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                when (event.key) {
+                    Key.DirectionUp -> {
+                        selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
+                        true
+                    }
+                    Key.DirectionDown -> {
+                        selectedIndex = (selectedIndex + 1).coerceAtMost(categories.size)
+                        true
+                    }
+                    Key.DirectionRight, GamepadA, Key.DirectionCenter, Key.Enter -> {
+                        activateSelectedCategory()
+                        true
+                    }
+                    else -> false
+                }
+            },
+        horizontalArrangement = Arrangement.spacedBy(if (layout.compactHandheld) CreteDS.spaceL else CreteDS.spaceXL)
     ) {
         LazyColumn(
-            modifier = Modifier.width(260.dp),
+            modifier = Modifier
+                .width(layout.settingsRailWidth)
+                .fillMaxHeight(),
             verticalArrangement = Arrangement.spacedBy(CreteDS.spaceS)
         ) {
             itemsIndexed(categories) { index, item ->
@@ -1559,6 +1924,16 @@ fun SettingsTabContent(
                     item = item,
                     selected = index == selectedIndex,
                     onClick = { selectedIndex = index }
+                )
+            }
+            item {
+                GlassSettingsCard(
+                    item = SettingsCategoryItem("AYAHome", "AYANEO home screen", Icons.Outlined.Home),
+                    selected = selectedIndex == categories.size,
+                    onClick = {
+                        selectedIndex = categories.size
+                        context.launchInstalledPackage("com.ayaneo.home")
+                    }
                 )
             }
         }
@@ -1570,6 +1945,10 @@ fun SettingsTabContent(
                 2 -> DisplaySettingsPanel(onOpenDisplay = onOpenDisplay)
                 3 -> AppearanceSettingsPanel(onOpenSettings = onOpenSettings)
                 4 -> GeneralSettingsPanel(onOpenSettings = onOpenSettings)
+                5 -> {
+                    SettingsPanelTitle("AYAHome")
+                    SettingsPanelBody("Press A to open the AYANEO home screen.")
+                }
             }
         }
     }
@@ -1577,18 +1956,20 @@ fun SettingsTabContent(
 
 @Composable
 fun GlassPanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val layout = rememberCreteLayoutMetrics()
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(CreteDS.radiusL))
             .background(Color(0x28FFFFFF))
             .border(0.5.dp, Color(0x33FFFFFF), RoundedCornerShape(CreteDS.radiusL))
-            .padding(CreteDS.spaceXXL),
+            .padding(layout.panelPadding),
         content = content
     )
 }
 
 @Composable
 private fun GlassSettingsCard(item: SettingsCategoryItem, selected: Boolean, onClick: () -> Unit) {
+    val layout = rememberCreteLayoutMetrics()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1603,7 +1984,10 @@ private fun GlassSettingsCard(item: SettingsCategoryItem, selected: Boolean, onC
                 shape = RoundedCornerShape(CreteDS.radiusM)
             )
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
-            .padding(horizontal = CreteDS.spaceL, vertical = CreteDS.spaceM),
+            .padding(
+                horizontal = CreteDS.spaceL,
+                vertical = if (layout.compactHandheld) CreteDS.spaceS else CreteDS.spaceM
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceM)
     ) {

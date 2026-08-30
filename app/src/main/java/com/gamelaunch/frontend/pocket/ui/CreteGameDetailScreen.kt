@@ -30,6 +30,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -53,6 +55,7 @@ import com.gamelaunch.frontend.ui.component.platformDisplayName
 import com.gamelaunch.frontend.ui.input.GamepadA
 import com.gamelaunch.frontend.ui.input.GamepadB
 import com.gamelaunch.frontend.ui.screen.detail.GameDetailViewModel
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.abs
@@ -94,6 +97,12 @@ fun CreteGameDetailScreen(
     // ── State — unchanged from working product screen ──────────────────────
     val state       by viewModel.uiState.collectAsState()
     val pocketState by pocketViewModel.uiState.collectAsState()
+    val detailFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(state.game?.id) {
+        delay(100)
+        runCatching { detailFocusRequester.requestFocus() }
+    }
 
     // Show loading spinner while game data is being fetched from Room
     val game = state.game
@@ -102,6 +111,7 @@ fun CreteGameDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(V2Dark)
+                .focusRequester(detailFocusRequester)
                 .focusable()
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
@@ -118,6 +128,7 @@ fun CreteGameDetailScreen(
     }
     val media       = state.media
     val context     = LocalContext.current
+    val layout      = rememberCreteLayoutMetrics()
 
     val heroUrl     = media?.effectiveBackground ?: media?.effectiveBoxArt
         ?: pocketState.steamMetadata?.igdbHeroUrl
@@ -133,11 +144,12 @@ fun CreteGameDetailScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .focusRequester(detailFocusRequester)
             .focusable()
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (event.key) {
-                    GamepadA, Key.Enter -> {
+                    GamepadA, Key.DirectionCenter, Key.Enter -> {
                         // Use pocket preferred target if available (emulators, GFN etc)
                         // Fall back to eOr's launcher only for plain Steam games
                         val preferredTarget = pocketState.targets.firstOrNull { it.isPreferred }
@@ -220,8 +232,13 @@ fun CreteGameDetailScreen(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(40.dp, 40.dp, 40.dp, 26.dp),
-            horizontalArrangement = Arrangement.spacedBy(34.dp)
+                .padding(
+                    start = layout.detailOuterPadding,
+                    top = layout.detailOuterPadding,
+                    end = layout.detailOuterPadding,
+                    bottom = if (layout.compactHandheld) 18.dp else 26.dp
+                ),
+            horizontalArrangement = Arrangement.spacedBy(if (layout.compactHandheld) 20.dp else 34.dp)
         ) {
 
             // ── LEFT PANEL ─────────────────────────────────────────────────
@@ -231,22 +248,22 @@ fun CreteGameDetailScreen(
                     .fillMaxHeight()
                     .verticalScroll(rememberScrollState())
             ) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(if (layout.compactHandheld) 2.dp else 8.dp))
 
                 // Game title — no platform label above it, no back button (use B gamepad or swipe)
                 Text(
                     text = game.title,
-                    fontSize = 36.sp,
+                    fontSize = layout.detailTitleSize,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = (-0.5).sp,
-                    lineHeight = 38.sp,
+                    lineHeight = if (layout.compactHandheld) 32.sp else 38.sp,
                     color = V2Cream,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth(0.85f)
                 )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(if (layout.compactHandheld) 10.dp else 16.dp))
 
                 // Tags row — genre only (platform shown in right panel)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -257,7 +274,7 @@ fun CreteGameDetailScreen(
                     }
                 }
 
-                Spacer(Modifier.height(34.dp))
+                Spacer(Modifier.height(if (layout.compactHandheld) 18.dp else 34.dp))
 
                 // Action buttons
                 Row(
@@ -290,7 +307,7 @@ fun CreteGameDetailScreen(
                     // Primary Play button — always says "Play"
                     Row(
                         modifier = Modifier
-                            .height(52.dp)
+                            .height(if (layout.compactHandheld) 46.dp else 52.dp)
                             .clip(chevronRadius)
                             .background(playColor)
                             .clickable(
@@ -301,7 +318,7 @@ fun CreteGameDetailScreen(
                                     else viewModel.launchGame()
                                 }
                             )
-                            .padding(horizontal = 28.dp),
+                            .padding(horizontal = if (layout.compactHandheld) 22.dp else 28.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -312,10 +329,10 @@ fun CreteGameDetailScreen(
 
                     // Chevron + dropdown — only shown when >1 target
                     if (targets.size > 1) {
-                        Box(Modifier.width(1.dp).height(52.dp).background(Color.White.copy(alpha = 0.18f)))
+                        Box(Modifier.width(1.dp).height(if (layout.compactHandheld) 46.dp else 52.dp).background(Color.White.copy(alpha = 0.18f)))
                         Box(
                             modifier = Modifier
-                                .height(52.dp)
+                                .height(if (layout.compactHandheld) 46.dp else 52.dp)
                                 .clip(RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp))
                                 .background(playColor)
                                 .clickable(
@@ -380,7 +397,7 @@ fun CreteGameDetailScreen(
                     val isLocal = pocketState.isLocal
                     Box(
                         modifier = Modifier
-                            .size(52.dp)
+                            .size(if (layout.compactHandheld) 46.dp else 52.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(
                                 if (isLocal) Color(0xFF1E3D2A)   // solid dark green when active
@@ -407,7 +424,7 @@ fun CreteGameDetailScreen(
                     }
                 }
 
-                Spacer(Modifier.height(38.dp))
+                Spacer(Modifier.height(if (layout.compactHandheld) 22.dp else 38.dp))
 
                 // Left panel lower section: description + quick stats
                 Column(modifier = Modifier.weight(1f)) {
@@ -427,8 +444,8 @@ fun CreteGameDetailScreen(
                             text = description,
                             fontSize = 13.sp,
                             color = V2Cream.copy(alpha = 0.75f),
-                            lineHeight = 20.sp,
-                            maxLines = 10,
+                            lineHeight = if (layout.compactHandheld) 18.sp else 20.sp,
+                            maxLines = if (layout.compactHandheld) 5 else 10,
                             overflow = TextOverflow.Ellipsis
                         )
                     } else {
@@ -440,7 +457,7 @@ fun CreteGameDetailScreen(
                         )
                     }
 
-                    Spacer(Modifier.height(28.dp))
+                    Spacer(Modifier.height(if (layout.compactHandheld) 16.dp else 28.dp))
 
                     // ── QUICK INFO row — non-duplicate context ────────────
                     val steam = pocketState.steamMetadata
@@ -463,13 +480,13 @@ fun CreteGameDetailScreen(
             // ── RIGHT PANEL: launch config ─────────────────────────────────
             Column(
                 modifier = Modifier
-                    .width(420.dp)
+                    .width(layout.detailPanelWidth)
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(16.dp))
                     .background(V2Glass)
                     .border(1.dp, V2GlassBorder, RoundedCornerShape(16.dp))
                     .verticalScroll(rememberScrollState())
-                    .padding(24.dp)
+                    .padding(if (layout.compactHandheld) 18.dp else 24.dp)
             ) {
                 // ── GAME INFO ────────────────────────────────────────────
                 Text("GAME INFO", fontSize = 10.sp, fontFamily = FontFamily.Monospace,

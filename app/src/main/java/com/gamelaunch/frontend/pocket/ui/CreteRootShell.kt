@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +25,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -38,9 +41,12 @@ import com.gamelaunch.frontend.pocket.ui.design.*
 import com.gamelaunch.frontend.pocket.ui.home.rememberDominantColor
 import com.gamelaunch.frontend.pocket.ui.home.DynamicBackground
 import com.gamelaunch.frontend.pocket.ui.library.LibraryViewModel
+import com.gamelaunch.frontend.ui.input.GamepadB
 import com.gamelaunch.frontend.ui.input.GamepadL1
 import com.gamelaunch.frontend.ui.input.GamepadR1
+import com.gamelaunch.frontend.ui.input.GamepadStart
 import com.gamelaunch.frontend.ui.screen.home.HomeViewModel
+import kotlinx.coroutines.delay
 
 /**
  * ShellTab enum — v1 navigation structure.
@@ -82,6 +88,12 @@ fun CreteRootShell(
     libraryViewModel: LibraryViewModel = hiltViewModel()
 ) {
     var activeTab by rememberSaveable { mutableStateOf(ShellTab.HOME) }
+    val shellFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        delay(120)
+        runCatching { shellFocusRequester.requestFocus() }
+    }
 
     val homeState by homeViewModel.uiState.collectAsState()
     val focusedGame  = homeState.recentlyPlayed.firstOrNull() ?: homeState.games.firstOrNull()
@@ -93,17 +105,27 @@ fun CreteRootShell(
         modifier = Modifier
             .fillMaxSize()
             .background(CreteDS.bgBase)
+            .focusRequester(shellFocusRequester)
+            .focusable()
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                val tabs = listOf(ShellTab.HOME, ShellTab.LIBRARY, ShellTab.SETTINGS)
                 when (event.key) {
                     GamepadL1 -> {
-                        if (activeTab == ShellTab.LIBRARY) activeTab = ShellTab.HOME
+                        val index = tabs.indexOf(activeTab).coerceAtLeast(0)
+                        activeTab = tabs[(index - 1 + tabs.size) % tabs.size]
                         true
                     }
                     GamepadR1 -> {
-                        if (activeTab == ShellTab.HOME) activeTab = ShellTab.LIBRARY
+                        val index = tabs.indexOf(activeTab).coerceAtLeast(0)
+                        activeTab = tabs[(index + 1) % tabs.size]
                         true
                     }
+                    GamepadStart -> { activeTab = ShellTab.SETTINGS; true }
+                    GamepadB, Key.Back -> if (activeTab != ShellTab.HOME) {
+                        activeTab = ShellTab.HOME
+                        true
+                    } else false
                     else -> false
                 }
             }
@@ -224,12 +246,13 @@ private fun CreteBottomNavBar(
     onSettingsClick: () -> Unit,
     onPowerClick: () -> Unit
 ) {
+    val layout = rememberCreteLayoutMetrics()
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp)
+            .height(layout.bottomNavHeight)
             .background(Color(0xFF0B0E11))
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = if (layout.compactHandheld) 16.dp else 20.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // ── Left: Home + Library ──────────────────────────────────────────
@@ -267,6 +290,7 @@ private fun BottomNavButton(
     selectedColor: Color = CreteDS.accent,
     onClick: () -> Unit
 ) {
+    val layout = rememberCreteLayoutMetrics()
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
@@ -275,7 +299,10 @@ private fun BottomNavButton(
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 20.dp, vertical = 10.dp),
+            .padding(
+                horizontal = if (layout.compactHandheld) 16.dp else 20.dp,
+                vertical = if (layout.compactHandheld) 6.dp else 10.dp
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -283,7 +310,7 @@ private fun BottomNavButton(
             imageVector = icon,
             contentDescription = label,
             tint = if (selected) selectedColor else CreteDS.textSecondary,
-            modifier = Modifier.size(22.dp)
+            modifier = Modifier.size(if (layout.compactHandheld) 20.dp else 22.dp)
         )
         Spacer(Modifier.height(3.dp))
         Text(

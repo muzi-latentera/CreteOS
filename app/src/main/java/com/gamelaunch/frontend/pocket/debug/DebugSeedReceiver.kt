@@ -7,6 +7,7 @@ import android.util.Log
 import com.gamelaunch.frontend.domain.repository.GameRepository
 import com.gamelaunch.frontend.pocket.data.db.PocketDatabase
 import com.gamelaunch.frontend.pocket.data.IgdbSeedData
+import com.gamelaunch.frontend.pocket.data.SteamMetadataSync
 import com.gamelaunch.frontend.pocket.data.db.entity.LaunchTargetEntity
 import com.gamelaunch.frontend.pocket.emulation.RomLibraryMetadataReconciler
 import com.gamelaunch.frontend.pocket.providers.ProviderId
@@ -107,17 +108,24 @@ class DebugSeedReceiver : BroadcastReceiver() {
 
         Log.i(TAG, "Seeding: title=$title appId=$appId playtime=${playtimeMins}m lastPlayed=$lastPlayedMs")
 
+        val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             runCatching {
                 // 1. Seed into PocketDatabase launch targets
                 val pocketDb = PocketDatabase.create(context)
+                val canonicalGfnUrl = SteamMetadataSync.GFN_VERIFIED[appId]
+                val isGfnSource = source.equals("GFN", ignoreCase = true)
                 val entity = LaunchTargetEntity(
                     hostGameKey = hostKey,
-                    provider = ProviderId.GAME_NATIVE.name,
+                    provider = if (isGfnSource) ProviderId.GEFORCE_NOW.name else ProviderId.GAME_NATIVE.name,
                     externalId = appId,
                     source = source,
-                    displayName = title,
-                    launchData = "{}",
+                    displayName = if (isGfnSource) "GeForce NOW" else title,
+                    launchData = if (isGfnSource && canonicalGfnUrl != null) {
+                        """{"canonicalGfnUrl":"${canonicalGfnUrl.replace("\"", "\\\"")}","steamAppId":"$appId"}"""
+                    } else {
+                        "{}"
+                    },
                     isAvailable = true,
                     isPreferred = true
                 )
@@ -198,6 +206,7 @@ class DebugSeedReceiver : BroadcastReceiver() {
             }.onFailure { e ->
                 Log.e(TAG, "Seed failed: ${e.message}", e)
             }
+            pendingResult.finish()
         }
 
         // Handle SEED_ROM action — insert/update a ROM game with a clean title

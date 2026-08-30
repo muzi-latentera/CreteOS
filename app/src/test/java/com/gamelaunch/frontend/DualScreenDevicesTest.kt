@@ -3,6 +3,8 @@ package com.gamelaunch.frontend
 import com.gamelaunch.frontend.platform.display.DualScreenDevices
 import com.gamelaunch.frontend.platform.display.DualScreenDevices.Layout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DualScreenDevicesTest {
@@ -18,6 +20,21 @@ class DualScreenDevicesTest {
         assertEquals(
             Layout.ARTWORK_ON_SECONDARY,
             DualScreenDevices.layoutFor(manufacturer = "Anbernic", model = "RG DS", device = "rgds")
+        )
+    }
+
+    @Test fun `known dual-screen handhelds enable presentation support`() {
+        assertTrue(DualScreenDevices.isDualScreenHandheld("AYN", "Thor", "thor"))
+        assertTrue(DualScreenDevices.isDualScreenHandheld("Anbernic", "RG DS", "rgds"))
+    }
+
+    @Test fun `Pocket FIT external display is not treated as a built-in second panel`() {
+        assertFalse(
+            DualScreenDevices.isDualScreenHandheld(
+                manufacturer = "AYANEO",
+                model = "Pocket FIT Elite",
+                device = "PocketFITElite"
+            )
         )
     }
 

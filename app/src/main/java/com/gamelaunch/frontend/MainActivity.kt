@@ -9,6 +9,7 @@ import android.content.Intent
 import android.view.Display
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -376,6 +377,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
             splashReady.value = true
+            // The themed window background contains the CreteOS launch logo. Keep it only for the
+            // cold-start gap: Compose Navigation can expose the window for a frame while popping a
+            // detail destination, which otherwise flashes that logo on every native Back press.
+            window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.rgb(8, 9, 11)))
         }
     }
 

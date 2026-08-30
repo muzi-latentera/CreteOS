@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gamelaunch.frontend.pocket.ui.design.*
@@ -40,6 +41,8 @@ fun CreteSettingsScreen(
     onScanEmulationRoms: () -> Unit = {}
 ) {
     var selectedIndex by remember { mutableIntStateOf(0) }
+    val context = LocalContext.current
+    val layout = rememberCreteLayoutMetrics()
 
     val categories = remember {
         listOf(
@@ -89,18 +92,18 @@ fun CreteSettingsScreen(
                 }
             )
 
-            Spacer(Modifier.height(CreteDS.spaceXL))
+            Spacer(Modifier.height(if (layout.compactHandheld) CreteDS.spaceM else CreteDS.spaceXL))
 
             // Two-column layout
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = CreteDS.spaceXXL),
-                horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceXL)
+                    .padding(horizontal = layout.horizontalPadding),
+                horizontalArrangement = Arrangement.spacedBy(if (layout.compactHandheld) CreteDS.spaceL else CreteDS.spaceXL)
             ) {
                 // Left: category list
                 LazyColumn(
-                    modifier = Modifier.width(280.dp),
+                    modifier = Modifier.width(layout.settingsRailWidth),
                     verticalArrangement = Arrangement.spacedBy(CreteDS.spaceS)
                 ) {
                     itemsIndexed(categories) { index, item ->
@@ -108,6 +111,13 @@ fun CreteSettingsScreen(
                             item     = item,
                             selected = index == selectedIndex,
                             onClick  = { selectedIndex = index }
+                        )
+                    }
+                    item {
+                        SettingsCategoryCard(
+                            item = SettingsCategoryItem("AYAHome", "AYANEO home screen", Icons.Outlined.Home),
+                            selected = false,
+                            onClick = { context.launchInstalledPackage("com.ayaneo.home") }
                         )
                     }
                 }
@@ -152,6 +162,7 @@ private fun SettingsCategoryCard(
     selected: Boolean,
     onClick: () -> Unit
 ) {
+    val layout = rememberCreteLayoutMetrics()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -167,7 +178,10 @@ private fun SettingsCategoryCard(
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = CreteDS.spaceL, vertical = CreteDS.spaceM),
+            .padding(
+                horizontal = CreteDS.spaceL,
+                vertical = if (layout.compactHandheld) CreteDS.spaceS else CreteDS.spaceM
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(CreteDS.spaceM)
     ) {
@@ -297,11 +311,12 @@ private fun GeneralPanel(onOpenCategory: (SettingsCategory) -> Unit) {
 @Composable
 private fun PanelColumn(content: @Composable ColumnScope.() -> Unit) {
     val scroll = androidx.compose.foundation.rememberScrollState()
+    val layout = rememberCreteLayoutMetrics()
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scroll)
-            .padding(CreteDS.spaceXXL),
+            .padding(layout.panelPadding),
         content = content
     )
 }

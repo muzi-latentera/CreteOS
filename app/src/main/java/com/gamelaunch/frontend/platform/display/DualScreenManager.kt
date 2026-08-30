@@ -86,11 +86,16 @@ class DualScreenManager(
     private fun effectiveLayout(): DualScreenDevices.Layout =
         DualScreenDevices.layoutFor().let { if (swap) it.flipped() else it }
 
-    /** The first powered-on display that isn't the default one, or null if there's only one screen. */
-    private fun secondaryDisplay(): Display? =
-        displayManager.displays.firstOrNull {
+    /**
+     * The built-in second panel on a supported dual-screen handheld. External monitors and AR
+     * glasses deliberately return null so the artwork Presentation cannot cover their output.
+     */
+    private fun secondaryDisplay(): Display? {
+        if (!DualScreenDevices.isDualScreenHandheld()) return null
+        return displayManager.displays.firstOrNull {
             it.displayId != Display.DEFAULT_DISPLAY && it.state == Display.STATE_ON
         }
+    }
 
     /**
      * Suspend/restore the artwork overlay. Called when a game launches on (or leaves) the top panel:
@@ -155,6 +160,7 @@ class DualScreenManager(
          * [refresh]'s artwork-display logic so it stays consistent. [swap] applies the manual override.
          */
         fun artworkDisplayId(context: Context, swap: Boolean): Int? {
+            if (!DualScreenDevices.isDualScreenHandheld()) return null
             val dm = context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager ?: return null
             val secondary = dm.displays.firstOrNull {
                 it.displayId != Display.DEFAULT_DISPLAY && it.state == Display.STATE_ON

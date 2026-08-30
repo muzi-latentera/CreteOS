@@ -32,6 +32,9 @@ class LaunchTargetRepository @Inject constructor(
     suspend fun getTargetsForProvider(provider: ProviderId): List<LaunchTarget> =
         launchTargetDao.getTargetsForProvider(provider.name).map { it.toDomain() }
 
+    fun observeAvailableHostGameKeys(provider: ProviderId): Flow<Set<String>> =
+        launchTargetDao.observeAvailableHostGameKeys(provider.name).map { it.toSet() }
+
     suspend fun upsertTarget(target: LaunchTarget): Long =
         launchTargetDao.upsert(target.toEntity())
 

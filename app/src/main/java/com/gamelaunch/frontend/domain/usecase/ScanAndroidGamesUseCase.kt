@@ -92,12 +92,12 @@ class ScanAndroidGamesUseCase @Inject constructor(
             if (id > 0) added++
         }
 
-        // Remove android-platform games whose packages are no longer installed.
-        val installedPaths = packageManagerHelper.getInstalledApps().map { "package:${it.packageName}" }
-        if (installedPaths.isEmpty()) {
+        // Reconcile against the filtered game set, not every installed app. Using every package
+        // kept excluded emulators/frontends alive forever because they were technically installed.
+        if (validPaths.isEmpty()) {
             gameRepository.deleteAllAndroidGames()
         } else {
-            gameRepository.deleteAndroidGamesNotIn(installedPaths)
+            gameRepository.deleteAndroidGamesNotIn(validPaths)
         }
 
         emit(ScanProgress(packages.size, packages.size, added = added))

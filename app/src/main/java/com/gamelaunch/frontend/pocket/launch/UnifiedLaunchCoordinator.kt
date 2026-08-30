@@ -29,6 +29,12 @@ class UnifiedLaunchCoordinator @Inject constructor(
     private val providers: Map<ProviderId, @JvmSuppressWildcards GameProvider>
 ) {
 
+    init {
+        // Keep display/USB state live for launches. Previously this only started after opening the
+        // diagnostics screen, so a normal cold-start launch always used the internal profile.
+        gamingDisplayManager.start()
+    }
+
     /**
      * Attempt to launch [game] using the pocket provider layer.
      *
@@ -82,9 +88,12 @@ class UnifiedLaunchCoordinator @Inject constructor(
         }
 
         // Build launch context using current display state
+        gamingDisplayManager.refresh()
         val display = gamingDisplayManager.activeDisplay.value
         val launchContext = LaunchContext(
-            destinationDisplayId = if (display.isExternal) display.displayId else null,
+            // Mirrored USB profiles use a negative synthetic ID and cannot be passed to Android's
+            // ActivityOptions.setLaunchDisplayId(). Providers can still use their dimensions.
+            destinationDisplayId = display.displayId.takeIf { display.isExternal && it >= 0 },
             displayWidth = display.width,
             displayHeight = display.height,
             refreshRate = display.refreshRate,

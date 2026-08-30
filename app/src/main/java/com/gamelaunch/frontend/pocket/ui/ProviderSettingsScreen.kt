@@ -1,8 +1,8 @@
 package com.gamelaunch.frontend.pocket.ui
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gamelaunch.frontend.pocket.providers.ProviderId
+import com.gamelaunch.frontend.pocket.ui.design.rememberCreteLayoutMetrics
 
 /**
  * PC & Streaming provider settings screen.
@@ -39,6 +40,7 @@ fun ProviderSettingsScreen(
     viewModel: ProviderSettingsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val layout = rememberCreteLayoutMetrics()
 
     if (state.showAddGameDialog) {
         AddGameNativeGameDialog(
@@ -59,15 +61,24 @@ fun ProviderSettingsScreen(
             )
         }
     ) { padding ->
-        LazyColumn(
+        Row(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp)
+                .padding(
+                    horizontal = layout.horizontalPadding,
+                    vertical = if (layout.compactHandheld) 12.dp else 20.dp
+                ),
+            horizontalArrangement = Arrangement.spacedBy(if (layout.compactHandheld) 18.dp else 24.dp)
         ) {
-
-            // ── GameNative ──────────────────────────────────────────────────────
-            item {
+            // Actions stay together in a bounded left pane instead of stretching
+            // single controls across a television-width landscape canvas.
+            Column(
+                modifier = Modifier
+                    .weight(0.9f)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+            ) {
                 SectionHeader("GameNative")
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -94,10 +105,7 @@ fun ProviderSettingsScreen(
                     }
                 }
                 Spacer(Modifier.height(16.dp))
-            }
 
-            // ── Sync (for providers that do support discovery) ──────────────────
-            item {
                 SectionHeader("Sync")
                 OutlinedButton(
                     onClick = { viewModel.rescanAll() },
@@ -128,18 +136,20 @@ fun ProviderSettingsScreen(
                 Spacer(Modifier.height(16.dp))
             }
 
-            // ── Provider status ─────────────────────────────────────────────────
-            item { SectionHeader("Providers") }
+            Column(
+                modifier = Modifier
+                    .weight(1.1f)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                SectionHeader("Providers")
+                state.providerStatuses.forEach { status ->
+                    ProviderStatusRow(
+                        status = status,
+                        onRescan = { viewModel.rescan(status.providerId) }
+                    )
+                }
 
-            items(state.providerStatuses) { status ->
-                ProviderStatusRow(
-                    status   = status,
-                    onRescan = { viewModel.rescan(status.providerId) }
-                )
-            }
-
-            // ── Display ─────────────────────────────────────────────────────────
-            item {
                 Spacer(Modifier.height(16.dp))
                 SectionHeader("Active Display")
                 state.activeDisplay?.let { display ->
@@ -173,7 +183,7 @@ fun ProviderSettingsScreen(
                 TextButton(onClick = onDisplayDiagnostics) {
                     Text("Display Diagnostics →")
                 }
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(16.dp))
             }
         }
     }

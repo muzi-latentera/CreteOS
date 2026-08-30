@@ -56,6 +56,7 @@ class RedditNewsViewModel @Inject constructor(
                     }
 
                     interleaved
+                        .filter { post -> !isMegathread(post.title) }
                         .distinctBy { it.title.take(40) }
                         .take(16)
                         .map { post ->
@@ -73,6 +74,19 @@ class RedditNewsViewModel @Inject constructor(
                 _state.value = NewsUiState(isLoading = false, error = e.message)
             }
         }
+    }
+
+    private fun isMegathread(title: String): Boolean {
+        val lower = title.lowercase()
+        return lower.contains("megathread") ||
+            lower.contains("weekly thread") ||
+            lower.contains("daily thread") ||
+            lower.contains("monthly thread") ||
+            lower.contains("what are you playing") ||
+            lower.contains("what have you been playing") ||
+            lower.contains("suggestion thread") ||
+            lower.contains("recommendation thread") ||
+            lower.contains("tech support thread")
     }
 
     private fun formatAge(utcSeconds: Long): String {

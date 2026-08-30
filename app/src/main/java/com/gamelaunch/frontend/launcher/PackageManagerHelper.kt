@@ -29,6 +29,7 @@ class PackageManagerHelper @Inject constructor(
         "org.ppsspp.ppssppgold"              to "PPSSPP Gold (PSP)",
         "org.ppsspp.ppsspp"                  to "PPSSPP (PSP)",
         "org.vita3k.emulator"                to "Vita3K (PS Vita)",
+        "com.ps3native.standard"             to "PS3Native (PS3)",
         // N64
         "org.mupen64plusae.v3.fzurita.pro"   to "Mupen64Plus FZ Pro (N64)",    // Retroid Pocket build
         "org.mupen64plusae.v3.fzurita"       to "Mupen64Plus FZ (N64)",
@@ -57,6 +58,8 @@ class PackageManagerHelper @Inject constructor(
         "com.explusalpha.GbaEmu"             to "GBA.emu (GBA)",
         "com.explusalpha.GbcEmu"             to "GBC.emu (GBC/GB)",
         "com.explusalpha.Snes9xEmu"          to "Snes9x EX+ (SNES)",
+        "it.dbtecno.pizzaboygbapro"          to "Pizza Boy A Pro (GBA)",
+        "it.dbtecno.pizzaboygba"             to "Pizza Boy A Basic (GBA)",
         // PC / Steam launchers
         "com.valvesoftware.steamlink"         to "Steam Link",
         "app.gamenative"                     to "GameNative",

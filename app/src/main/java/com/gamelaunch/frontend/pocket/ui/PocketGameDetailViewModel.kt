@@ -146,10 +146,23 @@ class PocketGameDetailViewModel @Inject constructor(
                     // legitimate; do not retry the Steam-AppID lookup with a filesystem path.
                     _uiState.update { it.copy(hltbTimes = HltbTimes.EMPTY, hltbLoading = false) }
                 } else {
-                    // Try live IGDB fetch as last resort
-                    igdbSync.syncGame(metadataKey, game.title)
+                    // Provider-local Epic/GOG/Amazon IDs are not Steam AppIDs. Resolve those by
+                    // exact title; only genuine Steam rows may use IGDB external_games UID lookup.
+                    if (game.platformId.equals("steam", ignoreCase = true)) {
+                        igdbSync.syncGame(metadataKey, game.title)
+                    } else {
+                        igdbSync.syncGameByTitle(metadataKey, game.title)
+                    }
+                    val enrichedMeta = steamMetadataDao.getByAppId(metadataKey)
                     val fresh = hltbProvider.getCached(metadataKey) ?: HltbTimes.EMPTY
-                    _uiState.update { it.copy(hltbTimes = fresh, hltbLoading = false) }
+                    _uiState.update {
+                        it.copy(
+                            steamMetadata = enrichedMeta,
+                            isLocal = enrichedMeta?.isLocal ?: it.isLocal,
+                            hltbTimes = fresh,
+                            hltbLoading = false
+                        )
+                    }
                 }
             }
         }
@@ -172,6 +185,8 @@ class PocketGameDetailViewModel @Inject constructor(
         val existingAtStart = launchTargetRepository.getTargetsForGameOnce(game.romPath)
 
         val isRomGame = isEmulatedGame(game)
+        val isPcLibraryGame = game.romPath.startsWith("steam:") &&
+            game.platformId.trim().lowercase() in PC_LIBRARY_PLATFORM_IDS
         if (isRomGame) {
             // Older builds provisioned PC/cloud targets and emulator definitions that no longer
             // support this system. Reconcile both through Room whenever detail is opened.
@@ -187,7 +202,14 @@ class PocketGameDetailViewModel @Inject constructor(
             )
         }
 
-        if (!isRomGame) {
+        if (!isRomGame && !isPcLibraryGame) {
+            launchTargetRepository.clearAutomaticPreference(game.romPath)
+            existingAtStart
+                .filter { it.provider in PC_LAUNCH_PROVIDERS }
+                .forEach { launchTargetRepository.deleteTarget(it.id) }
+        }
+
+        if (isPcLibraryGame) {
             val source = sourceForGame(game)
             val gameNativeInstalled = isInstalled("app.gamenative")
             val isLocallyInstalled = steamMetadataDao.getByAppId(steamAppId)?.isLocal == true &&
@@ -255,7 +277,7 @@ class PocketGameDetailViewModel @Inject constructor(
 
         // GeForce NOW is preferred over Moonlight only when we have a device-verified direct URL.
         // Unverified games still get a library target, with Moonlight as the safer default.
-        if (!isRomGame && isInstalled("com.nvidia.geforcenow")) {
+        if (isPcLibraryGame && isInstalled("com.nvidia.geforcenow")) {
             val canonicalUrl = SteamMetadataSync.GFN_VERIFIED[steamAppId]
             val gfnId = canonicalUrl?.let { Regex("game-id=([^&]+)").find(it)?.groupValues?.get(1) }
             val existing = existingAtStart.firstOrNull { it.provider == ProviderId.GEFORCE_NOW }
@@ -273,7 +295,7 @@ class PocketGameDetailViewModel @Inject constructor(
                 isAvailable = true,
                 isPreferred = existing?.isPreferred ?: false
             )
-        } else if (!isRomGame) {
+        } else if (isPcLibraryGame) {
             existingAtStart.filter { it.provider == ProviderId.GEFORCE_NOW }.forEach {
                 launchTargetRepository.upsertTarget(it.copy(isAvailable = false))
             }
@@ -373,10 +395,10 @@ class PocketGameDetailViewModel @Inject constructor(
             launchTargetRepository.setPreferredTarget(game.romPath, savedTarget.id)
         } else {
             val automaticProvider = LaunchPreferencePolicy.chooseProvider(
-                isLocallyInstalled = !isRomGame &&
+                isLocallyInstalled = isPcLibraryGame &&
                     steamMetadataDao.getByAppId(steamAppId)?.isLocal == true,
                 availableProviders = availableTargets.mapTo(mutableSetOf()) { it.provider },
-                hasVerifiedGfnLink = !isRomGame && SteamMetadataSync.GFN_VERIFIED.containsKey(steamAppId),
+                hasVerifiedGfnLink = isPcLibraryGame && SteamMetadataSync.GFN_VERIFIED.containsKey(steamAppId),
             )
             val automaticTarget = availableTargets.firstOrNull { it.provider == automaticProvider }
             if (automaticTarget != null) {
@@ -429,6 +451,12 @@ class PocketGameDetailViewModel @Inject constructor(
     }
 
     private companion object {
+        val PC_LIBRARY_PLATFORM_IDS = setOf(
+            "steam", "gog", "epic", "ea", "gamepass", "xbox", "ubisoft", "amazon", "gfn"
+        )
+        val PC_LAUNCH_PROVIDERS = setOf(
+            ProviderId.GAME_NATIVE, ProviderId.GEFORCE_NOW, ProviderId.MOONLIGHT
+        )
         val EMULATION_PLATFORM_IDS = setOf(
             "nes", "snes", "gb", "gbc", "gba", "n64", "dreamcast", "saturn",
             "switch", "wiiu", "gc", "wii", "ps1", "psx", "ps2", "ps3", "psp",
