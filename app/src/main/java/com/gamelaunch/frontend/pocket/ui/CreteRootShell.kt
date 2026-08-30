@@ -30,10 +30,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -258,14 +255,14 @@ private fun CreteBottomNavBar(
         // ── Left: Home + Library ──────────────────────────────────────────
         BottomNavButton(
             icon = Icons.Filled.Home,
-            label = "Home",
+            contentDescription = "Home",
             selected = activeTab == ShellTab.HOME,
             onClick = { onTabSelected(ShellTab.HOME) }
         )
         Spacer(Modifier.width(8.dp))
         BottomNavButton(
             icon = Icons.Outlined.ViewColumn,
-            label = "Library",
+            contentDescription = "Library",
             selected = activeTab == ShellTab.LIBRARY,
             onClick = { onTabSelected(ShellTab.LIBRARY) }
         )
@@ -275,7 +272,7 @@ private fun CreteBottomNavBar(
         // ── Right: Settings only — Power is in the system pill ────────────
         BottomNavButton(
             icon = Icons.Outlined.Settings,
-            label = "Settings",
+            contentDescription = "Settings",
             selected = activeTab == ShellTab.SETTINGS,
             onClick = onSettingsClick
         )
@@ -285,13 +282,13 @@ private fun CreteBottomNavBar(
 @Composable
 private fun BottomNavButton(
     icon: ImageVector,
-    label: String,
+    contentDescription: String,
     selected: Boolean,
     selectedColor: Color = CreteDS.accent,
     onClick: () -> Unit
 ) {
     val layout = rememberCreteLayoutMetrics()
-    Column(
+    Box(
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
             .clickable(
@@ -303,21 +300,13 @@ private fun BottomNavButton(
                 horizontal = if (layout.compactHandheld) 16.dp else 20.dp,
                 vertical = if (layout.compactHandheld) 6.dp else 10.dp
             ),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = label,
+            contentDescription = contentDescription,
             tint = if (selected) selectedColor else CreteDS.textSecondary,
-            modifier = Modifier.size(if (layout.compactHandheld) 20.dp else 22.dp)
-        )
-        Spacer(Modifier.height(3.dp))
-        Text(
-            text = label,
-            fontSize = 10.sp,
-            color = if (selected) selectedColor else CreteDS.textSecondary,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+            modifier = Modifier.size(if (layout.compactHandheld) 22.dp else 24.dp)
         )
     }
 }
