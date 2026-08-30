@@ -21,22 +21,31 @@ class RedditRssFetcher(private val client: OkHttpClient) {
         val publishedUtc: Long
     )
 
-    fun fetch(subreddit: String, limit: Int = 10): List<RedditRssPost> {
-        val url = "https://www.reddit.com/r/$subreddit/.rss?limit=$limit"
+    /**
+     * Fetch the highest-ranked posts from the current day for several subreddits in one request.
+     * Reddit aggressively rate-limits back-to-back anonymous RSS requests, while its native
+     * multi-subreddit syntax keeps this feed reliable.
+     */
+    fun fetchTopOfDay(subreddits: List<String>, limit: Int = 100): List<RedditRssPost> {
+        require(subreddits.isNotEmpty())
+        // A literal '+' is treated as a redirectable search separator by Reddit's current edge;
+        // keep it percent-encoded so this remains a multi-subreddit Atom feed.
+        val combinedSubreddits = subreddits.joinToString("%2B")
+        val url = "https://www.reddit.com/r/$combinedSubreddits/top/.rss?t=day&limit=$limit"
         android.util.Log.d("RedditRss", "Fetching: $url")
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", "CreteOS/1.0 (Android; gaming launcher)")
             .build()
 
-        val response = client.newCall(request).execute()
-        android.util.Log.d("RedditRss", "Response for $subreddit: ${response.code}")
-        if (!response.isSuccessful) return emptyList()
-
-        val posts = response.body?.byteStream()?.let { stream ->
-            parseAtomFeed(stream, subreddit)
-        } ?: emptyList()
-        android.util.Log.d("RedditRss", "Parsed ${posts.size} posts from r/$subreddit")
+        val posts = client.newCall(request).execute().use { response ->
+            android.util.Log.d("RedditRss", "Response for $combinedSubreddits: ${response.code}")
+            if (!response.isSuccessful) return@use emptyList()
+            response.body?.byteStream()?.let { stream ->
+                parseAtomFeed(stream, subreddits.first())
+            } ?: emptyList()
+        }
+        android.util.Log.d("RedditRss", "Parsed ${posts.size} posts from r/$combinedSubreddits")
         return posts
     }
 
@@ -96,7 +105,15 @@ class RedditRssFetcher(private val client: OkHttpClient) {
                 org.xmlpull.v1.XmlPullParser.END_TAG -> {
                     if ((parser.name ?: "") == "entry" && inEntry) {
                         if (title.isNotBlank() && link.isNotBlank() && !title.startsWith("[")) {
-                            posts.add(RedditRssPost(title, link, subreddit, thumbnail, published))
+                            posts.add(
+                                RedditRssPost(
+                                    title = title,
+                                    link = link,
+                                    subreddit = subredditFromLink(link) ?: subreddit,
+                                    thumbnailUrl = thumbnail,
+                                    publishedUtc = published
+                                )
+                            )
                         }
                         inEntry = false
                     }
@@ -108,5 +125,12 @@ class RedditRssFetcher(private val client: OkHttpClient) {
 
         android.util.Log.d("RedditRss", "r/$subreddit: parsed ${posts.size} posts, first=${posts.firstOrNull()?.title?.take(40)}")
         return posts
+    }
+
+    private fun subredditFromLink(link: String): String? =
+        SUBREDDIT_PATH.find(link)?.groupValues?.getOrNull(1)
+
+    private companion object {
+        val SUBREDDIT_PATH = Regex("/r/([^/]+)/", RegexOption.IGNORE_CASE)
     }
 }
