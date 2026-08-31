@@ -36,6 +36,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
@@ -1854,7 +1855,8 @@ fun LibraryScreen(
 fun SettingsTabContent(
     onOpenSettings: () -> Unit,
     onOpenProviders: () -> Unit,
-    onOpenDisplay: () -> Unit
+    onOpenDisplay: () -> Unit,
+    talosViewModel: TalosConnectionViewModel = hiltViewModel(),
 ) {
     var selectedIndex by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
@@ -1864,6 +1866,7 @@ fun SettingsTabContent(
     val categories = listOf(
         SettingsCategoryItem("PC & Streaming", "GameNative, Moonlight, GeForce NOW", Icons.Outlined.Stream),
         SettingsCategoryItem("Libraries", "Game sources and folders", Icons.AutoMirrored.Outlined.LibraryBooks),
+        SettingsCategoryItem("Accounts", "Steam, Xbox and PlayStation stats", Icons.Outlined.AccountCircle),
         SettingsCategoryItem("Display", "XREAL, external display, resolution", Icons.Outlined.Monitor),
         SettingsCategoryItem("Appearance", "Theme, layout, backgrounds", Icons.Outlined.Palette),
         SettingsCategoryItem("General", "Emulators, metadata, achievements", Icons.Outlined.Settings)
@@ -1873,9 +1876,9 @@ fun SettingsTabContent(
         when (selectedIndex) {
             0 -> onOpenProviders()
             1 -> onOpenSettings()
-            2 -> onOpenDisplay()
-            3, 4 -> onOpenSettings()
-            5 -> context.launchInstalledPackage("com.ayaneo.home")
+            3 -> onOpenDisplay()
+            4, 5 -> onOpenSettings()
+            6 -> context.launchInstalledPackage("com.ayaneo.home")
         }
     }
 
@@ -1943,15 +1946,76 @@ fun SettingsTabContent(
             when (selectedIndex) {
                 0 -> PcStreamingSettingsPanel(onOpenProviders = onOpenProviders, onOpenDisplay = onOpenDisplay)
                 1 -> LibrariesSettingsPanel(onOpenSettings = onOpenSettings)
-                2 -> DisplaySettingsPanel(onOpenDisplay = onOpenDisplay)
-                3 -> AppearanceSettingsPanel(onOpenSettings = onOpenSettings)
-                4 -> GeneralSettingsPanel(onOpenSettings = onOpenSettings)
-                5 -> {
+                2 -> AccountsSettingsPanel(talosViewModel)
+                3 -> DisplaySettingsPanel(onOpenDisplay = onOpenDisplay)
+                4 -> AppearanceSettingsPanel(onOpenSettings = onOpenSettings)
+                5 -> GeneralSettingsPanel(onOpenSettings = onOpenSettings)
+                6 -> {
                     SettingsPanelTitle("AYAHome")
                     SettingsPanelBody("Press A to open the AYANEO home screen.")
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ColumnScope.AccountsSettingsPanel(viewModel: TalosConnectionViewModel) {
+    val state by viewModel.uiState.collectAsState()
+    var url by rememberSaveable(state.url) { mutableStateOf(state.url) }
+    var code by rememberSaveable { mutableStateOf("") }
+
+    SettingsPanelTitle("Gaming Accounts")
+    SettingsPanelBody(
+        "Talos keeps Steam, Xbox and PlayStation credentials on your VPS. " +
+            "CreteOS receives only read-only game progress data."
+    )
+    Spacer(Modifier.height(CreteDS.spaceL))
+
+    if (!state.connected) {
+        OutlinedTextField(
+            value = url,
+            onValueChange = { url = it },
+            label = { Text("Talos VPS URL") },
+            placeholder = { Text("https://talos.example.com") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(CreteDS.spaceM))
+        OutlinedTextField(
+            value = code,
+            onValueChange = { code = it.take(6).uppercase() },
+            label = { Text("Pairing code") },
+            placeholder = { Text("ABC123") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(CreteDS.spaceL))
+        SettingsPanelAction(
+            label = if (state.busy) "Connecting…" else "Connect to Talos",
+            icon = Icons.Outlined.Link,
+            onClick = { if (!state.busy) viewModel.pair(url, code) },
+        )
+    } else {
+        Text("CONNECTED", color = CreteDS.accent, style = CreteDS.typeMeta)
+        Spacer(Modifier.height(CreteDS.spaceS))
+        Text(state.url, color = CreteDS.textSecondary, style = CreteDS.typeMeta)
+        Spacer(Modifier.height(CreteDS.spaceL))
+        SettingsPanelAction(
+            label = if (state.busy) "Refreshing…" else "Refresh Talos data",
+            icon = Icons.Outlined.Sync,
+            onClick = { if (!state.busy) viewModel.sync() },
+        )
+        SettingsPanelAction(
+            label = "Disconnect Talos",
+            icon = Icons.Outlined.LinkOff,
+            onClick = viewModel::disconnect,
+        )
+    }
+
+    if (state.message.isNotBlank()) {
+        Spacer(Modifier.height(CreteDS.spaceM))
+        Text(state.message, color = CreteDS.textSecondary, style = CreteDS.typeMeta)
     }
 }
 

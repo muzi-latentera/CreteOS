@@ -506,6 +506,16 @@ fun CreteGameDetailScreen(
                 Spacer(Modifier.height(12.dp))
 
                 val steam = pocketState.steamMetadata
+                pocketState.accountPlatform?.let { platform ->
+                    V2InfoRow(
+                        "Account data",
+                        when (platform.lowercase()) {
+                            "xbox" -> "Xbox / Game Pass"
+                            "psn" -> "PlayStation Network"
+                            else -> "Steam"
+                        }
+                    )
+                }
                 V2InfoRow("Last played",
                     listOfNotNull(steam?.lastPlayedMs, game.lastPlayedMs)
                         .filter { it > 0 }.maxOrNull()

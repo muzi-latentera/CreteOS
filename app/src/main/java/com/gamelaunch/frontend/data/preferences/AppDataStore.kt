@@ -91,6 +91,8 @@ class AppDataStore @Inject constructor(@ApplicationContext private val context: 
         val RA_TOKEN = stringPreferencesKey("ra_token")
         val RA_POINTS = intPreferencesKey("ra_points")
         val RA_SOFTCORE_POINTS = intPreferencesKey("ra_softcore_points")
+        val TALOS_VPS_URL = stringPreferencesKey("talos_vps_url")
+        val TALOS_CRETEOS_TOKEN = stringPreferencesKey("talos_creteos_token")
         // Emulator update notifications (launch banner + system notification). Default on.
         val EMULATOR_UPDATE_NOTIFICATIONS = booleanPreferencesKey("emulator_update_notifications")
         // Friends (P2P social) — all local. Display name is generated once on first use if blank.
@@ -191,6 +193,10 @@ class AppDataStore @Inject constructor(@ApplicationContext private val context: 
     val raToken: Flow<String> = context.dataStore.data.map { secrets.decrypt(it[Keys.RA_TOKEN] ?: "") }
     val raPoints: Flow<Int> = context.dataStore.data.map { it[Keys.RA_POINTS] ?: 0 }
     val raSoftcorePoints: Flow<Int> = context.dataStore.data.map { it[Keys.RA_SOFTCORE_POINTS] ?: 0 }
+    val talosVpsUrl: Flow<String> = context.dataStore.data.map { it[Keys.TALOS_VPS_URL] ?: "" }
+    val talosCreteosToken: Flow<String> = context.dataStore.data.map {
+        secrets.decrypt(it[Keys.TALOS_CRETEOS_TOKEN] ?: "")
+    }
     // Friends feature is opt-in (off by default): enabling it starts the P2P sync engine.
     val emulatorUpdateNotifications: Flow<Boolean> = context.dataStore.data.map { it[Keys.EMULATOR_UPDATE_NOTIFICATIONS] ?: true }
     val friendsEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.FRIENDS_ENABLED] ?: false }
@@ -303,6 +309,16 @@ class AppDataStore @Inject constructor(@ApplicationContext private val context: 
         it.remove(Keys.RA_SOFTCORE_POINTS)
     }
 
+    suspend fun setTalosConnection(vpsUrl: String, token: String) = context.dataStore.edit {
+        it[Keys.TALOS_VPS_URL] = vpsUrl.trim().trimEnd('/')
+        it[Keys.TALOS_CRETEOS_TOKEN] = secrets.encrypt(token)
+    }
+
+    suspend fun clearTalosConnection() = context.dataStore.edit {
+        it.remove(Keys.TALOS_VPS_URL)
+        it.remove(Keys.TALOS_CRETEOS_TOKEN)
+    }
+
     suspend fun setEmulatorUpdateNotifications(enabled: Boolean) = context.dataStore.edit { it[Keys.EMULATOR_UPDATE_NOTIFICATIONS] = enabled }
     suspend fun setFriendsEnabled(enabled: Boolean) = context.dataStore.edit { it[Keys.FRIENDS_ENABLED] = enabled }
     suspend fun setFriendDisplayName(name: String) = context.dataStore.edit { it[Keys.FRIEND_DISPLAY_NAME] = name }
@@ -362,7 +378,7 @@ class AppDataStore @Inject constructor(@ApplicationContext private val context: 
      */
     suspend fun migrateSecretsIfNeeded() {
         val prefs = context.dataStore.data.first()
-        val sensitive = listOf(Keys.SS_PASSWORD, Keys.RA_API_KEY, Keys.RA_TOKEN)
+        val sensitive = listOf(Keys.SS_PASSWORD, Keys.RA_API_KEY, Keys.RA_TOKEN, Keys.TALOS_CRETEOS_TOKEN)
         if (sensitive.none { key -> prefs[key]?.let { secrets.needsReencrypt(it) } == true }) return
         context.dataStore.edit { store ->
             for (key in sensitive) {

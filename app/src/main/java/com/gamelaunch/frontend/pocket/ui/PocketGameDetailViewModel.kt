@@ -15,6 +15,7 @@ import com.gamelaunch.frontend.pocket.data.IgdbSeedData
 import com.gamelaunch.frontend.pocket.data.SteamMetadataDao
 import com.gamelaunch.frontend.pocket.data.SteamMetadataEntity
 import com.gamelaunch.frontend.pocket.data.SteamMetadataSync
+import com.gamelaunch.frontend.pocket.data.TalosGamingClient
 import com.gamelaunch.frontend.pocket.data.repository.LaunchTargetRepository
 import com.gamelaunch.frontend.pocket.domain.LaunchTarget
 import com.gamelaunch.frontend.pocket.emulation.EmulatorRegistry
@@ -39,6 +40,7 @@ data class PocketLaunchUiState(
     val hltbLoading: Boolean = false,
     val steamMetadata: SteamMetadataEntity? = null,
     val isLocal: Boolean = false,
+    val accountPlatform: String? = null,
 )
 
 /**
@@ -60,6 +62,7 @@ class PocketGameDetailViewModel @Inject constructor(
     private val gameSessionDao: GameSessionDao,
     private val igdbSync: IgdbMetadataSync,
     private val gameDao: GameDao,
+    private val talosGamingClient: TalosGamingClient,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PocketLaunchUiState())
@@ -164,7 +167,39 @@ class PocketGameDetailViewModel @Inject constructor(
                         )
                     }
                 }
+
+                syncTalosProgress(game, metadataKey, appId)
             }
+        }
+    }
+
+    private suspend fun syncTalosProgress(game: Game, metadataKey: String, steamAppId: String) {
+        val stats = talosGamingClient.statsFor(game, steamAppId) ?: return
+        val achievementSummary = talosGamingClient.achievementSummary(stats).getOrNull()
+        val unlocked = achievementSummary?.unlocked
+            ?: stats.knownAchievementsUnlocked
+        val total = achievementSummary?.total
+            ?.takeIf { it > 0 }
+            ?: stats.knownAchievementsTotal
+        val existing = steamMetadataDao.getByAppId(metadataKey)
+            ?: SteamMetadataEntity(steamAppId = metadataKey)
+        val merged = existing.copy(
+            playtimeMinutes = if (stats.totalPlaytimeMinutes > 0) {
+                maxOf(existing.playtimeMinutes, stats.totalPlaytimeMinutes)
+            } else existing.playtimeMinutes,
+            lastPlayedMs = listOfNotNull(existing.lastPlayedMs, stats.lastPlayedMs).maxOrNull(),
+            achievementsUnlocked = if (total > 0) unlocked else existing.achievementsUnlocked,
+            achievementsTotal = if (total > 0) total else existing.achievementsTotal,
+            achievementsSyncedAtMs = if (total > 0) System.currentTimeMillis() else existing.achievementsSyncedAtMs,
+            updatedAtMs = System.currentTimeMillis(),
+        )
+        steamMetadataDao.upsert(merged)
+        _uiState.update {
+            it.copy(
+                steamMetadata = merged,
+                isLocal = merged.isLocal,
+                accountPlatform = stats.platform,
+            )
         }
     }
 
