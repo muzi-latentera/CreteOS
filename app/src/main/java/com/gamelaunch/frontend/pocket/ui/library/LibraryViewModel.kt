@@ -59,7 +59,7 @@ class LibraryViewModel @Inject constructor(
                 steamMetadataDao.observeLocalAppIds(),
                 // A generic "open GFN library" fallback does not establish that the individual
                 // game is cloud-playable, so only direct provider links feed the Cloud chip.
-                launchTargetRepository.observeDirectCloudHostGameKeys(ProviderId.GEFORCE_NOW)
+                launchTargetRepository.observeDirectCloudHostGameKeys()
             ) { games, mediaMap, localIds, cloudGameKeys ->
                 LibrarySnapshot(games, mediaMap, localIds.toSet(), cloudGameKeys)
             }.collectLatest { snapshot ->

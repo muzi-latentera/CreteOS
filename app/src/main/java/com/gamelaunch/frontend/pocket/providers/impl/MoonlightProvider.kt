@@ -74,6 +74,15 @@ class MoonlightProvider @Inject constructor(
                 val label = shortcut.shortLabel?.toString() ?: return@mapNotNull null
                 val shortcutId = shortcut.id
 
+                // A Moonlight PC shortcut is a host entry, not a game.  Current Moonlight
+                // publishes the paired PC (for example, "Bosgame") with Name/UUID but no
+                // numeric AppId.  Importing that shortcut creates a bogus library tile.  Keep
+                // only shortcuts that actually identify an app; the host shortcut is still
+                // queried by directLaunchData() when constructing a game target.
+                val shortcutAppId = shortcut.intent?.getStringExtra("AppId")
+                    ?.toIntOrNull()
+                if (shortcutAppId == null) return@mapNotNull null
+
                 // Store ONLY the shortcut ID and label — do not fabricate PC name or UUIDs.
                 // shortcut.activity is the Moonlight activity component, not a PC identifier.
                 // startShortcut() only needs package + shortcutId; PcName/UUID are NOT needed for that path.
@@ -99,40 +108,59 @@ class MoonlightProvider @Inject constructor(
         }
     }
 
+    /**
+     * Build direct-launch metadata for a game when Moonlight has published a paired PC
+     * shortcut. The shortcut identifies the PC, while the game contributes its numeric app ID.
+     */
+    suspend fun directLaunchData(appName: String, appId: String): String? {
+        if (appId.toIntOrNull() == null || !isAvailable()) return null
+
+        return runCatching {
+            val launcherApps = context.getSystemService(LauncherApps::class.java)
+                ?: return@runCatching null
+            val query = LauncherApps.ShortcutQuery().apply {
+                setPackage(PACKAGE)
+                setQueryFlags(
+                    LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST or
+                    LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or
+                    LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED
+                )
+            }
+            val shortcut = launcherApps.getShortcuts(query, Process.myUserHandle())
+                ?.firstOrNull() ?: return@runCatching null
+            val intent = shortcut.intent
+            val pcName = intent?.getStringExtra("Name")
+                ?.takeIf { it.isNotBlank() }
+                ?: shortcut.shortLabel?.toString()?.takeIf { it.isNotBlank() }
+                ?: return@runCatching null
+            val uuid = intent?.getStringExtra("UUID")?.takeIf { it.isNotBlank() }
+                ?: return@runCatching null
+
+            JSONObject().apply {
+                put("appName", appName)
+                put("appId", appId)
+                put("pcName", pcName)
+                put("uuid", uuid)
+            }.toString()
+        }.getOrNull()
+    }
+
     override suspend fun launch(target: LaunchTarget, launchContext: LaunchContext): Result<Unit> {
         if (!isAvailable()) {
             return Result.failure(IllegalStateException("Moonlight is not installed"))
         }
 
         val data = runCatching { JSONObject(target.launchData) }.getOrElse { JSONObject() }
-        val shortcutId = data.optString("shortcutId").ifBlank { null }
-
-        // Primary path: startShortcut() — requires only package + shortcutId
-        // This is reliable and does not require PC name/UUID
-        if (shortcutId != null) {
-            val shortcutResult = runCatching {
-                val launcherApps = context.getSystemService(LauncherApps::class.java)
-                launcherApps?.startShortcut(
-                    PACKAGE,
-                    shortcutId,
-                    null,
-                    null,
-                    Process.myUserHandle()
-                ) ?: throw IllegalStateException("LauncherApps service unavailable")
-                Log.d(TAG, "Launched via startShortcut: $shortcutId")
-            }
-            if (shortcutResult.isSuccess) return Result.success(Unit)
-            Log.w(TAG, "startShortcut failed: ${shortcutResult.exceptionOrNull()?.message}")
-        }
-
-        // Secondary path: ShortcutTrampoline intent — only when we have verified PC + app metadata
-        // Do NOT fabricate missing fields.
+        // Primary path: ShortcutTrampoline with the PC and app metadata needed for a direct game
+        // launch. Do not route a game through the PC shortcut first: that only opens Moonlight's
+        // home screen on current Moonlight builds.
         val appName = data.optString("appName").ifBlank { null }
         val appId   = data.optString("appId").ifBlank { null }
         val pcName  = data.optString("pcName").ifBlank { null }  // only if user provided via manual link
         val uuid    = data.optString("uuid").ifBlank { null }
 
-        val hasSufficientMetadata = appName != null && (uuid != null || pcName != null)
+        val hasSufficientMetadata = appName != null && appId?.toIntOrNull() != null &&
+            (uuid != null || pcName != null)
 
         if (hasSufficientMetadata) {
             return runCatching {
@@ -147,6 +175,25 @@ class MoonlightProvider @Inject constructor(
                 context.startActivity(intent)
                 Log.d(TAG, "Launched via ShortcutTrampoline: appName=$appName")
             }
+        }
+
+        // Secondary path: a published PC shortcut. This is intentionally a PC/library fallback,
+        // never counted as a direct game launch target.
+        val shortcutId = data.optString("shortcutId").ifBlank { null }
+        if (shortcutId != null) {
+            val shortcutResult = runCatching {
+                val launcherApps = context.getSystemService(LauncherApps::class.java)
+                launcherApps?.startShortcut(
+                    PACKAGE,
+                    shortcutId,
+                    null,
+                    null,
+                    Process.myUserHandle()
+                ) ?: throw IllegalStateException("LauncherApps service unavailable")
+                Log.d(TAG, "Opened Moonlight PC shortcut: $shortcutId")
+            }
+            if (shortcutResult.isSuccess) return Result.success(Unit)
+            Log.w(TAG, "startShortcut failed: ${shortcutResult.exceptionOrNull()?.message}")
         }
 
         // Final fallback: open Moonlight's library — user selects the game

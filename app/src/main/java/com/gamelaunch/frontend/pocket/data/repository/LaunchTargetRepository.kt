@@ -35,8 +35,8 @@ class LaunchTargetRepository @Inject constructor(
     fun observeAvailableHostGameKeys(provider: ProviderId): Flow<Set<String>> =
         launchTargetDao.observeAvailableHostGameKeys(provider.name).map { it.toSet() }
 
-    fun observeDirectCloudHostGameKeys(provider: ProviderId): Flow<Set<String>> =
-        launchTargetDao.observeDirectCloudHostGameKeys(provider.name).map { it.toSet() }
+    fun observeDirectCloudHostGameKeys(): Flow<Set<String>> =
+        launchTargetDao.observeDirectCloudHostGameKeys().map { it.toSet() }
 
     suspend fun upsertTarget(target: LaunchTarget): Long =
         launchTargetDao.upsert(target.toEntity())
@@ -78,6 +78,12 @@ class LaunchTargetRepository @Inject constructor(
         launchTargetDao.setProviderAvailability(provider.name, true)
 
     suspend fun deleteTarget(id: Long) = launchTargetDao.delete(id)
+
+    /** Remove all provider targets and saved preference state for one library game. */
+    suspend fun deleteAllTargetsForGame(hostGameKey: String) {
+        launchTargetDao.getTargetsForGameOnce(hostGameKey).forEach { launchTargetDao.delete(it.id) }
+        preferenceDao.delete(hostGameKey)
+    }
 
     /** Keep only the launch targets that are valid and installed for this ROM's system. */
     suspend fun retainOnlyTargets(

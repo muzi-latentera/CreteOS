@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simplified PS-inspired mark for the PS Cloud source badge; not an official trademark asset. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp" android:height="120dp"
+    android:viewportWidth="100" android:viewportHeight="100">
+
+    <!-- Simplified P/S silhouette for a compact source badge. -->
+
+    <!-- Large P - vertical stroke -->
+    <path android:fillColor="#FFFFFF"
+          android:pathData="M18,15 L18,85 L30,85 L30,58 L50,58
+                            Q72,58 72,36.5 Q72,15 50,15 Z
+                            M30,25 L50,25 Q60,25 60,36.5
+                            Q60,48 50,48 L30,48 Z"/>
+
+    <!-- Small s - at bottom right, characteristic of the PlayStation mark -->
+    <path android:fillColor="#FFFFFF"
+          android:pathData="M58,68 Q48,65 48,72 Q48,78 58,78
+                            L68,78 Q72,78 72,82 Q72,86 66,86
+                            L48,86 L48,90 L66,90 Q78,90 78,82
+                            Q78,74 68,74 L58,74 Q54,74 54,71
+                            Q54,68 60,68 L78,68 L78,64 L58,64 Z"/>
+
+</vector>

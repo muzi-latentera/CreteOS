@@ -24,6 +24,7 @@ import com.gamelaunch.frontend.pocket.launch.LaunchPreferencePolicy
 import com.gamelaunch.frontend.pocket.launch.UnifiedLaunchCoordinator
 import com.gamelaunch.frontend.pocket.providers.GameProvider
 import com.gamelaunch.frontend.pocket.providers.ProviderId
+import com.gamelaunch.frontend.pocket.providers.impl.MoonlightProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -292,14 +293,21 @@ class PocketGameDetailViewModel @Inject constructor(
             // Moonlight remains available in Play Using whenever the client is installed.
             if (isInstalled("com.limelight")) {
                 val existing = existingAtStart.firstOrNull { it.provider == ProviderId.MOONLIGHT }
+                val moonlightLaunchData = (providers[ProviderId.MOONLIGHT] as? MoonlightProvider)
+                    ?.directLaunchData(game.title, steamAppId)
                 toUpsert += LaunchTarget(
                     id          = existing?.id ?: 0L,
                     hostGameKey = game.romPath,
                     provider    = ProviderId.MOONLIGHT,
                     externalId  = steamAppId,
                     source      = source,
-                    displayName = "Stream via Moonlight",
-                    launchData  = """{"steamAppId":"$steamAppId"}""",
+                    displayName = if (moonlightLaunchData != null) {
+                        "Stream via Moonlight"
+                    } else {
+                        "Moonlight (library)"
+                    },
+                    launchData  = moonlightLaunchData
+                        ?: """{"steamAppId":"$steamAppId"}""",
                     isAvailable = true,
                     isPreferred = existing?.isPreferred ?: false
                 )

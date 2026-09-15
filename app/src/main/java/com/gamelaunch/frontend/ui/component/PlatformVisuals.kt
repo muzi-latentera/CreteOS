@@ -127,6 +127,7 @@ private val iconByKey: Map<String, Int> = mapOf(
         "xbox360" to R.drawable.ic_sys_xbox360,
         "steam" to R.drawable.ic_sys_steam,
         "android" to R.drawable.ic_sys_android,
+        "psn" to R.drawable.ic_sys_psn,
 )
 
 // our platformId -> pack key, only where the two differ (direct id matches resolve automatically)
@@ -153,6 +154,8 @@ private val platformIconAlias: Map<String, String> = mapOf(
     "ps2" to "ps2",
     "gba" to "gba",
     "nds" to "nds",
+    // PS Cloud (Asobi) — uses the dedicated PlayStation logo mark
+    "psn" to "psn",
     // cps1/cps2/cps3 and c64 resolve to their own pack icons by id — no alias needed.
 )
 

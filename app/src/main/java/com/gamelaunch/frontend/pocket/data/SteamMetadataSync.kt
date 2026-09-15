@@ -79,6 +79,7 @@ class SteamMetadataSync @Inject constructor(
             "2138710" to "https://play.geforcenow.com/games?game-id=ea68304b-9448-4002-a00e-3b816721bf1c&lang=en_GB&asset-id=01_5453e247-4a92-46f2-815b-3e7a8cad2f18",  // Sifu ✓ — AppID 2138710 (NOT 2767120 which is a DLC)
             "1771300" to "https://play.geforcenow.com/games?game-id=8a9b10a6-b8f4-46f3-a479-e480c304d78c&lang=en_GB&asset-id=01_21338a23-06ed-44eb-b493-366a33b5bb9e",  // Kingdom Come: Deliverance II ✓ (Steam AppID 1771300 confirmed)
             // ── New verified entries ────────────────────────────────────────────────────────
+            "3751260" to "https://play.geforcenow.com/games?game-id=24f61b10-8443-4223-94ff-1fd377e0140f&lang=en_GB&asset-id=01_d21e8c3a-830b-459a-ab50-8d91a3808147",  // The Blood of Dawnwalker ✓
             "753640"  to "https://play.geforcenow.com/games?game-id=90170f79-53af-4db4-a6f5-b9504c11ccae&lang=en_GB&asset-id=01_72ad3036-e505-4f4e-803d-b69931f135c2",  // Outer Wilds ✓
             "1588550" to "https://play.geforcenow.com/games?game-id=3dd3d248-2723-45b3-afc3-a4f5ddb83f57&lang=en_GB&asset-id=01_1618c3c1-6a35-4490-9b97-a41defce54c6",  // Cairn ✓
             "238010"  to "https://play.geforcenow.com/games?game-id=e94347b4-0da0-438b-b12a-93e08613bd3a&lang=en_GB&asset-id=01_31f9b1ab-38d4-4fbb-8c9d-77055ed56c60",  // Deus Ex: Human Revolution - Director's Cut ✓
@@ -91,6 +92,7 @@ class SteamMetadataSync @Inject constructor(
             "1604030" to "https://play.geforcenow.com/games?game-id=a19f2f4b-9649-4e4e-855d-47033d5d2694&lang=en_GB&asset-id=01_8ebb0630-cdb5-46dd-b499-c8c167d83336",  // V Rising ✓
             "2054970" to "https://play.geforcenow.com/games?game-id=0e0fa489-80ce-4944-953f-99193b10dfdf&lang=en_GB&asset-id=01_2edb5f63-6995-4fc1-9e6e-9c1529b820dd",  // Dragon's Dogma 2 ✓
             "379720"  to "https://play.geforcenow.com/games?game-id=93a7671e-2a34-44a6-aeba-e8fc35f4329c&lang=en_GB&asset-id=01_1c5e938a-f7b1-4858-a925-fea2e2732461",  // DOOM ✓
+            "2713000" to "https://play.geforcenow.com/games?game-id=b53e8969-55b0-40cd-93e6-f996b55458d5&lang=en_GB&asset-id=01_04e06848-09f4-41db-bf96-27f75f32a0d0",  // Resonance: A Plague Tale Legacy (user-provided GFN URL)
             // ── NOT verified — open GFN library for these until confirmed ────────────────
             // Sifu 2767120 — WRONG AppID (that's a DLC). Correct AppID 2138710 now in VERIFIED above
             // Cyberpunk 2077 1091500 — now VERIFIED above (UUID proven via Elden Ring test)

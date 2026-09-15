@@ -269,9 +269,6 @@ fun CreteGameDetailScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     game.genre?.split(",", "/")?.firstOrNull()?.trim()
                         ?.takeIf { it.isNotBlank() }?.let { V2Tag(it) }
-                    if (game.playCount > 0) {
-                        V2Tag("${formatPlayHours(game.playCount)} H PLAYED")
-                    }
                 }
 
                 Spacer(Modifier.height(if (layout.compactHandheld) 18.dp else 34.dp))
@@ -291,11 +288,13 @@ fun CreteGameDetailScreen(
                 val playColor = when (preferred?.provider) {
                     ProviderId.GEFORCE_NOW -> Color(0xFF76B900)
                     ProviderId.MOONLIGHT   -> Color(0xFF5B4FCF)
+                    ProviderId.ASOBI       -> Color(0xFF003087)
                     else                   -> V2RedPlay
                 }
                 val playIcon = when (preferred?.provider) {
                     ProviderId.GEFORCE_NOW -> Icons.Outlined.Cloud
                     ProviderId.MOONLIGHT   -> Icons.Outlined.Wifi
+                    ProviderId.ASOBI       -> Icons.Outlined.Cloud
                     else                   -> Icons.Outlined.SportsEsports
                 }
                 val chevronRadius = if (targets.size > 1)
@@ -359,6 +358,7 @@ fun CreteGameDetailScreen(
                                         ProviderId.GAME_NATIVE -> V2Green
                                         ProviderId.MOONLIGHT   -> Color(0xFF5B4FCF)
                                         ProviderId.GEFORCE_NOW -> Color(0xFF76B900)
+                                        ProviderId.ASOBI       -> Color(0xFF003087)
                                         else                   -> V2Amber
                                     }
                                     DropdownMenuItem(
@@ -662,6 +662,7 @@ private fun providerShortName(provider: ProviderId) = when (provider) {
     ProviderId.GAME_NATIVE -> "Local (GameNative)"
     ProviderId.GEFORCE_NOW -> "GeForce NOW"
     ProviderId.MOONLIGHT   -> "Moonlight"
+    ProviderId.ASOBI       -> "PS Cloud"
     else                   -> provider.name
 }
 

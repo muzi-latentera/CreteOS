@@ -82,8 +82,7 @@ enum class LibraryFilter(val label: String, val platformIds: List<String>?) {
     GAMENATIVE("GameNative", listOf("steam", "gamenative")),
     WINLATOR("Winlator", listOf("winlator")),
     EMULATORS("Emulators", listOf("nes", "snes", "n64", "gb", "gbc", "gba", "nds", "3ds", "ps1", "ps2", "psp", "genesis", "dc", "saturn", "pce")),
-    GEFORCE_NOW("GeForce NOW", listOf("geforce", "nvidia")),
-    MOONLIGHT("Moonlight", listOf("moonlight")),
+    GEFORCE_NOW("Cloud", listOf("geforce", "nvidia", "gfn", "psn", "moonlight")),
     ANDROID("Android", listOf("android"))
 }
 

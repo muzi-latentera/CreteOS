@@ -28,11 +28,16 @@ interface LaunchTargetDao {
      */
     @Query(
         """SELECT DISTINCT hostGameKey FROM launch_targets
-           WHERE provider = :provider
-             AND isAvailable = 1
-             AND (launchData LIKE '%"canonicalGfnUrl"%' OR launchData LIKE '%"gfnGameId"%')"""
+           WHERE isAvailable = 1
+             AND (
+                 (provider = 'GEFORCE_NOW' AND
+                    (launchData LIKE '%"canonicalGfnUrl"%' OR launchData LIKE '%"gfnGameId"%'))
+                 OR (provider = 'MOONLIGHT' AND
+                    launchData LIKE '%"appId"%' AND launchData LIKE '%"uuid"%')
+                 OR (provider = 'ASOBI' AND launchData LIKE '%"conceptId"%')
+             )"""
     )
-    fun observeDirectCloudHostGameKeys(provider: String): Flow<List<String>>
+    fun observeDirectCloudHostGameKeys(): Flow<List<String>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(target: LaunchTargetEntity): Long

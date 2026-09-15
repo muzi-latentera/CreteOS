@@ -7,10 +7,11 @@ enum class ProviderId(val displayName: String) {
     WINLATOR("Winlator CMod"),
     MOONLIGHT("Moonlight"),
     GEFORCE_NOW("GeForce NOW"),
+    ASOBI("PS Cloud"),
     ANDROID_SHORTCUT("Android Shortcut"),
     EMULATOR("Emulator");
 
     /** Cloud video decoding is cheap enough for Eco; every other provider runs on this device. */
     val runsLocally: Boolean
-        get() = this != MOONLIGHT && this != GEFORCE_NOW
+        get() = this != MOONLIGHT && this != GEFORCE_NOW && this != ASOBI
 }

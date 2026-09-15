@@ -10,9 +10,12 @@ class ProviderPowerPolicyTest {
     fun `only cloud streaming providers avoid local gaming mode`() {
         assertFalse(ProviderId.MOONLIGHT.runsLocally)
         assertFalse(ProviderId.GEFORCE_NOW.runsLocally)
+        assertFalse(ProviderId.ASOBI.runsLocally)
 
         ProviderId.entries
-            .filterNot { it == ProviderId.MOONLIGHT || it == ProviderId.GEFORCE_NOW }
+            .filterNot {
+                it == ProviderId.MOONLIGHT || it == ProviderId.GEFORCE_NOW || it == ProviderId.ASOBI
+            }
             .forEach { provider -> assertTrue("$provider should use Gaming mode", provider.runsLocally) }
     }
 }

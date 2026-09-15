@@ -82,6 +82,13 @@ class ProviderSyncCoordinator @Inject constructor(
 
         Log.d(TAG, "$providerId discovered ${discovered.size} games")
 
+        // GFN currently has no supported catalogue discovery API; its verified targets are
+        // curated/manual links. Do not mark those links stale just because discovery is empty.
+        if (providerId == ProviderId.GEFORCE_NOW) {
+            launchTargetRepository.markProviderAvailable(providerId)
+            return SyncResult(providerId, discovered.size, 0, 0, 0, emptyList())
+        }
+
         // Build library index ONCE for this sync — avoids O(n²) queries
         val libraryIndex = identityResolver.buildIndex()
 
@@ -266,6 +273,7 @@ class ProviderSyncCoordinator @Inject constructor(
             ?: "game_native:${discovered.source.lowercase()}:${discovered.externalId}"
         ProviderId.MOONLIGHT     -> "moonlight:${discovered.externalId}"
         ProviderId.GEFORCE_NOW   -> "gfn:${discovered.externalId}"
+        ProviderId.ASOBI         -> "asobi:${discovered.externalId}"
         ProviderId.WIN_NATIVE    -> "winnative:${discovered.externalId}"
         ProviderId.WINLATOR      -> "winlator:${discovered.externalId}"
         ProviderId.ANDROID_SHORTCUT -> "shortcut:${discovered.externalId}"
@@ -288,6 +296,7 @@ class ProviderSyncCoordinator @Inject constructor(
             ProviderId.WINLATOR      -> "steam"
             ProviderId.MOONLIGHT     -> "moonlight"
             ProviderId.GEFORCE_NOW   -> "gfn"
+            ProviderId.ASOBI         -> "psn"
             ProviderId.ANDROID_SHORTCUT -> "android"
             ProviderId.EMULATOR      -> "emulator"
             ProviderId.GAME_NATIVE   -> "steam"

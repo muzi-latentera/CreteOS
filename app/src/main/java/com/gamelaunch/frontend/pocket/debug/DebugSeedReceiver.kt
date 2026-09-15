@@ -5,17 +5,26 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.gamelaunch.frontend.domain.repository.GameRepository
+import com.gamelaunch.frontend.domain.repository.MediaRepository
+import com.gamelaunch.frontend.domain.model.Game
+import com.gamelaunch.frontend.domain.model.GameMedia
 import com.gamelaunch.frontend.pocket.data.db.PocketDatabase
+import com.gamelaunch.frontend.pocket.data.IgdbMetadataSync
 import com.gamelaunch.frontend.pocket.data.IgdbSeedData
 import com.gamelaunch.frontend.pocket.data.SteamMetadataSync
 import com.gamelaunch.frontend.pocket.data.db.entity.LaunchTargetEntity
 import com.gamelaunch.frontend.pocket.emulation.RomLibraryMetadataReconciler
 import com.gamelaunch.frontend.pocket.providers.ProviderId
+import com.gamelaunch.frontend.pocket.sync.PcLibraryMetadataReconciler
+import com.gamelaunch.frontend.pocket.sync.ProviderSyncCoordinator
+import com.gamelaunch.frontend.pocket.data.repository.LaunchTargetRepository
+import com.gamelaunch.frontend.pocket.domain.LaunchTarget
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import javax.inject.Inject
 
 /**
@@ -35,10 +44,65 @@ class DebugSeedReceiver : BroadcastReceiver() {
 
     @Inject lateinit var gameRepository: GameRepository
     @Inject lateinit var romMetadataReconciler: RomLibraryMetadataReconciler
+    @Inject lateinit var pcMetadataReconciler: PcLibraryMetadataReconciler
+    @Inject lateinit var providerSyncCoordinator: ProviderSyncCoordinator
+    @Inject lateinit var igdbSync: IgdbMetadataSync
+    @Inject lateinit var mediaRepository: MediaRepository
+    @Inject lateinit var launchTargetRepository: LaunchTargetRepository
 
     override fun onReceive(context: Context, intent: Intent) {
         if (!com.gamelaunch.frontend.BuildConfig.DEBUG) {
             Log.w(TAG, "DebugSeedReceiver called in non-debug build — ignoring")
+            return
+        }
+
+        if (intent.action == ACTION_SYNC_PROVIDERS) {
+            val pendingResult = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                runCatching {
+                    val results = providerSyncCoordinator.syncAll()
+                    results.forEach { r ->
+                        Log.i(TAG, "Sync ${r.provider}: discovered=${r.discovered} added=${r.added} updated=${r.updated}")
+                    }
+                }.onFailure { error ->
+                    Log.e(TAG, "Provider sync failed", error)
+                }
+                pendingResult.finish()
+            }
+            return
+        }
+
+        // ADB-only verification hook for the production repository reconciler. Unlike the legacy
+        // seed actions below, this never opens either database directly, and goAsync keeps the
+        // receiver alive until title repair and IGDB promotion have completed.
+        if (intent.action == ACTION_SEED_ALL_IGDB) {
+            val pendingResult = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                runCatching {
+                    var seeded = 0
+                    IgdbSeedData.entries.forEach { entry ->
+                        runCatching {
+                            igdbSync.seedPreFetchedData(
+                                steamAppId           = entry.steamAppId,
+                                gameTitle            = entry.gameTitle,
+                                mainSeconds          = entry.mainSec,
+                                plusSeconds          = entry.plusSec,
+                                completionistSeconds = entry.compSec,
+                                developer            = entry.developer,
+                                publisher            = entry.publisher,
+                                summary              = entry.summary,
+                                coverUrl             = entry.coverUrl,
+                                heroUrl              = entry.heroUrl,
+                            )
+                            seeded++
+                        }
+                    }
+                    Log.i(TAG, "Seeded IGDB data for $seeded games from IgdbSeedData")
+                }.onFailure { error ->
+                    Log.e(TAG, "SEED_ALL_IGDB failed", error)
+                }
+                pendingResult.finish()
+            }
             return
         }
 
@@ -48,15 +112,144 @@ class DebugSeedReceiver : BroadcastReceiver() {
         if (intent.action == ACTION_REPAIR_ROM_METADATA) {
             val pendingResult = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
+                val allGames = gameRepository.getAllGames().first()
                 runCatching {
-                    romMetadataReconciler.reconcile(
-                        gameRepository.getAllGames().first(),
-                        forceRefresh = true
-                    )
+                    romMetadataReconciler.reconcile(allGames, forceRefresh = true)
                 }.onSuccess {
                     Log.i(TAG, "ROM metadata reconciliation complete")
                 }.onFailure { error ->
                     Log.e(TAG, "ROM metadata reconciliation failed", error)
+                }
+                runCatching {
+                    pcMetadataReconciler.reconcile(allGames, forceRefresh = true)
+                }.onSuccess {
+                    Log.i(TAG, "PC/PS Cloud metadata reconciliation complete")
+                }.onFailure { error ->
+                    Log.e(TAG, "PC/PS Cloud metadata reconciliation failed", error)
+                }
+                pendingResult.finish()
+            }
+            return
+        }
+
+        // One-off cleanup for provider-imported rows. This deliberately goes through the eOr
+        // repositories and does not open either production database directly.
+        if (intent.action == ACTION_REMOVE_UNWANTED_LIBRARY_ITEMS) {
+            val pendingResult = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                runCatching {
+                    val games = gameRepository.getAllGames().first()
+                    val unwanted = games.filter { game ->
+                        val path = game.romPath.lowercase()
+                        val title = game.title.lowercase()
+                        val huntTestServer =
+                            path == "steam:770720" ||
+                                path.endsWith(":770720") ||
+                                (title.contains("hunt") && title.contains("showdown") &&
+                                    title.contains("test server"))
+                        val bosgameHost = title == "bosgame" &&
+                            (game.platformId.equals("moonlight", ignoreCase = true) ||
+                                path.startsWith("moonlight:"))
+                        huntTestServer || bosgameHost
+                    }
+
+                    unwanted.forEach { game ->
+                        mediaRepository.deleteMediaForGame(game.id)
+                        launchTargetRepository.deleteAllTargetsForGame(game.romPath)
+                        gameRepository.deleteGame(game.id)
+                        Log.i(TAG, "Removed unwanted library row: ${game.title} (${game.romPath})")
+                    }
+
+                    // Also remove a stale Bosgame launch target if an older build created the
+                    // target without leaving an eOr game row.
+                    launchTargetRepository.getTargetsForProvider(ProviderId.MOONLIGHT)
+                        .filter { it.displayName.equals("Bosgame", ignoreCase = true) }
+                        .forEach { launchTargetRepository.deleteAllTargetsForGame(it.hostGameKey) }
+
+                    Log.i(TAG, "Unwanted library cleanup complete: removed=${unwanted.size}")
+                }.onFailure { error ->
+                    Log.e(TAG, "Unwanted library cleanup failed", error)
+                }
+                pendingResult.finish()
+            }
+            return
+        }
+
+        // Repository-backed update for the current curated GFN/artwork request. This is kept as
+        // an explicit debug action so it can be applied to the connected device without copying
+        // or editing either Room database.
+        if (intent.action == ACTION_APPLY_CURATED_LIBRARY_UPDATES) {
+            val pendingResult = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                runCatching {
+                    val appId = "2713000"
+                    val hostKey = "steam:$appId"
+                    val title = "Resonance: A Plague Tale Legacy"
+                    val game = gameRepository.getGameByRomPath(hostKey)
+                        ?: run {
+                            val id = gameRepository.insertGame(
+                                Game(
+                                    title = title,
+                                    romPath = hostKey,
+                                    romFilename = "$title.gfn",
+                                    platformId = "gfn"
+                                )
+                            )
+                            gameRepository.getGameById(id)
+                        }
+                        ?: error("Could not create or load $hostKey")
+
+                    val gfnUrl = SteamMetadataSync.GFN_VERIFIED.getValue(appId)
+                    val launchData = JSONObject()
+                        .put("canonicalGfnUrl", gfnUrl)
+                        .put("steamAppId", appId)
+                        .toString()
+                    val targetId = launchTargetRepository.upsertTarget(
+                        LaunchTarget(
+                            hostGameKey = hostKey,
+                            provider = ProviderId.GEFORCE_NOW,
+                            externalId = appId,
+                            source = "GFN",
+                            displayName = "GeForce NOW",
+                            launchData = launchData,
+                            isAvailable = true,
+                            isPreferred = true
+                        )
+                    )
+                    launchTargetRepository.setAutomaticPreferredTarget(hostKey, targetId)
+
+                    val curatedEntries = IgdbSeedData.entries.filter {
+                        it.steamAppId in setOf("2713000", "3751260", "2183900", "10003330")
+                    }
+                    curatedEntries.forEach { entry ->
+                        igdbSync.seedPreFetchedData(
+                            steamAppId = entry.steamAppId,
+                            gameTitle = entry.gameTitle,
+                            mainSeconds = entry.mainSec,
+                            plusSeconds = entry.plusSec,
+                            completionistSeconds = entry.compSec,
+                            developer = entry.developer,
+                            publisher = entry.publisher,
+                            summary = entry.summary,
+                            coverUrl = entry.coverUrl,
+                            heroUrl = entry.heroUrl
+                        )
+                    }
+
+                    // Apply the bundled artwork immediately to the new game; the normal metadata
+                    // reconciler will keep the same curated URLs on later repairs.
+                    val resonance = IgdbSeedData.entries.first { it.steamAppId == appId }
+                    mediaRepository.upsertMedia(
+                        GameMedia(
+                            gameId = game.id,
+                            boxArtRemoteUrl = resonance.coverUrl,
+                            screenshotRemoteUrl = resonance.heroUrl,
+                            scraperTimestampMs = System.currentTimeMillis()
+                        )
+                    )
+                    Log.i(TAG, "Applied curated GFN/artwork updates; Resonance game=$game target=$targetId")
+                }.onFailure { error ->
+                    Log.e(TAG, "Curated library update failed", error)
                 }
                 pendingResult.finish()
             }
@@ -245,6 +438,12 @@ class DebugSeedReceiver : BroadcastReceiver() {
         const val ACTION_DELETE   = "io.latent.creteos.DELETE_GAME"
         const val ACTION_SEED_ROM = "io.latent.creteos.SEED_ROM"
         const val ACTION_REPAIR_ROM_METADATA = "io.latent.creteos.REPAIR_ROM_METADATA"
+        const val ACTION_SYNC_PROVIDERS = "io.latent.creteos.SYNC_PROVIDERS"
+        const val ACTION_SEED_ALL_IGDB  = "io.latent.creteos.SEED_ALL_IGDB"
+        const val ACTION_REMOVE_UNWANTED_LIBRARY_ITEMS =
+            "io.latent.creteos.REMOVE_UNWANTED_LIBRARY_ITEMS"
+        const val ACTION_APPLY_CURATED_LIBRARY_UPDATES =
+            "io.latent.creteos.APPLY_CURATED_LIBRARY_UPDATES"
         private const val TAG   = "DebugSeedReceiver"
     }
 }

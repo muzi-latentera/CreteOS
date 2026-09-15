@@ -135,9 +135,14 @@ class PcLibraryMetadataReconciler @Inject constructor(
         }
     }
 
-    private fun supportsTitleMetadata(game: Game): Boolean =
-        game.platformId.trim().lowercase() in TITLE_MATCHED_PC_PLATFORMS &&
-            game.romPath.startsWith("steam:")
+    private fun supportsTitleMetadata(game: Game): Boolean {
+        val platform = game.platformId.trim().lowercase()
+        return when {
+            platform in TITLE_MATCHED_PC_PLATFORMS && game.romPath.startsWith("steam:") -> true
+            platform == "psn" && game.romPath.startsWith("asobi:") -> true
+            else -> false
+        }
+    }
 
     private companion object {
         const val TAG = "PcMetadataRepair"

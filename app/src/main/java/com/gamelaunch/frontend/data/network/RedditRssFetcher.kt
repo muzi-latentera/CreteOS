@@ -94,6 +94,19 @@ class RedditRssFetcher(private val client: OkHttpClient) {
                                 thumbnail = url
                             }
                         }
+                        inEntry && localName == "content" && thumbnail == null -> {
+                            // Some subreddits (e.g. r/Games) don't emit media:thumbnail but embed
+                            // an <img src="..."> inside the HTML content — extract the first one.
+                            val contentHtml = runCatching { parser.nextText() }.getOrNull() ?: ""
+                            val imgMatch = IMG_SRC.find(contentHtml)
+                            val src = imgMatch?.groupValues?.getOrNull(1)
+                            if (!src.isNullOrBlank() && src.startsWith("http") &&
+                                !src.contains("emoji") && !src.contains("icon") &&
+                                !src.contains("snoo") && !src.contains("avatar")
+                            ) {
+                                thumbnail = src
+                            }
+                        }
                         inEntry && (localName == "published" || localName == "updated") && published == 0L -> {
                             runCatching {
                                 val text = parser.nextText()
@@ -132,5 +145,6 @@ class RedditRssFetcher(private val client: OkHttpClient) {
 
     private companion object {
         val SUBREDDIT_PATH = Regex("/r/([^/]+)/", RegexOption.IGNORE_CASE)
+        val IMG_SRC = Regex("""<img[^>]+src=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
     }
 }

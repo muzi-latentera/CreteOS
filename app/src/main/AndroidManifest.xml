@@ -81,6 +81,7 @@
         <package android:name="net.qiujuer.winlator" />
         <package android:name="com.limelight" />
         <package android:name="com.nvidia.geforcenow" />
+        <package android:name="com.asobi.droid" />
         <!-- WinNative — check current package at runtime -->
         <package android:name="app.winnative" />
         <intent>

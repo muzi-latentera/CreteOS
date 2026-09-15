@@ -133,6 +133,7 @@ private fun platformDisplayLabel(platformId: String) = when (platformId.lowercas
     "android"   -> "ANDROID"
     "moonlight" -> "MOONLIGHT"
     "gfn"       -> "GFN"
+    "psn"       -> "PS CLOUD"
     "local", "gamenative" -> "LOCAL"
     else        -> platformId.uppercase().take(8)
 }
@@ -147,6 +148,7 @@ private fun platformPillColor(platformId: String) = when (platformId.lowercase()
     "amazon"             -> Color(0xFF00A8E0)
     "moonlight"          -> Color(0xFF1A4A7A)
     "gfn"                -> Color(0xFF76B900)
+    "psn"                -> Color(0xFF003087)  // PlayStation blue
     "local", "gamenative" -> Color(0xFF2D6A3F)  // green = locally installed
     else                 -> Color(0xFF2A2A2A)
 }
@@ -1248,11 +1250,10 @@ fun LibraryTabContent(
             }
             LibraryFilter.OWNED    -> base.filter { it.platformId in setOf("steam", "gog", "epic", "ea", "gamepass", "xbox", "ubisoft", "amazon") }
             LibraryFilter.STREAMING -> base.filter { it.platformId == "moonlight" }
-            LibraryFilter.CLOUD    -> base.filter {
-                it.platformId == "gfn" ||
-                    it.romPath in state.cloudGameKeys ||
-                    SteamMetadataSync.GFN_VERIFIED.containsKey(it.romPath.substringAfterLast(":"))
-            }
+            // Cloud membership comes only from an available direct launch target. A generic
+            // provider fallback or a platform label alone is not proof that this game is
+            // playable in the cloud.
+            LibraryFilter.CLOUD    -> base.filter { it.romPath in state.cloudGameKeys }
             LibraryFilter.ANDROID  -> base.filter { it.platformId == "android" }
         }
         platformFiltered.filter { matchesLibrarySearch(it.title, debouncedSearch) }
@@ -1260,6 +1261,7 @@ fun LibraryTabContent(
 
     val controllerFocusRequester = remember { FocusRequester() }
     val controllerScope = rememberCoroutineScope()
+    var libraryHasFocus by remember { mutableStateOf(false) }
     val gridGap = if (layout.compactHandheld) 10.dp else 12.dp
     val availableGridWidth = layout.screenWidth.value - (layout.horizontalPadding.value * 2f)
     val controllerColumns = (
@@ -1284,6 +1286,20 @@ fun LibraryTabContent(
         }
     }
 
+    // The detail destination is layered over the library without destroying this composition.
+    // Native Back therefore does not necessarily recreate the focusable library container. Keep
+    // the same resume retry used by Home so the D-pad returns to the grid instead of remaining
+    // attached to the dismissed detail screen.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        controllerScope.launch {
+            var tries = 0
+            do {
+                runCatching { controllerFocusRequester.requestFocus() }
+                delay(80)
+            } while (!libraryHasFocus && tries++ < 14)
+        }
+    }
+
     fun moveLibraryFocus(delta: Int): Boolean {
         if (filteredGames.isEmpty() || showSources) return false
         val current = filteredGames.indexOfFirst { it.id == focusedGameId }.coerceAtLeast(0)
@@ -1304,6 +1320,7 @@ fun LibraryTabContent(
             .fillMaxSize()
             .padding(top = layout.topClearance)
             .focusRequester(controllerFocusRequester)
+            .onFocusChanged { libraryHasFocus = it.hasFocus }
             .focusable()
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
@@ -1861,6 +1878,8 @@ fun SettingsTabContent(
     var selectedIndex by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val settingsFocusRequester = remember { FocusRequester() }
+    val settingsRailState = rememberLazyListState()
+    val settingsScope = rememberCoroutineScope()
     val layout = rememberCreteLayoutMetrics()
 
     val categories = listOf(
@@ -1902,10 +1921,12 @@ fun SettingsTabContent(
                 when (event.key) {
                     Key.DirectionUp -> {
                         selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
+                        settingsScope.launch { settingsRailState.animateScrollToItem(selectedIndex) }
                         true
                     }
                     Key.DirectionDown -> {
                         selectedIndex = (selectedIndex + 1).coerceAtMost(categories.size)
+                        settingsScope.launch { settingsRailState.animateScrollToItem(selectedIndex) }
                         true
                     }
                     Key.DirectionRight, GamepadA, Key.DirectionCenter, Key.Enter -> {
@@ -1918,6 +1939,7 @@ fun SettingsTabContent(
         horizontalArrangement = Arrangement.spacedBy(if (layout.compactHandheld) CreteDS.spaceL else CreteDS.spaceXL)
     ) {
         LazyColumn(
+            state = settingsRailState,
             modifier = Modifier
                 .width(layout.settingsRailWidth)
                 .fillMaxHeight(),
