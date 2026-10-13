@@ -64,7 +64,8 @@
 .crete-hero-tags span { padding:5px 9px; background:#ffffff10; border:1px solid var(--crete-border); border-radius:5px; font:10px ui-monospace,monospace; text-transform:uppercase; }
 .crete-local { color:#7cd19b; }
 .crete-play { height:44px; padding:0 20px; border:0; border-radius:10px; background:#c9482a; color:#fff; font-weight:700!important; display:inline-flex; align-items:center; gap:10px; }
-.crete-play[data-cloud="true"] { background:#7cab00; }
+.crete-play[data-provider="moonlight"], [data-crete-details="true"] [data-crete-detail-slot="primary-actions"][data-provider="moonlight"] { --crete-play-colour:#7164d9; }
+.crete-play[data-provider="geforceNow"], [data-crete-details="true"] [data-crete-detail-slot="primary-actions"][data-provider="geforceNow"] { --crete-play-colour:#7cab00; }
 .crete-hero-info { position:relative; margin:24px; width:256px; padding:20px; border-radius:16px; background:#08090ba8; border:1px solid var(--crete-border); }
 .crete-hero-info dl { display:grid; grid-template-columns:auto minmax(0,1fr); gap:16px 12px; font-size:12px; margin:22px 0 0; }
 .crete-hero-info dt { color:var(--crete-dim); }
@@ -111,15 +112,14 @@
 .crete-details-back { position:absolute; top:12px; left:4.3%; z-index:5; color:#f2eadb88; background:#080a0d44; border:0; padding:6px; border-radius:6px; }
 [data-crete-details="true"] [data-crete-detail-slot="primary-actions"] { gap:0!important; }
 [data-crete-details="true"] [data-launch-btn] { border-radius:10px 0 0 10px!important; box-shadow:none!important; min-width:132px!important; height:48px!important; display:inline-flex; align-items:center; justify-content:center; gap:10px; }
-[data-crete-details="true"] [data-launch-btn][data-cloud="true"] { background:#7cab00!important; }
+[data-crete-details="true"] [data-launch-btn][data-cloud="true"] { background:var(--crete-play-colour,#c9482a)!important; }
 .crete-details-manage { border:0; border-left:1px solid #ffffff40; background:var(--crete-launch, #c44524); color:white; border-radius:0 10px 10px 0; height:48px; width:48px; display:grid; place-items:center; }
-[data-crete-details="true"] [data-crete-detail-slot="primary-actions"][data-cloud="true"] .crete-details-manage { background:#7cab00; }
 [data-crete-details="true"] [data-crete-detail-slot="primary-actions"] [role="tablist"] { display:none!important; }
 @media(max-height:650px) { .crete-details-info { padding:20px; } .crete-details-info section + section { margin-top:24px; } [data-crete-details="true"] [data-crete-detail-slot="content"] { top:42px; gap:16px!important; } }
 @media(max-width:680px) { .crete-details-info { display:none; } [data-crete-details="true"] [data-crete-detail-slot="content"] { width:91%; } }
 
 .crete-launch-menu { position: relative; }
-.crete-launch-popover { position: absolute; z-index: 60; top: calc(100% + 8px); right: 0; width: 290px; padding: 8px; border: 1px solid #ffffff28; border-radius: 12px; background: #12161b; box-shadow: 0 16px 40px #0008; }
+.crete-launch-popover { position: absolute; z-index: 60; top: calc(100% + 8px); left: 0; width: 290px; max-width:calc(100vw - 32px); box-sizing:border-box; padding: 8px; border: 1px solid #ffffff28; border-radius: 12px; background: #12161b; box-shadow: 0 16px 40px #0008; }
 .crete-launch-popover button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; padding: 10px 14px; border: 0; border-radius: 6px; background: transparent; color: #eee8da; text-align: left; font-size: 16px; }
 .crete-launch-popover button:is(:hover,:focus-visible) { background: #ffffff12; outline: 2px solid #d6aa4f; }
 .crete-launch-popover button:disabled { opacity: .45; }
@@ -154,7 +154,7 @@
 .crete-detail-stat { display: contents; }
 .crete-spotify-mini { margin-left: 20px; max-width: min(50vw, 360px); }
 .crete-bottom-nav .crete-spotify-mini button { width: auto; }
-.crete-play, [data-crete-details="true"] [data-launch-btn] { background: var(--crete-launch, #c44524) !important; }
+.crete-play, [data-crete-details="true"] [data-launch-btn], [data-crete-details="true"] .crete-details-manage { background: var(--crete-play-colour, #c9482a) !important; }
 
 .crete-home[data-home-mode="semi"] .crete-hero { min-height: 300px; }
 @media (max-height:650px) { .crete-home[data-home-mode="semi"] .crete-hero { min-height:260px; } }

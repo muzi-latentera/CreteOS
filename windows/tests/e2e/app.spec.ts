@@ -415,6 +415,17 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1280, height: 720
     const panel = await details.locator(".crete-details-info").boundingBox();
     expect(panel!.x + panel!.width).toBeLessThanOrEqual(viewport.width);
     await page.screenshot({ path: info.outputPath("creteos-details.png") });
+    await details.getByRole("button", { name: "Launch options", exact: true }).click();
+    const menu = details.getByRole("menu", { name: "Launch options" });
+    await expect(menu).toBeVisible();
+    const menuBounds = await menu.boundingBox();
+    expect(menuBounds!.x).toBeGreaterThanOrEqual(0);
+    expect(menuBounds!.x + menuBounds!.width).toBeLessThanOrEqual(viewport.width);
+    const label = await menu.getByRole("menuitem", { name: "Moonlight", exact: true }).boundingBox();
+    expect(label!.x).toBeGreaterThanOrEqual(0);
+    await page.screenshot({ path: info.outputPath("creteos-launch-menu.png") });
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(details).toHaveCount(0);
     await expect(grid.locator('[data-selected="true"]')).toHaveAttribute("aria-label", "Hollow Knight");
@@ -723,7 +734,8 @@ test("MoonDeckStream passes the selected Steam ID and requires its own pairing",
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
   await expect(details.locator("[data-launch-btn]")).toHaveText("Play");
   await expect(details.locator("[data-launch-btn]")).toHaveAttribute("data-provider", "moonlight");
-  await expect(details.getByRole("button", { name: "Launch options", exact: true })).toHaveCSS("background-color", "rgb(124, 171, 0)");
+  await expect(details.locator("[data-launch-btn]")).toHaveCSS("background-color", "rgb(113, 100, 217)");
+  await expect(details.getByRole("button", { name: "Launch options", exact: true })).toHaveCSS("background-color", "rgb(113, 100, 217)");
   await details.locator("[data-launch-btn]").click();
   await expect(stream.getByRole("button", { name: "Start stream", exact: true })).toBeDisabled();
   await expect(stream.getByRole("button", { name: "Pair MoonDeck Buddy", exact: true })).toBeVisible();
@@ -735,6 +747,8 @@ test("Installed mapped games keep local Play as the default", async ({ page }) =
   const primary = page.locator('[data-crete-details="true"] [data-launch-btn]');
   await expect(primary).toHaveText("Play");
   await expect(primary).toHaveAttribute("data-cloud", "false");
+  await expect(primary).toHaveCSS("background-color", "rgb(201, 72, 42)");
+  await expect(page.getByRole("button", { name: "Launch options", exact: true })).toHaveCSS("background-color", "rgb(201, 72, 42)");
   await primary.click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
   expect(await page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"] ?? 0)).toBe(0);

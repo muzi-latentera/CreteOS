@@ -78,10 +78,10 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   return <div ref={root} className="crete-launch-menu">
     <button ref={anchor} type="button" className="crete-details-manage" aria-label={text("Launch options")} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><IoChevronDownOutline /></button>
     {open && <div className="crete-launch-popover" role="menu" aria-label={text("Launch options")}>
-      {row(localLabel, "local", "#83d4a0", local, !localEnabled)}
+      {row(localLabel, "local", "#c9482a", local, !localEnabled)}
       {s.pcGame && row("Moonlight", "moonlight", "#7164d9", () => s.launch("moonlight"), !s.clients.moonlight)}
-      {s.gameUrl && row("GeForce NOW", "geforceNow", "#8cce00", () => s.launch("geforceNow", true))}
-      {!s.gameUrl && s.clients.geforceNow && row("GeForce NOW library", "", "#8cce00", () => s.launch("geforceNow"))}
+      {s.gameUrl && row("GeForce NOW", "geforceNow", "#7cab00", () => s.launch("geforceNow", true))}
+      {!s.gameUrl && s.clients.geforceNow && row("GeForce NOW library", "", "#7cab00", () => s.launch("geforceNow"))}
       <button type="button" role="menuitem" onClick={() => choose(manage)}>{text(manageLabel)}</button>
     </div>}
     {s.configure && <div className="crete-stream-backdrop"><div role="dialog" aria-modal="true" aria-label={text("Moonlight stream settings")} className="crete-stream-settings">

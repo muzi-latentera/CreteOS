@@ -1172,7 +1172,7 @@ export function GameDetailsModal({
               </div>
             )}
 
-            <div data-crete-detail-slot="primary-actions" data-cloud={isCloud || cloudDefault} style={{
+            <div data-crete-detail-slot="primary-actions" data-cloud={isCloud || cloudDefault} data-provider={cloudDefault ? streaming.provider : isCloud ? "geforceNow" : "local"} style={{
               display: "flex",
               alignItems: "center",
               gap: 10,
@@ -1181,7 +1181,7 @@ export function GameDetailsModal({
               <button
                 data-launch-btn={resolvedTheme === "crete" ? "" : undefined}
                 data-cloud={isCloud || cloudDefault}
-                data-provider={streaming.provider}
+                data-provider={cloudDefault ? streaming.provider : isCloud ? "geforceNow" : "local"}
                 title={cloudDefault ? streaming.provider === "moonlight" ? "Moonlight" : "GeForce NOW" : undefined}
                 ref={(node) => { focusRefs.current[0] = node; }}
                 onClick={primaryDisabled ? undefined : handlePrimaryAction}
