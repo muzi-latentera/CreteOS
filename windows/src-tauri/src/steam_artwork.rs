@@ -97,6 +97,35 @@ pub fn fetch_xbox_images(client: &reqwest::blocking::Client, product_id: &str) -
         .map(|value| xbox_images(&value)).unwrap_or((None, None))
 }
 
+pub fn artwork_product(name: &str) -> Value {
+    serde_json::from_str::<Value>(include_str!("../../src/data/artworkProducts.json")).ok()
+        .and_then(|products| products.get(name).cloned()).unwrap_or(Value::Null)
+}
+
+pub fn fetch_community_images(client: &reqwest::blocking::Client, name: &str) -> (Option<String>, Option<String>) {
+    let normalize = |name: &str| name.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect::<String>();
+    // The public website exposes these read-only search routes without an API
+    // key. Match the exact title; do not silently use the first search result.
+    let games = client.get("https://www.steamgriddb.com/api/public/search/autocomplete").query(&[("term", name)])
+        .send().ok().and_then(|r| r.error_for_status().ok()).and_then(|r| r.json::<Value>().ok());
+    let Some(id) = games.as_ref().and_then(|g| g["data"].as_array()).and_then(|items| items.iter()
+        .find(|game| game["name"].as_str().map(&normalize) == Some(normalize(name))))
+        .and_then(|game| game["id"].as_u64()) else { return (None, None); };
+    let fetch = |kind: &str| {
+        let body = serde_json::json!({"asset_type":kind,"game_id":[id],"page":0,"limit":20,
+            "dimensions":if kind == "grid" {vec!["600x900"]} else {vec!["all"]},"styles":["all"],"languages":["all"],"formats":["all"],
+            "order":"score_desc","static":true,"animated":false,"nsfw":false,"epilepsy":false,"humor":false,"untagged":true,"user_steam64":null,"user_steam64_likes":null});
+        let value = client.post("https://www.steamgriddb.com/api/public/search/assets").json(&body).send().ok()?.error_for_status().ok()?.json::<Value>().ok()?;
+        value.pointer("/data/assets")?.as_array()?.iter().find_map(|asset| {
+            let w=asset["width"].as_u64()?; let h=asset["height"].as_u64()?;
+            if asset["is_animated"].as_bool() == Some(true) || (kind == "grid" && h <= w) || (kind == "hero" && w <= h) {return None;}
+            let text=asset["url"].as_str()?; let url=reqwest::Url::parse(text).ok()?;
+            (url.scheme()=="https" && url.host_str()?.ends_with(".steamgriddb.com")).then(||text.to_owned())
+        })
+    };
+    (fetch("grid"),fetch("hero"))
+}
+
 fn steam_image(value: Option<&Value>) -> Option<String> {
     let text = value?.as_str()?;
     let url = reqwest::Url::parse(text).ok()?;

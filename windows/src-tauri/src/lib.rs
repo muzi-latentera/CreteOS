@@ -5888,9 +5888,12 @@ fn fetch_game_art(
     if source.as_deref().map(|s| s.eq_ignore_ascii_case("xbox")).unwrap_or(false) {
         let normalized = normalize_xbox_catalog_name(&game_name);
         let catalog = bundled_xcloud_games().into_iter().find(|game| normalize_xbox_catalog_name(&game.name) == normalized);
+        let recorded_product = steam_artwork::artwork_product(&game_name);
         let id = product_id.filter(|id| is_microsoft_store_product_id(id))
+            .or_else(|| recorded_product["productId"].as_str().map(str::to_owned))
             .or_else(|| catalog.as_ref().map(|game| game.product_id.clone()));
-        let (cover, hero) = id.as_deref().map(|id| steam_artwork::fetch_xbox_images(&client, id)).unwrap_or((None, None));
+        let (cover, hero) = id.as_deref().map(|id| steam_artwork::fetch_xbox_images(&client, id))
+            .or_else(|| recorded_product["artSteamId"].as_u64().map(|id| steam_artwork::fetch_library_images(&client,id as u32))).unwrap_or((None, None));
         let cover = cover.or_else(|| catalog.and_then(|game| game.box_art_url));
         if grid_cached.is_none() {
             if let Some(url) = cover {
@@ -5936,7 +5939,7 @@ fn fetch_game_art(
             let (portrait, library_hero) = if grid_cached.is_none() || hero_static_cached.is_none() {
                 steam_artwork::fetch_library_images(&client, appid)
             } else { (None, None) };
-            let grid = if let Some(cached) = grid_cached.clone() {
+            let mut grid = if let Some(cached) = grid_cached.clone() {
                 cached
             } else {
                 let dir = grid_art_dir().join("portrait-v2");
@@ -5976,6 +5979,13 @@ fn fetch_game_art(
                     }
                 }
             }
+            if grid.is_empty() && SGDB_KEY.is_empty() {
+                let (cover, _) = steam_artwork::fetch_community_images(&client,&game_name);
+                if let Some(url) = cover {
+                    grid = steam_artwork::download_portrait(&client,&url,&grid_art_dir().join("portrait-v2"),&sanitize_filename(&game_name)).unwrap_or_default();
+                    grid_cache.insert(game_name.clone(),grid.clone()); save_art_cache(&grid_cache);
+                }
+            }
             if !grid.is_empty() { grid_cached = Some(grid.clone()); }
             if !hero_static.is_empty() { hero_static_cached = Some(hero_static.clone()); }
             if (!grid.is_empty() && !hero_static.is_empty()) || SGDB_KEY.is_empty() {
@@ -6000,6 +6010,21 @@ fn fetch_game_art(
                 };
             }
         }
+    }
+
+    if SGDB_KEY.is_empty() {
+        if grid_cached.is_none() || hero_static_cached.is_none() {
+            let (cover, hero) = steam_artwork::fetch_community_images(&client,&game_name);
+            if grid_cached.is_none() {
+                grid_cached=cover.and_then(|url| steam_artwork::download_portrait(&client,&url,&grid_art_dir().join("portrait-v2"),&sanitize_filename(&game_name)));
+                grid_cache.insert(game_name.clone(),grid_cached.clone().unwrap_or_default()); save_art_cache(&grid_cache);
+            }
+            if hero_static_cached.is_none() {
+                hero_static_cached=hero.and_then(|url| download_file(&client,&url,&hero_static_art_dir(),&game_name));
+                hero_static_cache.insert(game_name.clone(),hero_static_cached.clone().unwrap_or_default()); save_hero_cache(&hero_static_cache);
+            }
+        }
+        return GameArtBundle {grid:grid_cached.filter(|s| !s.is_empty()),hero_static:hero_static_cached.filter(|s| !s.is_empty()),hero_animated:hero_animated_cached.filter(|s| !s.is_empty())};
     }
 
     // One search call covers all three art types
