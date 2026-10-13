@@ -3,7 +3,7 @@
 Local verification on macOS, 2026-10-13, branch `codex/windows-liftoff`:
 
 - Production TypeScript check and Vite build passed. Vite reports large inherited JavaScript chunks; startup performance on hardware is unmeasured.
-- Vitest: **37 files, 174 tests passed**. Includes inherited launch/install/metadata checks and Crete filters, real-history handling, defaults and RSS parsing/link boundaries.
+- Vitest: **37 files, 175 tests passed**. Includes inherited launch/install/metadata checks and Crete filters, real-history handling, defaults and RSS parsing/link boundaries.
 - Playwright Chromium: **27 tests passed**. Includes Home empty/played states; three-destination bumper navigation; Library and details at 1280×800, 1280×720, 800×600 and 1920×1080; keyboard selection and return from details; availability filters, inline search, source picker, sorting; controller news activation; management dropdown and one native launch command; inherited account/onboarding, helper and storage-scroll checks. Tauri commands are mocked.
 - AnyFSE generator: checked valid executable paths, GPD administrator flag, deduplication, preservation of unrelated startup apps/settings, existing-output refusal and invalid-path rejection. No live AnyFSE configuration was changed.
 - `npm audit`: zero reported vulnerabilities after updating the inherited source-map-js dependency override in the initial fork.

@@ -30,14 +30,12 @@ export function playedGames(apps: App[], recent: App[]) {
   const rank = new Map(recent.map((app, i) => [app.id, i]));
   const recorded = new Map(recent.map(app => [app.id, app]));
   return apps.filter(app => app.app_type === "game" && (epochMs(app.last_played) || rank.has(app.id)))
-    .sort((a, b) => {
-      if (rank.has(a.id) || rank.has(b.id)) return (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity);
-      return (epochMs(b.last_played) ?? 0) - (epochMs(a.last_played) ?? 0);
-    }).map(app => {
-      const launchedAt = recorded.get(app.id)?.launched_at;
-      const launchedMs = typeof launchedAt === "number" ? epochMs(launchedAt) : undefined;
-      return launchedMs && launchedMs > (epochMs(app.last_played) ?? 0) ? { ...app, last_played: launchedMs } : app;
-    });
+    .map(app => {
+      const entry = recorded.get(app.id);
+      const launchedAt = entry?.launched_at;
+      const latest = Math.max(epochMs(app.last_played) ?? 0, epochMs(entry?.last_played) ?? 0, typeof launchedAt === "number" ? epochMs(launchedAt) ?? 0 : 0);
+      return latest > (epochMs(app.last_played) ?? 0) ? { ...app, last_played: latest } : app;
+    }).sort((a, b) => (epochMs(b.last_played) ?? 0) - (epochMs(a.last_played) ?? 0) || (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER));
 }
 
 export function playtime(minutes?: number) {

@@ -33,6 +33,11 @@ describe("CreteOS library data", () => {
     expect(matchesSearch("Hollow Knight", "hollow desert")).toBe(false);
     expect(matchesSearch("Hollow Knight", "")).toBe(true);
   });
+  it("does not put older local history ahead of a newer Steam play timestamp", () => {
+    const older = { ...local, last_played: 1725000000 };
+    const newer = { ...owned, last_played: 1726000000 };
+    expect(playedGames([older, newer], [{ ...older, launched_at: 1725000000 }]).map(app => app.id)).toEqual([newer.id, older.id]);
+  });
   it("shows unknown playtime honestly and formats recorded times", () => {
     expect(playtime()).toBe("—"); expect(playtime(0)).toBe("0m"); expect(playtime(93)).toBe("1h 33m");
     expect(lastPlayed()).toBe("Never");
