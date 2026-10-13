@@ -89,6 +89,7 @@ test.beforeEach(async ({ page }) => {
           return listenerId;
         }
         if (command === "plugin:event|unlisten" || command === "plugin:event|emit") return null;
+        if (command === "get_streaming_clients") return { geforceNow: true, moonlight: true };
         if (command === "get_crete_news_rss") return params.has("news") ? `<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Test gaming headline</title><link href="https://www.reddit.com/r/Games/comments/test"/></entry></feed>` : "";
         if (params.has("applications") && command === "get_app_collections") return [{ id: "tools", name: "Tools" }];
         if (params.has("applications") && command === "get_app_memberships") return { "app:terminal": ["tools"] };
@@ -96,7 +97,7 @@ test.beforeEach(async ({ page }) => {
           const bottombarMode = new URLSearchParams(window.location.search).get("barMode") || "smart";
           return { ...(responses.get_settings as Record<string, unknown>), bottombar_mode: bottombarMode,
             onboarding_complete: params.get("fresh") !== "true", theme: params.get("theme") || (params.has("crete") ? "crete" : "space"),
-            accent: "crete", surface_style: params.get("surface") || "glass", ui_motion: false, ui_scale: 1, language: "en" };
+            accent: "crete", surface_style: params.get("surface") || "glass", ui_motion: false, ui_scale: 1, language: "en", home_launch_games_directly: params.has("direct") };
         }
         if (command === "get_all_apps") {
           if (params.has("applications")) return [
@@ -105,9 +106,9 @@ test.beforeEach(async ({ page }) => {
           ];
           if (params.has("holdRefresh") && counts[command] > 1) await new Promise((resolve) => { (window as any).__releaseScan = resolve; });
           if (params.has("rich")) return Array.from({ length: 24 }, (_, i) => ({
-            id: `steam://rungameid/${620 + i}`, name: i === 0 ? "Portal 2" : i === 1 ? "Hollow Knight" : `Test Game ${String(i + 1).padStart(2, "0")}`,
-            app_type: "game", source: i === 23 ? "cloud" : "steam", steam_appid: 620 + i,
-            installed: i % 3 !== 2, last_played: params.has("played") ? 1725000000 - i * 86400 : undefined,
+            id: `steam://rungameid/${620 + i}`, name: i === 0 ? (params.has("gfnHero") ? "Control Ultimate Edition" : "Portal 2") : i === 1 ? "Hollow Knight" : i === 2 && params.has("gfn") ? "Control Ultimate Edition" : `Test Game ${String(i + 1).padStart(2, "0")}`,
+            app_type: "game", source: i === 23 ? "cloud" : "steam", steam_appid: (i === 2 && params.has("gfn")) || (i === 0 && params.has("gfnHero")) ? 870780 : 620 + i,
+            installed: i === 0 && params.has("gfnHero") ? false : i === 2 && params.has("gfnLocal") ? true : i % 3 !== 2, last_played: params.has("played") ? 1725000000 - i * 86400 : undefined,
             playtime_minutes: i === 0 ? 93 : undefined,
           }));
           return params.has("catalog") ? [{ id: "steam://rungameid/620", name: "Portal 2", app_type: "game", installed: true }] : [];
@@ -603,3 +604,62 @@ for (const mode of ["full", "hidden"] as const) {
     await page.evaluate(() => (window as any).__setGamepadButton(9, false));
   });
 }
+
+for (const input of ["keyboard", "controller"]) {
+  test(`Home keeps the complete hero visible after returning from news with ${input}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await page.route("https://fixture.test/**", route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="100%" height="100%" fill="#345"/></svg>' }));
+    await page.goto("/?crete&rich&played&news");
+    await expect(page.locator(".crete-hero h1")).toHaveText("Portal 2");
+    await frames(page, 25);
+    const move = async (down: boolean) => input === "controller" ? pad(page, down ? 13 : 12) : page.keyboard.press(down ? "ArrowDown" : "ArrowUp");
+    await move(true); await move(true);
+    await expect(page.locator('.crete-news-card[data-selected="true"]')).toBeVisible();
+    await move(false); await move(false);
+    await expect(page.locator('.crete-hero[data-focused="true"]')).toBeVisible();
+    await expect.poll(async () => {
+      const bounds = await page.locator(".crete-hero").boundingBox();
+      return !!bounds && bounds.y >= 55 && bounds.y + bounds.height <= 544;
+    }).toBe(true);
+  });
+}
+
+test("Uninstalled mapped games offer green GFN Play plus native install and streaming alternatives", async ({ page }) => {
+  await richCrete(page);
+  await page.goto("/?crete&rich&gfn");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const details = page.locator('[data-crete-details="true"]');
+  await expect(details.getByRole("button", { name: "Play via GeForce NOW", exact: true })).toBeVisible();
+  await expect(details.locator("[data-launch-btn]")).toHaveAttribute("data-cloud", "true");
+  await details.getByRole("button", { name: "Play via GeForce NOW", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"])).toBe(1);
+  expect(await page.evaluate(() => (window as any).__invokeCounts.launch_app ?? 0)).toBe(0);
+  await details.getByRole("button", { name: "Manage game", exact: true }).click();
+  await expect(details.getByRole("button", { name: "Install locally", exact: true })).toBeVisible();
+  await expect(details.getByRole("button", { name: /Open Moonlight library/ })).toBeVisible();
+  await details.getByRole("button", { name: /Open Moonlight library/ }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_streaming_client)).toBe(1);
+});
+
+test("Installed mapped games keep local Play as the default", async ({ page }) => {
+  await page.goto("/?crete&rich&gfn&gfnLocal");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const primary = page.locator('[data-crete-details="true"] [data-launch-btn]');
+  await expect(primary).toHaveText("Play");
+  await expect(primary).toHaveAttribute("data-cloud", "false");
+  await primary.click();
+  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
+  expect(await page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"] ?? 0)).toBe(0);
+});
+
+test("Home direct Play uses the mapped cloud page for an uninstalled hero", async ({ page }) => {
+  await page.goto("/?crete&rich&played&gfnHero&direct");
+  const primary = page.locator(".crete-hero .crete-play");
+  await expect(primary).toHaveText("Play via GeForce NOW");
+  await expect(primary).toHaveAttribute("data-cloud", "true");
+  await primary.click();
+  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"])).toBe(1);
+  expect(await page.evaluate(() => (window as any).__invokeCounts.launch_app ?? 0)).toBe(0);
+});

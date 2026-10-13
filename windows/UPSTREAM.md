@@ -27,6 +27,8 @@ Review these deliberate integration points during updates:
 - `src/components/GameDetailsModal.tsx`: named presentation slots, Crete metadata panel, management dropdown and Crete-only keyboard access. Install, uninstall, account and management actions remain the inherited handlers.
 - `src/constants.ts`, `src/utils/palettes.ts`, `src/main.jsx`, `src-tauri/src/lib.rs`: theme defaults, styles, identity/data/release namespaces. New installs include owned/uninstalled games; existing saved preferences remain authoritative.
 - `src-tauri/src/crete_news.rs` and its command registration: a bounded public RSS request for the Android-style news rail. This adds no dependency and does not alter discovery or launching.
+- `src/crete/streaming.ts`, `gfnLinks.json`, `useStreaming.ts` and `src-tauri/src/streaming.rs`: exact Android-curated GFN game-page links and detected Windows streaming clients. Local Play remains preferred for installed games; generic Moonlight/GFN library actions do not establish per-game streaming availability. The GFN table's Android verification is not a Windows session test.
+- `src-tauri/src/steam_artwork.rs`: Steam store-response artwork fallback for newer assets with hashed paths. Existing portrait/library art stays preferred; the fallback uses the actual store header/background rather than fabricated imagery.
 - `src/types.ts`, UI picker/glyph imports, `src/theme/surfaces.ts` / `tabStyle.ts`, and palette/locales: Crete theme support, product wording and production TypeScript/case-sensitive import fixes. Several inherited files change only branding or comments.
 - `src-tauri/tauri.conf.json`, package/crate files, icons, update links and workflow: CreteOS product/release identity and packaging.
 

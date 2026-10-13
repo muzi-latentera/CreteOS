@@ -18,6 +18,12 @@ Follow [Windows and GPD setup](docs/WINDOWS_SETUP.md). Installing CreteOS alone 
 
 Previews from the running frontend with mocked native commands and clearly labeled test artwork. Layout references are the active Android source and the user-supplied screenshots in `../reference/android-ui/`. [Validation record](docs/VALIDATION.md).
 
+## Play using streaming services
+
+For titles with an exact link in the Android-curated GeForce NOW table, an uninstalled game shows a green **Play via GeForce NOW** action. It opens that game's NVIDIA page in the default browser; NVIDIA determines store ownership, subscription and current availability. Installed copies keep native local Play as the default. The details menu retains **Install locally** and the cloud alternative.
+
+Detected Windows GeForce NOW and Moonlight clients can be opened from the details menu. **Open Moonlight library** opens the client so you can choose a paired PC and game; it does not assume a Sunshine host or per-game shortcut. Neither streaming client is bundled. The cloud link table's Android test history does not establish Windows session/input/focus behavior.
+
 ## Develop and build
 
 Use Windows, Node 24, Rust stable, the MSVC C++ build tools, Windows SDK and WebView2. Run from this directory:

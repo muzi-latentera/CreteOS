@@ -1875,9 +1875,10 @@ export default function App() {
   useEffect(() => {
     if (!detailsApp || detailsApp.app_type !== "game") return;
     const hasCoverArt = Boolean(gameArt[detailsApp.id]);
+    const hasHeroArt = Boolean(heroStatic[detailsApp.id] || heroAnimated[detailsApp.id]);
     const artChecked = [gameArt, heroStatic, heroAnimated]
       .every((artMap) => Object.prototype.hasOwnProperty.call(artMap, detailsApp.id));
-    if (artChecked && hasCoverArt) return;
+    if (artChecked && hasCoverArt && hasHeroArt) return;
     const forceRefresh = artChecked && detailsArtForceAttemptRef.current !== detailsApp.id;
     if (artChecked && !forceRefresh) return;
     if (forceRefresh) detailsArtForceAttemptRef.current = detailsApp.id;

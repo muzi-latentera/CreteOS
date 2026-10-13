@@ -52,6 +52,8 @@ mod lofi_media;
 mod steam_appinfo;
 mod storage_info;
 mod store_metadata;
+mod steam_artwork;
+mod streaming;
 mod crete_news;
 
 const SGDB_KEY: &str = env!("SGDB_API_KEY");
@@ -5857,8 +5859,8 @@ fn fetch_game_art(
             cached
         }
     };
-    let grid_cached = refresh_empty(grid_cached_raw);
-    let hero_static_cached = refresh_empty(hero_static_cached_raw);
+    let mut grid_cached = refresh_empty(grid_cached_raw);
+    let mut hero_static_cached = refresh_empty(hero_static_cached_raw);
     let hero_animated_cached = refresh_empty(hero_animated_cached_raw);
 
     let client = match reqwest::blocking::Client::builder()
@@ -5902,7 +5904,7 @@ fn fetch_game_art(
                 None
             };
 
-            let grid = if let Some(cached) = grid_cached.clone() {
+            let mut grid = if let Some(cached) = grid_cached.clone() {
                 cached
             } else {
                 let path = try_download("library_600x900.jpg", &grid_art_dir()).unwrap_or_default();
@@ -5910,7 +5912,7 @@ fn fetch_game_art(
                 save_art_cache(&grid_cache);
                 path
             };
-            let hero_static = if let Some(cached) = hero_static_cached.clone() {
+            let mut hero_static = if let Some(cached) = hero_static_cached.clone() {
                 cached
             } else {
                 let path =
@@ -5920,7 +5922,29 @@ fn fetch_game_art(
                 path
             };
 
-            if !grid.is_empty() && !hero_static.is_empty() {
+            // New store assets can have per-image hash directories, so the
+            // legacy library URLs are not enough. Use the actual store response
+            // as a fallback (header for a missing cover, background for a hero).
+            if grid.is_empty() || hero_static.is_empty() {
+                let (header, background) = steam_artwork::fetch_store_images(&client, appid);
+                if grid.is_empty() {
+                    if let Some(url) = header {
+                        grid = download_file(&client, &url, &grid_art_dir(), &game_name).unwrap_or_default();
+                        grid_cache.insert(game_name.clone(), grid.clone());
+                        save_art_cache(&grid_cache);
+                    }
+                }
+                if hero_static.is_empty() {
+                    if let Some(url) = background {
+                        hero_static = download_file(&client, &url, &hero_static_art_dir(), &game_name).unwrap_or_default();
+                        hero_static_cache.insert(game_name.clone(), hero_static.clone());
+                        save_hero_cache(&hero_static_cache);
+                    }
+                }
+            }
+            if !grid.is_empty() { grid_cached = Some(grid.clone()); }
+            if !hero_static.is_empty() { hero_static_cached = Some(hero_static.clone()); }
+            if (!grid.is_empty() && !hero_static.is_empty()) || SGDB_KEY.is_empty() {
                 if hero_animated_cached.is_none() {
                     hero_animated_cache.insert(game_name.clone(), String::new());
                     save_hero_animated_cache(&hero_animated_cache);
@@ -5975,9 +5999,9 @@ fn fetch_game_art(
             save_hero_cache(&hero_static_cache);
         }
         return GameArtBundle {
-            grid: None,
-            hero_animated: None,
-            hero_static: None,
+            grid: grid_cached.filter(|path| !path.is_empty()),
+            hero_animated: hero_animated_cached.filter(|path| !path.is_empty()),
+            hero_static: hero_static_cached.filter(|path| !path.is_empty()),
         };
     };
 
@@ -9925,6 +9949,8 @@ pub fn run() {
             close_launched,
             force_close_launched,
             fetch_game_art,
+            streaming::get_streaming_clients,
+            streaming::launch_streaming_client,
             get_cached_art_bulk,
             get_recents,
             get_recent_games,
