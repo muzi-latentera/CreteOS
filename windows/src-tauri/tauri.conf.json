@@ -1,0 +1,66 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CreteOS",
+  "version": "0.1.0",
+  "identifier": "io.latent.creteos.windows",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "fullscreen": true,
+        "alwaysOnTop": false,
+        "decorations": false,
+        "visible": false,
+        "focus": true,
+        "title": "CreteOS",
+        "width": 800,
+        "height": 600,
+        "backgroundColor": "#08090B",
+        "additionalBrowserArgs": "--disable-gpu-memory-buffer-video-frames --enable-zero-copy --num-raster-threads=2 --autoplay-policy=no-user-gesture-required"
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "C:\\Users\\*\\AppData\\Local\\CreteOS\\art\\**",
+          "C:\\Users\\*\\AppData\\Local\\CreteOS\\media\\**"
+        ]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "windows": {
+      "wix": {
+        "language": "en-US"
+      },
+      "nsis": {
+        "languages": [
+          "English"
+        ]
+      }
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../src/assets/themes/lofi": "lofi",
+      "../LICENSE": "LICENSE",
+      "../UPSTREAM.md": "UPSTREAM.md"
+    }
+  }
+}

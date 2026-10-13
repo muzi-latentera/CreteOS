@@ -1,0 +1,191 @@
+import { useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import i18n from "../i18n";
+import type { Settings } from "../types";
+import { migrateBottomBarSettings, resolveNavBumpersPos } from "../utils/smartBar";
+import {
+  DEFAULT_SETTINGS,
+  SCAN_KEYS,
+  THEME_SURFACE_DEFAULTS,
+  normalizeThemeKey,
+} from "../constants";
+
+interface ScreenResolution {
+  width: number;
+  height: number;
+}
+
+interface UseAppSettingsOptions {
+  onScanKeyChange: () => void;
+  autoScaleRef: React.MutableRefObject<number>;
+  onDefaultTabLoaded?: (tab: string) => void;
+}
+
+type SettingsAction = React.SetStateAction<Settings>;
+
+function mergeSettingsUpdates(current: Settings, updates: Partial<Settings>): Settings {
+  const updated = { ...current, ...updates };
+  if (Object.prototype.hasOwnProperty.call(updates, "theme")) {
+    const nextTheme = normalizeThemeKey(updates.theme);
+    updated.theme = nextTheme;
+    if (!Object.prototype.hasOwnProperty.call(updates, "surface_style")) {
+      updated.surface_style = THEME_SURFACE_DEFAULTS[nextTheme] || updated.surface_style;
+    }
+  }
+  return updated;
+}
+
+export function useAppSettings({
+  onScanKeyChange,
+  autoScaleRef,
+  onDefaultTabLoaded,
+}: UseAppSettingsOptions) {
+  const [settingsState, setSettingsState] = useState<Settings>({ ...DEFAULT_SETTINGS });
+  const [defaultTab, setDefaultTab] = useState<string | null>(null);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const settingsRef = useRef<Settings>({ ...DEFAULT_SETTINGS });
+  const settingsSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+
+  const setSettings = (action: SettingsAction) => {
+    const next = typeof action === "function"
+      ? (action as (prev: Settings) => Settings)(settingsRef.current)
+      : action;
+    settingsRef.current = next;
+    setSettingsState(next);
+  };
+
+  const queueSettingsSave = (next: Settings): Promise<void> => {
+    const save = settingsSaveQueueRef.current.then(
+      () => invoke("save_settings", { settings: next }),
+    ).then(() => undefined);
+    settingsSaveQueueRef.current = save.catch(console.error);
+    return settingsSaveQueueRef.current;
+  };
+
+  useEffect(() => {
+    const applyDefaultTab = (tab?: string) => {
+      const loadedDefaultTab = tab || "Home";
+      setDefaultTab(loadedDefaultTab);
+      onDefaultTabLoaded?.(loadedDefaultTab);
+    };
+
+    Promise.all([invoke<ScreenResolution>("get_screen_resolution"), invoke<Partial<Settings>>("get_settings")]).then(([res, s]) => {
+      const auto = Math.min(2.0, Math.max(0.75, Math.min(res.width / 1920, res.height / 1080)));
+      autoScaleRef.current = auto;
+      // ui_scale is null when never saved; substitute the auto-detected value.
+      const updated = { ...settingsRef.current, ...s, ui_scale: s.ui_scale ?? auto };
+      let needsSave = false;
+      // 2.0 moves Full and Minimal users to Smart exactly once; Hidden stays.
+      // Legacy hide_bottom_bar and empty modes resolve to Smart as well.
+      const barMigration = migrateBottomBarSettings(updated);
+      if (barMigration.changed) {
+        updated.bottombar_mode = barMigration.bottombar_mode;
+        updated.bottombar_smart_migrated = true;
+        needsSave = true;
+      }
+      if (updated.surface_style === "pixel") updated.surface_style = "win9x";
+      // Migrate: if wide_layout was true but sub-settings were never saved, enable content/bottom areas.
+      if (updated.wide_layout && !updated.wide_topbar && !updated.wide_games && !updated.wide_apps && !updated.wide_settings && !updated.wide_bottombar) {
+        updated.wide_games = true;
+        updated.wide_apps = true;
+        updated.wide_settings = true;
+        updated.wide_bottombar = true;
+      }
+      const migratedHomePinnedPosition = updated.home_mode === "semi" && updated.home_pinned_pos === "bottom";
+      if (migratedHomePinnedPosition) updated.home_pinned_pos = "top";
+      const resolvedBumpers = resolveNavBumpersPos(updated.nav_bumpers_pos, updated.bottombar_mode);
+      if (resolvedBumpers !== updated.nav_bumpers_pos) {
+        updated.nav_bumpers_pos = resolvedBumpers;
+        needsSave = true;
+      }
+      setSettings(updated);
+      setSettingsLoaded(true);
+      if (s.surface_style === "pixel" || migratedHomePinnedPosition || needsSave) void queueSettingsSave(updated);
+      applyDefaultTab(s.default_tab);
+      if (s.language && s.language !== "auto") i18n.changeLanguage(s.language);
+    }).catch(() => {
+      invoke<Partial<Settings>>("get_settings").then(s => {
+        const merged = { ...settingsRef.current, ...s };
+        let needsSave = false;
+        const barMigration = migrateBottomBarSettings(merged);
+        if (barMigration.changed) {
+          merged.bottombar_mode = barMigration.bottombar_mode;
+          merged.bottombar_smart_migrated = true;
+          needsSave = true;
+        }
+        if (merged.surface_style === "pixel") merged.surface_style = "win9x";
+        const migratedHomePinnedPosition = merged.home_mode === "semi" && merged.home_pinned_pos === "bottom";
+        if (migratedHomePinnedPosition) merged.home_pinned_pos = "top";
+        const resolvedBumpers = resolveNavBumpersPos(merged.nav_bumpers_pos, merged.bottombar_mode);
+        if (resolvedBumpers !== merged.nav_bumpers_pos) {
+          merged.nav_bumpers_pos = resolvedBumpers;
+          needsSave = true;
+        }
+        setSettings(merged);
+        setSettingsLoaded(true);
+        if (s.surface_style === "pixel" || migratedHomePinnedPosition || needsSave) void queueSettingsSave(merged);
+        applyDefaultTab(s.default_tab);
+        if (s.language && s.language !== "auto") i18n.changeLanguage(s.language);
+      });
+    });
+  }, []);
+
+  const updateSetting = (key: keyof Settings, value: Settings[keyof Settings]) => {
+    setSettings(prev => {
+      const updated = { ...prev, [key]: value };
+      if (key === "wide_layout") {
+        updated.wide_games = value as boolean;
+        updated.wide_apps = value as boolean;
+        updated.wide_settings = value as boolean;
+        updated.wide_bottombar = value as boolean;
+      }
+      if (key === "home_mode") {
+        updated.cinematic_home = (value as string) === "immersive";
+        if (value === "semi" && updated.home_pinned_pos === "bottom") updated.home_pinned_pos = "top";
+      }
+      if (key === "home_pinned_pos" && updated.home_mode === "semi" && value === "bottom") {
+        updated.home_pinned_pos = "top";
+      }
+      if (key === "bottombar_mode" || key === "nav_bumpers_pos") {
+        updated.nav_bumpers_pos = resolveNavBumpersPos(updated.nav_bumpers_pos, updated.bottombar_mode);
+      }
+      if (key === "theme") {
+        const nextTheme = normalizeThemeKey(value as string);
+        updated.theme = nextTheme;
+        updated.surface_style = THEME_SURFACE_DEFAULTS[nextTheme] || updated.surface_style;
+      }
+      return updated;
+    });
+    void queueSettingsSave(settingsRef.current);
+    if (SCAN_KEYS.includes(key as (typeof SCAN_KEYS)[number])) setTimeout(onScanKeyChange, 50);
+    if (key === "language") {
+      if (value === "auto") {
+        const detected = navigator.language?.split("-")[0] || "en";
+        i18n.changeLanguage(detected);
+      } else {
+        i18n.changeLanguage(value as string);
+      }
+    }
+  };
+
+  /** Apply settings to live React state without writing to disk. */
+  const previewSettings = (updates: Partial<Settings>) => {
+    setSettings(mergeSettingsUpdates(settingsRef.current, updates));
+  };
+
+  const updateSettingsBatch = (updates: Partial<Settings>): Promise<void> => {
+    const updated = mergeSettingsUpdates(settingsRef.current, updates);
+    setSettings(updated);
+    return queueSettingsSave(updated);
+  };
+
+  return {
+    settings: settingsState,
+    settingsRef,
+    updateSetting,
+    updateSettingsBatch,
+    previewSettings,
+    settingsLoaded,
+    defaultTab,
+  };
+}

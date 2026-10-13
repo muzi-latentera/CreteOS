@@ -1,0 +1,218 @@
+import { CreteMark } from "../CreteMark";
+import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { useTranslation } from "react-i18next";
+import { preloadOnboardingPreviews } from "../onboarding/previews";
+import { resolveSplashStatusKey, SPLASH_STATUS_KEYS } from "./splashStatus";
+
+const startingSound = new URL("../../assets/appLaunchSound.wav", import.meta.url).href;
+
+interface SplashScreenProps {
+  exiting: boolean;
+}
+
+const ss: Record<string, CSSProperties> = {
+  outer:    { position: "fixed", inset: 0, background: "#08090B", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 },
+  glow:     { position: "fixed", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(233,169,60,0.12) 0%, transparent 70%)", pointerEvents: "none" },
+  stars:    { position: "fixed", inset: 0, pointerEvents: "none", zIndex: 1 },
+  inner:    { display: "flex", flexDirection: "column", alignItems: "center", gap: 24, position: "relative", zIndex: 2 },
+  trail:    { position: "absolute", bottom: -22, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 },
+  tl1:      { width: 4, height: 14, borderRadius: 2, background: "linear-gradient(to bottom, rgba(255,200,80,0.8), transparent)" },
+  tl2:      { width: 3, height: 10, borderRadius: 2, background: "linear-gradient(to bottom, rgba(255,140,50,0.5), transparent)", marginLeft: 5 },
+  tl3:      { width: 3, height: 8,  borderRadius: 2, background: "linear-gradient(to bottom, rgba(255,140,50,0.5), transparent)", marginLeft: -5 },
+  wordmark: { fontWeight: 700, fontSize: 36, letterSpacing: "0.04em", background: "linear-gradient(135deg, #F2EADB, #E9A93C)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", fontFamily: "'Segoe UI', sans-serif" },
+  status:   { minHeight: 18, marginTop: 2, fontSize: 13, fontWeight: 500, letterSpacing: "0.01em", color: "rgba(245,237,232,0.62)", fontFamily: "'Segoe UI', sans-serif", textAlign: "center", maxWidth: 320, lineHeight: "18px" },
+};
+
+export function SplashScreen({ exiting }: SplashScreenProps) {
+  const audioRefStart = useRef(new Audio(startingSound));
+  const { t } = useTranslation();
+  const [statusIdx, setStatusIdx] = useState(0);
+  const [longWait, setLongWait] = useState(false);
+  const [scanPhase, setScanPhase] = useState<string | null>(null);
+  const [phaseStale, setPhaseStale] = useState(false);
+
+  const STATUS_KEYS = SPLASH_STATUS_KEYS;
+
+  // English fallbacks so the splash reads correctly even before locale files load.
+  const STATUS_FALLBACKS: Record<string, string> = {
+    "splash.status.starting": "Starting up\u2026",
+    "splash.status.scanning": "Scanning your library\u2026",
+    "splash.status.findingGames": "Finding installed games\u2026",
+    "splash.status.loadingArt": "Loading artwork\u2026",
+    "splash.status.almostReady": "Almost ready\u2026",
+    "splash.status.stillWorking": "Still working \u2014 large libraries can take a moment\u2026",
+    "splash.status.scanDesktop": "Reading Start Menu and Desktop shortcuts\u2026",
+    "splash.status.scanSteam": "Checking your Steam library\u2026",
+    "splash.status.scanXbox": "Checking Game Pass\u2026",
+    "splash.status.scanOther": "Checking other launchers\u2026",
+  };
+
+  // Advance the phrase every 2.2s. Stop advancing once we enter the long-wait state
+  // and once the splash starts exiting.
+  useEffect(() => {
+    if (exiting || longWait) return;
+    const id = window.setInterval(() => {
+      setStatusIdx((i) => Math.min(i + 1, STATUS_KEYS.length - 1));
+    }, 2200);
+    return () => window.clearInterval(id);
+  // STATUS_KEYS is a stable literal; intentionally not in deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exiting, longWait]);
+
+  // If the last regular phrase sits for a while, switch to the honest long-wait message.
+  useEffect(() => {
+    if (exiting || longWait || statusIdx < STATUS_KEYS.length - 1) return;
+    const id = window.setTimeout(() => setLongWait(true), 8000);
+    return () => window.clearTimeout(id);
+  // STATUS_KEYS is a stable literal; intentionally not in deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exiting, longWait, statusIdx]);
+
+  useEffect(() => {
+    const unlisten = listen<string>("library-scan-phase", (event) => {
+      setScanPhase(event.payload);
+      setPhaseStale(false);
+    });
+    return () => {
+      unlisten.then((fn) => fn()).catch(() => {});
+    };
+  }, []);
+
+  useEffect(() => {
+    if (exiting || !scanPhase) {
+      setPhaseStale(false);
+      return;
+    }
+    const id = window.setTimeout(() => setPhaseStale(true), 8000);
+    return () => window.clearTimeout(id);
+  }, [scanPhase, exiting]);
+
+  const statusKey = resolveSplashStatusKey(scanPhase, phaseStale, longWait, statusIdx);
+  const statusText = t(statusKey, STATUS_FALLBACKS[statusKey]);
+
+  useEffect(() => {
+    preloadOnboardingPreviews();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const audio = audioRefStart.current;
+    const playStart = () => {
+      if (cancelled) return;
+      audio.currentTime = 0;
+      void audio.play().catch(() => {});
+    };
+    invoke("show_main_window")
+      .catch(() => {})
+      .finally(() => {
+        if (cancelled) return;
+        if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) playStart();
+        else audio.addEventListener("canplaythrough", playStart, { once: true });
+      });
+    return () => {
+      cancelled = true;
+      audio.removeEventListener("canplaythrough", playStart);
+    };
+  }, []);
+
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.id = "splash-styles";
+    style.textContent = `
+      @keyframes splashRocket {
+        0%   { opacity: 0; transform: translateY(40px) scale(0.8); }
+        20%  { opacity: 1; transform: translateY(0px) scale(1); }
+        70%  { opacity: 1; transform: translateY(0px) scale(1); }
+        85%  { opacity: 1; transform: translateY(-8px) scale(1.05); }
+        100% { opacity: 1; transform: translateY(0px) scale(1); }
+      }
+      @keyframes splashRocketExit {
+        0%   { opacity: 1; transform: translateY(0px) scale(1); }
+        100% { opacity: 0; transform: translateY(-140px) scale(0.6); }
+      }
+      @keyframes splashFlicker {
+        0%   { transform: scaleY(1) scaleX(1); opacity: 0.95; }
+        100% { transform: scaleY(1.06) scaleX(0.97); opacity: 0.85; }
+      }
+      @keyframes splashFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes splashFadeOut { 0% { opacity: 1; } 100% { opacity: 0; } }
+      @keyframes splashDot {
+        0%, 100% { background: rgba(232,113,74,0.3); transform: scale(1); }
+        50%      { background: #e8714a; transform: scale(1.3); }
+      }
+      @keyframes splashGlow    { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.15); opacity: 1; } }
+      @keyframes splashTrail   { 0% { opacity: 0.9; transform: scaleY(1); } 100% { opacity: 0.3; transform: scaleY(0.6); } }
+      @keyframes splashStatusIn { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes starFall {
+        0%   { transform: translateY(-10px); opacity: 0; }
+        5%   { opacity: 1; } 95% { opacity: 1; }
+        100% { transform: translateY(110vh); opacity: 0; }
+      }
+      @keyframes cursorBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+      .splash-rocket  { animation: splashRocket 2.5s cubic-bezier(0.4,0,0.2,1) forwards; animation-delay: 0.5s; opacity: 0; position: relative; }
+      .splash-flame   { animation: splashFlicker 0.25s ease-in-out infinite alternate; transform-origin: top center; }
+      .splash-word    { animation: splashFadeUp 0.6s ease forwards; animation-delay: 0.9s; opacity: 0; }
+      .splash-dots    { animation: splashFadeUp 0.4s ease forwards; animation-delay: 1.5s; opacity: 0; display: flex; gap: 6px; }
+      .splash-dot     { width: 5px; height: 5px; border-radius: 50%; animation: splashDot 1.2s ease-in-out infinite; background: rgba(232,113,74,0.3); }
+      .splash-dot:nth-child(2) { animation-delay: 0.2s; }
+      .splash-dot:nth-child(3) { animation-delay: 0.4s; }
+      .splash-status { animation: splashFadeUp 0.4s ease forwards; animation-delay: 1.7s; opacity: 0; }
+      .splash-status-text { animation: splashStatusIn 0.35s ease; }
+      .splash-glow    { animation: splashGlow 2s ease-in-out infinite; }
+      .splash-trail1  { animation: splashTrail 0.4s ease-in-out infinite alternate; }
+      .splash-trail2  { animation: splashTrail 0.4s ease-in-out infinite alternate; animation-delay: 0.08s; }
+      .splash-trail3  { animation: splashTrail 0.4s ease-in-out infinite alternate; animation-delay: 0.13s; }
+      .splash-star    { animation: starFall linear infinite; position: absolute; border-radius: 50%; background: rgba(245,237,232,0.6); }
+      .splash-exiting .splash-rocket { animation: splashRocketExit 0.6s cubic-bezier(0.4,0,0.2,1) forwards !important; }
+      .splash-exiting .splash-word, .splash-exiting .splash-dots, .splash-exiting .splash-status { animation: splashFadeOut 0.35s ease forwards !important; }
+      .splash-exiting { animation: splashFadeOut 0.8s ease forwards; }
+      .kb-cursor      { animation: cursorBlink 1s ease-in-out infinite; }
+      @keyframes pinPop { 0% { transform: scale(0.5); opacity: 0; } 60% { transform: scale(1.3); } 100% { transform: scale(1); opacity: 1; } }
+      .pin-pop { animation: pinPop 0.25s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+    `;
+    document.head.appendChild(style);
+    const container = document.getElementById("splash-stars");
+    if (container) {
+      for (let i = 0; i < 80; i++) {
+        const star = document.createElement("div");
+        star.className = "splash-star";
+        star.style.left = Math.random() * 100 + "%";
+        star.style.top  = Math.random() * 100 + "%";
+        const size = (Math.random() * 2.5 + 0.5) + "px";
+        star.style.width = star.style.height = size;
+        star.style.animationDuration = (Math.random() * 3 + 2) + "s";
+        star.style.animationDelay    = -(Math.random() * 5) + "s";
+        star.style.opacity = (Math.random() * 0.5 + 0.3).toString();
+        container.appendChild(star);
+      }
+    }
+    return () => { document.getElementById("splash-styles")?.remove(); };
+  }, []);
+
+  useEffect(() => {
+    if (exiting) { audioRefStart.current.pause(); audioRefStart.current.currentTime = 0; }
+  }, [exiting]);
+
+  return (
+    <div style={ss.outer} className={exiting ? "splash-exiting" : ""}>
+      <div className="splash-glow" style={ss.glow} />
+      <div style={ss.stars} id="splash-stars" />
+      <div style={ss.inner}>
+        <div className="splash-rocket" style={{ opacity: 0 }}>
+          <CreteMark size={80} />
+
+        </div>
+        <div className="splash-word" style={{ ...ss.wordmark, opacity: 0 }}>CreteOS</div>
+        <div className="splash-dots" style={{ opacity: 0 }}>
+          <div className="splash-dot" /><div className="splash-dot" /><div className="splash-dot" />
+        </div>
+        <div className="splash-status" style={{ ...ss.status, opacity: 0 }}>
+          <span key={statusKey} className="splash-status-text">{statusText}</span>
+        </div>
+      </div>
+    </div>
+  );
+}

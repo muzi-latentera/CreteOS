@@ -1,0 +1,12 @@
+/* CreteOS palette shared with the Android CreteDS tokens. */
+[data-theme="crete"] [data-top-bar] { border-radius: 10px !important; }
+[data-theme="crete"] [data-launch-btn] {
+  background: #C9482A !important;
+  color: #F2EADB !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(242,234,219,0.14) !important;
+}
+[data-theme="crete"] button:focus-visible {
+  outline: 2px solid #E9A93C;
+  outline-offset: 3px;
+}

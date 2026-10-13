@@ -1,0 +1,53 @@
+# Secrets
+src-tauri/.env
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+playwright-report/
+test-results/
+dist
+dist-ssr
+*.local
+
+# Native FSE bridge build output can remain after switching branches
+/liftoff-fse-bridge/target/
+
+# Local AI agent instructions and session files
+/CLAUDE.md
+/AGENTS.md
+/.agents/
+/.claude/
+/.gemini/
+
+# Release notes live on GitHub Releases; debug captures and proposals stay local
+/RELEASE-NOTES-*.md
+/debug-*.html
+/liftoff-appjsx-hooks-extraction-proposal.md
+/liftoff-appjsx-refactor-architecture.md
+
+# Editor directories and files
+.cursor/
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Tauri build products
+src-tauri/target/
+src-tauri/gen/
+
+# Device-specific executable paths
+AnyFSE*.json

@@ -1,0 +1,259 @@
+import { useTranslation } from "react-i18next";
+import { useTheme } from "../../contexts/ThemeContext";
+import type { SpotifyController } from "../../hooks/useSpotify";
+import type { SpotifyWebPlayerState } from "../../hooks/useSpotifyWebPlayer";
+
+interface SpotifyMiniBarProps {
+  spotify: SpotifyController;
+  webPlayer?: SpotifyWebPlayerState;
+  variant?: SpotifyMiniBarVariant;
+  onOpenPanel: () => void;
+}
+
+type SpotifyMiniBarVariant = "bar" | "puck" | "heroChip" | "pill";
+
+const formatTime = (ms: number) => {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = String(total % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+};
+
+// The mini-bar is display-only: gamepad navigation cannot reach inline
+// transport buttons here, so the whole bar is a single click target that
+// opens the Spotify overlay where playlist browsing lives. Controller hints
+// live on the helper bar rather than on the Spotify surface.
+export function SpotifyMiniBar({ spotify, webPlayer, variant = "bar", onOpenPanel }: SpotifyMiniBarProps) {
+  const { t } = useTranslation();
+  const { accent, theme, isDark, surfaceStyle, surface, resolvedTheme } = useTheme();
+  const track = webPlayer?.track ?? spotify.track;
+  if (!spotify.status.connected || !track) return null;
+
+  const pct = track.durationMs > 0 ? Math.min(100, (track.progressMs / track.durationMs) * 100) : 0;
+  const isCyberpunk = resolvedTheme === "cyberpunk";
+  const squared = surfaceStyle === "win9x" || surfaceStyle === "cyberpunk" || isCyberpunk;
+  if (variant === "puck") {
+    const ringTrack = isDark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.14)";
+    const progressDeg = Math.max(0, Math.min(360, pct * 3.6));
+    const radius = squared ? 0 : 18;
+
+    return (
+      <button
+        type="button"
+        data-spotify-minibar=""
+        data-spotify-variant="puck"
+        onClick={onOpenPanel}
+        title={t("spotify.openOverlay")}
+        style={{
+          position: "relative",
+          width: 64,
+          height: 64,
+          padding: 3,
+          border: 0,
+          borderRadius: radius,
+          cursor: "pointer",
+          background: `conic-gradient(${accent.primary} ${progressDeg}deg, ${ringTrack} 0deg)`,
+          boxShadow: surfaceStyle === "material"
+            ? "var(--material-shadow-medium)"
+            : "0 8px 24px rgba(0,0,0,0.34)",
+          color: theme.text,
+          font: "inherit",
+          pointerEvents: "auto",
+          transition: "box-shadow 0.16s ease",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: 3,
+            borderRadius: squared ? 0 : 15,
+            overflow: "hidden",
+            background: isDark ? "rgba(0,0,0,0.72)" : "rgba(255,255,255,0.84)",
+            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.16)",
+          }}
+        >
+          {track.image ? (
+            <img
+              src={track.image}
+              alt=""
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                background: `${accent.glow}0.18)`,
+              }}
+            />
+          )}
+        </div>
+      </button>
+    );
+  }
+
+  if (variant === "pill") {
+    // Compact now-playing chip for the Smart bar: fixed width so the pill
+    // does not resize as track titles change.
+    return (
+      <button
+        type="button"
+        data-spotify-minibar=""
+        data-spotify-variant="pill"
+        onClick={onOpenPanel}
+        title={t("spotify.openOverlay")}
+        style={{
+          width: 206, display: "grid", gridTemplateColumns: "36px minmax(0, 1fr)", alignItems: "center", gap: 10,
+          padding: "0 6px 0 4px", border: 0, background: "transparent", textAlign: "left",
+          font: "inherit", color: "inherit", cursor: "pointer",
+        }}
+      >
+        {track.image
+          ? <img src={track.image} alt="" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: squared ? 0 : 8, display: "block" }} />
+          : <div style={{ width: 36, height: 36, borderRadius: squared ? 0 : 8, background: `${accent.glow}0.18)` }} />}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track.title}</div>
+          <div style={{ fontSize: 11, color: theme.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track.artist}</div>
+          <div style={{ marginTop: 5, height: 2, borderRadius: 999, background: isDark ? "rgba(255,255,255,0.13)" : "rgba(0,0,0,0.11)", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${pct}%`, background: accent.primary }} />
+          </div>
+        </div>
+      </button>
+    );
+  }
+
+  if (variant === "heroChip") {
+    const chipRadius = squared ? 0 : surfaceStyle === "material" ? 10 : 12;
+    const chipClip = isCyberpunk ? "polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%)" : undefined;
+
+    return (
+      <button
+        type="button"
+        data-spotify-minibar=""
+        data-spotify-variant="heroChip"
+        onClick={onOpenPanel}
+        title={t("spotify.openOverlay")}
+        style={{
+          width: "min(360px, 100%)",
+          minHeight: 46,
+          display: "grid",
+          gridTemplateColumns: "36px minmax(0, 1fr)",
+          alignItems: "center",
+          gap: 8,
+          padding: "6px 8px",
+          borderRadius: chipRadius,
+          clipPath: chipClip,
+          WebkitClipPath: chipClip,
+          border: `1px solid ${isCyberpunk
+              ? `${accent.glow}0.58)`
+            : surfaceStyle === "material"
+              ? "var(--material-border-subtle)"
+              : isDark
+                ? "rgba(255,255,255,0.12)"
+                : "rgba(255,255,255,0.48)"}`,
+          background: isCyberpunk
+            ? `linear-gradient(135deg, rgba(12,8,12,0.88), ${accent.glow}0.12))`
+            : surfaceStyle === "material"
+            ? "var(--material-elevation-2)"
+            : surfaceStyle === "win9x"
+              ? surface.panelBg
+              : surfaceStyle === "clear"
+                ? isDark
+                  ? "rgba(10,10,12,0.42)"
+                  : "rgba(255,255,255,0.38)"
+                : isDark
+                  ? "rgba(12,12,14,0.54)"
+                  : "rgba(255,255,255,0.52)",
+          backdropFilter: surfaceStyle === "material" || surfaceStyle === "win9x" ? undefined : isCyberpunk ? "blur(10px) saturate(150%)" : "blur(14px) saturate(140%)",
+          WebkitBackdropFilter: surfaceStyle === "material" || surfaceStyle === "win9x" ? undefined : isCyberpunk ? "blur(10px) saturate(150%)" : "blur(14px) saturate(140%)",
+          boxShadow: isCyberpunk
+              ? `inset 0 0 0 1px ${accent.glow}0.20), 0 8px 22px rgba(0,0,0,0.38), 0 0 16px ${accent.glow}0.12)`
+            : surfaceStyle === "material"
+              ? "var(--material-shadow-low)"
+              : surfaceStyle === "win9x"
+                ? surface.panelShadow
+                : "0 8px 22px rgba(0,0,0,0.28)",
+          textAlign: "left",
+          font: "inherit",
+          color: "inherit",
+          cursor: "pointer",
+          pointerEvents: "auto",
+          transition: "border-color 0.16s ease, box-shadow 0.16s ease",
+        }}
+      >
+        {track.image ? (
+          <img
+            src={track.image}
+            alt=""
+            style={{
+              width: 36,
+              height: 36,
+              objectFit: "cover",
+              borderRadius: squared ? 0 : 7,
+              display: "block",
+              clipPath: isCyberpunk ? "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)" : undefined,
+              WebkitClipPath: isCyberpunk ? "polygon(0 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%)" : undefined,
+            }}
+          />
+        ) : (
+          <div style={{ width: 36, height: 36, borderRadius: squared ? 0 : 7, background: `${accent.glow}0.18)` }} />
+        )}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: isCyberpunk ? "rgba(245,250,255,0.94)" : theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.15 }}>{track.title}</div>
+          <div style={{ fontSize: 10, color: theme.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.15, marginTop: 1 }}>{track.artist}</div>
+          <div style={{ marginTop: 5, height: 2, borderRadius: 999, background: isDark ? "rgba(255,255,255,0.13)" : "rgba(0,0,0,0.11)", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${pct}%`, background: accent.primary }} />
+          </div>
+        </div>
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      data-spotify-minibar=""
+      onClick={onOpenPanel}
+      title={t("spotify.openOverlay")}
+      style={{
+        // Fixed max width so the mini-bar reads as one consistent element instead
+        // of stretching to whatever space the bottom bar hints leave over.
+        width: "min(360px, 32vw)",
+        maxWidth: "100%",
+        flex: "0 0 auto",
+        display: "grid",
+        gridTemplateColumns: "46px minmax(0, 1fr)",
+        alignItems: "center",
+        gap: 10,
+        padding: "0 2px",
+        border: 0,
+        background: "transparent",
+        textAlign: "left",
+        font: "inherit",
+        color: "inherit",
+        cursor: "pointer",
+      }}
+    >
+      {track.image ? (
+        <img src={track.image} alt="" style={{ width: 46, height: 46, objectFit: "cover", borderRadius: squared ? 0 : 7, display: "block" }} />
+      ) : (
+        <div style={{ width: 46, height: 46, borderRadius: squared ? 0 : 7, background: `${accent.glow}0.18)` }} />
+      )}
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track.title}</div>
+        <div style={{ fontSize: 11, color: theme.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track.artist}</div>
+        <div style={{ marginTop: 5, display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: 8 }}>
+          <div style={{ height: 3, borderRadius: 999, background: isDark ? "rgba(255,255,255,0.13)" : "rgba(0,0,0,0.11)", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${pct}%`, background: accent.primary }} />
+          </div>
+          <span style={{ fontSize: 10, color: theme.textFaint }}>{formatTime(track.progressMs)}</span>
+        </div>
+      </div>
+    </button>
+  );
+}
