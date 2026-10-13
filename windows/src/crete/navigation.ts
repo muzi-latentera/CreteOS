@@ -7,7 +7,8 @@ export type NavigationRef = RefObject<Navigation | null>;
 export function useViewNavigation(active: boolean, slot: NavigationRef, handler: Navigation) {
   useLayoutEffect(() => {
     if (!active) return;
-    slot.current = handler;
-    return () => { if (slot.current === handler) slot.current = null; };
+    const guarded: Navigation = key => document.querySelector("[data-stream-launch-cover]") ? true : handler(key);
+    slot.current = guarded;
+    return () => { if (slot.current === guarded) slot.current = null; };
   }, [active, slot, handler]);
 }

@@ -46,6 +46,7 @@ import { AppMainContent } from "./components/app/AppMainContent";
 import { AppOverlays } from "./components/app/AppOverlays";
 import { SplashScreen } from "./components/launch/SplashScreen";
 import { LaunchOverlay } from "./components/launch/LaunchOverlay";
+import { StreamLaunchCover } from "./components/launch/StreamLaunchCover";
 import { SteamGridArtPickerModal } from "./components/art/SteamGridArtPickerModal";
 import { useSurfaceTheme } from "./theme/surfaces";
 import { useAppSettings } from "./hooks/useAppSettings";
@@ -3286,12 +3287,13 @@ export default function App() {
 
       <AppBackground settings={settings} resolvedTheme={resolvedTheme} accent={accent} appBg={appBg} bgGlow1={bgGlow1} bgGlow2={bgGlow2} isDark={isDark} isMaterial={isMaterial} surfaceStyle={surfaceStyle} appPaused={appPaused} windowFocused={windowFocused} spotifyPlaying={!!spotify.track?.isPlaying} />
       <AppOverlays>
+      <StreamLaunchCover heroArt={heroStatic} customHeroArt={customHeroArt} />
       {fseHintVisible && (
         <div style={fseHintStyle}>
           {fseHintText}
         </div>
       )}
-      {launchingApp && <LaunchOverlay app={launchingApp} gameArt={gameArt} customArt={customArt} accent={accent} onDone={closeLaunchOverlay} onSuccess={playLaunchSuccessSound} hapticEnabled={settings.haptic_feedback ?? true} />}
+      {launchingApp && <LaunchOverlay app={launchingApp} gameArt={gameArt} customArt={customArt} heroArt={customHeroArt[launchingApp.id] || heroStatic[launchingApp.id]} accent={accent} onDone={closeLaunchOverlay} onSuccess={playLaunchSuccessSound} hapticEnabled={settings.haptic_feedback ?? true} />}
       {closeRequest && (
         <ConfirmModal
           message={closeRequest.force

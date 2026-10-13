@@ -1,29 +1,11 @@
 import type { App } from "../types";
-import links from "./gfnLinks.json";
-import titles from "./gfnTitles.json";
+import { geforceGame } from "./gfnCatalog";
 
-// Exact links retained from Android's curated table. They are game-page links,
-// not a claim that a Windows cloud session or subscription has been verified.
+// Exact title/store variants from NVIDIA's public catalogue. Availability is
+// separate from the user's subscription and any required cloud installation.
 export function geforceNowUrl(app: App): string | undefined {
-  const id = app.source?.toLowerCase() === "steam" ? String(app.steam_appid ?? "") : undefined;
-  const aliases: Record<string, string> = {
-    "xbox:Indiana Jones and the Great Circle": "indyjones_gp",
-    "xbox:Star Wars Outlaws": "swo_gp",
-    "xbox:Dishonored 2": "dis2_gp",
-    "xbox:Forza Horizon 6": "fh6_gp",
-    "gog:Cyberpunk 2077": "cp2077_gog",
-    "gog:Baldur's Gate 3": "bg3_gog",
-    "ea:Battlefield 6": "bf6_ea",
-  };
-  const key = id || aliases[`${app.source?.toLowerCase()}:${app.name}`];
-  if (key) return (links as Record<string, string>)[key];
-  const normalize = (name: string) => name.replace(/[™®]/g, "").trim().toLowerCase();
-  const title = Object.entries(titles).find(([name]) => normalize(name) === normalize(app.name));
-  if (!title || app.source?.toLowerCase() === "steam") return;
-  const link = (links as Record<string, string>)[title[1]];
-  if (!link) return;
-  // A Steam variant asset must not be forced for an Xbox/GOG/Epic copy.
-  const url = new URL(link); url.searchParams.delete("asset-id"); return url.href;
+  const game = geforceGame(app);
+  return game ? `https://play.geforcenow.com/games?game-id=${game.id}&lang=en_GB&utm_source=creteos&utm_campaign=launcher` : undefined;
 }
 
 export function isPcGame(app: App): boolean {

@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import type { App } from "../types";
 import { defaultProvider, geforceNowUrl, isPcGame, moonlightTarget } from "./streaming";
 import { readHost, refreshHost, subscribeHost } from "./hostSnapshot";
+import { refreshGeForceCatalog, subscribeGeForceCatalog } from "./gfnCatalog";
+import { withStreamCover } from "../components/launch/StreamLaunchCover";
 
 export interface MoonlightProfile { host: string; resolution: string; fps: number; bitrate: number; codec: string }
 export interface DisplayProfile { displayKey: string; profile: MoonlightProfile }
@@ -29,6 +31,7 @@ export function useStreaming(app: App, enabled: boolean) {
   const hostInstalled = app.source === "steam" && !!app.steam_appid && !!hostGames?.some(game => game.steamAppId === String(app.steam_appid));
   const moonlightGame = pcGame && online && clients.moonlight ? moonlightTarget(app, apps, hostGames?.map(game => game.steamAppId) ?? []) : undefined;
   useEffect(() => subscribeHost(() => update(value => value + 1)), []);
+  useEffect(() => subscribeGeForceCatalog(() => update(value => value + 1)), []);
   useEffect(() => {
     const connected = () => { setOnline(true); if (pcGame && clients.moonlight) void refreshHost(display.profile.host); };
     const disconnected = () => setOnline(false);
@@ -47,6 +50,7 @@ export function useStreaming(app: App, enabled: boolean) {
       const detected = await invoke<typeof clients>("get_streaming_clients");
       if (!active) return;
       setClients(detected ?? { geforceNow: false, moonlight: false });
+      if (detected?.geforceNow) void refreshGeForceCatalog();
       if (detected?.moonlight) {
         const current = await invoke<DisplayProfile>("get_moonlight_profile");
         if (active && current?.profile) { setDisplay(current); void refreshHost(current.profile.host); }
@@ -70,7 +74,7 @@ export function useStreaming(app: App, enabled: boolean) {
     if (!gameUrl) return;
     setError(null);
     try {
-      await (profile ? invoke("start_geforce_game", { gameUrl, source: app.source, displayKey: geforceDisplay.displayKey, profile }) : invoke("launch_geforce_game", { gameUrl, source: app.source, play: false }));
+      await (profile ? withStreamCover(app, "geforceNow", () => invoke("start_geforce_game", { gameUrl, source: app.source, displayKey: geforceDisplay.displayKey, profile })) : invoke("launch_geforce_game", { gameUrl, source: app.source, play: false }));
       setGeforceConfigure(false);
     } catch (reason) { setError(String(reason)); }
   };
@@ -78,7 +82,7 @@ export function useStreaming(app: App, enabled: boolean) {
     setError(null);
     try {
       const steamId = appName === "MoonDeckStream" && app.source === "steam" && app.steam_appid ? String(app.steam_appid) : null;
-      await invoke("launch_moonlight", { appName, displayKey: display.displayKey, profile, steamId });
+      await withStreamCover(app, "moonlight", () => invoke("launch_moonlight", { appName, displayKey: display.displayKey, profile, steamId }));
       setConfigure(false);
     } catch (reason) { setError(`Could not start Moonlight on ${profile.host}. ${String(reason)}`); }
   };

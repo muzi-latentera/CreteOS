@@ -19,13 +19,14 @@ interface LaunchOverlayProps {
   app: App | null;
   gameArt: Record<string, string>;
   customArt: Record<string, string>;
+  heroArt?: string;
   accent: AccentColors;
   onDone: () => void;
   onSuccess?: () => void;
   hapticEnabled?: boolean;
 }
 
-export function LaunchOverlay({ app, gameArt, customArt, accent, onDone, onSuccess, hapticEnabled = true }: LaunchOverlayProps) {
+export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone, onSuccess, hapticEnabled = true }: LaunchOverlayProps) {
   const { t } = useTranslation();
   const art = app?.app_type === "game" ? (customArt?.[app.id] || gameArt[app.id]) : null;
   const [status, setStatus] = useState<LaunchStatus>("launching");
@@ -59,6 +60,7 @@ export function LaunchOverlay({ app, gameArt, customArt, accent, onDone, onSucce
     const done = onDone;
     const success = onSuccess;
     mounted.current = true;
+    void Promise.resolve(invoke("set_launch_cover", { active: true })).catch(() => {});
 
     const style = document.createElement("style");
     style.id = "launch-overlay-styles";
@@ -68,7 +70,7 @@ export function LaunchOverlay({ app, gameArt, customArt, accent, onDone, onSucce
       @keyframes launchTextFade  { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
       @keyframes launchDot       { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }
       @keyframes launchGlowPulse { 0%, 100% { transform: scale(1); opacity: 0.6; } 50% { transform: scale(1.2); opacity: 1; } }
-      .launch-overlay { animation: overlayFadeIn var(--dur-base) var(--ease-standard) forwards; }
+      .launch-overlay { animation: overlayFadeIn var(--dur-base) var(--ease-standard); }
       .launch-icon    { animation: launchIconPop var(--dur-slow) var(--ease-spring) forwards; }
       .launch-text    { animation: launchTextFade var(--dur-base) var(--ease-standard) forwards; animation-delay: var(--dur-base); opacity: 0; }
       .launch-dot     { animation: launchDot 1s ease-in-out infinite; }
@@ -88,8 +90,7 @@ export function LaunchOverlay({ app, gameArt, customArt, accent, onDone, onSucce
     }).then(fn => { unlistenPhase = fn; });
     listen<string>("launch-success", async (event) => {
       if (!mounted.current || event.payload !== launchTarget.launch_path) return;
-      const requiresConfirmation = (launchTarget.launch_path.startsWith("steam://")
-        && launchTarget.app_type === "game")
+      const requiresConfirmation = (launchTarget.app_type === "game" && !isHttpLaunchPath(launchTarget.launch_path))
         || (launchTarget.app_type !== "game" && !isHttpLaunchPath(launchTarget.launch_path));
       setStatus("verifying");
 
@@ -217,6 +218,9 @@ export function LaunchOverlay({ app, gameArt, customArt, accent, onDone, onSucce
 
     return () => {
       mounted.current = false;
+      void Promise.resolve(invoke("set_launch_cover", { active: false })).then(() => {
+        if (statusRef.current === "focused") return invoke("try_focus_launched_app", { name: launchTarget.name, launchPath: launchTarget.launch_path, source: launchTarget.source, appType: launchTarget.app_type });
+      }).catch(() => {});
       document.getElementById("launch-overlay-styles")?.remove();
       window.removeEventListener("keydown", handleKey);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -281,7 +285,7 @@ export function LaunchOverlay({ app, gameArt, customArt, accent, onDone, onSucce
   };
 
   return (
-    <div className="launch-overlay" style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20 }}>
+    <div className="launch-overlay" style={{ position: "fixed", inset: 0, zIndex: 9000, background: heroArt ? `linear-gradient(rgba(0,0,0,.35),rgba(0,0,0,.8)),url(${JSON.stringify(heroArt)}) center/cover` : "rgba(0,0,0,0.88)", opacity: status === "focused" ? 0 : 1, transition: "opacity 650ms ease", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20 }}>
       <div className="launch-glow" style={{ position: "absolute", width: 320, height: 320, borderRadius: "50%", background: `radial-gradient(circle, ${accent.glow}0.25) 0%, transparent 70%)`, pointerEvents: "none" }} />
       <div className="launch-icon" style={{ position: "relative", zIndex: 1 }}>
         {art ? (

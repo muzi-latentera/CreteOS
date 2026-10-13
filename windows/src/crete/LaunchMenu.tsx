@@ -43,6 +43,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       next?.focus(); next?.scrollIntoView({ block: "nearest", inline: "nearest" });
     };
     const key = (event: KeyboardEvent) => {
+      if (document.querySelector("[data-stream-launch-cover]")) return;
       if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); if (choicesRef.current) closeChoices(); else close(); }
       else if (event.key === "Enter" && event.target instanceof HTMLSelectElement) { event.preventDefault(); event.stopImmediatePropagation(); openChoices(event.target); }
       else if (["ArrowUp", "ArrowDown"].includes(event.key)) {
@@ -50,10 +51,11 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       }
       else if (event.key === "Tab") { event.preventDefault(); event.stopImmediatePropagation(); move(event.shiftKey ? -1 : 1); }
     };
-    const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) close(); };
+    const outside = (event: PointerEvent) => { if (!document.querySelector("[data-stream-launch-cover]") && !root.current?.contains(event.target as Node)) close(); };
     window.addEventListener("keydown", key, true); window.addEventListener("pointerdown", outside);
     let frame = 0; let last: ReturnType<typeof readGpState> | undefined;
     const poll = () => {
+      if (document.querySelector("[data-stream-launch-cover]")) { frame = requestAnimationFrame(poll); return; }
       const gp = getBestGamepad();
       if (gp) {
         const state = readGpState(gp);
@@ -111,7 +113,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       {!s.online && <p role="status">{text("No network connection. Installed local games are available offline.")}</p>}
       {!gfn && s.hostError && <p role="status">{text(s.hostError)}</p>}{s.error && <p role="alert">{s.error}</p>}
       {s.error && s.localInstalled && localEnabled && <button type="button" onClick={() => { close(); local(); }}>{text("Play locally")}</button>}
-      {gfn ? <div className="crete-stream-buttons"><button type="button" disabled={busy || !s.online} onClick={() => { setBusy(true); void s.geforceStream(profile).finally(() => setBusy(false)); }}>{text(busy ? "Connecting�" : "Start game")}</button><button type="button" disabled={busy || !s.online} onClick={() => void s.geforceStream()}>{text("Open game with current settings")}</button><button type="button" onClick={close}>{text("Cancel")}</button></div> : <div className="crete-stream-buttons"><button type="button" disabled={busy || !target || !s.online || s.checking || (target === "MoonDeckStream" && !!s.steamId && (!s.buddy?.paired || !s.hostInstalled))} onClick={() => { setBusy(true); void s.stream(target, profile).finally(() => setBusy(false)); }}>{text(busy ? "Connecting…" : "Start stream")}</button><button type="button" disabled={busy || s.refreshing || !s.online} onClick={s.refresh}>{text(s.refreshing ? "Checking…" : "Refresh host")}</button><button type="button" onClick={() => void invoke("launch_streaming_client", { provider: "moonlight" }).catch(() => {} )}>{text("Open Moonlight")}</button><button type="button" onClick={close}>{text("Cancel")}</button></div>}
+      {gfn ? <div className="crete-stream-buttons"><button type="button" disabled={busy || !s.online} onClick={() => { setBusy(true); void s.geforceStream(profile).finally(() => setBusy(false)); }}>{text(busy ? "Connecting…" : "Start game")}</button><button type="button" disabled={busy || !s.online} onClick={() => void s.geforceStream()}>{text("Open game with current settings")}</button><button type="button" onClick={close}>{text("Cancel")}</button></div> : <div className="crete-stream-buttons"><button type="button" disabled={busy || !target || !s.online || s.checking || (target === "MoonDeckStream" && !!s.steamId && (!s.buddy?.paired || !s.hostInstalled))} onClick={() => { setBusy(true); void s.stream(target, profile).finally(() => setBusy(false)); }}>{text(busy ? "Connecting…" : "Start stream")}</button><button type="button" disabled={busy || s.refreshing || !s.online} onClick={s.refresh}>{text(s.refreshing ? "Checking…" : "Refresh host")}</button><button type="button" onClick={() => void invoke("launch_streaming_client", { provider: "moonlight" }).catch(() => {} )}>{text("Open Moonlight")}</button><button type="button" onClick={close}>{text("Cancel")}</button></div>}
       <p>{text("Settings are saved for this display when the stream starts. Codec availability depends on the host and device.")}</p>
       {choices && <div className="crete-stream-choice-backdrop"><div data-stream-choices role="listbox" aria-label={choices.getAttribute("aria-label") ?? "Options"} className="crete-stream-choices">{Array.from(choices.options).map(option => <button type="button" role="option" aria-selected={option.selected} disabled={option.disabled} key={option.value} onClick={() => { choices.value = option.value; choices.dispatchEvent(new Event("change", { bubbles: true })); closeChoices(); }}>{option.text}</button>)}</div></div>}
     </div></div>}

@@ -24,10 +24,12 @@ describe("streaming targets", () => {
     expect(defaultProvider(app)).toBe("install");
     expect(moonlightMatch(app, ["Control", "CONTROL Resonant"])).toBeUndefined();
   });
-  it("uses exact Android links without guessing similar titles or app IDs", () => {
+  it("uses current catalogue identities without guessing similar titles or editions", () => {
     const game: App = { id: "control", name: "Control Ultimate Edition", source: "steam", app_type: "game", steam_appid: 870780 };
     expect(geforceNowUrl(game)).toContain("game-id=5aed2b8b-912f-4e9e-b8e3-dcd8c8613679");
-    expect(geforceNowUrl({ ...game, name: "CONTROL Resonant", steam_appid: 3669870 })).toBeUndefined();
+    expect(geforceNowUrl({ ...game, name: "CONTROL Resonant", steam_appid: 3669870 })).toContain("game-id=8a65c8a4");
+    expect(geforceNowUrl({ ...game, name: "Metro 2033", steam_appid: 43110 })).toBeUndefined();
+    expect(geforceNowUrl({ ...game, name: "Metro: Last Light", steam_appid: 43160 })).toBeUndefined();
     expect(geforceNowUrl({ ...game, name: "Elden Ring", steam_appid: 1245620 })).toBeUndefined();
   });
   it("uses exact non-Steam aliases and excludes application entries", () => {

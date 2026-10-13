@@ -29,7 +29,7 @@ export function getTabPillStyle(a: TabPillStyleArgs): CSSProperties {
   }
 
   if (resolvedTheme === "crete") {
-    return { background: "transparent", color: "#F2EADB", border: "1px solid transparent", borderBottom: `2px solid ${accent.primary}`, borderRadius: 0, boxShadow: "none" };
+    return { background: `${accent.glow}0.20)`, color: "#F2EADB", border: `1px solid ${accent.primary}`, borderRadius: 20, boxShadow: "none" };
   }
 
   if (isOnyx) {

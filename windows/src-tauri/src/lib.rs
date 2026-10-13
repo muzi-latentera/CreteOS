@@ -54,6 +54,8 @@ mod storage_info;
 mod store_metadata;
 mod steam_artwork;
 mod streaming;
+mod gfn_catalog;
+mod launch_cover;
 mod moondeck;
 mod crete_news;
 mod crete_videos;
@@ -9283,6 +9285,40 @@ fn check_launch_focus(name: String, launch_path: String, source: String) -> Laun
     }
 }
 
+fn stream_window(provider: &str) -> Option<LaunchWindowCandidate> {
+    let executable = match provider { "moonlight" => "Moonlight.exe", "geforceNow" => "GeForceNOWStreamer.exe", _ => return None };
+    collect_launch_windows().into_iter().filter(|window| window.exe_path.as_deref().and_then(|path| std::path::Path::new(path).file_name()).is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case(executable)))
+        .find(|window| unsafe {
+            let mut rect = windows::Win32::Foundation::RECT::default();
+            windows::Win32::UI::WindowsAndMessaging::GetClientRect(windows::Win32::Foundation::HWND(window.hwnd as _), &mut rect).is_ok() && rect.right >= 640 && rect.bottom >= 360
+        })
+}
+
+#[tauri::command]
+async fn wait_stream_window(provider: String) -> Result<(), String> {
+    if !matches!(provider.as_str(), "moonlight" | "geforceNow") { return Err("Unknown streaming client".into()); }
+    tauri::async_runtime::spawn_blocking(move || {
+        let start = Instant::now(); let mut candidate: Option<(isize, Instant)> = None;
+        while start.elapsed() < Duration::from_secs(45) {
+            if let Some(window) = stream_window(&provider) {
+                let ready = candidate.get_or_insert((window.hwnd, Instant::now()));
+                if ready.0 != window.hwnd { *ready = (window.hwnd, Instant::now()); }
+                if ready.1.elapsed() >= Duration::from_secs(2) { return Ok(()); }
+            } else { candidate = None; }
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        Err("The streaming window has not opened. Check the streaming app.".into())
+    }).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn focus_stream_window(app_handle: tauri::AppHandle, provider: String) {
+    if let Some(window) = stream_window(&provider) {
+        focus_external_window(windows::Win32::Foundation::HWND(window.hwnd as _));
+        if load_settings_inner().hide_on_launch { fse_watcher::start_gpu_release_watch(app_handle, OUR_HWND.load(Ordering::Relaxed), Some(window.hwnd)); }
+    }
+}
+
 fn focus_external_window(hwnd: windows::Win32::Foundation::HWND) {
     unsafe {
         if IsIconic(hwnd).as_bool() {
@@ -9877,6 +9913,7 @@ async fn launch_app(
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs);
         let started = std::time::Instant::now();
         let mut found: isize = 0;
+        let mut ready_candidate: Option<(isize, Instant)> = None;
 
         loop {
             if LAUNCH_WATCH_GENERATION.load(Ordering::SeqCst) != watch_generation {
@@ -9907,12 +9944,17 @@ async fn launch_app(
             if let Some((hwnd, score)) =
                 poll_for_matched_window(&watch_name, &watch_path, &watch_source)
             {
-                // Confident match (medium+, score >= 45) — confirm immediately.
+                // Let the exact matching game window settle behind the launch
+                // artwork. A transient launcher/splash must not end the cover.
                 if score >= 45 {
-                    found = hwnd;
-                    break;
+                    let ready = ready_candidate.get_or_insert((hwnd, Instant::now()));
+                    if ready.0 != hwnd { *ready = (hwnd, Instant::now()); }
+                    if ready.1.elapsed() >= Duration::from_secs(2) { found = hwnd; break; }
+                    if Instant::now() >= deadline { break; }
+                    std::thread::sleep(Duration::from_millis(250));
+                    continue;
                 }
-            }
+            } else { ready_candidate = None; }
 
             // 2) Fallback for direct-exe games with a real PID: the old PID match.
             if child_pid != 0 {
@@ -10016,6 +10058,10 @@ pub fn run() {
             streaming::launch_streaming_client,
             streaming::launch_geforce_game,
             streaming::get_geforce_profile,
+            gfn_catalog::get_geforce_catalog,
+            launch_cover::set_launch_cover,
+            wait_stream_window,
+            focus_stream_window,
             streaming::start_geforce_game,
             streaming::get_moonlight_apps,
             streaming::get_host_installed_games,

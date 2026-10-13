@@ -96,7 +96,7 @@ describe("Steam launch confirmation", () => {
     await emit("launch-success", "steam://rungameid/123");
     await emit("launch-unconfirmed", "steam://rungameid/123");
     expect(container.textContent).toContain("launch.contactingSteam");
-    expect(invoke).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalledWith("check_launch_focus", expect.anything());
     expect(onSuccess).not.toHaveBeenCalled();
   });
 });

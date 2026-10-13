@@ -1184,13 +1184,18 @@ pub fn start_gpu_release_watch(
             }
             let our_hwnd = hwnd_value(managed_hwnd);
 
-            let deadline = Instant::now() + Duration::from_millis(FOREGROUND_GRAB_TIMEOUT_MS);
+            let mut deadline = Instant::now() + Duration::from_millis(FOREGROUND_GRAB_TIMEOUT_MS);
             let mut preferred_ready_since: Option<Instant> = None;
             let mut game_hwnd = loop {
                 if cancel.load(Ordering::SeqCst) {
                     return;
                 }
 
+                if crate::launch_cover::active() {
+                    deadline = Instant::now() + Duration::from_millis(FOREGROUND_GRAB_TIMEOUT_MS);
+                    std::thread::sleep(Duration::from_millis(POLL_INTERVAL_MS));
+                    continue;
+                }
                 let fg = unsafe { GetForegroundWindow() };
                 let fg_value = hwnd_value(fg);
                 let preferred_game_hwnd = app.state::<FseWatch>().preferred_game_hwnd();

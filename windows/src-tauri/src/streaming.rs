@@ -114,6 +114,7 @@ fn geforce_launch(game_url: &str, source: Option<&str>, play: bool) -> Result<(P
     if !play { return Ok((client, format!("geforcenow://route/#deeplink?action=view-game&game-id={id}"))); }
     let streamer = client.with_file_name("GeForceNOWStreamer.exe");
     if streamer.is_file() {
+        if let Some(route) = crate::gfn_catalog::route(&id, source) { return Ok((streamer, format!("--url-route={route}"))); }
         let script = "$d=[Environment]::GetFolderPath('DesktopDirectory');$s=New-Object -ComObject WScript.Shell;$a=@();Get-ChildItem -LiteralPath $d -Filter *.lnk -File | Select-Object -First 200 | ForEach-Object {$l=$s.CreateShortcut($_.FullName);if([IO.Path]::GetFileName($l.TargetPath) -eq 'GeForceNOWStreamer.exe'){$a+=@{target=$l.TargetPath;arguments=$l.Arguments}}};ConvertTo-Json -InputObject $a -Compress";
         let mut command = std::process::Command::new("powershell.exe");
         command.args(["-NoProfile", "-NonInteractive", "-Command", script]);

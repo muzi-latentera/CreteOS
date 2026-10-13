@@ -8,6 +8,7 @@ import { useStoreMetadata } from "../hooks/useStoreMetadata";
 import { CreteGameCard } from "./CreteGameCard";
 import { geforceNowUrl, moonlightTarget } from "./streaming";
 import { useStreaming } from "./useStreaming";
+import { withStreamCover } from "../components/launch/StreamLaunchCover";
 import { LaunchLoading } from "./LaunchLoading";
 import { scrollPane } from "./smoothScroll";
 import { useViewNavigation, type NavigationRef } from "./navigation";
@@ -78,7 +79,7 @@ export function CreteHomeView(p: CreteHomeProps) {
     if (!p.isRunning(app.id) && (streaming.checking || host)) { p.onOpenDetails(app); return; }
     setLaunchError(null);
     const url = streaming.online && app.installed === false ? geforceNowUrl(app) : undefined;
-    if (url) void invoke("launch_geforce_game", { gameUrl: url, source: app.source, play: true }).catch(error => setLaunchError(String(error)));
+    if (url) void withStreamCover(app, "geforceNow", () => invoke("launch_geforce_game", { gameUrl: url, source: app.source, play: true })).catch(error => setLaunchError(String(error)));
     else if (app.installed === false) p.onOpenDetails(app);
     else p.triggerLaunch(app, p.recentRef.current);
   };
