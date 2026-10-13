@@ -1203,9 +1203,11 @@ export function GameDetailsModal({
               </button>
               {streaming.error && <span role="alert">{streaming.error}</span>}
               {resolvedTheme === "crete" && <LaunchMenu streaming={streaming} open={launchMenuOpen} setOpen={setLaunchMenuOpen}
-                block={blockLaunchPopup} local={handleLocalAction} localLabel={installed ? "Local" : "Install locally"}
+                block={blockLaunchPopup} local={handleLocalAction} localLabel={installed ? "Local" : installing ? "Cancel installation" : "Install locally"}
+                manageLabel={activeTab === "manage" ? "Game information" : "Manage game"}
                 localEnabled={installed || canInstall || canXboxInstall || installing} manage={() => {
-                  revealControls(); activeTabRef.current = "manage"; setActiveTab("manage"); setFocusedIndex(1);
+                  revealControls(); const next = activeTab === "manage" ? "details" : "manage";
+                  activeTabRef.current = next; setActiveTab(next); setFocusedIndex(next === "details" ? 0 : 1);
                 }} />}
               {hasStoreContent && controlsRevealed && (
                 <div

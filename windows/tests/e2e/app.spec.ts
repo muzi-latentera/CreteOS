@@ -481,7 +481,9 @@ test("CreteOS details keeps native management and sends one launch command", asy
   await details.getByRole("menuitem", { name: "Manage game", exact: true }).click();
   await expect(details.getByRole("button", { name: "Launch options", exact: true })).toHaveAttribute("aria-expanded", "false");
   await expect(details.getByRole("button", { name: /Pin/ }).first()).toBeVisible();
-
+  await details.getByRole("button", { name: "Launch options", exact: true }).click();
+  await details.getByRole("menuitem", { name: "Game information", exact: true }).click();
+  await expect(details.getByRole("button", { name: /Pin/ }).first()).not.toBeVisible();
   await details.locator("[data-launch-btn]").click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
 });

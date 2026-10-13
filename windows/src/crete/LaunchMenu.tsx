@@ -5,9 +5,9 @@ import { getBestGamepad, readGpState } from "../utils/gamepad";
 import type { useStreaming, MoonlightProfile } from "./useStreaming";
 
 type Streaming = ReturnType<typeof useStreaming>;
-export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, localEnabled, manage, block }: {
+export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, localEnabled, manage, manageLabel, block }: {
   streaming: Streaming; open: boolean; setOpen: (open: boolean) => void; local: () => void;
-  localLabel: string; localEnabled: boolean; manage: () => void; block: (blocked: boolean) => void;
+  localLabel: string; localEnabled: boolean; manage: () => void; manageLabel: string; block: (blocked: boolean) => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const anchor = useRef<HTMLButtonElement>(null);
@@ -80,7 +80,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       {s.pcGame && row("Moonlight", "moonlight", "#7164d9", () => s.launch("moonlight"), !s.clients.moonlight)}
       {s.gameUrl && row("GeForce NOW", "geforceNow", "#8cce00", () => s.launch("geforceNow", true))}
       {!s.gameUrl && s.clients.geforceNow && row("GeForce NOW library", "", "#8cce00", () => s.launch("geforceNow"))}
-      <button type="button" role="menuitem" onClick={() => choose(manage)}>Manage game</button>
+      <button type="button" role="menuitem" onClick={() => choose(manage)}>{manageLabel}</button>
     </div>}
     {s.configure && <div className="crete-stream-backdrop"><div role="dialog" aria-modal="true" aria-label="Moonlight stream settings" className="crete-stream-settings">
       <h2>Play on {profile.host}</h2>
