@@ -3200,6 +3200,7 @@ export default function App() {
   };
   const appsLibraryViewProps = {
     ...libraryViewProps,
+    ...(resolvedTheme === "crete" ? { gameSourceTabs: _hdrAppCols, gameSourceTab: appCollectionTab } : {}),
     active: tab === "Apps",
     scrollRef: tab === "Apps" ? tabScrollRef : appsScrollRef,
     focusedCardRef: tab === "Apps" ? focusedCardRef : appsHiddenCardRef,

@@ -90,6 +90,8 @@ test.beforeEach(async ({ page }) => {
         }
         if (command === "plugin:event|unlisten" || command === "plugin:event|emit") return null;
         if (command === "get_crete_news_rss") return params.has("news") ? `<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Test gaming headline</title><link href="https://www.reddit.com/r/Games/comments/test"/></entry></feed>` : "";
+        if (params.has("applications") && command === "get_app_collections") return [{ id: "tools", name: "Tools" }];
+        if (params.has("applications") && command === "get_app_memberships") return { "app:terminal": ["tools"] };
         if (command === "get_settings") {
           const bottombarMode = new URLSearchParams(window.location.search).get("barMode") || "smart";
           return { ...(responses.get_settings as Record<string, unknown>), bottombar_mode: bottombarMode,
@@ -97,6 +99,10 @@ test.beforeEach(async ({ page }) => {
             accent: "crete", surface_style: params.get("surface") || "glass", ui_motion: false, ui_scale: 1, language: "en" };
         }
         if (command === "get_all_apps") {
+          if (params.has("applications")) return [
+            { id: "app:terminal", name: "Terminal", launch_path: "C:\\Windows\\Terminal.exe", app_type: "app", installed: true },
+            { id: "app:browser", name: "Browser", launch_path: "C:\\Apps\\Browser.exe", app_type: "app", installed: true },
+          ];
           if (params.has("holdRefresh") && counts[command] > 1) await new Promise((resolve) => { (window as any).__releaseScan = resolve; });
           if (params.has("rich")) return Array.from({ length: 24 }, (_, i) => ({
             id: `steam://rungameid/${620 + i}`, name: i === 0 ? "Portal 2" : i === 1 ? "Hollow Knight" : `Test Game ${String(i + 1).padStart(2, "0")}`,
@@ -472,6 +478,24 @@ test("CreteOS details keeps native management and sends one launch command", asy
   await details.getByRole("button", { name: "Show game information", exact: true }).click();
   await details.locator("[data-launch-btn]").click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
+});
+
+test("CreteOS Applications keeps native collections and returns to games", async ({ page }) => {
+  await page.goto("/?crete&applications");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  const games = page.locator('[data-tab-pane="games"]');
+  await games.getByRole("button", { name: "Sources", exact: true }).click();
+  await games.getByRole("button", { name: "Applications", exact: true }).click();
+  const apps = page.locator('[data-tab-pane="apps"]');
+  await expect(apps.locator(".crete-game-card")).toHaveCount(2);
+  await apps.getByRole("button", { name: "Sources", exact: true }).click();
+  await apps.getByRole("button", { name: "Tools", exact: true }).click();
+  await expect(apps.locator(".crete-game-card")).toHaveCount(1);
+  await expect(apps.locator(".crete-game-card")).toHaveAttribute("aria-label", "Terminal");
+  await apps.getByRole("button", { name: "Tools", exact: true }).click();
+  await apps.getByRole("button", { name: "Game Library", exact: true }).click();
+  await expect(games).toBeVisible();
+  await expect(games.locator(".crete-library-toolbar")).toBeVisible();
 });
 
 for (const catalog of [false, true]) {

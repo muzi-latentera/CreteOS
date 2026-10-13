@@ -44,10 +44,11 @@ export function CreteLibraryView(p: CreteLibraryProps) {
   const filters = appsMode ? ["Applications"] : AVAILABILITY_LABELS;
   const choices = popup === "sort" ? ["Recently played", "A–Z", "Store"] : [...p.gameSourceTabs, appsMode ? "Game Library" : "Applications"];
   const filterCount = filters.length;
+  const lastToolbarIndex = filterCount + (appsMode ? 1 : 2);
   const choose = (i: number) => {
     if (popup === "sort") p.setGamesSort(["recent", "az", "store"][i]);
     else if (i === p.gameSourceTabs.length) p.switchTab(appsMode ? "Games" : "Apps");
-    else { if (appsMode) p.switchTab("Games"); p.onSourceSelect(i); }
+    else p.onSourceSelect(i);
     setPopup(null); setToolbarIndex(null); setSelectedId(null);
   };
   const showPopup = (kind: "sources" | "sort") => { setPopup(popup === kind ? null : kind); setPopupIndex(0); };
@@ -55,7 +56,7 @@ export function CreteLibraryView(p: CreteLibraryProps) {
     if (i < filterCount) { if (!appsMode) setAvailability(AVAILABILITY[i]); setSelectedId(null); }
     else if (i === filterCount) showPopup("sources");
     else if (i === filterCount + 1) setSearching(value => !value);
-    else showPopup("sort");
+    else if (!appsMode) showPopup("sort");
   };
 
   useViewNavigation(!!p.active, p.navigationRef, key => {
@@ -75,7 +76,7 @@ export function CreteLibraryView(p: CreteLibraryProps) {
     }
     if (toolbarIndex !== null) {
       if (key === "ArrowDown") setToolbarIndex(null);
-      else if (key === "ArrowLeft" || key === "ArrowRight") setToolbarIndex(i => Math.max(0, Math.min(filterCount + 2, (i ?? 0) + (key === "ArrowRight" ? 1 : -1))));
+      else if (key === "ArrowLeft" || key === "ArrowRight") setToolbarIndex(i => Math.max(0, Math.min(lastToolbarIndex, (i ?? 0) + (key === "ArrowRight" ? 1 : -1))));
       else if (key === "Enter") activateToolbar(toolbarIndex);
       else return key === "ArrowUp";
       return true;
@@ -108,7 +109,7 @@ export function CreteLibraryView(p: CreteLibraryProps) {
       <div className="crete-library-actions"><span className="crete-count" aria-live="polite">{items.length} {appsMode ? "apps" : "games"}</span>
         <button type="button" className="crete-tool" aria-expanded={popup === "sources"} data-nav-focused={toolbarIndex === filterCount} onClick={() => showPopup("sources")}><IoLayersOutline /><span>{p.gameSourceTab === "All" ? "Sources" : p.gameSourceTab}</span></button>
         <button type="button" className="crete-tool" aria-label="Search games" aria-expanded={searching} data-nav-focused={toolbarIndex === filterCount + 1} onClick={() => setSearching(value => !value)}><IoSearchOutline /></button>
-        <button type="button" className="crete-tool" aria-label="Sort games" aria-expanded={popup === "sort"} data-nav-focused={toolbarIndex === filterCount + 2} onClick={() => showPopup("sort")}><IoFilterOutline /></button>
+        {!appsMode && <button type="button" className="crete-tool" aria-label="Sort games" aria-expanded={popup === "sort"} data-nav-focused={toolbarIndex === filterCount + 2} onClick={() => showPopup("sort")}><IoFilterOutline /></button>}
       </div>
     </div>
     {searching && <div className="crete-search"><input ref={inputRef} data-crete-text-input aria-label="Search games" placeholder="Search games…" value={query} onChange={event => { setQuery(event.target.value); setSelectedId(null); }} onKeyDown={event => { if (event.key === "Escape") { setSearching(false); setQuery(""); event.stopPropagation(); } }} />

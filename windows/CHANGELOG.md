@@ -1,5 +1,16 @@
 # Changelog
 
+## CreteOS Windows 0.1.0 — 2026-10-13
+
+- Fork LiftOff 2.0.2 at `815271be71f13584b617ae04f2043d968c5a9d03`, retaining GPL provenance and original optional themes.
+- Add Android-style Home, Library and details, official Meander C assets, amber navigation and red launch controls. Home uses persisted play history and a public gaming-news rail.
+- Keep native launch, install, manage, store and account integrations. Applications remain reachable through Sources and retain their collections.
+- Separate CreteOS local data, credentials and Windows release identity; automatic update checks default off.
+- Add AnyFSE profile preparation for CreteOS plus a separately installed GPD utility, leaving TDP to native software.
+- Add Windows installer/backend CI, source/hash build metadata and frontend/controller validation. Hardware acceptance remains pending.
+
+The sections below are the preserved LiftOff changelog, not CreteOS release claims.
+
 ## Unreleased
 
 ### Changed
