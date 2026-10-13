@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { defaultProvider, geforceNowUrl, isPcGame, moonlightMatch } from "./streaming";
+import { defaultProvider, geforceNowUrl, isPcGame, moonlightMatch, moonlightTarget } from "./streaming";
 import type { App } from "../types";
 
 describe("streaming targets", () => {
+  it("routes exact installed Steam IDs through paired MoonDeck, without inferring from a launcher", () => {
+    const game: App = { id: "re2", name: "Resident Evil 2", source: "steam", steam_appid: 883710, installed: false };
+    const apps = ["MoonDeckStream", "Desktop", "Steam"];
+    expect(moonlightTarget(game, apps, ["883710"], true)).toBe("MoonDeckStream");
+    expect(moonlightTarget(game, apps, ["883710"], false)).toBeUndefined();
+    expect(moonlightTarget(game, apps, ["883711"], true)).toBeUndefined();
+    expect(moonlightTarget(game, apps, [], true)).toBeUndefined();
+    expect(defaultProvider({ ...game, installed: true }, "MoonDeckStream", "gfn")).toBe("local");
+  });
   it("prefers local, then an exact live host game, then GFN; launchers are not games", () => {
     const app: App = { id: "control", name: "Control Ultimate Edition", installed: false };
     expect(moonlightMatch(app, ["Desktop", "MoonDeckStream", "Steam"])).toBeUndefined();

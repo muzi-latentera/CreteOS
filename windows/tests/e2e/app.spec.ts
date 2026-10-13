@@ -90,6 +90,7 @@ test.beforeEach(async ({ page }) => {
         }
         if (command === "plugin:event|unlisten" || command === "plugin:event|emit") return null;
         if (command === "launch_moonlight") { (window as any).__lastStream = args; return null; }
+        if (command === "get_host_installed_games") { if (params.has("inventoryOffline")) throw new Error("SSH unavailable"); return params.has("hostInstalled") ? [{ steamAppId: "870780", name: "Control Ultimate Edition" }] : []; }
         if (command === "get_moondeck_status") return { paired: !params.has("buddyUnpaired"), version: 8 };
         if (command === "get_moonlight_profile") return { displayKey: "DISPLAY1:1920x1080", profile: { host: "Bosgame", resolution: "1920x1080", fps: 120, bitrate: 80000, codec: "auto" } };
         if (command === "get_moonlight_apps") { if (params.has("hostOffline")) throw new Error("Host offline"); return params.has("hostGame") ? ["Control Ultimate Edition", "Desktop"] : ["Desktop", "Steam Big Picture", "MoonDeckStream"]; }
@@ -695,7 +696,7 @@ test("Offline host falls back to GFN and Escape closes compact menu without clos
 });
 
 test("MoonDeckStream passes the selected Steam ID and requires its own pairing", async ({ page }) => {
-  await page.goto("/?crete&rich&gfn");
+  await page.goto("/?crete&rich&gfn&hostInstalled");
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
   const details = page.locator('[data-crete-details="true"]');
@@ -705,7 +706,7 @@ test("MoonDeckStream passes the selected Steam ID and requires its own pairing",
   await expect(stream.getByLabel("Host app")).toHaveValue("MoonDeckStream");
   await stream.getByRole("button", { name: "Start stream", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__lastStream?.steamId)).toBe("870780");
-  await page.goto("/?crete&rich&gfn&buddyUnpaired");
+  await page.goto("/?crete&rich&gfn&hostInstalled&buddyUnpaired");
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
   await details.getByRole("button", { name: "Launch options", exact: true }).click();
@@ -766,4 +767,19 @@ test("Home selection scroll interpolates and a rapid reversal returns to the her
   await page.keyboard.press("ArrowUp");
   await page.keyboard.press("ArrowUp");
   await expect.poll(() => page.locator(".crete-home").evaluate(el => el.scrollTop)).toBe(0);
+});
+
+
+test("Steam host inventory makes MoonDeck the automatic default, while missing inventory never does", async ({ page }) => {
+  await page.goto("/?crete&rich&gfn&hostInstalled");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const details = page.locator('[data-crete-details="true"]');
+  await expect(details.locator("[data-launch-btn]")).toHaveText("Play via Moonlight");
+  await details.locator("[data-launch-btn]").click();
+  await expect(details.getByRole("dialog", { name: "Moonlight stream settings" }).getByLabel("Host app")).toHaveValue("MoonDeckStream");
+  await page.goto("/?crete&rich&gfn&inventoryOffline");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  await expect(details.locator("[data-launch-btn]")).toHaveText("Play via GeForce NOW");
 });

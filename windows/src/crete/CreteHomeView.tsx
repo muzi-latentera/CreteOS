@@ -55,7 +55,9 @@ export function CreteHomeView(p: CreteHomeProps) {
   const heroProvider = hero ? defaultProvider(hero, streaming.moonlightGame, geforceNowUrl(hero)) : "install";
   const cloudHeroUrl = heroProvider === "geforceNow" && hero ? geforceNowUrl(hero) : undefined;
   const open = (app: App) => {
-    if (p.settings.home_launch_games_directly && app.installed === false && moonlightMatch(app, streaming.apps)) { p.onOpenDetails(app); return; }
+    if (p.settings.home_launch_games_directly && app.installed === false && streaming.checking) { p.onOpenDetails(app); return; }
+    const hostInstalled = app.source === "steam" && streaming.buddy?.paired && streaming.apps.includes("MoonDeckStream") && streaming.hostGames?.some(game => game.steamAppId === String(app.steam_appid));
+    if (p.settings.home_launch_games_directly && app.installed === false && (hostInstalled || moonlightMatch(app, streaming.apps))) { p.onOpenDetails(app); return; }
     setLaunchError(null);
     const url = app.installed === false ? geforceNowUrl(app) : undefined;
     if (p.settings.home_launch_games_directly && url) void openUrl(url).catch(error => setLaunchError(String(error)));
@@ -127,7 +129,7 @@ export function CreteHomeView(p: CreteHomeProps) {
         <div className="crete-hero-copy"><span className="crete-eyebrow crete-amber">Continue where you stopped</span>
           <h1>{hero.name}</h1><div className="crete-hero-tags"><span>{sourceLabel(hero.source)}</span>
             {hero.installed !== false && !!hero.source && hero.source !== "cloud" && <span className="crete-local">Local</span>}</div>
-          <button type="button" ref={heroRef} className="crete-play" data-cloud={!!cloudHeroUrl || heroProvider === "moonlight"} onFocus={() => { setSelectedId(null); setNewsIndex(-1); }} onClick={() => open(hero)}><IoPlay /> {heroProvider === "moonlight" ? "Play via Moonlight" : cloudHeroUrl ? "Play via GeForce NOW" : "Play"}</button>
+          <button type="button" ref={heroRef} className="crete-play" disabled={hero.installed === false && streaming.checking} data-cloud={!!cloudHeroUrl || heroProvider === "moonlight"} onFocus={() => { setSelectedId(null); setNewsIndex(-1); }} onClick={() => open(hero)}><IoPlay /> {hero.installed === false && streaming.checking ? "Checking Bosgame…" : heroProvider === "moonlight" ? "Play via Moonlight" : cloudHeroUrl ? "Play via GeForce NOW" : "Play"}</button>
           {launchError && <p role="alert">{launchError}</p>}
         </div>
         <aside className="crete-hero-info"><span className="crete-eyebrow">Game info</span><dl>

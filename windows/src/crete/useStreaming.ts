@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { App } from "../types";
-import { defaultProvider, geforceNowUrl, isPcGame, moonlightMatch } from "./streaming";
+import { defaultProvider, geforceNowUrl, isPcGame, moonlightTarget } from "./streaming";
 
 export interface MoonlightProfile { host: string; resolution: string; fps: number; bitrate: number; codec: string }
 export interface DisplayProfile { displayKey: string; profile: MoonlightProfile }
@@ -19,9 +19,12 @@ export function useStreaming(app: App, enabled: boolean) {
   const [checking, setChecking] = useState(false);
   const [buddy, setBuddy] = useState<{ paired: boolean; version: number } | null>(null);
   const [buddyError, setBuddyError] = useState<string | null>(null);
+  const [hostGames, setHostGames] = useState<{ steamAppId: string; name: string }[] | null>(null);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
   const pcGame = enabled && isPcGame(app);
   const gameUrl = pcGame ? geforceNowUrl(app) : undefined;
-  const moonlightGame = pcGame ? moonlightMatch(app, apps) : undefined;
+  const hostInstalled = app.source === "steam" && !!app.steam_appid && !!hostGames?.some(game => game.steamAppId === String(app.steam_appid));
+  const moonlightGame = pcGame ? moonlightTarget(app, apps, hostGames?.map(game => game.steamAppId) ?? [], !!buddy?.paired) : undefined;
   useEffect(() => {
     let active = true;
     setError(null); setApps([]); setConfigure(false);
@@ -31,18 +34,20 @@ export function useStreaming(app: App, enabled: boolean) {
   useEffect(() => {
     if (!pcGame || !clients.moonlight) return;
     let active = true;
-    setChecking(true); setApps([]); setHostError(null);
+    setChecking(true); setApps([]); setHostError(null); setHostGames(null); setInventoryError(null); setBuddy(null);
     void (async () => {
       const current = await invoke<DisplayProfile>("get_moonlight_profile");
       if (!current?.profile) throw new Error("Display settings unavailable");
       if (active) setDisplay(current);
       const host = current.profile.host;
-      void invoke<{ paired: boolean; version: number }>("get_moondeck_status", { host }).then(value => { if (active) { setBuddy(value); setBuddyError(null); } }).catch(reason => { if (active) { setBuddy(null); setBuddyError(String(reason)); } });
+      const inventoryRequest = invoke<{ steamAppId: string; name: string }[]>("get_host_installed_games", { host }).then(value => { if (active) { setHostGames(value ?? null); setInventoryError(null); } }).catch(reason => { if (active) { setHostGames(null); setInventoryError(String(reason)); } });
+      const buddyRequest = invoke<{ paired: boolean; version: number }>("get_moondeck_status", { host }).then(value => { if (active) { setBuddy(value); setBuddyError(null); } }).catch(reason => { if (active) { setBuddy(null); setBuddyError(String(reason)); } });
       const cached = requests.get(host);
       const promise = cached && Date.now() - cached.time < 30000 ? cached.promise : invoke<string[]>("get_moonlight_apps", { host });
       requests.set(host, { time: Date.now(), promise });
       const list = await promise;
       if (active) setApps(list ?? []);
+      await Promise.all([inventoryRequest, buddyRequest]);
     })().catch(reason => { if (active) setHostError(String(reason)); }).finally(() => { if (active) setChecking(false); });
     return () => { active = false; };
   }, [pcGame, clients.moonlight, refreshId, app.id]);
@@ -68,5 +73,5 @@ export function useStreaming(app: App, enabled: boolean) {
     setError(null);
     try { await invoke("pair_moondeck", { host: display.profile.host, pin }); } catch (reason) { setError(String(reason)); }
   };
-  return { pcGame, gameUrl, clients, error, hostError, apps, moonlightGame, provider: defaultProvider(app, moonlightGame, gameUrl), display, configure, setConfigure, checking, refresh, launch, stream, buddy, buddyError, pair, steamId: app.source === "steam" ? app.steam_appid : undefined };
+  return { pcGame, gameUrl, clients, error, hostError, apps, moonlightGame, provider: defaultProvider(app, moonlightGame, gameUrl), display, configure, setConfigure, checking, refresh, launch, stream, buddy, buddyError, pair, steamId: app.source === "steam" ? app.steam_appid : undefined, hostGames, hostInstalled, inventoryError };
 }

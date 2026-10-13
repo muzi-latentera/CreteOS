@@ -51,3 +51,6 @@ src-tauri/gen/
 
 # Device-specific executable paths
 AnyFSE*.json
+
+__pycache__/
+*.pyc

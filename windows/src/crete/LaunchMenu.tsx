@@ -67,7 +67,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     return () => { clearTimeout(timer); cancelAnimationFrame(frame); window.removeEventListener("keydown", key, true); window.removeEventListener("pointerdown", outside); };
   }, [active]);
   const choose = (action: () => void) => { setOpen(false); action(); };
-  const row = (label: string, provider: string, color: string, action: () => void, disabled = false) => <button type="button" role="menuitem" disabled={disabled} onClick={() => choose(action)}><i style={{ background: color }} />{label}{s.provider === provider && <small>DEFAULT</small>}</button>;
+  const row = (label: string, provider: string, color: string, action: () => void, disabled = false) => <button type="button" role="menuitem" disabled={disabled} onClick={() => choose(action)}><i style={{ background: color }} />{label}{s.provider === provider && <small aria-hidden="true">DEFAULT</small>}</button>;
   const preset = (value: string) => {
     const values: Record<string, [string, number]> = { native: ["1920x1080", 120], xreal: ["1920x1200", 90], tv: ["3840x2160", 60] };
     const [resolution, fps] = values[value] ?? [s.display.profile.resolution, s.display.profile.fps];
@@ -84,7 +84,8 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     </div>}
     {s.configure && <div className="crete-stream-backdrop"><div role="dialog" aria-modal="true" aria-label="Moonlight stream settings" className="crete-stream-settings">
       <h2>Play on {profile.host}</h2>
-      <p>{target === "MoonDeckStream" && s.steamId ? "Launch this game directly through MoonDeck Buddy. The host must have it installed." : s.moonlightGame ? "Game available on the host." : "Choose a host app. Its advertised apps do not confirm this game is installed."}</p>
+      <p>{target === "MoonDeckStream" && s.steamId ? s.hostInstalled ? "Installed on Bosgame. Launch this game directly through MoonDeck Buddy." : s.hostGames ? "This game is not installed on Bosgame. Choose another host app, local install or GeForce NOW." : "Checking whether this game is installed on Bosgame…" : s.moonlightGame ? "Game available on the host." : "Choose a host app. Its advertised apps do not confirm this game is installed."}</p>
+      {s.inventoryError && <p role="status">{s.inventoryError}</p>}
       {target === "MoonDeckStream" && s.steamId && <div className="crete-buddy-pair">
         {s.buddy?.paired ? <p>CreteOS is paired with MoonDeck Buddy.</p> : <><p>MoonDeck Buddy needs a separate pairing for CreteOS.</p><button type="button" onClick={() => { const bytes = crypto.getRandomValues(new Uint32Array(1)); const value = 1000 + bytes[0] % 9000; setPin(value); void s.pair(value); }}>Pair MoonDeck Buddy</button>{pin && <p>Enter <strong>{pin}</strong> in the pairing prompt on Bosgame, then choose Refresh host.</p>}{s.buddyError && <p role="status">{s.buddyError}</p>}</>}
       </div>}
@@ -95,7 +96,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       <label>Bitrate<select aria-label="Bitrate" value={profile.bitrate} onChange={e => setProfile(p => ({ ...p, bitrate: Number(e.target.value) }))}>{Array.from({ length: 30 }, (_, i) => (i + 1) * 5000).map(value => <option key={value} value={value}>{value / 1000}Mbps</option>)}</select></label>
       <label>Codec<select aria-label="Codec" value={profile.codec} onChange={e => setProfile(p => ({ ...p, codec: e.target.value }))}><option value="auto">Automatic</option><option value="H.264">H.264</option><option value="HEVC">H.265</option><option value="AV1">AV1</option></select></label>
       {s.hostError && <p role="status">{s.hostError}</p>}{s.error && <p role="alert">{s.error}</p>}
-      <div className="crete-stream-buttons"><button type="button" disabled={busy || !target || s.checking || (target === "MoonDeckStream" && !!s.steamId && !s.buddy?.paired)} onClick={() => { setBusy(true); void s.stream(target, profile).finally(() => setBusy(false)); }}>{busy ? "Connecting…" : "Start stream"}</button><button type="button" disabled={busy} onClick={s.refresh}>{s.checking ? "Checking…" : "Refresh host"}</button><button type="button" onClick={() => void invoke("launch_streaming_client", { provider: "moonlight" }).catch(() => {} )}>Open Moonlight</button><button type="button" onClick={close}>Cancel</button></div>
+      <div className="crete-stream-buttons"><button type="button" disabled={busy || !target || s.checking || (target === "MoonDeckStream" && !!s.steamId && (!s.buddy?.paired || !s.hostInstalled))} onClick={() => { setBusy(true); void s.stream(target, profile).finally(() => setBusy(false)); }}>{busy ? "Connecting…" : "Start stream"}</button><button type="button" disabled={busy} onClick={s.refresh}>{s.checking ? "Checking…" : "Refresh host"}</button><button type="button" onClick={() => void invoke("launch_streaming_client", { provider: "moonlight" }).catch(() => {} )}>Open Moonlight</button><button type="button" onClick={close}>Cancel</button></div>
       <p>Settings are saved for this display when the stream starts. Codec availability depends on the host and device.</p>
     </div></div>}
   </div>;

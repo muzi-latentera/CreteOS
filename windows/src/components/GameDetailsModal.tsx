@@ -791,7 +791,7 @@ export function GameDetailsModal({
   const xboxInstallLabel = xboxProductId
     ? t("install.install")
     : t("install.getOnXbox", { defaultValue: "Get in Store" });
-  const primaryLabel = cloudDefault ? (streaming.provider === "moonlight" ? "Play via Moonlight" : "Play via GeForce NOW") : running
+  const primaryLabel = !installed && !installing && streaming.checking ? "Checking Bosgame…" : cloudDefault ? (streaming.provider === "moonlight" ? "Play via Moonlight" : "Play via GeForce NOW") : running
     ? t("home.resume")
     : installed
       ? t("details.play")
@@ -800,7 +800,7 @@ export function GameDetailsModal({
         : canXboxInstall
           ? xboxInstallLabel
         : installLabel;
-  const primaryDisabled = !cloudDefault && !installed && (uninstalling || (!installing && !canInstall && !canXboxInstall));
+  const primaryDisabled = (!installed && !installing && streaming.checking) || (!cloudDefault && !installed && (uninstalling || (!installing && !canInstall && !canXboxInstall)));
   const overlayItem = overlay ? mediaItems[overlay.index] : null;
   const overlayMovieSrc = overlayItem?.type === "trailer" ? movieSource(overlayItem.movie) : undefined;
   const overlayMovieUsesHls = isHlsMediaUrl(overlayMovieSrc);

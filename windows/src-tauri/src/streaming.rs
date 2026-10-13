@@ -1,5 +1,31 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::io::{Read, Write};
+
+fn bounded_output(mut command: std::process::Command, input: Option<&[u8]>) -> Result<std::process::Output, String> {
+    command.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+    if input.is_some() { command.stdin(std::process::Stdio::piped()); }
+    #[cfg(windows)] { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
+    let mut child = command.spawn().map_err(|e| e.to_string())?;
+    let stdout = child.stdout.take().ok_or("Missing stdout")?;
+    let stderr = child.stderr.take().ok_or("Missing stderr")?;
+    let out = std::thread::spawn(move || { let mut bytes = Vec::new(); stdout.take(1024 * 1024).read_to_end(&mut bytes).map(|_| bytes) });
+    let err = std::thread::spawn(move || { let mut bytes = Vec::new(); stderr.take(65536).read_to_end(&mut bytes).map(|_| bytes) });
+    if let Some(input) = input {
+        if let Some(mut stdin) = child.stdin.take() { let _ = stdin.write_all(input); }
+    }
+    let start = std::time::Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait().map_err(|e| e.to_string())? { break status; }
+        if start.elapsed() > std::time::Duration::from_secs(10) {
+            let _ = child.kill(); let _ = child.wait(); return Err("Host query timed out. Check Bosgame's connection.".into());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    let stdout = out.join().map_err(|_| "Host output reader failed")?.map_err(|e| e.to_string())?;
+    let stderr = err.join().map_err(|_| "Host error reader failed")?.map_err(|e| e.to_string())?;
+    Ok(std::process::Output { status, stdout, stderr })
+}
 
 fn client_path(provider: &str) -> Result<PathBuf, String> {
     let mut candidates = Vec::new();
@@ -72,26 +98,45 @@ fn validate(profile: &MoonlightProfile) -> Result<(), String> {
 
 fn query_apps(host: &str) -> Result<Vec<String>, String> {
     let mut command = std::process::Command::new(client_path("moonlight")?);
-    command.args(["list", host]).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
-    #[cfg(windows)] {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x08000000);
-    }
-    let mut child = command.spawn().map_err(|e| e.to_string())?;
-    let start = std::time::Instant::now();
-    loop {
-        if child.try_wait().map_err(|e| e.to_string())?.is_some() { break; }
-        if start.elapsed() > std::time::Duration::from_secs(10) {
-            let _ = child.kill(); let _ = child.wait();
-            return Err("Bosgame is unavailable or not paired. Open Moonlight to check the connection.".into());
-        }
-        std::thread::sleep(std::time::Duration::from_millis(50));
-    }
-    let output = child.wait_with_output().map_err(|e| e.to_string())?;
+    command.args(["list", host]);
+    let output = bounded_output(command, None)?;
     if !output.status.success() { return Err("Moonlight could not retrieve the host's apps. Check pairing and host availability.".into()); }
     Ok(String::from_utf8_lossy(&output.stdout).lines()
         .filter(|s| !s.is_empty() && *s != "Establishing connection to PC..." && *s != "Loading app list...")
         .take(2000).map(str::to_owned).collect())
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostGame { pub steam_app_id: String, pub name: String }
+
+fn host_games(host: &str) -> Result<Vec<HostGame>, String> {
+    validate_host(host)?;
+    let folder = dirs::data_local_dir().ok_or("No local data directory")?.join("CreteOS-Bootstrap/ssh");
+    let settings: serde_json::Value = std::fs::read(folder.join("bosgame.json")).ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok()).ok_or("Set up Bosgame SSH access to detect installed games")?;
+    let configured = settings["host"].as_str().ok_or("Missing SSH host")?;
+    if !configured.eq_ignore_ascii_case(host) { return Err("SSH inventory is configured for another host".into()); }
+    let username = settings["username"].as_str().ok_or("Missing SSH username")?;
+    if !username.starts_with(|c: char| c.is_ascii_alphanumeric()) || !username.chars().all(|c| c.is_ascii_alphanumeric() || "-_".contains(c)) { return Err("Invalid SSH username".into()); }
+    let key = folder.join("id_ed25519_bosgame"); let known = folder.join("known_hosts");
+    if !key.is_file() || !known.is_file() { return Err("Bosgame SSH key is unavailable".into()); }
+    let ssh = PathBuf::from(std::env::var_os("SystemRoot").unwrap_or_else(|| "C:/Windows".into())).join("System32/OpenSSH/ssh.exe");
+    let mut command = std::process::Command::new(ssh);
+    command.arg("-i").arg(key).args(["-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=yes", "-o"])
+        .arg(format!("UserKnownHostsFile={}", known.display())).arg(format!("{username}@{host}")).arg("python3 -");
+    let output = bounded_output(command, Some(include_bytes!("steam_inventory.py")))?;
+    if !output.status.success() { return Err("Could not read Bosgame's Steam library. Check SSH access and that Steam is installed for the host login.".into()); }
+    let games: Vec<HostGame> = serde_json::from_slice(&output.stdout).map_err(|_| "Invalid host inventory response")?;
+    if games.len() > 5000 || games.iter().any(|game| game.steam_app_id.len() > 10 || game.steam_app_id.is_empty() || !game.steam_app_id.bytes().all(|c| c.is_ascii_digit())) {
+        return Err("Invalid host inventory".into());
+    }
+    Ok(games)
+}
+
+#[tauri::command]
+pub async fn get_host_installed_games(host: String) -> Result<Vec<HostGame>, String> {
+    tauri::async_runtime::spawn_blocking(move || host_games(&host)).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -140,6 +185,9 @@ pub async fn launch_moonlight(app_name: String, display_key: String, profile: Mo
             if app_name != "MoonDeckStream" { return Err("Direct Steam launching requires MoonDeckStream".into()); }
             if super::moondeck::status(&profile.host)?["paired"] != true { return Err("Pair CreteOS with MoonDeck Buddy first".into()); }
             super::moondeck::prepare(&profile.host, steam_id.as_deref().unwrap_or_default())?;
+            if !host_games(&profile.host)?.iter().any(|game| Some(&game.steam_app_id) == steam_id.as_ref()) {
+                return Err("This game is not installed on Bosgame. Choose local install or GeForce NOW.".into());
+            }
         }
         let path = super::liftoff_dir().join("moonlight_profiles.json");
         let mut profiles: serde_json::Value = std::fs::read(&path).ok().and_then(|bytes| serde_json::from_slice(&bytes).ok()).unwrap_or(serde_json::json!({}));

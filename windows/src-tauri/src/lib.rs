@@ -9953,6 +9953,7 @@ pub fn run() {
             streaming::get_streaming_clients,
             streaming::launch_streaming_client,
             streaming::get_moonlight_apps,
+            streaming::get_host_installed_games,
             streaming::get_moonlight_profile,
             streaming::launch_moonlight,
             moondeck::get_moondeck_status,
