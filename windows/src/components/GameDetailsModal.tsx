@@ -1,7 +1,8 @@
 import { CreteDetailsInfo } from "../crete/CreteDetailsInfo";
+import { LaunchMenu } from "../crete/LaunchMenu";
 import { useStreaming } from "../crete/useStreaming";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { IoChevronBackOutline, IoChevronDownOutline, IoChevronForwardOutline, IoCloseOutline, IoGameControllerOutline, IoPlay } from "react-icons/io5";
+import { IoChevronBackOutline, IoChevronForwardOutline, IoCloseOutline, IoGameControllerOutline, IoPlay } from "react-icons/io5";
 import { StoreBadge } from "./ui/StoreBadge";
 import { useDeckCompat, type DeckCompatCategory } from "../hooks/useDeckCompat";
 import { useStoreMetadata } from "../hooks/useStoreMetadata";
@@ -237,6 +238,9 @@ export function GameDetailsModal({
   const source = app.source?.toLowerCase() ?? "";
   const isCloud = source === "cloud";
   const streaming = useStreaming(app, resolvedTheme === "crete");
+  const [launchMenuOpen, setLaunchMenuOpen] = useState(false);
+  const launchPopupBlockedRef = useRef(false);
+  const blockLaunchPopup = useCallback((blocked: boolean) => { launchPopupBlockedRef.current = blocked; }, []);
   const isSteam = source === "steam";
   const isXbox = source === "xbox";
   const steamAppId = app.steam_appid != null ? String(app.steam_appid) : undefined;
@@ -382,7 +386,7 @@ export function GameDetailsModal({
   } : undefined);
   const installing = !!effectiveInstallProgress && effectiveInstallProgress.state !== "complete";
   const uninstalling = effectiveInstallProgress?.state === "uninstalling";
-  const cloudDefault = !installed && !installing && !uninstalling && !!streaming.gameUrl;
+  const cloudDefault = !installed && !installing && !uninstalling && (streaming.provider === "moonlight" || streaming.provider === "geforceNow");
   const installPhase = effectiveInstallProgress?.phase ?? "downloading";
   const liveInstall = effectiveInstallProgress?.live === true;
   const indeterminateInstall = liveInstall || uninstalling;
@@ -440,14 +444,11 @@ export function GameDetailsModal({
     }
   }, [canInstall, canXboxInstall, installed, installing, onCancelInstall, onInstall, onPlay, onXboxCancelInstall, onXboxInstallFallback, uninstalling, xboxInstalling, xboxProductId]);
   const handlePrimaryAction = () => {
-    if (cloudDefault) streaming.launch("geforceNow", true);
+    if (cloudDefault) streaming.launch(streaming.provider === "moonlight" ? "moonlight" : "geforceNow", true);
     else handleLocalAction();
   };
 
   const actions = useMemo<DetailAction[]>(() => [
-    ...(resolvedTheme === "crete" && streaming.gameUrl ? [{ key: "gfn-game", label: "Play via GeForce NOW", sublabel: "Open this game's cloud page", onClick: () => streaming.launch("geforceNow", true) }] : []),
-    ...(resolvedTheme === "crete" && streaming.pcGame && streaming.clients.geforceNow ? [{ key: "gfn-library", label: "Open GeForce NOW library", onClick: () => streaming.launch("geforceNow") }] : []),
-    ...(resolvedTheme === "crete" && streaming.pcGame && streaming.clients.moonlight ? [{ key: "moonlight", label: "Open Moonlight library", sublabel: "Choose your paired PC and game", onClick: () => streaming.launch("moonlight") }] : []),
     ...(cloudDefault && (canInstall || canXboxInstall) ? [{ key: "install-local", label: "Install locally", onClick: handleLocalAction }] : []),
     ...(running && onCloseGame ? [{ key: "close-game", label: t("home.close"), onClick: onCloseGame, danger: true }] : []),
     ...(installed && onVerify && isSteam ? [{ key: "verify", label: t("install.verify"), onClick: onVerify }] : []),
@@ -540,7 +541,7 @@ export function GameDetailsModal({
     if (resolvedTheme !== "crete") return;
     const onKey = (event: KeyboardEvent) => {
       if (!["Escape", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
-      if (interactionBlockedRef.current) return;
+      if (interactionBlockedRef.current || launchPopupBlockedRef.current) return;
       event.stopPropagation();
       // Auxiliary mouse/Tab controls keep their native button activation.
       if (event.key === "Enter" && event.target instanceof HTMLButtonElement && !focusRefs.current.includes(event.target)) return;
@@ -563,6 +564,7 @@ export function GameDetailsModal({
         }
         return;
       }
+      if (event.key === "ArrowRight" && focusIdxRef.current === 0) { setLaunchMenuOpen(true); return; }
       const details = hasStoreContentRef.current && activeTabRef.current === "details";
       if (event.key === "Escape") closeRef.current();
       else if (event.key === "Enter") {
@@ -641,10 +643,13 @@ export function GameDetailsModal({
       const gp = getBestGamepad();
       if (gp) {
         const state = readGpState(gp);
-        if (interactionBlockedRef.current) {
+        if (interactionBlockedRef.current || launchPopupBlockedRef.current) {
           Object.assign(last, state);
           rafId = requestAnimationFrame(poll);
           return;
+        }
+        if (resolvedTheme === "crete" && !xboxConfirmOpenRef.current && !overlayRef.current && state.ArrowRight && !last.ArrowRight && focusIdxRef.current === 0) {
+          setLaunchMenuOpen(true); Object.assign(last, state); rafId = requestAnimationFrame(poll); return;
         }
         if (xboxConfirmOpenRef.current) {
           const actions = xboxConfirmActionsRef.current;
@@ -786,7 +791,7 @@ export function GameDetailsModal({
   const xboxInstallLabel = xboxProductId
     ? t("install.install")
     : t("install.getOnXbox", { defaultValue: "Get in Store" });
-  const primaryLabel = cloudDefault ? "Play via GeForce NOW" : running
+  const primaryLabel = cloudDefault ? (streaming.provider === "moonlight" ? "Play via Moonlight" : "Play via GeForce NOW") : running
     ? t("home.resume")
     : installed
       ? t("details.play")
@@ -1197,15 +1202,11 @@ export function GameDetailsModal({
               {primaryLabel}
               </button>
               {streaming.error && <span role="alert">{streaming.error}</span>}
-              {resolvedTheme === "crete" && <button type="button" className="crete-details-manage"
-                aria-label={activeTab === "manage" ? "Show game information" : "Manage game"} aria-expanded={activeTab === "manage"}
-                onClick={() => {
-                  revealControls();
-                  const next = activeTab === "manage" ? "details" : "manage";
-                  activeTabRef.current = next;
-                  setActiveTab(next);
-                  setFocusedIndex(next === "details" ? 0 : 1);
-                }}><IoChevronDownOutline /></button>}
+              {resolvedTheme === "crete" && <LaunchMenu streaming={streaming} open={launchMenuOpen} setOpen={setLaunchMenuOpen}
+                block={blockLaunchPopup} local={handleLocalAction} localLabel={installed ? "Local" : "Install locally"}
+                localEnabled={installed || canInstall || canXboxInstall || installing} manage={() => {
+                  revealControls(); activeTabRef.current = "manage"; setActiveTab("manage"); setFocusedIndex(1);
+                }} />}
               {hasStoreContent && controlsRevealed && (
                 <div
                   role="tablist"

@@ -35,3 +35,15 @@ Review these deliberate integration points during updates:
 Crete Home reads persisted history through existing backend commands because LiftOff's frontend falls back to installed titles on first run. Crete filters operate on the inherited discovered/owned library; this skin does not add bundled emulators, Android games, ROM scraping, Steam achievements, HowLongToBeat data or GameNative on Windows. Those capabilities must not be inferred from the Android reference screenshots.
 
 After each upstream update, run the unit suite, production build, full browser suite and native Windows workflow. Recheck controller return from details, native management availability and one-command launch behavior, then record the imported revision and validation in the app journal.
+
+## Moonlight and MoonDeck on Windows
+
+CreteOS detects the standard Moonlight client and reads the paired host's live advertised apps through the official CLI. Only exact game title matches establish the Moonlight default; Desktop, Steam and MoonDeckStream do not prove installation. Windows automatic selection is local installed → exact live host game → curated GFN link → install. This follows Muzi's requested Windows order; Android remains independent.
+
+Details → Launch options → Moonlight opens a compact stream configuration panel. It refreshes the active display before opening. Defaults: native 1080p/120, XREAL 1200p/90, 4K/60, 80Mbps, automatic codec. Windows monitor identity keys saved preferences; XREAL uses the monitor name or a 1200p mode. Users can override presets, resolution, fps, bitrate and H.264/H.265/AV1. Monitor identity and physical output switching require GPD acceptance.
+
+For Steam entries, MoonDeckStream is selected when advertised. Pair CreteOS separately with MoonDeck Buddy through the panel; the generated PIN is entered on the host. Buddy client identity is stored in Windows Credential Manager. Protocol API 8/9 uses its official public service certificate with hostname checking omitted as in the official client, but certificate trust remains pinned to that certificate; no global TLS changes. CreteOS waits for the stream and Steam, launches the exact Steam ID, observes Running, then ends its own tracked session when that game stops. Existing different-game sessions are refused. These steps require a live native test.
+
+Buddy's API does not supply an installed-game inventory. Automatic routing through MoonDeck for every installed host game still requires a host inventory feed; a published MoonDeckStream entry alone is insufficient. Bosgame's live list was Desktop, Steam Big Picture, Steam, MoonDeckStream and Buddy API8 was reachable on 2026-10-13. No direct native game session is claimed from these read-only checks.
+
+MoonDeck protocol references: https://github.com/FrogTheFrog/moondeck and https://github.com/FrogTheFrog/moondeck-buddy. Moonlight CLI: https://github.com/moonlight-stream/moonlight-qt/blob/master/app/cli/commandlineparser.cpp.

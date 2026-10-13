@@ -21,3 +21,12 @@ export function geforceNowUrl(app: App): string | undefined {
 export function isPcGame(app: App): boolean {
   return app.app_type === "game" && ["steam", "xbox", "gog", "epic", "ea", "ubisoft", "battlenet", "desktop"].includes(app.source?.toLowerCase() ?? "");
 }
+
+export function moonlightMatch(app: App, apps: string[]): string | undefined {
+  const normalize = (name: string) => name.replace(/[™®]/g, "").normalize("NFKC").trim().toLowerCase();
+  return apps.find(name => normalize(name) === normalize(app.name));
+}
+
+export function defaultProvider(app: App, moonlightGame?: string, gfnUrl?: string): "local" | "moonlight" | "geforceNow" | "install" {
+  return app.installed ? "local" : moonlightGame ? "moonlight" : gfnUrl ? "geforceNow" : "install";
+}

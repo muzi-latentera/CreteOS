@@ -6,7 +6,9 @@ import { IoGameControllerOutline, IoPlay } from "react-icons/io5";
 import type { App, Settings } from "../types";
 import { useStoreMetadata } from "../hooks/useStoreMetadata";
 import { CreteGameCard } from "./CreteGameCard";
-import { geforceNowUrl } from "./streaming";
+import { defaultProvider, geforceNowUrl, moonlightMatch } from "./streaming";
+import { useStreaming } from "./useStreaming";
+import { scrollPane } from "./smoothScroll";
 import { useViewNavigation, type NavigationRef } from "./navigation";
 import { playedGames, playtime, lastPlayed, steamId, sourceLabel } from "./model";
 
@@ -34,6 +36,7 @@ export function CreteHomeView(p: CreteHomeProps) {
   const recorded = useRecordedHistory(p.active, p.recent);
   const games = useMemo(() => playedGames(p.apps, recorded), [p.apps, recorded]);
   const hero = games[0];
+  const streaming = useStreaming(hero ?? { id: "", name: "" }, p.active && !!hero);
   const rail = games.slice(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
@@ -49,8 +52,10 @@ export function CreteHomeView(p: CreteHomeProps) {
   const openNews = (index: number) => { void openUrl(news[index].url).catch(() => {}); };
   const meta = useStoreMetadata(hero?.source, steamId(hero), hero?.xbox_product_id, !!hero && p.active && p.settings.fetch_store_metadata);
   const artwork = hero && (p.customHeroArt[hero.id] || p.heroStatic[hero.id] || meta.data?.background || meta.data?.headerImage);
-  const cloudHeroUrl = hero?.installed === false ? geforceNowUrl(hero) : undefined;
+  const heroProvider = hero ? defaultProvider(hero, streaming.moonlightGame, geforceNowUrl(hero)) : "install";
+  const cloudHeroUrl = heroProvider === "geforceNow" && hero ? geforceNowUrl(hero) : undefined;
   const open = (app: App) => {
+    if (p.settings.home_launch_games_directly && app.installed === false && moonlightMatch(app, streaming.apps)) { p.onOpenDetails(app); return; }
     setLaunchError(null);
     const url = app.installed === false ? geforceNowUrl(app) : undefined;
     if (p.settings.home_launch_games_directly && url) void openUrl(url).catch(error => setLaunchError(String(error)));
@@ -90,7 +95,7 @@ export function CreteHomeView(p: CreteHomeProps) {
     if (!onRail && !onNews) {
       // Scroll this pane only: scrollIntoView can also move ancestor panes,
       // and revealing the Play button alone leaves the hero title offscreen.
-      scroller.scrollTo({ top: 0, behavior: "auto" });
+      scrollPane(scroller, { top: 0 });
       return;
     }
     const target = onNews ? newsRef.current?.querySelector('[data-selected="true"]') : onRail ? railRef.current?.querySelector(`[data-selected="true"]`) : heroSectionRef.current;
@@ -102,12 +107,12 @@ export function CreteHomeView(p: CreteHomeProps) {
     const top = pane.top + (parseFloat(style.scrollPaddingTop) || 0) * scale;
     const bottom = pane.bottom - (parseFloat(style.scrollPaddingBottom) || 0) * scale;
     const delta = bounds.top < top ? bounds.top - top : bounds.bottom > bottom ? bounds.bottom - bottom : 0;
-    if (delta) scroller.scrollBy({ top: delta / scale, behavior: "auto" });
+    if (delta) scrollPane(scroller, { top: scroller.scrollTop + delta / scale });
     const row = onNews ? newsRef.current : railRef.current;
     if (row) {
       const rowBounds = row.getBoundingClientRect();
       const horizontal = bounds.left < rowBounds.left ? bounds.left - rowBounds.left : bounds.right > rowBounds.right ? bounds.right - rowBounds.right : 0;
-      if (horizontal) row.scrollBy({ left: horizontal / scale, behavior: "auto" });
+      if (horizontal) scrollPane(row, { left: row.scrollLeft + horizontal / scale });
     }
   }, [p.active, selectedId, onRail, onNews, newsIndex]);
 
@@ -122,7 +127,7 @@ export function CreteHomeView(p: CreteHomeProps) {
         <div className="crete-hero-copy"><span className="crete-eyebrow crete-amber">Continue where you stopped</span>
           <h1>{hero.name}</h1><div className="crete-hero-tags"><span>{sourceLabel(hero.source)}</span>
             {hero.installed !== false && !!hero.source && hero.source !== "cloud" && <span className="crete-local">Local</span>}</div>
-          <button type="button" ref={heroRef} className="crete-play" data-cloud={!!cloudHeroUrl} onFocus={() => { setSelectedId(null); setNewsIndex(-1); }} onClick={() => open(hero)}><IoPlay /> {cloudHeroUrl ? "Play via GeForce NOW" : "Play"}</button>
+          <button type="button" ref={heroRef} className="crete-play" data-cloud={!!cloudHeroUrl || heroProvider === "moonlight"} onFocus={() => { setSelectedId(null); setNewsIndex(-1); }} onClick={() => open(hero)}><IoPlay /> {heroProvider === "moonlight" ? "Play via Moonlight" : cloudHeroUrl ? "Play via GeForce NOW" : "Play"}</button>
           {launchError && <p role="alert">{launchError}</p>}
         </div>
         <aside className="crete-hero-info"><span className="crete-eyebrow">Game info</span><dl>

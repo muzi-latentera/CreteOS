@@ -82,13 +82,17 @@ test.beforeEach(async ({ page }) => {
         (window as any)[`_${callbackId}`] = callback;
         return callbackId;
       },
-      invoke: async (command: string) => {
+      invoke: async (command: string, args?: any) => {
         counts[command] = (counts[command] || 0) + 1;
         if (command === "plugin:event|listen") {
           listenerId += 1;
           return listenerId;
         }
         if (command === "plugin:event|unlisten" || command === "plugin:event|emit") return null;
+        if (command === "launch_moonlight") { (window as any).__lastStream = args; return null; }
+        if (command === "get_moondeck_status") return { paired: !params.has("buddyUnpaired"), version: 8 };
+        if (command === "get_moonlight_profile") return { displayKey: "DISPLAY1:1920x1080", profile: { host: "Bosgame", resolution: "1920x1080", fps: 120, bitrate: 80000, codec: "auto" } };
+        if (command === "get_moonlight_apps") { if (params.has("hostOffline")) throw new Error("Host offline"); return params.has("hostGame") ? ["Control Ultimate Edition", "Desktop"] : ["Desktop", "Steam Big Picture", "MoonDeckStream"]; }
         if (command === "get_streaming_clients") return { geforceNow: true, moonlight: true };
         if (command === "get_crete_news_rss") return params.has("news") ? `<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Test gaming headline</title><link href="https://www.reddit.com/r/Games/comments/test"/></entry></feed>` : "";
         if (params.has("applications") && command === "get_app_collections") return [{ id: "tools", name: "Tools" }];
@@ -473,10 +477,11 @@ test("CreteOS details keeps native management and sends one launch command", asy
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.locator('[data-tab-pane="games"] .crete-game-card').first().click();
   const details = page.locator('[data-crete-details="true"]');
-  await details.getByRole("button", { name: "Manage game", exact: true }).click();
-  await expect(details.getByRole("button", { name: "Show game information", exact: true })).toHaveAttribute("aria-expanded", "true");
+  await details.getByRole("button", { name: "Launch options", exact: true }).click();
+  await details.getByRole("menuitem", { name: "Manage game", exact: true }).click();
+  await expect(details.getByRole("button", { name: "Launch options", exact: true })).toHaveAttribute("aria-expanded", "false");
   await expect(details.getByRole("button", { name: /Pin/ }).first()).toBeVisible();
-  await details.getByRole("button", { name: "Show game information", exact: true }).click();
+
   await details.locator("[data-launch-btn]").click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
 });
@@ -635,23 +640,13 @@ test("Uninstalled mapped games offer green GFN Play plus native install and stre
   await details.getByRole("button", { name: "Play via GeForce NOW", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"])).toBe(1);
   expect(await page.evaluate(() => (window as any).__invokeCounts.launch_app ?? 0)).toBe(0);
-  await details.getByRole("button", { name: "Manage game", exact: true }).click();
-  await expect(details.getByRole("button", { name: "Install locally", exact: true })).toBeVisible();
-  await expect(details.getByRole("button", { name: /Open Moonlight library/ })).toBeVisible();
-  await details.getByRole("button", { name: /Open Moonlight library/ }).click();
-  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_streaming_client)).toBe(1);
-});
-
-test("Installed mapped games keep local Play as the default", async ({ page }) => {
-  await page.goto("/?crete&rich&gfn&gfnLocal");
-  await page.getByRole("button", { name: "Library", exact: true }).click();
-  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
-  const primary = page.locator('[data-crete-details="true"] [data-launch-btn]');
-  await expect(primary).toHaveText("Play");
-  await expect(primary).toHaveAttribute("data-cloud", "false");
-  await primary.click();
-  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
-  expect(await page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"] ?? 0)).toBe(0);
+  await details.getByRole("button", { name: "Launch options", exact: true }).click();
+  await expect(details.getByRole("menuitem", { name: "Install locally", exact: true })).toBeVisible();
+  await details.getByRole("menuitem", { name: "Moonlight", exact: true }).click();
+  const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
+  await expect(stream).toBeVisible();
+  await expect(stream.getByLabel("Host app")).toHaveValue("MoonDeckStream");
+  await stream.getByRole("button", { name: "Cancel", exact: true }).click();
 });
 
 test("Home direct Play uses the mapped cloud page for an uninstalled hero", async ({ page }) => {
@@ -662,4 +657,68 @@ test("Home direct Play uses the mapped cloud page for an uninstalled hero", asyn
   await primary.click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"])).toBe(1);
   expect(await page.evaluate(() => (window as any).__invokeCounts.launch_app ?? 0)).toBe(0);
+});
+
+
+test("Live host game takes priority over GFN and preserves display-specific stream options", async ({ page }) => {
+  await page.goto("/?crete&rich&gfn&hostGame");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const details = page.locator('[data-crete-details="true"]');
+  await details.getByRole("button", { name: "Play via Moonlight", exact: true }).click();
+  const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
+  await expect(stream.getByLabel("Host app")).toHaveValue("Control Ultimate Edition");
+  await stream.getByLabel("Display preset").selectOption("xreal");
+  await expect(stream.getByLabel("Resolution")).toHaveValue("1920x1200");
+  await expect(stream.getByLabel("Frame rate")).toHaveValue("90");
+  await expect(stream.getByLabel("Bitrate")).toHaveValue("80000");
+  await stream.getByLabel("Codec").selectOption("AV1");
+  await stream.getByRole("button", { name: "Start stream", exact: true }).click();
+  await expect(stream).not.toBeVisible();
+  expect(await page.evaluate(() => (window as any).__lastStream)).toMatchObject({ appName: "Control Ultimate Edition", steamId: null, profile: { resolution: "1920x1200", fps: 90, bitrate: 80000, codec: "AV1" } });
+  expect(await page.evaluate(() => (window as any).__invokeCounts.launch_app ?? 0)).toBe(0);
+});
+
+test("Offline host falls back to GFN and Escape closes compact menu without closing details", async ({ page }) => {
+  await page.goto("/?crete&rich&gfn&hostOffline");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const details = page.locator('[data-crete-details="true"]');
+  await expect(details.getByRole("button", { name: "Play via GeForce NOW", exact: true })).toBeVisible();
+  await page.keyboard.press("ArrowRight");
+  await expect(details.getByRole("menu", { name: "Launch options" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(details.getByRole("menu", { name: "Launch options" })).not.toBeVisible();
+  await expect(details).toBeVisible();
+});
+
+test("MoonDeckStream passes the selected Steam ID and requires its own pairing", async ({ page }) => {
+  await page.goto("/?crete&rich&gfn");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const details = page.locator('[data-crete-details="true"]');
+  await details.getByRole("button", { name: "Launch options", exact: true }).click();
+  await details.getByRole("menuitem", { name: "Moonlight", exact: true }).click();
+  const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
+  await expect(stream.getByLabel("Host app")).toHaveValue("MoonDeckStream");
+  await stream.getByRole("button", { name: "Start stream", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__lastStream?.steamId)).toBe("870780");
+  await page.goto("/?crete&rich&gfn&buddyUnpaired");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  await details.getByRole("button", { name: "Launch options", exact: true }).click();
+  await details.getByRole("menuitem", { name: "Moonlight", exact: true }).click();
+  await expect(stream.getByRole("button", { name: "Start stream", exact: true })).toBeDisabled();
+  await expect(stream.getByRole("button", { name: "Pair MoonDeck Buddy", exact: true })).toBeVisible();
+});
+test("Installed mapped games keep local Play as the default", async ({ page }) => {
+  await page.goto("/?crete&rich&gfn&gfnLocal");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const primary = page.locator('[data-crete-details="true"] [data-launch-btn]');
+  await expect(primary).toHaveText("Play");
+  await expect(primary).toHaveAttribute("data-cloud", "false");
+  await primary.click();
+  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
+  expect(await page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"] ?? 0)).toBe(0);
 });

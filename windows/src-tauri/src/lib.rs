@@ -54,6 +54,7 @@ mod storage_info;
 mod store_metadata;
 mod steam_artwork;
 mod streaming;
+mod moondeck;
 mod crete_news;
 
 const SGDB_KEY: &str = env!("SGDB_API_KEY");
@@ -9951,6 +9952,11 @@ pub fn run() {
             fetch_game_art,
             streaming::get_streaming_clients,
             streaming::launch_streaming_client,
+            streaming::get_moonlight_apps,
+            streaming::get_moonlight_profile,
+            streaming::launch_moonlight,
+            moondeck::get_moondeck_status,
+            moondeck::pair_moondeck,
             get_cached_art_bulk,
             get_recents,
             get_recent_games,

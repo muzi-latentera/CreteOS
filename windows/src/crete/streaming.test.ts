@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { geforceNowUrl, isPcGame } from "./streaming";
+import { defaultProvider, geforceNowUrl, isPcGame, moonlightMatch } from "./streaming";
 import type { App } from "../types";
 
 describe("streaming targets", () => {
+  it("prefers local, then an exact live host game, then GFN; launchers are not games", () => {
+    const app: App = { id: "control", name: "Control Ultimate Edition", installed: false };
+    expect(moonlightMatch(app, ["Desktop", "MoonDeckStream", "Steam"])).toBeUndefined();
+    const match = moonlightMatch(app, ["CONTROL Ultimate Edition™"]);
+    expect(match).toBe("CONTROL Ultimate Edition™");
+    expect(defaultProvider(app, match, "gfn")).toBe("moonlight");
+    expect(defaultProvider({ ...app, installed: true }, match, "gfn")).toBe("local");
+    expect(defaultProvider(app, undefined, "gfn")).toBe("geforceNow");
+    expect(defaultProvider(app)).toBe("install");
+    expect(moonlightMatch(app, ["Control", "CONTROL Resonant"])).toBeUndefined();
+  });
   it("uses exact Android links without guessing similar titles or app IDs", () => {
     const game: App = { id: "control", name: "Control Ultimate Edition", source: "steam", app_type: "game", steam_appid: 870780 };
     expect(geforceNowUrl(game)).toContain("game-id=5aed2b8b-912f-4e9e-b8e3-dcd8c8613679");
