@@ -40,10 +40,39 @@ fn request(host: &str, endpoint: &str, body: Option<Value>) -> Result<Value, Str
     let builder = if let Some(body) = body {
         if endpoint == "appData" { client.get(url).json(&body) } else { client.post(url).json(&body) }
     } else { client.get(url) };
-    builder.header("Authorization", format!("basic {auth}")).send()
-        .map_err(|_| "MoonDeck Buddy is unavailable on this host".to_owned())?
-        .error_for_status().map_err(|_| "MoonDeck Buddy rejected the request. Check CreteOS pairing.".to_owned())?
-        .json().map_err(|_| "Invalid MoonDeck Buddy response".to_owned())
+    let response = builder.header("Authorization", format!("basic {auth}")).send()
+        .map_err(|_| "MoonDeck Buddy is unavailable on this host. Check the host's network connection.".to_owned())?;
+    if !response.status().is_success() {
+        // Pairing URLs contain the private client identity; report only the
+        // route name, never the URL, authorization header or response body.
+        let route = endpoint.split('/').next().unwrap_or("request");
+        return Err(request_error(route, response.status().as_u16()));
+    }
+    response.json().map_err(|_| "Invalid MoonDeck Buddy response".to_owned())
+}
+
+fn request_error(route: &str, code: u16) -> String {
+    match code {
+        401 | 403 => format!("MoonDeck Buddy did not authorize {route} (HTTP {code}). Check CreteOS pairing."),
+        404 => format!("MoonDeck Buddy does not support {route} (HTTP 404). Check the Buddy API version."),
+        _ => format!("MoonDeck Buddy rejected {route} (HTTP {code})."),
+    }
+}
+
+fn app_data_request(version: u64, steam_id: Option<&str>) -> (&'static str, Option<Value>) {
+    // API 8 exposes only the app tracked by the current stream. API 9 adds
+    // appData, including an optional query for a specific installed app.
+    if version == 8 { ("streamedAppData", None) }
+    else { ("appData", steam_id.map(|id| json!({"app_id":id}))) }
+}
+
+fn app_data(host: &str, version: u64, steam_id: Option<&str>) -> Result<Value, String> {
+    let (route, body) = app_data_request(version, steam_id);
+    request(host, route, body)
+}
+
+fn requested_app_running(data: &Value, steam_id: &str) -> bool {
+    data["data"]["app_id"].as_str() == Some(steam_id) && state_is(&data["data"]["app_state"], 1, "Running")
 }
 
 pub fn status(host: &str) -> Result<Value, String> {
@@ -76,7 +105,9 @@ pub fn launch(host: &str, steam_id: &str) -> Result<(), String> {
     if steam_id.is_empty() || steam_id.len() > 10 || !steam_id.bytes().all(|c| c.is_ascii_digit()) {
         return Err("Invalid Steam app ID".into());
     }
-    if status(host)?["paired"] != true { return Err("Pair CreteOS with MoonDeck Buddy first".into()); }
+    let buddy = status(host)?;
+    if buddy["paired"] != true { return Err("Pair CreteOS with MoonDeck Buddy first".into()); }
+    let version = buddy["version"].as_u64().ok_or("Missing Buddy API version")?;
     let deadline = std::time::Instant::now();
     while !state_is(&request(host, "streamState", None)?["state"], 1, "Streaming") {
         if deadline.elapsed() > std::time::Duration::from_secs(20) { return Err("MoonDeckStream did not become ready".into()); }
@@ -97,8 +128,8 @@ pub fn launch(host: &str, steam_id: &str) -> Result<(), String> {
     }
     let deadline = std::time::Instant::now();
     loop {
-        let data = request(host, "appData", Some(json!({"app_id":steam_id})))?;
-        if state_is(&data["data"]["app_state"], 1, "Running") { break; }
+        let data = app_data(host, version, Some(steam_id))?;
+        if requested_app_running(&data, steam_id) { break; }
         if deadline.elapsed() > std::time::Duration::from_secs(40) { return Err("Game did not start on Bosgame. Check installation or Steam's launch dialog.".into()); }
         std::thread::sleep(std::time::Duration::from_millis(500));
     }
@@ -110,7 +141,7 @@ pub fn launch(host: &str, steam_id: &str) -> Result<(), String> {
             std::thread::sleep(std::time::Duration::from_secs(2));
             let Ok(state) = request(&host, "streamState", None) else { break; };
             if !state_is(&state["state"], 1, "Streaming") { break; }
-            let Ok(data) = request(&host, "appData", None) else { break; };
+            let Ok(data) = app_data(&host, version, None) else { break; };
             if data["data"]["app_id"] != id { break; }
             if state_is(&data["data"]["app_state"], 0, "Stopped") {
                 let _ = request(&host, "endStream", Some(json!({})));
@@ -122,7 +153,9 @@ pub fn launch(host: &str, steam_id: &str) -> Result<(), String> {
 }
 
 pub fn prepare(host: &str, steam_id: &str) -> Result<(), String> {
-    let active = request(host, "appData", None)?;
+    let buddy = status(host)?;
+    let version = buddy["version"].as_u64().ok_or("Missing Buddy API version")?;
+    let active = app_data(host, version, None)?;
     if let Some(id) = active["data"]["app_id"].as_str() {
         if id != steam_id { return Err("Bosgame is already streaming a different game. End that session first.".into()); }
     }
@@ -131,6 +164,28 @@ pub fn prepare(host: &str, steam_id: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn uses_api_8_tracked_app_route_and_api_9_optional_app_query() {
+        assert_eq!(super::app_data_request(8, None), ("streamedAppData", None));
+        assert_eq!(super::app_data_request(8, Some("883710")), ("streamedAppData", None));
+        assert_eq!(super::app_data_request(9, None), ("appData", None));
+        assert_eq!(super::app_data_request(9, Some("883710")), ("appData", Some(serde_json::json!({"app_id":"883710"}))));
+    }
+    #[test]
+    fn tracked_app_running_must_match_requested_game() {
+        let data = serde_json::json!({"data":{"app_id":"883710","app_state":"Running"}});
+        assert!(super::requested_app_running(&data, "883710"));
+        assert!(!super::requested_app_running(&data, "1649240"));
+        assert!(!super::requested_app_running(&serde_json::json!({"data":null}), "883710"));
+        assert!(!super::requested_app_running(&serde_json::json!({"data":{"app_id":"883710","app_state":"Stopped"}}), "883710"));
+    }
+    #[test]
+    fn distinguishes_missing_route_from_pairing_rejection() {
+        assert!(!super::request_error("appData", 404).contains("pairing"));
+        assert!(super::request_error("appData", 404).contains("HTTP 404"));
+        assert!(super::request_error("streamedAppData", 401).contains("pairing"));
+        assert!(super::request_error("launchSteam", 500).contains("launchSteam"));
+    }
     #[test]
     fn accepts_buddy_wire_enum_names_without_treating_missing_as_ready() {
         assert!(super::state_is(&serde_json::json!("Paired"), 0, "Paired"));

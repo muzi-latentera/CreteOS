@@ -988,7 +988,7 @@ test("A failed cached Moonlight launch offers explicit local play", async ({ pag
   await details.locator("[data-launch-btn]").click();
   const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
   await stream.getByRole("button", { name: "Start stream", exact: true }).click();
-  await expect(stream.getByRole("alert")).toContainText("Connect to the host's network");
+  await expect(stream.getByRole("alert")).toContainText("Host unavailable");
   await stream.getByRole("button", { name: "Play locally", exact: true }).click();
   await expect(stream).not.toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
