@@ -3,6 +3,10 @@
 use base64::Engine;
 use serde_json::{json, Value};
 
+fn state_is(value: &Value, number: u64, name: &str) -> bool {
+    value.as_u64() == Some(number) || value.as_str() == Some(name)
+}
+
 fn identity(host: &str) -> Result<String, String> {
     let entry = keyring::Entry::new("CreteOS.MoonDeck", host).map_err(|e| e.to_string())?;
     match entry.get_password() {
@@ -47,7 +51,7 @@ pub fn status(host: &str) -> Result<Value, String> {
     if !matches!(version["version"].as_u64(), Some(8 | 9)) { return Err("Unsupported MoonDeck Buddy API version".into()); }
     let id = identity(host)?;
     let pairing = request(host, &format!("pairingState/{id}"), None)?;
-    Ok(json!({"paired":pairing["state"].as_u64() == Some(0),"version":version["version"]}))
+    Ok(json!({"paired":state_is(&pairing["state"], 0, "Paired"),"version":version["version"]}))
 }
 
 #[tauri::command]
@@ -74,7 +78,7 @@ pub fn launch(host: &str, steam_id: &str) -> Result<(), String> {
     }
     if status(host)?["paired"] != true { return Err("Pair CreteOS with MoonDeck Buddy first".into()); }
     let deadline = std::time::Instant::now();
-    while request(host, "streamState", None)?["state"] != 1 {
+    while !state_is(&request(host, "streamState", None)?["state"], 1, "Streaming") {
         if deadline.elapsed() > std::time::Duration::from_secs(20) { return Err("MoonDeckStream did not become ready".into()); }
         std::thread::sleep(std::time::Duration::from_millis(300));
     }
@@ -83,7 +87,8 @@ pub fn launch(host: &str, steam_id: &str) -> Result<(), String> {
     }
     let deadline = std::time::Instant::now();
     loop {
-        if request(host, "steamUiMode", None)?["mode"].as_u64().is_some_and(|mode| mode != 0) { break; }
+        let mode = request(host, "steamUiMode", None)?;
+        if state_is(&mode["mode"], 1, "Desktop") || state_is(&mode["mode"], 2, "BigPicture") { break; }
         if deadline.elapsed() > std::time::Duration::from_secs(20) { return Err("Steam did not become ready".into()); }
         std::thread::sleep(std::time::Duration::from_millis(300));
     }
@@ -93,7 +98,7 @@ pub fn launch(host: &str, steam_id: &str) -> Result<(), String> {
     let deadline = std::time::Instant::now();
     loop {
         let data = request(host, "appData", Some(json!({"app_id":steam_id})))?;
-        if data["data"]["app_state"] == 1 { break; }
+        if state_is(&data["data"]["app_state"], 1, "Running") { break; }
         if deadline.elapsed() > std::time::Duration::from_secs(40) { return Err("Game did not start on Bosgame. Check installation or Steam's launch dialog.".into()); }
         std::thread::sleep(std::time::Duration::from_millis(500));
     }
@@ -104,10 +109,10 @@ pub fn launch(host: &str, steam_id: &str) -> Result<(), String> {
         loop {
             std::thread::sleep(std::time::Duration::from_secs(2));
             let Ok(state) = request(&host, "streamState", None) else { break; };
-            if state["state"] != 1 { break; }
+            if !state_is(&state["state"], 1, "Streaming") { break; }
             let Ok(data) = request(&host, "appData", None) else { break; };
             if data["data"]["app_id"] != id { break; }
-            if data["data"]["app_state"] == 0 {
+            if state_is(&data["data"]["app_state"], 0, "Stopped") {
                 let _ = request(&host, "endStream", Some(json!({})));
                 break;
             }
@@ -122,4 +127,17 @@ pub fn prepare(host: &str, steam_id: &str) -> Result<(), String> {
         if id != steam_id { return Err("Bosgame is already streaming a different game. End that session first.".into()); }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn accepts_buddy_wire_enum_names_without_treating_missing_as_ready() {
+        assert!(super::state_is(&serde_json::json!("Paired"), 0, "Paired"));
+        assert!(super::state_is(&serde_json::json!(0), 0, "Paired"));
+        assert!(!super::state_is(&serde_json::Value::Null, 0, "Paired"));
+        assert!(!super::state_is(&serde_json::json!("NotPaired"), 0, "Paired"));
+        assert!(super::state_is(&serde_json::json!("Streaming"), 1, "Streaming"));
+        assert!(super::state_is(&serde_json::json!("Running"), 1, "Running"));
+    }
 }
