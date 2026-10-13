@@ -14,6 +14,10 @@ describe("CreteOS library data", () => {
     expect(matchesAvailability(cloud, "owned")).toBe(false);
     expect(matchesAvailability(local, "cloud")).toBe(false);
     expect(matchesAvailability(cloud, "cloud")).toBe(true);
+    expect(matchesAvailability(owned, "uninstalled")).toBe(true);
+    expect(matchesAvailability(local, "uninstalled")).toBe(false);
+    expect(matchesAvailability(cloud, "uninstalled")).toBe(false);
+    expect(matchesAvailability({ ...owned, installed: undefined }, "uninstalled")).toBe(false);
   });
   it("does not invent continue-playing history from an installed game", () => {
     expect(playedGames([local, owned], [])).toEqual([]);

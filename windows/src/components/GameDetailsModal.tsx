@@ -1,3 +1,4 @@
+import { useCreteText } from "../crete/text";
 import { CreteDetailsInfo } from "../crete/CreteDetailsInfo";
 import { LaunchMenu } from "../crete/LaunchMenu";
 import { useStreaming } from "../crete/useStreaming";
@@ -237,6 +238,7 @@ export function GameDetailsModal({
   const xboxConfirmButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const source = app.source?.toLowerCase() ?? "";
   const isCloud = source === "cloud";
+  const creteText = useCreteText();
   const streaming = useStreaming(app, resolvedTheme === "crete");
   const [launchMenuOpen, setLaunchMenuOpen] = useState(false);
   const launchPopupBlockedRef = useRef(false);
@@ -386,7 +388,7 @@ export function GameDetailsModal({
   } : undefined);
   const installing = !!effectiveInstallProgress && effectiveInstallProgress.state !== "complete";
   const uninstalling = effectiveInstallProgress?.state === "uninstalling";
-  const cloudDefault = !installed && !installing && !uninstalling && (streaming.provider === "moonlight" || streaming.provider === "geforceNow");
+  const cloudDefault = !running && !installing && !uninstalling && (streaming.provider === "moonlight" || (!installed && streaming.provider === "geforceNow"));
   const installPhase = effectiveInstallProgress?.phase ?? "downloading";
   const liveInstall = effectiveInstallProgress?.live === true;
   const indeterminateInstall = liveInstall || uninstalling;
@@ -449,7 +451,7 @@ export function GameDetailsModal({
   };
 
   const actions = useMemo<DetailAction[]>(() => [
-    ...(cloudDefault && (canInstall || canXboxInstall) ? [{ key: "install-local", label: "Install locally", onClick: handleLocalAction }] : []),
+    ...(cloudDefault && !installed && (canInstall || canXboxInstall) ? [{ key: "install-local", label: "Install locally", onClick: handleLocalAction }] : []),
     ...(running && onCloseGame ? [{ key: "close-game", label: t("home.close"), onClick: onCloseGame, danger: true }] : []),
     ...(installed && onVerify && isSteam ? [{ key: "verify", label: t("install.verify"), onClick: onVerify }] : []),
     ...(installed && onUninstall ? [{ key: "uninstall", label: t("install.uninstall"), onClick: onUninstall, danger: true }] : []),
@@ -791,7 +793,7 @@ export function GameDetailsModal({
   const xboxInstallLabel = xboxProductId
     ? t("install.install")
     : t("install.getOnXbox", { defaultValue: "Get in Store" });
-  const primaryLabel = !installed && !installing && streaming.checking ? "Checking Bosgame…" : cloudDefault ? (streaming.provider === "moonlight" ? "Play via Moonlight" : "Play via GeForce NOW") : running
+  const primaryLabel = !running && !installing && streaming.checking ? creteText("Checking Bosgame…") : cloudDefault ? creteText(streaming.provider === "moonlight" ? "Play via Moonlight" : "Play via GeForce NOW") : running
     ? t("home.resume")
     : installed
       ? t("details.play")
@@ -800,7 +802,7 @@ export function GameDetailsModal({
         : canXboxInstall
           ? xboxInstallLabel
         : installLabel;
-  const primaryDisabled = (!installed && !installing && streaming.checking) || (!cloudDefault && !installed && (uninstalling || (!installing && !canInstall && !canXboxInstall)));
+  const primaryDisabled = (!running && !installing && streaming.checking) || (!cloudDefault && !installed && (uninstalling || (!installing && !canInstall && !canXboxInstall)));
   const overlayItem = overlay ? mediaItems[overlay.index] : null;
   const overlayMovieSrc = overlayItem?.type === "trailer" ? movieSource(overlayItem.movie) : undefined;
   const overlayMovieUsesHls = isHlsMediaUrl(overlayMovieSrc);
@@ -1049,8 +1051,8 @@ export function GameDetailsModal({
         </div>
 
         {resolvedTheme === "crete" && <>
-          <CreteDetailsInfo app={app} metadata={store.data} lastPlayedAt={lastPlayedAt} minutes={playtimeMinutes} installed={installed} />
-          <button type="button" className="crete-details-back" aria-label="Close game details" onClick={onClose}><IoChevronBackOutline /></button>
+          <CreteDetailsInfo app={app} metadata={store.data} lastPlayedAt={lastPlayedAt} minutes={playtimeMinutes} installed={installed} stats={metaItems} />
+          <button type="button" className="crete-details-back" aria-label={creteText("Close game details")} onClick={onClose}><IoChevronBackOutline /></button>
         </>}
         <div data-crete-detail-slot="content" style={{
           position: "relative",

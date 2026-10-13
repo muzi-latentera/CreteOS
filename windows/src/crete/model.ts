@@ -1,13 +1,14 @@
 import type { App } from "../types";
 
-export type Availability = "all" | "local" | "owned" | "cloud";
-export const AVAILABILITY = ["all", "local", "owned", "cloud"] as const;
-export const AVAILABILITY_LABELS = ["All Games", "Local", "Owned", "Cloud"];
+export type Availability = "all" | "local" | "owned" | "uninstalled" | "cloud";
+export const AVAILABILITY = ["all", "local", "owned", "uninstalled", "cloud"] as const;
+export const AVAILABILITY_LABELS = ["All Games", "Local", "Owned", "Not installed", "Cloud"];
 const OWNED_STORES = new Set(["steam", "xbox", "gog", "epic", "battlenet"]);
 
 export function matchesAvailability(app: App, filter: Availability) {
   const source = app.source?.toLowerCase();
   if (filter === "cloud") return source === "cloud";
+  if (filter === "uninstalled") return source !== "cloud" && app.installed === false;
   if (filter === "local") return source !== "cloud" && app.installed !== false;
   if (filter === "owned") return OWNED_STORES.has(source ?? "");
   return true;

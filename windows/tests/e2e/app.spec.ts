@@ -6,6 +6,7 @@ test.beforeEach(async ({ page }) => {
     let listenerId = 0;
     const params = new URLSearchParams(window.location.search);
     const counts: Record<string, number> = {};
+    let pinnedIds: string[] = params.has("parity") ? ["steam://rungameid/621"] : [];
     (window as any).__invokeCounts = counts;
 
     const emptyArrays = new Set([
@@ -89,6 +90,12 @@ test.beforeEach(async ({ page }) => {
           return listenerId;
         }
         if (command === "plugin:event|unlisten" || command === "plugin:event|emit") return null;
+        if (command === "get_pins") return pinnedIds;
+        if (command === "toggle_pin") { const id = args.appId; pinnedIds = pinnedIds.includes(id) ? pinnedIds.filter(value => value !== id) : [...pinnedIds, id]; return pinnedIds; }
+        if (params.has("parity") && command === "get_game_collections") return [{ id: "favourites", name: "Favourites" }];
+        if (params.has("parity") && command === "get_game_memberships") return { "steam://rungameid/620": ["favourites"], "steam://rungameid/621": ["favourites"] };
+        if (params.has("sizes") && command === "get_install_size") return 1073741824;
+        if (params.has("sizes") && command === "get_steam_download_size") return 2147483648;
         if (command === "launch_moonlight") { (window as any).__lastStream = args; return null; }
         if (command === "get_host_installed_games") { if (params.has("inventoryOffline")) throw new Error("SSH unavailable"); return params.has("hostInstalled") ? [{ steamAppId: "870780", name: "Control Ultimate Edition" }] : []; }
         if (command === "get_moondeck_status") return { paired: !params.has("buddyUnpaired"), version: 8 };
@@ -102,7 +109,9 @@ test.beforeEach(async ({ page }) => {
           const bottombarMode = new URLSearchParams(window.location.search).get("barMode") || "smart";
           return { ...(responses.get_settings as Record<string, unknown>), bottombar_mode: bottombarMode,
             onboarding_complete: params.get("fresh") !== "true", theme: params.get("theme") || (params.has("crete") ? "crete" : "space"),
-            accent: "crete", surface_style: params.get("surface") || "glass", ui_motion: false, ui_scale: 1, language: "en", home_launch_games_directly: params.has("direct") };
+            accent: "crete", surface_style: params.get("surface") || "glass", ui_motion: false, ui_scale: 1, language: params.get("lang") || "en", app_list_view: params.has("listApps"), app_list_cols: 2,
+            show_home_collections: params.has("parity"), show_home_collection_names: true, home_pinned_pos: params.has("parity") ? "top" : "none", home_mode: params.get("homeMode") || "semi", animated_heroes: params.has("animated") ? "animated" : "static",
+            home_launch_games_directly: params.has("direct") };
         }
         if (command === "get_all_apps") {
           if (params.has("applications")) return [
@@ -118,7 +127,7 @@ test.beforeEach(async ({ page }) => {
           }));
           return params.has("catalog") ? [{ id: "steam://rungameid/620", name: "Portal 2", app_type: "game", installed: true }] : [];
         }
-        if (params.has("rich") && command === "fetch_game_art") return { grid: "https://fixture.test/cover.svg", hero_static: "https://fixture.test/hero.svg" };
+        if (params.has("rich") && command === "fetch_game_art") return { grid: "https://fixture.test/cover.svg", hero_static: "https://fixture.test/hero.svg", hero_animated: params.has("animated") ? "https://fixture.test/hero.mp4" : undefined };
         if (params.has("rich") && command === "fetch_store_metadata") return {
           source: "steam", appId: "620", shortDescription: "Test catalogue description. This fixture verifies the Windows layout and metadata pipeline.",
           aboutHtml: "", developers: ["Test Developer"], publishers: ["Test Publisher"], genres: [],
@@ -126,7 +135,7 @@ test.beforeEach(async ({ page }) => {
         };
         if (params.has("rich") && command === "get_cached_art_bulk") return Object.fromEntries(Array.from({ length: 24 }, (_, i) => [
           i === 0 ? "Portal 2" : i === 1 ? "Hollow Knight" : `Test Game ${String(i + 1).padStart(2, "0")}`,
-          { grid: "https://fixture.test/cover.svg", hero_static: "https://fixture.test/hero.svg" },
+          { grid: "https://fixture.test/cover.svg", hero_static: "https://fixture.test/hero.svg", hero_animated: params.has("animated") ? "https://fixture.test/hero.mp4" : undefined },
         ]));
         if (params.has("connectedAccounts") && command === "steam_account_status") {
           return { connected: true, account_name: "Steam Tester", owned_count: 12 };
@@ -432,7 +441,7 @@ test("CreteOS Library filters, inline search, source picker and sort", async ({ 
   await expect(cards).toHaveCount(1);
   await library.getByRole("textbox", { name: "Search games" }).press("Escape");
   await expect(cards).toHaveCount(24);
-  await pad(page, 2);
+  await library.getByRole("button", { name: "Sources", exact: true }).click();
   await expect(library.getByRole("group", { name: "Library sources" })).toBeVisible();
   await pad(page, 1);
   await expect(library.getByRole("group", { name: "Library sources" })).toHaveCount(0);
@@ -782,4 +791,90 @@ test("Steam host inventory makes MoonDeck the automatic default, while missing i
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
   await expect(details.locator("[data-launch-btn]")).toHaveText("Play via GeForce NOW");
+});
+
+
+test("Crete library restores not-installed, pin, source triggers, right-click and visible management", async ({ page }) => {
+  await page.goto("/?crete&rich");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  const library = page.locator('[data-tab-pane="games"]');
+  await library.getByRole("button", { name: "Not installed", exact: true }).click();
+  await expect(library.locator(".crete-game-card")).toHaveCount(7);
+  await library.getByRole("button", { name: "All Games", exact: true }).click();
+  const card = library.locator(".crete-game-card").first();
+  await card.focus(); await pad(page, 2);
+  await expect(card.getByLabel("Pinned", { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.toggle_pin)).toBe(1);
+  await pad(page, 6); await expect(library.locator(".crete-game-card")).toHaveCount(1);
+  await pad(page, 7); await expect(library.locator(".crete-game-card")).toHaveCount(24);
+  await card.click({ button: "right" });
+  await expect(page.getByText("Unpin", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await library.getByRole("button", { name: "Manage library", exact: true }).click();
+  await expect(page.getByText("Add a game", { exact: true })).toBeVisible();
+  await expect(page.getByText("Add Cloud Game", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape"); await frames(page, 15); await pad(page, 8);
+  await expect(page.getByText("Add a game", { exact: true })).toBeVisible();
+});
+
+test("Home restores pinned and collection rows, controller navigation and artwork modes", async ({ page }) => {
+  await richCrete(page, true);
+  await page.goto("/?crete&rich&played&parity&animated&homeMode=immersive");
+  await expect(page.locator('[data-home-row="pinned"] .crete-game-card')).toHaveCount(1);
+  await expect(page.locator('[data-home-row="collection:game:favourites"] .crete-game-card')).toHaveCount(2);
+  await expect(page.locator(".crete-home")).toHaveAttribute("data-home-mode", "immersive");
+  await expect(page.locator(".crete-hero video")).toHaveAttribute("src", "https://fixture.test/hero.mp4");
+  await expect(page.locator(".crete-hero > img")).toHaveAttribute("src", "https://fixture.test/hero.svg");
+  await page.keyboard.press("ArrowDown");
+  await expect(page.locator('[data-home-row="pinned"] .crete-game-card')).toHaveAttribute("data-selected", "true");
+  await page.keyboard.press("ArrowDown"); await page.keyboard.press("ArrowDown");
+  await expect(page.locator('[data-home-row="collection:game:favourites"] .crete-game-card').first()).toHaveAttribute("data-selected", "true");
+  await page.keyboard.press("Enter");
+  await expect(page.locator('[data-crete-details="true"]')).toBeVisible();
+});
+
+test("Applications list mode keeps collections and native management", async ({ page }) => {
+  await page.goto("/?crete&applications&listApps");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  const games = page.locator('[data-tab-pane="games"]');
+  await games.getByRole("button", { name: "Sources", exact: true }).click();
+  await games.getByRole("button", { name: "Applications", exact: true }).click();
+  const apps = page.locator('[data-tab-pane="apps"]');
+  await expect(apps.locator(".crete-app-list-item")).toHaveCount(2);
+  expect(await apps.locator(".crete-library-grid").evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").length)).toBe(2);
+  await apps.getByRole("button", { name: "Sources", exact: true }).click();
+  await apps.getByRole("button", { name: "Tools", exact: true }).click();
+  await expect(apps.locator(".crete-app-list-item")).toHaveCount(1);
+  await apps.getByRole("button", { name: "Manage library", exact: true }).click();
+  await expect(page.getByText("Add an app", { exact: true })).toBeVisible();
+});
+
+test("Crete new controls use the selected French language and retain Spotify mini-player", async ({ page }) => {
+  await page.goto("/?crete&rich&lang=fr");
+  await page.getByRole("button", { name: "Bibliothèque", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Non installé", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Gérer la bibliothèque", exact: true })).toBeVisible();
+  await expect(page.locator(".crete-spotify-mini")).toContainText("Test Track");
+});
+
+test("Crete details preserves actual download-size information", async ({ page }) => {
+  await page.goto("/?crete&rich&gfn&sizes");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const info = page.locator(".crete-details-info");
+  await expect(info).toContainText("Download size");
+  await expect(info).toContainText("2.0 GB");
+});
+
+
+test("Bosgame MoonDeck is preferred over a local copy, with explicit local Play retained", async ({ page }) => {
+  await page.goto("/?crete&rich&gfn&gfnLocal&hostInstalled");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const details = page.locator('[data-crete-details="true"]');
+  await expect(details.locator("[data-launch-btn]")).toHaveText("Play via Moonlight");
+  await details.getByRole("button", { name: "Launch options", exact: true }).click();
+  await details.getByRole("menuitem", { name: "Local", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
+  expect(await page.evaluate(() => (window as any).__invokeCounts.launch_moonlight ?? 0)).toBe(0);
 });

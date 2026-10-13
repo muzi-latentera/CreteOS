@@ -12,6 +12,13 @@ const pinnedPositionItem: SettingsCycleItem = {
 };
 
 describe("Home pinned-position options", () => {
+  it("exposes Crete's restored pinned position and omits unsupported chrome settings", () => {
+    const items = buildSettingsItems(((key: string) => key) as never, "crete");
+    expect(items.some(item => item.key === "home_pinned_pos")).toBe(true);
+    expect(items.some(item => item.key === "hero_content_pos")).toBe(true);
+    expect(items.some(item => item.key === "bottombar_mode")).toBe(false);
+    expect(items.some(item => item.key === "tabbar_icon_mode")).toBe(false);
+  });
   it("keeps the Home pinned-pills row off so pins stay in the helper tray", () => {
     expect(HOME_PINNED_SHELF_ENABLED).toBe(false);
     const t = (key: string) => key;

@@ -133,3 +133,29 @@
 .crete-stream-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
 .crete-stream-buttons button { border-radius: 8px; padding: 10px 14px; background: #293038; color: #eee8da; border: 1px solid #ffffff28; }
 .crete-stream-settings :focus-visible { outline: 2px solid #d6aa4f; outline-offset: 2px; }
+
+.crete-home[data-home-mode="normal"] .crete-hero { min-height: 340px; }
+.crete-home[data-home-mode="immersive"] .crete-hero { min-height: max(340px, calc(100vh - 150px)); }
+.crete-home[data-copy-position="bottom"] .crete-hero-copy { align-self: flex-end; }
+.crete-hero-title { display: flex; align-items: center; gap: 18px; }
+.crete-hero-cover { width: 64px; height: 85px; object-fit: contain; border-radius: 6px; flex-shrink: 0; }
+.crete-home .crete-rail-cards .crete-game-card { flex-basis: var(--crete-home-cover); }
+.crete-home .crete-rail h2 { font-size: var(--crete-section-size); }
+.crete-library-toolbar { flex-wrap: wrap; }
+.crete-filters { flex-wrap: wrap; }
+.crete-library-list { grid-template-columns: repeat(var(--crete-app-list-cols, 1), minmax(0, 1fr)) !important; }
+.crete-app-list-item { display:flex; align-items:center; gap:14px; padding:12px; border:1px solid var(--crete-border); border-radius:12px; background:#171b21; color:var(--crete-text); text-align:left; }
+.crete-app-list-item img { width:52px; height:52px; object-fit:contain; border-radius:8px; }
+.crete-app-list-item strong { flex:1; }
+.crete-app-list-item[data-selected="true"] { outline:2px solid var(--crete-accent); }
+@media (max-height:650px) { .crete-home[data-home-mode="normal"] .crete-hero { min-height:260px; } .crete-hero-cover { width:46px; height:61px; } }
+
+.crete-detail-stat { display: contents; }
+.crete-spotify-mini { margin-left: 20px; max-width: min(50vw, 360px); }
+.crete-bottom-nav .crete-spotify-mini button { width: auto; }
+.crete-play, [data-crete-details="true"] [data-launch-btn] { background: var(--crete-launch, #c44524) !important; }
+
+.crete-home[data-home-mode="semi"] .crete-hero { min-height: 300px; }
+@media (max-height:650px) { .crete-home[data-home-mode="semi"] .crete-hero { min-height:260px; } }
+
+.crete-home[data-home-mode="immersive"] .crete-hero { min-height: max(260px, calc(var(--crete-viewport-height, 100vh) - 150px)); }

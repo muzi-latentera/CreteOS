@@ -10,15 +10,16 @@ describe("streaming targets", () => {
     expect(moonlightTarget(game, apps, ["883710"], false)).toBeUndefined();
     expect(moonlightTarget(game, apps, ["883711"], true)).toBeUndefined();
     expect(moonlightTarget(game, apps, [], true)).toBeUndefined();
-    expect(defaultProvider({ ...game, installed: true }, "MoonDeckStream", "gfn")).toBe("local");
+    expect(defaultProvider({ ...game, installed: true }, "MoonDeckStream", "gfn")).toBe("moonlight");
   });
-  it("prefers local, then an exact live host game, then GFN; launchers are not games", () => {
+  it("prefers a verified host game, then local, then GFN; launchers are not games", () => {
     const app: App = { id: "control", name: "Control Ultimate Edition", installed: false };
     expect(moonlightMatch(app, ["Desktop", "MoonDeckStream", "Steam"])).toBeUndefined();
     const match = moonlightMatch(app, ["CONTROL Ultimate Edition™"]);
     expect(match).toBe("CONTROL Ultimate Edition™");
     expect(defaultProvider(app, match, "gfn")).toBe("moonlight");
-    expect(defaultProvider({ ...app, installed: true }, match, "gfn")).toBe("local");
+    expect(defaultProvider({ ...app, installed: true }, match, "gfn")).toBe("moonlight");
+    expect(defaultProvider({ ...app, installed: true }, undefined, "gfn")).toBe("local");
     expect(defaultProvider(app, undefined, "gfn")).toBe("geforceNow");
     expect(defaultProvider(app)).toBe("install");
     expect(moonlightMatch(app, ["Control", "CONTROL Resonant"])).toBeUndefined();

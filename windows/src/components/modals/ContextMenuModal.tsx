@@ -28,6 +28,21 @@ export default function ContextMenuModal({ app, items, onClose }: Props) {
   useEffect(() => { itemsRef.current = items; }, [items]);
 
   useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!["Escape", "Enter", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (event.key === "Escape") onClose();
+      else if (event.key === "Enter") itemsRef.current[focusIdxRef.current]?.action();
+      else {
+        const next = Math.max(0, Math.min(itemsRef.current.length - 1, focusIdxRef.current + (event.key === "ArrowDown" ? 1 : -1)));
+        focusIdxRef.current = next; setFocusIdx(next);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+
+  useEffect(() => {
     const last: Partial<GpState> = {};
     const pressTime: Record<string, number> = {};
     const repeating: Record<string, boolean> = {};
@@ -72,12 +87,16 @@ export default function ContextMenuModal({ app, items, onClose }: Props) {
       onOverlayClick={onClose}
       motion="drill"
     >
-      <div style={{ padding: "8px 0" }}>
+      <div role="menu" aria-label={app.name} style={{ padding: "8px 0" }}>
         {items.map(({ label, action, danger, sublabel, checked }, i) => {
           const focused = focusIdx === i;
           return (
             <div
               key={label}
+              role="menuitem"
+              aria-label={label}
+              tabIndex={focused ? 0 : -1}
+              onFocus={() => { setFocusIdx(i); focusIdxRef.current = i; }}
               onClick={action}
               onMouseEnter={() => { setFocusIdx(i); focusIdxRef.current = i; }}
               style={{

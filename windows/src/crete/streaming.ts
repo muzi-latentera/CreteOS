@@ -28,7 +28,7 @@ export function moonlightMatch(app: App, apps: string[]): string | undefined {
 }
 
 export function defaultProvider(app: App, moonlightGame?: string, gfnUrl?: string): "local" | "moonlight" | "geforceNow" | "install" {
-  return app.installed ? "local" : moonlightGame ? "moonlight" : gfnUrl ? "geforceNow" : "install";
+  return moonlightGame ? "moonlight" : app.installed ? "local" : gfnUrl ? "geforceNow" : "install";
 }
 
 export function moonlightTarget(app: App, apps: string[], installedIds: string[], buddyPaired: boolean): string | undefined {

@@ -48,7 +48,7 @@ export function AppBottomBar({
     if (hoverLeavingRef.current) clearTimeout(hoverLeavingRef.current);
   }, []);
 
-  if (resolvedTheme === "crete") return <CreteBottomNav tab={tab} switchTab={switchTab} onToggleTray={onToggleTray} />;
+  if (resolvedTheme === "crete") return <CreteBottomNav tab={tab} switchTab={switchTab} onToggleTray={onToggleTray} spotifyMiniBar={spotifyMiniBar} />;
 
   const mode = normalizeBottomBarMode(settings.bottombar_mode);
   const hasBackground = settings.bottombar_background ?? true;

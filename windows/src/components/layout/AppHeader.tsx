@@ -65,7 +65,7 @@ export function AppHeader({
   const { t } = useTranslation();
   const { glassBar, accent, theme, isDark, glassEnabled, surfaceStyle, surface, resolvedTheme } = useTheme();
   const { settings } = useSettings();
-  if (resolvedTheme === "crete") return <CreteHeader tab={tab} time={time} hasBattery={hasBattery} battery={battery} charging={charging}
+  if (resolvedTheme === "crete") return <CreteHeader tab={tab} time={time} date={date} hasBattery={hasBattery} battery={battery} charging={charging}
     sections={<SectionTabHeader items={headerTabItems} activeIndex={headerActiveIndex} onSelect={headerOnSelect} rightActions={headerRightActions} />} />;
   const activePillText = "rgba(20, 14, 10, 0.90)";
   const activeTextColor = isDark

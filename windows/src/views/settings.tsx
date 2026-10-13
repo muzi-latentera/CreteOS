@@ -158,7 +158,9 @@ export function buildSettingsItems(t: TFunction, activeTheme: string): SettingsI
     { key: "home_launch_games_directly", section: 0, group: 1, label: t("settings.homeLaunchGamesDirectly"), type: "toggle" },
     { key: "show_immersive_hero_art",section: 0, group: 1, label: t("settings.showGameHeroBanner"),type: "toggle" },
     { key: "show_hero_cover",        section: 0, group: 1, label: t("settings.showHeroCover"),        type: "toggle" },
-    ...(HOME_PINNED_SHELF_ENABLED ? [{ key: "home_pinned_pos" as const, section: 0, group: 1, label: t("settings.homePinnedPos"), type: "cycle" as const, options: ["none", "top", "bottom"] }] : []),
+    ...(activeTheme === "crete" ? [{ key: "show_home_pinned" as const, section: 0, group: 1, label: t("settings.showHomePinned"), type: "toggle" as const }] : []),
+    ...(HOME_PINNED_SHELF_ENABLED || activeTheme === "crete" ? [{ key: "home_pinned_pos" as const, section: 0, group: 1, label: t("settings.homePinnedPos"), type: "cycle" as const, options: ["none", "top", "bottom"] }] : []),
+    ...(activeTheme === "crete" ? [{ key: "hero_content_pos" as const, section: 0, group: 1, label: t("settings.heroContentPos"), type: "cycle" as const, options: ["center", "bottom"] }] : []),
     { key: "show_home_recents",      section: 0, group: 1, label: t("settings.showHomeRecents"),      type: "toggle" },
     { key: "show_recent_games_only", section: 0, group: 1, label: t("settings.showRecentGamesOnly"),  type: "toggle" },
     { key: "home_section_title_size",section: 0, group: 1, label: t("settings.homeSectionTitleSize"), type: "cycle", options: ["small", "medium", "large"] },
@@ -292,6 +294,16 @@ export function buildSettingsItems(t: TFunction, activeTheme: string): SettingsI
     );
   }
 
+  // Crete uses fixed Android navigation chrome. Keep preferences for the other
+  // themes, but do not offer controls which cannot affect this presentation.
+  if (activeTheme === "crete") {
+    const unsupported = new Set(["stars_enabled", "wide_topbar", "wide_bottombar", "bottombar_mode", "bottombar_idle_collapse", "bottombar_peek_on_track", "bottombar_alignment", "tabbar_with_background", "nav_bumpers_pos", "tabbar_show_buttons", "tabbar_label_case", "tabbar_text_tabs", "tabbar_icon_mode"]);
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (unsupported.has(item.key)) items.splice(i, 1);
+      else if (item.type === "toggle" && item.subItems) item.subItems = item.subItems.filter(sub => !unsupported.has(sub.key));
+    }
+  }
   // Mark items whose value is forced by the active theme
   const lockedByTheme = THEME_LOCKED_SETTINGS[activeTheme] ?? {};
   if (Object.keys(lockedByTheme).length === 0) return items;
