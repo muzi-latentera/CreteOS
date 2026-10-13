@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const CACHE_TTL_SECS: u64 = 60 * 60 * 24 * 14;
-const CACHE_SCHEMA_VERSION: u32 = 5;
+const CACHE_SCHEMA_VERSION: u32 = 6;
 const XBOX_SIZE_CACHE_TTL_SECS: u64 = 60 * 60 * 24 * 14;
 const DECK_COMPAT_CACHE_TTL_SECS: u64 = 60 * 60 * 24 * 14;
 
@@ -679,9 +679,11 @@ async fn fetch_xbox(client: &reqwest::Client, product_id: &str) -> Result<StoreM
             .or_else(|| json_text(localized, "ProductDescription"))
             .unwrap_or_default(),
         developers: json_text(product, "DeveloperName")
+            .or_else(|| json_text(localized, "DeveloperName"))
             .map(|value| vec![value])
             .unwrap_or_default(),
         publishers: json_text(product, "PublisherName")
+            .or_else(|| json_text(localized, "PublisherName"))
             .map(|value| vec![value])
             .unwrap_or_default(),
         genres: product
@@ -896,6 +898,50 @@ pub async fn fetch_xbox_store_metadata(
     force: Option<bool>,
 ) -> Result<StoreMetadata, String> {
     fetch_store_metadata("xbox".to_string(), product_id, force).await
+}
+
+fn normalized_title(name: &str) -> String {
+    name.replace(['™', '®'], "").split_whitespace()
+        .filter(|word| !matches!(word.to_ascii_lowercase().as_str(), "(pc)" | "(windows)"))
+        .collect::<Vec<_>>().join(" ").chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect()
+}
+
+// Xbox activity title IDs are not Microsoft Store product IDs. Resolve only
+// an exact title for informational metadata; never replace the launch identity.
+#[tauri::command]
+pub async fn fetch_title_store_metadata(game_name: String, offline: Option<bool>) -> Result<StoreMetadata, String> {
+    if game_name.trim().is_empty() || game_name.len() > 240 { return Err("Invalid game title".into()); }
+    let path = cache_path(&crate::liftoff_dir(), "by_title", &normalized_title(&game_name));
+    if let Some(cached) = read_cache(&path) { return Ok(cached); }
+    let offline = offline.unwrap_or(false);
+    let name = game_name.clone();
+    let xbox = tauri::async_runtime::spawn_blocking(move || crate::xbox_details::metadata(&name, offline)).await.ok().and_then(Result::ok);
+    if offline { return xbox.ok_or("Game metadata has not been saved for offline use yet".into()); }
+    let client = reqwest::Client::builder().timeout(Duration::from_secs(12)).build().map_err(|e| e.to_string())?;
+    let steam = async {
+    let body: serde_json::Value = client.get("https://store.steampowered.com/api/storesearch/")
+        .query(&[("term", game_name.as_str()), ("cc", "GB"), ("l", "english")])
+        .send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?
+        .json().await.map_err(|e| e.to_string())?;
+    let normalized = normalized_title(&game_name);
+    let id = body["items"].as_array().and_then(|items| items.iter().find(|item|
+        item["name"].as_str().map(normalized_title).as_deref() == Some(normalized.as_str())))
+        .and_then(|item| item["id"].as_u64()).ok_or("No exact store metadata match for this title")?;
+    get_store_metadata(&client, &crate::liftoff_dir(), "steam", &id.to_string(), false).await
+    }.await;
+    let result = match (xbox, steam) {
+        (Some(mut xbox), Ok(steam)) => {
+            if xbox.short_description.is_empty() { xbox.short_description = steam.short_description; }
+            if xbox.about_html.is_empty() { xbox.about_html = steam.about_html; }
+            if xbox.developers.is_empty() { xbox.developers = steam.developers; }
+            if xbox.publishers.is_empty() { xbox.publishers = steam.publishers; }
+            xbox.screenshots = steam.screenshots; xbox.movies = steam.movies; xbox.header_image = steam.header_image; xbox.background = steam.background; Ok(xbox)
+        },
+        (Some(xbox), Err(_)) => Ok(xbox),
+        (None, steam) => steam,
+    };
+    if let Ok(ref metadata) = result { write_cache(&path, metadata); }
+    result
 }
 
 #[cfg(test)]

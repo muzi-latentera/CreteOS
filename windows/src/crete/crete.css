@@ -97,7 +97,8 @@
 [data-crete-details="true"] [data-crete-detail-slot="cover"], [data-crete-details="true"] [data-crete-detail-slot="stats"] { display:none!important; }
 [data-crete-details="true"] [data-crete-detail-slot="heading"] { padding:0!important; gap:28px!important; align-self:stretch!important; }
 [data-crete-details="true"] [data-crete-detail-slot="heading"] > div:first-child > [title] { display:none!important; }
-[data-crete-details="true"] h2 { font-size:clamp(28px,3.3vw,52px)!important; white-space:normal!important; font-weight:750!important; line-height:1.06!important; }
+[data-crete-details="true"] h2 { font-size:clamp(28px,3.3vw,52px)!important; white-space:normal!important; font-weight:750!important; line-height:1.2!important; overflow:visible!important; padding-bottom:.08em; }
+[data-crete-details="true"] [data-crete-detail-slot="heading"] { flex-shrink:0; }
 [data-crete-details="true"] [data-details-scroll] { height:auto!important; max-height:none!important; flex:1; opacity:1!important; transform:none!important; pointer-events:auto!important; margin-top:8px; padding:8px 6px 8px 0!important; }
 [data-crete-details="true"] [data-details-section-label] { font:11px ui-monospace,monospace!important; letter-spacing:2.8px!important; color:#f2eadb80!important; margin-bottom:20px!important; }
 [data-crete-details="true"] [data-details-scroll] p { font-size:clamp(14px,1.35vw,22px)!important; color:#f2eadba6!important; line-height:1.55!important; }
@@ -138,7 +139,11 @@
 .crete-stream-settings select { max-width: 65%; padding: 8px; border: 1px solid #ffffff30; border-radius: 6px; background: #22272d; color: #eee8da; }
 .crete-stream-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
 .crete-stream-buttons button { border-radius: 8px; padding: 10px 14px; background: #293038; color: #eee8da; border: 1px solid #ffffff28; }
-.crete-stream-settings :focus-visible { outline: 2px solid #d6aa4f; outline-offset: 2px; }
+.crete-stream-settings :focus { outline: 2px solid #d6aa4f; outline-offset: 2px; }
+.crete-stream-choice-backdrop { position:fixed; inset:0; background:#0009; display:grid; place-items:center; z-index:100; padding:24px; }
+.crete-stream-choices { display:flex; flex-direction:column; gap:6px; max-height:70vh; overflow:auto; min-width:220px; padding:12px; background:#12161b; border:1px solid #ffffff30; border-radius:12px; }
+.crete-stream-choices button { background:#22272d; color:#eee8da; padding:12px; border:1px solid transparent; border-radius:6px; text-align:left; }
+.crete-stream-choices button[aria-selected="true"] { border-color:#7164d9; }
 
 .crete-home[data-home-mode="normal"] .crete-hero { min-height: 340px; }
 .crete-home[data-home-mode="immersive"] .crete-hero { min-height: max(340px, calc(100vh - 150px)); }

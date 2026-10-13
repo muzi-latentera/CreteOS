@@ -988,6 +988,12 @@
     "Saved_host_availability_refreshes_once_a_day_Starting_a_stream_checks_the_connection": "La disponibilité enregistrée de l’hôte est actualisée une fois par jour. Le démarrage du streaming vérifie la connexion.",
     "No_network_connection_Installed_local_games_are_available_offline": "Aucune connexion réseau. Les jeux installés localement sont disponibles hors ligne.",
     "Bosgame_could_not_be_refreshed_Using_saved_availability_You_can_retry_with_Refresh_host": "Impossible d’actualiser Bosgame. Utilisation de la disponibilité enregistrée. Réessayez avec Actualiser l’hôte.",
-    "Play_locally": "Jouer localement"
+    "Play_locally": "Jouer localement",
+    "GeForce_NOW_stream_settings": "Parametres de streaming GeForce NOW",
+    "Start_game": "Lancer le jeu",
+    "Open_game_with_current_settings": "Ouvrir le jeu avec les reglages actuels",
+    "Close_GeForce_NOW_before_applying_settings_NVIDIA_may_limit_quality_according_to_your_membership_and_device_Codec_is_managed_in_the_NVIDIA_app": "Fermez GeForce NOW avant de modifier les reglages. NVIDIA peut limiter la qualite selon votre abonnement et votre appareil. Le codec se regle dans son application.",
+    "Achievements": "Succes",
+    "Unlocked_achievements": "{{count}} debloques"
   }
 }

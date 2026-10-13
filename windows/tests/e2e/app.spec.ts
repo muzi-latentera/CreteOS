@@ -102,6 +102,11 @@ test.beforeEach(async ({ page }) => {
         if (command === "get_moonlight_profile") return { displayKey: "DISPLAY1:1920x1080", profile: { host: "Bosgame", resolution: "1920x1080", fps: 120, bitrate: 80000, codec: "auto" } };
         if (command === "get_moonlight_apps") { if (params.has("hostOffline")) throw new Error("Host offline"); return params.has("hostGame") ? ["Control Ultimate Edition", "Desktop"] : ["Desktop", "Steam Big Picture", "MoonDeckStream"]; }
         if (command === "get_streaming_clients") return { geforceNow: true, moonlight: true };
+        if (command === "get_geforce_profile") return { displayKey: "DISPLAY1:1920x1080", profile: { host: "GeForce NOW", resolution: "1920x1080", fps: 120, bitrate: 80000, codec: "auto" } };
+        if (command === "start_geforce_game" || command === "launch_geforce_game") { (window as any).__lastGeforce = args; return null; }
+        if (command === "get_crete_review_videos") return params.has("xboxDetails") ? [{ id: "abcdefghijk", title: "A Plague Tale Requiem analysis", channel: "Whitelight", thumbnail: "https://fixture.test/review.svg", url: "https://www.youtube.com/watch?v=abcdefghijk" }, { id: "lmnopqrstuv", title: "A Plague Tale Requiem review", channel: "Skill Up", thumbnail: "https://fixture.test/review.svg", url: "https://www.youtube.com/watch?v=lmnopqrstuv" }] : [];
+        if (command === "get_xbox_game_progress") return { minutes: 922, earned: 20, total: null, gamerscore: 330, totalGamerscore: 1000 };
+        if (command === "fetch_title_store_metadata") return { source: "xbox", appId: "2089483628", developers: ["Asobo Studio"], publishers: ["Focus Entertainment"], shortDescription: "A Plague Tale: Requiem description", aboutHtml: "", genres: [], screenshots: [], movies: [], controllerSupport: "none", fetchedAt: 0 };
         if (command === "get_crete_news_rss") return params.has("news") ? `<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Test gaming headline</title><link href="https://www.reddit.com/r/Games/comments/test"/></entry></feed>` : "";
         if (params.has("applications") && command === "get_app_collections") return [{ id: "tools", name: "Tools" }];
         if (params.has("applications") && command === "get_app_memberships") return { "app:terminal": ["tools"] };
@@ -114,6 +119,7 @@ test.beforeEach(async ({ page }) => {
             home_launch_games_directly: params.has("direct") };
         }
         if (command === "get_all_apps") {
+          if (params.has("xboxDetails")) return [{ id: "xbox-owned:2089483628", name: "A Plague Tale: Requiem", source: "xbox", app_type: "game", xbox_product_id: "2089483628", installed: false }];
           if (params.has("applications")) return [
             { id: "app:terminal", name: "Terminal", launch_path: "C:\\Windows\\Terminal.exe", app_type: "app", installed: true },
             { id: "app:browser", name: "Browser", launch_path: "C:\\Apps\\Browser.exe", app_type: "app", installed: true },
@@ -665,7 +671,12 @@ test("Uninstalled mapped games offer green GFN Play plus native install and stre
   await expect(details.locator("[data-launch-btn]")).toHaveCSS("background-color", "rgb(124, 171, 0)");
   await expect(details.getByRole("button", { name: "Launch options", exact: true })).toHaveCSS("background-color", "rgb(124, 171, 0)");
   await details.getByRole("button", { name: "Play", exact: true }).click();
-  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"])).toBe(1);
+  const gfn = details.getByRole("dialog", { name: "GeForce NOW stream settings" });
+  await expect(gfn).toBeVisible();
+  await gfn.getByLabel("Bitrate").selectOption("20000");
+  await gfn.getByRole("button", { name: "Start game", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.start_geforce_game)).toBe(1);
+  expect(await page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"] ?? 0)).toBe(0);
   expect(await page.evaluate(() => (window as any).__invokeCounts.launch_app ?? 0)).toBe(0);
   await details.getByRole("button", { name: "Launch options", exact: true }).click();
   await expect(details.getByRole("menuitem", { name: "Install locally", exact: true })).toBeVisible();
@@ -682,7 +693,7 @@ test("Home direct Play uses the mapped cloud page for an uninstalled hero", asyn
   await expect(primary).toHaveText("Play");
   await expect(primary).toHaveAttribute("data-cloud", "true");
   await primary.click();
-  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"])).toBe(1);
+  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_geforce_game)).toBe(1);
   expect(await page.evaluate(() => (window as any).__invokeCounts.launch_app ?? 0)).toBe(0);
 });
 
@@ -992,4 +1003,51 @@ test("A failed cached Moonlight launch offers explicit local play", async ({ pag
   await stream.getByRole("button", { name: "Play locally", exact: true }).click();
   await expect(stream).not.toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
+});
+
+
+test("Moonlight controller opens dropdown choices and reaches the bottom actions", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await page.goto("/?crete&rich&gfn&hostInstalled");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const details = page.locator('[data-crete-details="true"]');
+  await details.getByRole("button", { name: "Play", exact: true }).click();
+  const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
+  await expect(stream).toBeVisible();
+  await frames(page, 10);
+  await stream.getByLabel("Codec").focus();
+  await pad(page, 0);
+  const choices = stream.getByRole("listbox", { name: "Codec" });
+  await expect(choices).toBeVisible();
+  await pad(page, 13); await pad(page, 0);
+  await expect(stream.getByLabel("Codec", { exact: true })).toHaveValue("H.264");
+  await pad(page, 13);
+  await expect(stream.getByRole("button", { name: "Start stream", exact: true })).toBeFocused();
+  await pad(page, 13);
+  await expect(stream.getByRole("button", { name: "Refresh host", exact: true })).toBeFocused();
+  await pad(page, 13);
+  const open = stream.getByRole("button", { name: "Open Moonlight", exact: true });
+  await expect(open).toBeFocused();
+  const bounds = await open.boundingBox(); const dialog = await stream.boundingBox();
+  expect(bounds!.y).toBeGreaterThanOrEqual(dialog!.y); expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(dialog!.y + dialog!.height);
+  await pad(page, 13); await pad(page, 0);
+  await expect(stream).not.toBeVisible();
+});
+
+
+test("Xbox activity-ID titles show metadata, account hours and preferred review videos", async ({ page }) => {
+  await richCrete(page);
+  await page.goto("/?crete&xboxDetails");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "A Plague Tale: Requiem", exact: true }).click();
+  const details = page.locator('[data-crete-details="true"]');
+  await expect(details.getByText("Asobo Studio", { exact: true })).toBeVisible();
+  await expect(details.getByText("15h 22m", { exact: true })).toBeVisible();
+  await expect(details.getByText("20 unlocked", { exact: true })).toBeVisible();
+  await expect(details.getByText("330 / 1000", { exact: true })).toBeVisible();
+  const media = details.locator('[data-details-media-index]');
+  await expect(media.nth(0)).toHaveAttribute("aria-label", /Whitelight/);
+  await expect(media.nth(1)).toHaveAttribute("aria-label", /Skill Up/);
+  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.fetch_title_store_metadata ?? 0)).toBe(1);
 });

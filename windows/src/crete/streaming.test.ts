@@ -34,5 +34,8 @@ describe("streaming targets", () => {
     expect(geforceNowUrl({ id: "indy", source: "xbox", name: "Indiana Jones and the Great Circle" })).toContain("game-id=3d6f95b6");
     expect(isPcGame({ id: "gfn", name: "GeForce NOW", app_type: "app", source: "desktop" })).toBe(false);
     expect(isPcGame({ id: "game", name: "Game", app_type: "game", source: "steam" })).toBe(true);
+    const xbox = geforceNowUrl({ id: "requiem", name: "A Plague Tale: Requiem", source: "xbox" });
+    expect(xbox).toContain("game-id=5aa78bb8");
+    expect(xbox).not.toContain("asset-id");
   });
 });

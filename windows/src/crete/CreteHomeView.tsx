@@ -14,6 +14,8 @@ import { useViewNavigation, type NavigationRef } from "./navigation";
 import { playedGames, playtime, lastPlayed, steamId, sourceLabel } from "./model";
 import { isHeroVideoLayer, resolveHeroType } from "../utils/heroMedia";
 import { useCreteText } from "./text";
+import { invoke } from "@tauri-apps/api/core";
+import { useXboxProgress } from "./useXboxProgress";
 
 export interface CreteHomeProps {
   active: boolean; apps: App[]; recent: App[]; pins: string[];
@@ -35,6 +37,7 @@ export function CreteHomeView(p: CreteHomeProps) {
   const recorded = useRecordedHistory(p.active, p.recent);
   const games = useMemo(() => playedGames(p.apps, recorded), [p.apps, recorded]);
   const hero = games[0];
+  const heroProgress = useXboxProgress(hero?.name ?? "", !!hero && p.active && hero.source === "xbox");
   const streaming = useStreaming(hero ?? { id: "", name: "" }, p.active && !!hero);
   const recentItems = p.settings.show_recent_games_only ? games.slice(1) : [...games.slice(1), ...p.recent.filter(app => app.app_type === "app")];
   const pinned = p.settings.show_home_pinned !== false && p.settings.home_pinned_pos !== "none"
@@ -62,7 +65,7 @@ export function CreteHomeView(p: CreteHomeProps) {
   const rowsRef = useRef<Record<string, HTMLDivElement | null>>({});
   const newsRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const meta = useStoreMetadata(hero?.source, steamId(hero), hero?.xbox_product_id, !!hero && p.active && p.settings.fetch_store_metadata);
+  const meta = useStoreMetadata(hero?.source, steamId(hero), hero?.xbox_product_id, !!hero && p.active && p.settings.fetch_store_metadata, hero?.name);
   const staticArtwork = hero && ((p.heroCustomType?.[hero.id] !== "animated" ? p.customHeroArt[hero.id] : undefined) || p.heroStatic[hero.id] || meta.data?.background || meta.data?.headerImage);
   const heroType = resolveHeroType(p.settings.animated_heroes, hero && p.heroCustomType?.[hero.id]);
   const animatedArtwork = hero && (p.heroAnimated?.[hero.id] || (heroType === "animated" ? p.customHeroArt[hero.id] : undefined));
@@ -75,7 +78,7 @@ export function CreteHomeView(p: CreteHomeProps) {
     if (!p.isRunning(app.id) && (streaming.checking || host)) { p.onOpenDetails(app); return; }
     setLaunchError(null);
     const url = streaming.online && app.installed === false ? geforceNowUrl(app) : undefined;
-    if (url) void openUrl(url).catch(error => setLaunchError(String(error)));
+    if (url) void invoke("launch_geforce_game", { gameUrl: url, source: app.source, play: true }).catch(error => setLaunchError(String(error)));
     else if (app.installed === false) p.onOpenDetails(app);
     else p.triggerLaunch(app, p.recentRef.current);
   };
@@ -159,7 +162,7 @@ export function CreteHomeView(p: CreteHomeProps) {
             onFocus={() => { setSelection(null); setNewsIndex(-1); }} onClick={() => open(hero)}><IoPlay />{text("Play")}</button>}
           {launchError && <p role="alert">{launchError}</p>}{p.spotifyHeroChip}
         </div>
-        <aside className="crete-hero-info"><span className="crete-eyebrow">{text("Game info")}</span><dl><dt>{text("Developer")}</dt><dd>{meta.data?.developers.join(", ") || "—"}</dd><dt>{text("Publisher")}</dt><dd>{meta.data?.publishers.join(", ") || "—"}</dd><dt>{text("Playtime")}</dt><dd>{playtime(hero.playtime_minutes)}</dd><dt>{text("Last played")}</dt><dd>{lastPlayed(hero.last_played)}</dd></dl></aside>
+        <aside className="crete-hero-info"><span className="crete-eyebrow">{text("Game info")}</span><dl><dt>{text("Developer")}</dt><dd>{meta.data?.developers.join(", ") || "—"}</dd><dt>{text("Publisher")}</dt><dd>{meta.data?.publishers.join(", ") || "—"}</dd><dt>{text("Playtime")}</dt><dd>{playtime(heroProgress?.minutes ?? hero.playtime_minutes)}</dd><dt>{text("Last played")}</dt><dd>{lastPlayed(hero.last_played)}</dd></dl></aside>
       </section>}
     {rows.map(row => <section className="crete-rail" key={row.id} data-home-row={row.id} aria-label={row.name}>{(p.settings.show_home_collection_names !== false || !row.id.startsWith("collection:")) && <h2>{row.name}<span /><small>{row.items.length}</small></h2>}
       <div className="crete-rail-cards" ref={node => { rowsRef.current[row.id] = node; }}>{row.items.map(app => <CreteGameCard key={app.id} app={app} art={p.customArt[app.id] || p.gameArt[app.id]} pinned={p.pins.includes(app.id)} running={p.isRunning(app.id)} selected={!onNews && selection?.row === row.id && selection.id === app.id} showStoreBadge={p.settings.show_store_badges}

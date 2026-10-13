@@ -3,6 +3,8 @@ import { CreteDetailsInfo } from "../crete/CreteDetailsInfo";
 import { LaunchMenu } from "../crete/LaunchMenu";
 import { LaunchLoading } from "../crete/LaunchLoading";
 import { useStreaming } from "../crete/useStreaming";
+import { useReviewVideos } from "../crete/useReviewVideos";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { IoChevronBackOutline, IoChevronDownOutline, IoChevronForwardOutline, IoCloseOutline, IoGameControllerOutline, IoPlay } from "react-icons/io5";
 import { StoreBadge } from "./ui/StoreBadge";
@@ -37,6 +39,7 @@ interface DetailAction {
 }
 
 type StoreMediaItem =
+  | { type: "youtube"; url: string; thumb: string; title: string }
   | { type: "trailer"; movie: StoreMovie; thumb: string; title: string }
   | { type: "shot"; screenshot: StoreScreenshot; thumb: string; title: string };
 
@@ -255,7 +258,8 @@ export function GameDetailsModal({
     app.source,
     steamAppId,
     xboxProductId,
-    storeMetaEnabled && (isSteam || (isXbox && !!xboxProductId)),
+    storeMetaEnabled && (isSteam || isXbox),
+    app.name,
   );
   const deckCompat = useDeckCompat(
     isSteam && Number.isSafeInteger(numericSteamAppId) ? numericSteamAppId : undefined,
@@ -263,9 +267,11 @@ export function GameDetailsModal({
   );
   const controllerSupport = store.data?.controllerSupport;
   const movies: StoreMovie[] = store.data?.movies ?? [];
+  const reviews = useReviewVideos(app.name, resolvedTheme === "crete" && !!storeMetaEnabled);
   const screenshots = store.data?.screenshots ?? [];
-  const shortDescription = store.data?.shortDescription ?? "";
+  const shortDescription = store.data?.shortDescription || (store.data?.aboutHtml ? new DOMParser().parseFromString(store.data.aboutHtml, "text/html").body.textContent ?? "" : "");
   const mediaItems = useMemo<StoreMediaItem[]>(() => [
+    ...reviews.map(video => ({ type: "youtube" as const, url: video.url, thumb: video.thumbnail, title: `${video.channel} · ${video.title}` })),
     ...movies.map((movie, index) => ({
       type: "trailer" as const,
       movie,
@@ -278,12 +284,13 @@ export function GameDetailsModal({
       thumb: screenshot.thumb,
       title: `${t("details.screenshot", { defaultValue: "Screenshot" })} ${index + 1}`,
     })),
-  ], [movies, screenshots, t]);
+  ], [reviews, movies, screenshots, t]);
   const mediaCount = mediaItems.length;
   const hasStoreContent = (isSteam || isXbox) && (shortDescription.trim().length > 0 || mediaCount > 0);
   const [activeTab, setActiveTab] = useState<"details" | "manage">("details");
   const activeTabRef = useRef<"details" | "manage">("details");
-  const [overlay, setOverlay] = useState<{ index: number } | null>(null);
+  const [overlay, setOverlayState] = useState<{ index: number; item?: StoreMediaItem } | null>(null);
+  const setOverlay = (next: { index: number } | null) => setOverlayState(next ? { index: next.index, item: mediaItems[next.index] } : null);
   const overlayRef = useRef<typeof overlay>(null);
   const hasStoreContentRef = useRef(hasStoreContent);
   const mediaCountRef = useRef(mediaCount);
@@ -805,7 +812,8 @@ export function GameDetailsModal({
           ? xboxInstallLabel
         : installLabel;
   const primaryDisabled = (!running && !installing && streaming.checking) || (!cloudDefault && !installed && (uninstalling || (!installing && !canInstall && !canXboxInstall)));
-  const overlayItem = overlay ? mediaItems[overlay.index] : null;
+  const overlayItem = overlay ? overlay.item ?? mediaItems[overlay.index] : null;
+  useEffect(() => { if (overlayItem?.type === "youtube") { void openUrl(overlayItem.url).catch(() => {}); setOverlay(null); } }, [overlayItem]);
   const overlayMovieSrc = overlayItem?.type === "trailer" ? movieSource(overlayItem.movie) : undefined;
   const overlayMovieUsesHls = isHlsMediaUrl(overlayMovieSrc);
   const overlayNativeSrc = overlayMovieSrc && !overlayMovieUsesHls ? overlayMovieSrc : undefined;
@@ -1405,7 +1413,7 @@ export function GameDetailsModal({
                               style={mediaTileStyle(focusIdx === 1 + index)}
                             >
                               <img src={normalizeMediaUrl(item.thumb)} alt="" style={mediaThumbStyle} />
-                              {item.type === "trailer" && <span style={playBadgeStyle}><IoPlay /></span>}
+                              {item.type !== "shot" && <span style={playBadgeStyle}><IoPlay /></span>}
                               <span style={{
                                 position: "absolute",
                                 left: 8,

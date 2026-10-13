@@ -69,6 +69,128 @@ pub fn launch_streaming_client(provider: String) -> Result<(), String> {
         .map(|_| ()).map_err(|error| error.to_string())
 }
 
+fn geforce_native_game_uri(game_url: &str) -> Result<String, String> {
+    let url = reqwest::Url::parse(game_url).map_err(|_| "Invalid GeForce NOW game link")?;
+    if url.scheme() != "https" || url.host_str() != Some("play.geforcenow.com") || url.path() != "/games" {
+        return Err("Invalid GeForce NOW game link".into());
+    }
+    let id = url.query_pairs().find(|(key, _)| key == "game-id").map(|(_, value)| value.into_owned()).ok_or("Missing GeForce NOW game ID")?;
+    if id.len() != 36 || !id.bytes().enumerate().all(|(i, b)| if [8,13,18,23].contains(&i) { b == b'-' } else { b.is_ascii_hexdigit() }) {
+        return Err("Invalid GeForce NOW game ID".into());
+    }
+    // The native route parser recognises play-game; OS URI handling only
+    // recognises view-game, so pass the route directly to the fixed executable.
+    let asset = url.query_pairs().find(|(key, _)| key == "asset-id").map(|(_, value)| value.into_owned());
+    let asset = asset.filter(|value| value.len() <= 64 && value.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-'));
+    Ok(format!("#deeplink?action=play-game&game-id={id}&lang=en_GB{}", asset.map(|a| format!("&asset-id={a}")).unwrap_or_default()))
+}
+
+#[tauri::command]
+pub async fn launch_geforce_game(game_url: String, source: Option<String>, play: Option<bool>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let (client, argument) = geforce_launch(&game_url, source.as_deref(), play.unwrap_or(true))?;
+        std::process::Command::new(client).arg(argument).spawn().map(|_| ()).map_err(|error| error.to_string())
+    }).await.map_err(|e| e.to_string())?
+}
+
+fn shortcut_route(arguments: &str, game_id: &str, source: Option<&str>) -> Option<String> {
+    let route = arguments.trim().strip_prefix("--url-route=")?.trim_matches('"');
+    let query = route.strip_prefix("#?")?;
+    let url = reqwest::Url::parse(&format!("https://crete.invalid/?{query}")).ok()?;
+    let pairs: std::collections::HashMap<_, _> = url.query_pairs().into_owned().collect();
+    let cms = pairs.get("cmsId")?; let name = pairs.get("shortName")?;
+    if pairs.len() != 4 || pairs.get("parentGameId")?.as_str() != game_id || pairs.get("launchSource")? != "External"
+        || cms.is_empty() || cms.len() > 12 || !cms.bytes().all(|b| b.is_ascii_digit())
+        || name.is_empty() || name.len() > 160 || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-') { return None; }
+    let matches = match source { Some("xbox") => name.ends_with("_xbox_app") || name.ends_with("_xbox"), Some("steam") => name.ends_with("_steam"), Some("epic") => name.ends_with("_epic") || name.ends_with("_epic_games"), Some("gog") => name.ends_with("_gog"), _ => true };
+    matches.then(|| format!("#?cmsId={cms}&launchSource=External&shortName={name}&parentGameId={game_id}"))
+}
+
+fn geforce_launch(game_url: &str, source: Option<&str>, play: bool) -> Result<(PathBuf, String), String> {
+    let fallback = geforce_native_game_uri(game_url)?;
+    let url = reqwest::Url::parse(game_url).map_err(|_| "Invalid game link")?;
+    let id = url.query_pairs().find(|(key, _)| key == "game-id").map(|(_, value)| value.into_owned()).ok_or("Missing game ID")?;
+    let client = client_path("geforceNow")?;
+    if !play { return Ok((client, format!("geforcenow://route/#deeplink?action=view-game&game-id={id}"))); }
+    let streamer = client.with_file_name("GeForceNOWStreamer.exe");
+    if streamer.is_file() {
+        let script = "$d=[Environment]::GetFolderPath('DesktopDirectory');$s=New-Object -ComObject WScript.Shell;$a=@();Get-ChildItem -LiteralPath $d -Filter *.lnk -File | Select-Object -First 200 | ForEach-Object {$l=$s.CreateShortcut($_.FullName);if([IO.Path]::GetFileName($l.TargetPath) -eq 'GeForceNOWStreamer.exe'){$a+=@{target=$l.TargetPath;arguments=$l.Arguments}}};ConvertTo-Json -InputObject $a -Compress";
+        let mut command = std::process::Command::new("powershell.exe");
+        command.args(["-NoProfile", "-NonInteractive", "-Command", script]);
+        if let Ok(output) = bounded_output(command, None) {
+            if let Ok(shortcuts) = serde_json::from_slice::<Vec<serde_json::Value>>(&output.stdout) {
+                for shortcut in shortcuts {
+                    if shortcut["target"].as_str().is_some_and(|target| target.eq_ignore_ascii_case(&streamer.to_string_lossy())) {
+                        if let Some(route) = shortcut["arguments"].as_str().and_then(|args| shortcut_route(args, &id, source)) { return Ok((streamer, format!("--url-route={route}"))); }
+                    }
+                }
+            }
+        }
+    }
+    Ok((client, format!("--url-route={fallback}")))
+}
+
+#[tauri::command]
+pub fn get_geforce_profile(window: tauri::Window) -> Result<serde_json::Value, String> {
+    let mut display = get_moonlight_profile(window)?;
+    let key = display["displayKey"].as_str().ok_or("Missing display identity")?;
+    let profiles: serde_json::Value = std::fs::read(super::liftoff_dir().join("geforce_profiles.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(serde_json::json!({}));
+    let mut profile = profiles.get(key).cloned().unwrap_or_else(|| display["profile"].clone());
+    profile["host"] = serde_json::json!("GeForce NOW");
+    if profile["fps"] == 90 { profile["fps"] = serde_json::json!(60); }
+    display["profile"] = profile;
+    Ok(display)
+}
+
+fn update_geforce_settings(settings: &mut serde_json::Value, profile: &MoonlightProfile) -> Result<(), String> {
+    let resolutions = ["1280x720", "1920x1080", "1920x1200", "2560x1440", "2560x1600", "3840x2160"];
+    if !resolutions.contains(&profile.resolution.as_str()) || ![30,60,120,240].contains(&profile.fps) || !(5000..=100000).contains(&profile.bitrate) { return Err("Unsupported GeForce NOW settings".into()); }
+    let config = settings.get_mut("appSettingsConfig").ok_or("GeForce NOW settings format is unsupported; use its Settings screen")?;
+    let custom = config.get_mut("customProfile").filter(|v| v.is_object()).ok_or("Configure Custom quality in GeForce NOW once, then retry")?;
+    if !["width", "height", "fps", "maxBitrate"].iter().all(|key| custom.get(key).is_some()) { return Err("GeForce NOW profile format is unsupported; use its Settings screen".into()); }
+    let (width, height) = profile.resolution.split_once('x').ok_or("Invalid resolution")?;
+    custom["width"] = serde_json::json!(width.parse::<u32>().map_err(|_| "Invalid width")?);
+    custom["height"] = serde_json::json!(height.parse::<u32>().map_err(|_| "Invalid height")?);
+    custom["fps"] = serde_json::json!(profile.fps); custom["maxBitrate"] = serde_json::json!(profile.bitrate / 1000);
+    custom["maxBitrateAuto"] = serde_json::json!(false);
+    custom["aspectRatio"] = serde_json::json!(if profile.resolution.ends_with("1200") || profile.resolution.ends_with("1600") { "(16:10)" } else { "(16:9)" });
+    config["streamingProfiles"] = serde_json::json!("custom");
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn start_geforce_game(game_url: String, display_key: String, profile: MoonlightProfile, source: Option<String>) -> Result<(), String> {
+    geforce_native_game_uri(&game_url)?;
+    if display_key.is_empty() || display_key.len() > 256 { return Err("Invalid display identity".into()); }
+    tauri::async_runtime::spawn_blocking(move || {
+        let (client, argument) = geforce_launch(&game_url, source.as_deref(), true)?;
+        let mut command = std::process::Command::new("tasklist.exe");
+        command.args(["/FO", "CSV", "/NH"]);
+        let output = bounded_output(command, None)?;
+        if !output.status.success() { return Err("Could not check whether GeForce NOW is running".into()); }
+        let processes = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
+        if processes.contains("geforcenow.exe") || processes.contains("geforcenowstreamer.exe") { return Err("Close GeForce NOW first, then retry Start game to apply these settings.".into()); }
+        let root = dirs::data_local_dir().ok_or("No local data folder")?;
+        let path = root.join("NVIDIA Corporation/GeForceNOW/sharedstorage.json");
+        let original = std::fs::read(&path).map_err(|_| "Open GeForce NOW and configure Custom streaming quality once")?;
+        let mut settings: serde_json::Value = serde_json::from_slice(&original).map_err(|_| "Could not read GeForce NOW settings")?;
+        update_geforce_settings(&mut settings, &profile)?;
+        let backup = root.join("CreteOS-Bootstrap/gfn-settings"); std::fs::create_dir_all(&backup).map_err(|e| e.to_string())?;
+        let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
+        std::fs::write(backup.join(format!("sharedstorage-{stamp}.json")), &original).map_err(|e| e.to_string())?;
+        let temporary = path.with_file_name("sharedstorage.creteos.tmp");
+        std::fs::write(&temporary, serde_json::to_vec(&settings).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        std::fs::rename(&temporary, &path).map_err(|e| e.to_string())?;
+        let launch = std::process::Command::new(client).arg(argument).spawn();
+        if let Err(error) = launch { let _ = std::fs::write(&path, original); return Err(error.to_string()); }
+        let path = super::liftoff_dir().join("geforce_profiles.json");
+        let mut profiles: serde_json::Value = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(serde_json::json!({}));
+        profiles[display_key] = serde_json::to_value(profile).map_err(|e| e.to_string())?;
+        std::fs::write(path, serde_json::to_vec(&profiles).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        Ok(())
+    }).await.map_err(|e| e.to_string())?
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MoonlightProfile {
@@ -204,6 +326,33 @@ pub async fn launch_moonlight(app_name: String, display_key: String, profile: Mo
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn geforce_routes_reject_external_urls_and_preserve_exact_game_ids() {
+        let route = super::geforce_native_game_uri("https://play.geforcenow.com/games?game-id=5aa78bb8-6af4-49d9-b678-4b7c3685a98c").unwrap();
+        assert!(route.contains("action=play-game")); assert!(route.contains("game-id=5aa78bb8-6af4-49d9-b678-4b7c3685a98c"));
+        assert!(super::geforce_native_game_uri("https://evil.test/games?game-id=5aa78bb8-6af4-49d9-b678-4b7c3685a98c").is_err());
+        assert!(super::geforce_native_game_uri("https://play.geforcenow.com/games?game-id=--bad").is_err());
+    }
+    #[test]
+    fn native_shortcut_routes_match_game_and_store_without_extra_arguments() {
+        let id="5aa78bb8-6af4-49d9-b678-4b7c3685a98c";
+        let args=format!(" --url-route=\"#?cmsId=102396411&launchSource=External&shortName=a_plague_tale_requiem_xbox_app&parentGameId={id}\"");
+        assert!(super::shortcut_route(&args,id,Some("xbox")).is_some());
+        assert!(super::shortcut_route(&args,id,Some("steam")).is_none());
+        assert!(super::shortcut_route(&format!("{args} --extra"),id,Some("xbox")).is_none());
+        assert!(super::shortcut_route(&args,"wrong-id",Some("xbox")).is_none());
+    }
+    #[test]
+    fn geforce_profile_changes_only_stream_settings() {
+        let mut settings = serde_json::json!({"appSettingsConfig":{"customProfile":{"width":1920,"height":1080,"fps":60,"maxBitrate":50,"codec":0,"hdrStreamingMode":"OFF"},"otherSetting":true},"unrelated":{"kept":true}});
+        let profile = super::MoonlightProfile { host:"GeForce NOW".into(), resolution:"1920x1200".into(), fps:60, bitrate:20000, codec:"auto".into() };
+        super::update_geforce_settings(&mut settings, &profile).unwrap();
+        assert_eq!(settings["appSettingsConfig"]["customProfile"]["maxBitrate"],20);
+        assert_eq!(settings["appSettingsConfig"]["customProfile"]["height"],1200);
+        assert_eq!(settings["unrelated"]["kept"],true);
+        assert_eq!(settings["appSettingsConfig"]["customProfile"]["codec"],0);
+        assert!(super::update_geforce_settings(&mut serde_json::json!({}), &profile).is_err());
+    }
     #[test]
     fn rejects_unknown_clients() {
         assert!(super::client_path("powershell").is_err());

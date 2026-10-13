@@ -56,6 +56,8 @@ mod steam_artwork;
 mod streaming;
 mod moondeck;
 mod crete_news;
+mod crete_videos;
+mod xbox_details;
 
 const SGDB_KEY: &str = env!("SGDB_API_KEY");
 const RECENTS_MAX: usize = 10;
@@ -9995,6 +9997,9 @@ pub fn run() {
         ))
         .invoke_handler(tauri::generate_handler![
             crete_news::get_crete_news_rss,
+            crete_news::get_crete_article_thumbnail,
+            crete_videos::get_crete_review_videos,
+            xbox_details::get_xbox_game_progress,
             get_apps,
             get_all_apps,
             get_install_size,
@@ -10009,6 +10014,9 @@ pub fn run() {
             fetch_game_art,
             streaming::get_streaming_clients,
             streaming::launch_streaming_client,
+            streaming::launch_geforce_game,
+            streaming::get_geforce_profile,
+            streaming::start_geforce_game,
             streaming::get_moonlight_apps,
             streaming::get_host_installed_games,
             streaming::get_moonlight_profile,
@@ -10077,6 +10085,7 @@ pub fn run() {
             steam_install_progress,
             store_metadata::fetch_store_metadata,
             store_metadata::fetch_xbox_store_metadata,
+            store_metadata::fetch_title_store_metadata,
             store_metadata::get_steam_deck_compat,
             store_metadata::get_xbox_install_size,
             storage_info::get_storage_info,

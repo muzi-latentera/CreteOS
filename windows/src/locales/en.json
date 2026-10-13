@@ -988,6 +988,12 @@
     "Saved_host_availability_refreshes_once_a_day_Starting_a_stream_checks_the_connection": "Saved host availability refreshes once a day. Starting a stream checks the connection.",
     "No_network_connection_Installed_local_games_are_available_offline": "No network connection. Installed local games are available offline.",
     "Bosgame_could_not_be_refreshed_Using_saved_availability_You_can_retry_with_Refresh_host": "Bosgame could not be refreshed. Using saved availability. You can retry with Refresh host.",
-    "Play_locally": "Play locally"
+    "Play_locally": "Play locally",
+    "GeForce_NOW_stream_settings": "GeForce NOW stream settings",
+    "Start_game": "Start game",
+    "Open_game_with_current_settings": "Open game with current settings",
+    "Close_GeForce_NOW_before_applying_settings_NVIDIA_may_limit_quality_according_to_your_membership_and_device_Codec_is_managed_in_the_NVIDIA_app": "Close GeForce NOW before applying settings. NVIDIA may limit quality according to your membership and device. Codec is managed in the NVIDIA app.",
+    "Achievements": "Achievements",
+    "Unlocked_achievements": "{{count}} unlocked"
   }
 }

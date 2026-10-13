@@ -1,5 +1,6 @@
 import type { App } from "../types";
 import links from "./gfnLinks.json";
+import titles from "./gfnTitles.json";
 
 // Exact links retained from Android's curated table. They are game-page links,
 // not a claim that a Windows cloud session or subscription has been verified.
@@ -15,7 +16,14 @@ export function geforceNowUrl(app: App): string | undefined {
     "ea:Battlefield 6": "bf6_ea",
   };
   const key = id || aliases[`${app.source?.toLowerCase()}:${app.name}`];
-  return key ? (links as Record<string, string>)[key] : undefined;
+  if (key) return (links as Record<string, string>)[key];
+  const normalize = (name: string) => name.replace(/[™®]/g, "").trim().toLowerCase();
+  const title = Object.entries(titles).find(([name]) => normalize(name) === normalize(app.name));
+  if (!title || app.source?.toLowerCase() === "steam") return;
+  const link = (links as Record<string, string>)[title[1]];
+  if (!link) return;
+  // A Steam variant asset must not be forced for an Xbox/GOG/Epic copy.
+  const url = new URL(link); url.searchParams.delete("asset-id"); return url.href;
 }
 
 export function isPcGame(app: App): boolean {

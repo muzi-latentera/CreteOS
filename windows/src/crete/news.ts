@@ -1,4 +1,9 @@
-export interface NewsPost { id: string; title: string; url: string; subreddit: string; thumbnail?: string }
+export interface NewsPost { id: string; title: string; url: string; subreddit: string; thumbnail?: string; articleUrl?: string }
+
+export function newsImage(candidate?: string | null): string | undefined {
+  if (!candidate) return;
+  try { const image = new URL(candidate); if (image.protocol === "https:" && ["redd.it", "redditmedia.com", "ytimg.com"].some(host => image.hostname === host || image.hostname.endsWith(`.${host}`))) return image.href; } catch { /* malformed feed image */ }
+}
 
 export function parseNews(xml: string): NewsPost[] {
   const document = new DOMParser().parseFromString(xml, "application/xml");
@@ -17,12 +22,19 @@ export function parseNews(xml: string): NewsPost[] {
       if (!subreddit || titles.has(normalized) || buckets[subreddit].length >= 10) continue;
       titles.add(normalized);
       const candidate = entry.getElementsByTagNameNS("http://search.yahoo.com/mrss/", "thumbnail")[0]?.getAttribute("url");
-      let thumbnail: string | undefined;
-      if (candidate) {
-        const image = new URL(candidate);
-        if (image.protocol === "https:" && (image.hostname === "redd.it" || image.hostname.endsWith(".redd.it") || image.hostname === "redditmedia.com" || image.hostname.endsWith(".redditmedia.com"))) thumbnail = image.href;
+      const html = new DOMParser().parseFromString(entry.getElementsByTagName("content")[0]?.textContent ?? "", "text/html");
+      let thumbnail = newsImage(candidate) || Array.from(html.images).map(img => newsImage(img.getAttribute("src"))).find(Boolean);
+      let articleUrl: string | undefined;
+      for (const link of Array.from(html.querySelectorAll('a[href]'))) {
+        try {
+          const article = new URL(link.getAttribute("href")!);
+          if (article.protocol !== "https:" || article.hostname.endsWith("reddit.com") || article.hostname.endsWith("redd.it")) continue;
+          if (!articleUrl || link.textContent?.trim() === "[link]") articleUrl = article.href;
+          const videoId = article.hostname === "youtu.be" ? article.pathname.slice(1) : ["www.youtube.com", "youtube.com"].includes(article.hostname) ? article.searchParams.get("v") : undefined;
+          if (videoId && /^[\w-]{11}$/.test(videoId)) thumbnail ||= `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+        } catch { /* malformed article */ }
       }
-      buckets[subreddit].push({ id: url.href, title, url: url.href, subreddit: subreddit === "games" ? "r/Games" : "r/pcgaming", thumbnail });
+      buckets[subreddit].push({ id: url.href, title, url: url.href, subreddit: subreddit === "games" ? "r/Games" : "r/pcgaming", thumbnail, articleUrl });
     } catch { /* Ignore malformed external links. */ }
   }
   return Array.from({ length: 10 }, (_, i) => [buckets.games[i], buckets.pcgaming[i]]).flat().filter(Boolean);

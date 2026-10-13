@@ -15,4 +15,8 @@ describe("CreteOS news feed", () => {
   it("hides empty or malformed feeds", () => {
     expect(parseNews("<bad")).toEqual([]); expect(parseNews(feed())).toEqual([]);
   });
+  it("uses embedded RSS pictures and YouTube thumbnails for text-only Games posts", () => {
+    const body = `<entry><title>Game review</title><link href="https://www.reddit.com/r/Games/comments/review"/><content type="html">&lt;a href="https://www.youtube.com/watch?v=abcdefghijk"&gt;[link]&lt;/a&gt;</content></entry>`;
+    expect(parseNews(feed(body))[0].thumbnail).toBe("https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg");
+  });
 });

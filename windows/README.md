@@ -28,6 +28,10 @@ Without a network connection, installed local games become the default and no ho
 
 Moonlight settings follow the active display: GPD 1080p/120fps, XREAL 1200p/90fps, or 4K/60fps TV, all initially 80Mbps. Resolution, frame rate, bitrate and codec remain configurable and saved per display when streaming starts. Neither streaming client is bundled. Browser tests mock native commands; actual streaming, display switching and physical controller acceptance require device checks.
 
+Both stream dialogs support controller A to open an option list, Up/Down to move through fields/actions, Left/Right to cycle a focused Moonlight setting and B to return. Focus scrolls into view. NVIDIA-created desktop shortcuts provide the preferred direct GFN launch when the game ID and store variant match; otherwise the exact native game route is used. The GFN quality dialog can apply resolution/FPS/bitrate while the NVIDIA client is closed, retaining a private settings backup. NVIDIA controls codec and membership/device limits; XREAL uses 1200p/60fps for GFN. Opening a game with current settings changes no quality settings.
+
+Xbox activity IDs are resolved through Microsoft-account title details rather than treated as Store product IDs. Details show available Microsoft-account played hours, unlocked achievements and Gamerscore; unavailable totals remain unknown. Exact-title Steam metadata can supply missing trailers/screenshots. Preferred review videos appear before store media in this order: Whitelight, Skill Up, Joseph Anderson, Noah Caldwell-Gervais, then gameranx and Jake Baldino.
+
 ## Develop and build
 
 Use Windows, Node 24, Rust stable, the MSVC C++ build tools, Windows SDK and WebView2. Run from this directory:

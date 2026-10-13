@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import type { App } from "../types";
 import { defaultProvider, geforceNowUrl, isPcGame, moonlightTarget } from "./streaming";
 import { readHost, refreshHost, subscribeHost } from "./hostSnapshot";
@@ -13,6 +12,8 @@ export function useStreaming(app: App, enabled: boolean) {
   const [error, setError] = useState<string | null>(null);
   const [display, setDisplay] = useState(fallback);
   const [configure, setConfigure] = useState(false);
+  const [geforceConfigure, setGeforceConfigure] = useState(false);
+  const [geforceDisplay, setGeforceDisplay] = useState(fallback);
   const [clientsFor, setClientsFor] = useState<string | null>(null);
   const [, update] = useState(0);
   const [online, setOnline] = useState(navigator.onLine);
@@ -41,7 +42,7 @@ export function useStreaming(app: App, enabled: boolean) {
   }, [pcGame, clients.moonlight, display.profile.host]);
   useEffect(() => {
     let active = true;
-    setError(null); setConfigure(false);
+    setError(null); setConfigure(false); setGeforceConfigure(false);
     if (pcGame) void (async () => {
       const detected = await invoke<typeof clients>("get_streaming_clients");
       if (!active) return;
@@ -61,7 +62,17 @@ export function useStreaming(app: App, enabled: boolean) {
       return;
     }
     if (!online) { setError("GeForce NOW needs an internet connection. Choose an installed local game while offline."); return; }
-    void (direct && gameUrl ? openUrl(gameUrl) : invoke("launch_streaming_client", { provider })).catch(reason => setError(String(reason)));
+    if (direct && gameUrl) {
+      void invoke<DisplayProfile>("get_geforce_profile").then(current => { if (current?.profile) setGeforceDisplay(current); setGeforceConfigure(true); }).catch(reason => setError(String(reason)));
+    } else void invoke("launch_streaming_client", { provider }).catch(reason => setError(String(reason)));
+  };
+  const geforceStream = async (profile?: MoonlightProfile) => {
+    if (!gameUrl) return;
+    setError(null);
+    try {
+      await (profile ? invoke("start_geforce_game", { gameUrl, source: app.source, displayKey: geforceDisplay.displayKey, profile }) : invoke("launch_geforce_game", { gameUrl, source: app.source, play: false }));
+      setGeforceConfigure(false);
+    } catch (reason) { setError(String(reason)); }
   };
   const stream = async (appName: string, profile: MoonlightProfile) => {
     setError(null);
@@ -75,5 +86,5 @@ export function useStreaming(app: App, enabled: boolean) {
     setError(null);
     try { await invoke("pair_moondeck", { host: display.profile.host, pin }); } catch (reason) { setError(String(reason)); }
   };
-  return { pcGame, gameUrl, clients, error, hostError: host.error, apps, moonlightGame, provider: defaultProvider(app, moonlightGame, online ? gameUrl : undefined), display, configure, setConfigure, checking, refreshing: host.refreshing, refresh, launch, stream, buddy, buddyError: null, pair, steamId: app.source === "steam" ? app.steam_appid : undefined, hostGames, hostInstalled, inventoryError: null, localInstalled: !!app.installed, online };
+  return { pcGame, gameUrl, clients, error, hostError: host.error, apps, moonlightGame, provider: defaultProvider(app, moonlightGame, online ? gameUrl : undefined), display, configure, setConfigure, geforceConfigure, setGeforceConfigure, geforceDisplay, geforceStream, checking, refreshing: host.refreshing, refresh, launch, stream, buddy, buddyError: null, pair, steamId: app.source === "steam" ? app.steam_appid : undefined, hostGames, hostInstalled, inventoryError: null, localInstalled: !!app.installed, online };
 }

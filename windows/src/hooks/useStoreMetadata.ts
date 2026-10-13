@@ -15,6 +15,7 @@ export function useStoreMetadata(
   appId: string | undefined,
   productId: string | undefined,
   enabled: boolean,
+  gameName?: string,
 ): StoreMetaState {
   const [state, setState] = useState<StoreMetaState>({ data: null, loading: false, error: null });
   const reqId = useRef(0);
@@ -22,12 +23,12 @@ export function useStoreMetadata(
   useEffect(() => {
     const normalizedSource = source?.toLowerCase();
     const metadataId = normalizedSource === "steam" ? appId : normalizedSource === "xbox" ? productId : undefined;
-    if (!enabled || !metadataId || !["steam", "xbox"].includes(normalizedSource ?? "")) {
+    if (!enabled || (!metadataId && !(normalizedSource === "xbox" && gameName)) || !["steam", "xbox"].includes(normalizedSource ?? "")) {
       setState({ data: null, loading: false, error: null });
       return;
     }
 
-    const key = `${normalizedSource}:${metadataId}`;
+    const key = `${normalizedSource}:${metadataId || gameName}`;
     const cached = memCache.get(key);
     if (cached) {
       setState({ data: cached, loading: false, error: null });
@@ -36,8 +37,9 @@ export function useStoreMetadata(
 
     const myReq = ++reqId.current;
     setState({ data: null, loading: true, error: null });
+    const titleFallback = () => invoke<StoreMetadata>("fetch_title_store_metadata", { gameName, offline: !navigator.onLine });
     const request = normalizedSource === "xbox"
-      ? invoke<StoreMetadata>("fetch_xbox_store_metadata", { productId: metadataId })
+      ? (metadataId ? invoke<StoreMetadata>("fetch_xbox_store_metadata", { productId: metadataId }).then(meta => meta.shortDescription || meta.aboutHtml || meta.movies.length ? meta : titleFallback()).catch(() => titleFallback()) : titleFallback())
       : invoke<StoreMetadata>("fetch_store_metadata", { source: normalizedSource, appId: metadataId });
     request
       .then((meta) => {
@@ -51,7 +53,8 @@ export function useStoreMetadata(
           setState({ data: null, loading: false, error: String(err) });
         }
       });
-  }, [source, appId, productId, enabled]);
+    return () => { if (reqId.current === myReq) ++reqId.current; };
+  }, [source, appId, productId, enabled, gameName]);
 
   return state;
 }
