@@ -112,7 +112,8 @@
 [data-crete-details="true"] [data-crete-detail-slot="primary-actions"] { gap:0!important; }
 [data-crete-details="true"] [data-launch-btn] { border-radius:10px 0 0 10px!important; box-shadow:none!important; min-width:132px!important; height:48px!important; display:inline-flex; align-items:center; justify-content:center; gap:10px; }
 [data-crete-details="true"] [data-launch-btn][data-cloud="true"] { background:#7cab00!important; }
-.crete-details-manage { border:0; border-left:1px solid #ffffff40; background:#c9482a; color:white; border-radius:0 10px 10px 0; height:48px; width:48px; display:grid; place-items:center; }
+.crete-details-manage { border:0; border-left:1px solid #ffffff40; background:var(--crete-launch, #c44524); color:white; border-radius:0 10px 10px 0; height:48px; width:48px; display:grid; place-items:center; }
+[data-crete-details="true"] [data-crete-detail-slot="primary-actions"][data-cloud="true"] .crete-details-manage { background:#7cab00; }
 [data-crete-details="true"] [data-crete-detail-slot="primary-actions"] [role="tablist"] { display:none!important; }
 @media(max-height:650px) { .crete-details-info { padding:20px; } .crete-details-info section + section { margin-top:24px; } [data-crete-details="true"] [data-crete-detail-slot="content"] { top:42px; gap:16px!important; } }
 @media(max-width:680px) { .crete-details-info { display:none; } [data-crete-details="true"] [data-crete-detail-slot="content"] { width:91%; } }

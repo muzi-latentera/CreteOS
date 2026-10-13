@@ -793,7 +793,7 @@ export function GameDetailsModal({
   const xboxInstallLabel = xboxProductId
     ? t("install.install")
     : t("install.getOnXbox", { defaultValue: "Get in Store" });
-  const primaryLabel = !running && !installing && streaming.checking ? creteText("Checking Bosgame…") : cloudDefault ? creteText(streaming.provider === "moonlight" ? "Play via Moonlight" : "Play via GeForce NOW") : running
+  const primaryLabel = !running && !installing && streaming.checking ? creteText("Checking Bosgame…") : cloudDefault ? t("details.play") : running
     ? t("home.resume")
     : installed
       ? t("details.play")
@@ -1172,7 +1172,7 @@ export function GameDetailsModal({
               </div>
             )}
 
-            <div data-crete-detail-slot="primary-actions" style={{
+            <div data-crete-detail-slot="primary-actions" data-cloud={isCloud || cloudDefault} style={{
               display: "flex",
               alignItems: "center",
               gap: 10,
@@ -1181,6 +1181,8 @@ export function GameDetailsModal({
               <button
                 data-launch-btn={resolvedTheme === "crete" ? "" : undefined}
                 data-cloud={isCloud || cloudDefault}
+                data-provider={streaming.provider}
+                title={cloudDefault ? streaming.provider === "moonlight" ? "Moonlight" : "GeForce NOW" : undefined}
                 ref={(node) => { focusRefs.current[0] = node; }}
                 onClick={primaryDisabled ? undefined : handlePrimaryAction}
                 disabled={primaryDisabled}

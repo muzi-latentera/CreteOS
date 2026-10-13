@@ -3,13 +3,13 @@ import { defaultProvider, geforceNowUrl, isPcGame, moonlightMatch, moonlightTarg
 import type { App } from "../types";
 
 describe("streaming targets", () => {
-  it("routes exact installed Steam IDs through paired MoonDeck, without inferring from a launcher", () => {
+  it("routes exact installed Steam IDs to MoonDeck setup, without inferring from a launcher", () => {
     const game: App = { id: "re2", name: "Resident Evil 2", source: "steam", steam_appid: 883710, installed: false };
     const apps = ["MoonDeckStream", "Desktop", "Steam"];
-    expect(moonlightTarget(game, apps, ["883710"], true)).toBe("MoonDeckStream");
-    expect(moonlightTarget(game, apps, ["883710"], false)).toBeUndefined();
-    expect(moonlightTarget(game, apps, ["883711"], true)).toBeUndefined();
-    expect(moonlightTarget(game, apps, [], true)).toBeUndefined();
+    expect(moonlightTarget(game, apps, ["883710"])).toBe("MoonDeckStream");
+    expect(defaultProvider(game, moonlightTarget(game, apps, ["883710"]), "gfn")).toBe("moonlight");
+    expect(moonlightTarget(game, apps, ["883711"])).toBeUndefined();
+    expect(moonlightTarget(game, apps, [])).toBeUndefined();
     expect(defaultProvider({ ...game, installed: true }, "MoonDeckStream", "gfn")).toBe("moonlight");
   });
   it("prefers a verified host game, then local, then GFN; launchers are not games", () => {

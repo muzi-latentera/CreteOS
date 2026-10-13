@@ -31,7 +31,9 @@ export function defaultProvider(app: App, moonlightGame?: string, gfnUrl?: strin
   return moonlightGame ? "moonlight" : app.installed ? "local" : gfnUrl ? "geforceNow" : "install";
 }
 
-export function moonlightTarget(app: App, apps: string[], installedIds: string[], buddyPaired: boolean): string | undefined {
-  if (buddyPaired && app.source === "steam" && app.steam_appid && installedIds.includes(String(app.steam_appid)) && apps.includes("MoonDeckStream")) return "MoonDeckStream";
+export function moonlightTarget(app: App, apps: string[], installedIds: string[]): string | undefined {
+  // Select the host route before Buddy pairing so Play can open its setup.
+  // The stream button and native launch still require a paired Buddy.
+  if (app.source === "steam" && app.steam_appid && installedIds.includes(String(app.steam_appid)) && apps.includes("MoonDeckStream")) return "MoonDeckStream";
   return moonlightMatch(app, apps);
 }

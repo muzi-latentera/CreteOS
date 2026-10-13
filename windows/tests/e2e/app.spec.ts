@@ -647,9 +647,12 @@ test("Uninstalled mapped games offer green GFN Play plus native install and stre
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
   const details = page.locator('[data-crete-details="true"]');
-  await expect(details.getByRole("button", { name: "Play via GeForce NOW", exact: true })).toBeVisible();
+  await expect(details.getByRole("button", { name: "Play", exact: true })).toBeVisible();
   await expect(details.locator("[data-launch-btn]")).toHaveAttribute("data-cloud", "true");
-  await details.getByRole("button", { name: "Play via GeForce NOW", exact: true }).click();
+  await expect(details.locator("[data-launch-btn]")).toHaveAttribute("data-provider", "geforceNow");
+  await expect(details.locator("[data-launch-btn]")).toHaveCSS("background-color", "rgb(124, 171, 0)");
+  await expect(details.getByRole("button", { name: "Launch options", exact: true })).toHaveCSS("background-color", "rgb(124, 171, 0)");
+  await details.getByRole("button", { name: "Play", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"])).toBe(1);
   expect(await page.evaluate(() => (window as any).__invokeCounts.launch_app ?? 0)).toBe(0);
   await details.getByRole("button", { name: "Launch options", exact: true }).click();
@@ -664,7 +667,7 @@ test("Uninstalled mapped games offer green GFN Play plus native install and stre
 test("Home direct Play uses the mapped cloud page for an uninstalled hero", async ({ page }) => {
   await page.goto("/?crete&rich&played&gfnHero&direct");
   const primary = page.locator(".crete-hero .crete-play");
-  await expect(primary).toHaveText("Play via GeForce NOW");
+  await expect(primary).toHaveText("Play");
   await expect(primary).toHaveAttribute("data-cloud", "true");
   await primary.click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"])).toBe(1);
@@ -677,7 +680,7 @@ test("Live host game takes priority over GFN and preserves display-specific stre
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
   const details = page.locator('[data-crete-details="true"]');
-  await details.getByRole("button", { name: "Play via Moonlight", exact: true }).click();
+  await details.getByRole("button", { name: "Play", exact: true }).click();
   const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
   await expect(stream.getByLabel("Host app")).toHaveValue("Control Ultimate Edition");
   await stream.getByLabel("Display preset").selectOption("xreal");
@@ -696,7 +699,7 @@ test("Offline host falls back to GFN and Escape closes compact menu without clos
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
   const details = page.locator('[data-crete-details="true"]');
-  await expect(details.getByRole("button", { name: "Play via GeForce NOW", exact: true })).toBeVisible();
+  await expect(details.getByRole("button", { name: "Play", exact: true })).toBeVisible();
   await page.keyboard.press("ArrowRight");
   await expect(details.getByRole("menu", { name: "Launch options" })).toBeVisible();
   await page.keyboard.press("Escape");
@@ -718,8 +721,10 @@ test("MoonDeckStream passes the selected Steam ID and requires its own pairing",
   await page.goto("/?crete&rich&gfn&hostInstalled&buddyUnpaired");
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
-  await details.getByRole("button", { name: "Launch options", exact: true }).click();
-  await details.getByRole("menuitem", { name: "Moonlight", exact: true }).click();
+  await expect(details.locator("[data-launch-btn]")).toHaveText("Play");
+  await expect(details.locator("[data-launch-btn]")).toHaveAttribute("data-provider", "moonlight");
+  await expect(details.getByRole("button", { name: "Launch options", exact: true })).toHaveCSS("background-color", "rgb(124, 171, 0)");
+  await details.locator("[data-launch-btn]").click();
   await expect(stream.getByRole("button", { name: "Start stream", exact: true })).toBeDisabled();
   await expect(stream.getByRole("button", { name: "Pair MoonDeck Buddy", exact: true })).toBeVisible();
 });
@@ -784,13 +789,13 @@ test("Steam host inventory makes MoonDeck the automatic default, while missing i
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
   const details = page.locator('[data-crete-details="true"]');
-  await expect(details.locator("[data-launch-btn]")).toHaveText("Play via Moonlight");
+  await expect(details.locator("[data-launch-btn]")).toHaveText("Play");
   await details.locator("[data-launch-btn]").click();
   await expect(details.getByRole("dialog", { name: "Moonlight stream settings" }).getByLabel("Host app")).toHaveValue("MoonDeckStream");
   await page.goto("/?crete&rich&gfn&inventoryOffline");
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
-  await expect(details.locator("[data-launch-btn]")).toHaveText("Play via GeForce NOW");
+  await expect(details.locator("[data-launch-btn]")).toHaveText("Play");
 });
 
 
@@ -872,7 +877,7 @@ test("Bosgame MoonDeck is preferred over a local copy, with explicit local Play 
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
   const details = page.locator('[data-crete-details="true"]');
-  await expect(details.locator("[data-launch-btn]")).toHaveText("Play via Moonlight");
+  await expect(details.locator("[data-launch-btn]")).toHaveText("Play");
   await details.getByRole("button", { name: "Launch options", exact: true }).click();
   await details.getByRole("menuitem", { name: "Local", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);

@@ -24,7 +24,7 @@ export function useStreaming(app: App, enabled: boolean) {
   const pcGame = enabled && isPcGame(app);
   const gameUrl = pcGame ? geforceNowUrl(app) : undefined;
   const hostInstalled = app.source === "steam" && !!app.steam_appid && !!hostGames?.some(game => game.steamAppId === String(app.steam_appid));
-  const moonlightGame = pcGame ? moonlightTarget(app, apps, hostGames?.map(game => game.steamAppId) ?? [], !!buddy?.paired) : undefined;
+  const moonlightGame = pcGame ? moonlightTarget(app, apps, hostGames?.map(game => game.steamAppId) ?? []) : undefined;
   useEffect(() => {
     let active = true;
     setError(null); setApps([]); setConfigure(false);

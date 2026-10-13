@@ -70,7 +70,7 @@ export function CreteHomeView(p: CreteHomeProps) {
   const heroProvider = hero ? p.isRunning(hero.id) ? "local" : defaultProvider(hero, streaming.moonlightGame, geforceNowUrl(hero)) : "install";
   const open = (app: App) => {
     if (!p.settings.home_launch_games_directly) { p.onOpenDetails(app); return; }
-    const host = moonlightTarget(app, streaming.apps, streaming.hostGames?.map(game => game.steamAppId) ?? [], !!streaming.buddy?.paired);
+    const host = moonlightTarget(app, streaming.apps, streaming.hostGames?.map(game => game.steamAppId) ?? []);
     if (!p.isRunning(app.id) && (streaming.checking || host)) { p.onOpenDetails(app); return; }
     setLaunchError(null);
     const url = app.installed === false ? geforceNowUrl(app) : undefined;
@@ -154,7 +154,8 @@ export function CreteHomeView(p: CreteHomeProps) {
           <div className="crete-hero-title">{p.settings.show_hero_cover && (p.customArt[hero.id] || p.gameArt[hero.id]) && <img className="crete-hero-cover" src={p.customArt[hero.id] || p.gameArt[hero.id]} alt="" />}<h1>{hero.name}</h1></div>
           <div className="crete-hero-tags">{p.settings.show_store_badges !== false && <span>{sourceLabel(hero.source)}</span>}{hero.installed && <span className="crete-local">{text("Local")}</span>}</div>
           <button type="button" className="crete-play" disabled={!p.isRunning(hero.id) && streaming.checking} data-cloud={heroProvider === "moonlight" || heroProvider === "geforceNow"}
-            onFocus={() => { setSelection(null); setNewsIndex(-1); }} onClick={() => open(hero)}><IoPlay />{text(!p.isRunning(hero.id) && streaming.checking ? "Checking Bosgame…" : heroProvider === "moonlight" ? "Play via Moonlight" : heroProvider === "geforceNow" ? "Play via GeForce NOW" : "Play")}</button>
+            title={heroProvider === "moonlight" ? "Moonlight" : heroProvider === "geforceNow" ? "GeForce NOW" : undefined}
+            onFocus={() => { setSelection(null); setNewsIndex(-1); }} onClick={() => open(hero)}><IoPlay />{text(!p.isRunning(hero.id) && streaming.checking ? "Checking Bosgame…" : "Play")}</button>
           {launchError && <p role="alert">{launchError}</p>}{p.spotifyHeroChip}
         </div>
         <aside className="crete-hero-info"><span className="crete-eyebrow">{text("Game info")}</span><dl><dt>{text("Developer")}</dt><dd>{meta.data?.developers.join(", ") || "—"}</dd><dt>{text("Publisher")}</dt><dd>{meta.data?.publishers.join(", ") || "—"}</dd><dt>{text("Playtime")}</dt><dd>{playtime(hero.playtime_minutes)}</dd><dt>{text("Last played")}</dt><dd>{lastPlayed(hero.last_played)}</dd></dl></aside>
