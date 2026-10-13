@@ -722,3 +722,46 @@ test("Installed mapped games keep local Play as the default", async ({ page }) =
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
   expect(await page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"] ?? 0)).toBe(0);
 });
+
+test("Landscape covers fit completely and keep a readable title", async ({ page }) => {
+  await page.route("https://fixture.test/**", route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="460" height="215"><rect width="460" height="215" fill="#334455"/><text x="20" y="120" fill="white">TEST WIDE ARTWORK</text></svg>' }));
+  await page.goto("/?crete&rich&played");
+  const card = page.locator(".crete-rail-cards .crete-game-card").first();
+  await expect(card.locator("img")).toHaveAttribute("data-landscape", "true");
+  await expect(card.locator(".crete-landscape-title")).toHaveText("Hollow Knight");
+  expect(await card.locator("img").evaluate(el => getComputedStyle(el).objectFit)).toBe("contain");
+});
+
+test("Controller opens compact launch menu, chooses Moonlight and cancels only the stream panel", async ({ page }) => {
+  await page.goto("/?crete&rich&gfn");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  await frames(page, 40);
+  const details = page.locator('[data-crete-details="true"]');
+  await pad(page, 15);
+  await expect(details.getByRole("menu", { name: "Launch options" })).toBeVisible();
+  await pad(page, 13);
+  await expect(details.getByRole("menuitem", { name: "Moonlight", exact: true })).toBeFocused();
+  await pad(page, 0);
+  const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
+  await expect(stream).toBeVisible();
+  await pad(page, 1);
+  await expect(stream).not.toBeVisible();
+  await expect(details).toBeVisible();
+});
+
+test("Home selection scroll interpolates and a rapid reversal returns to the hero", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await richCrete(page, true);
+  await page.keyboard.press("ArrowDown");
+  const positions = await page.locator(".crete-home").evaluate(el => new Promise<number[]>(resolve => {
+    const values: number[] = [];
+    const tick = () => { values.push(el.scrollTop); if (values.length === 15) resolve(values); else requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }));
+  expect(positions.some(value => value > 0 && value < positions.at(-1)!)).toBe(true);
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("ArrowUp");
+  await expect.poll(() => page.locator(".crete-home").evaluate(el => el.scrollTop)).toBe(0);
+});

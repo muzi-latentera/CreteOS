@@ -2,7 +2,7 @@ import { CreteDetailsInfo } from "../crete/CreteDetailsInfo";
 import { LaunchMenu } from "../crete/LaunchMenu";
 import { useStreaming } from "../crete/useStreaming";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { IoChevronBackOutline, IoChevronForwardOutline, IoCloseOutline, IoGameControllerOutline, IoPlay } from "react-icons/io5";
+import { IoChevronBackOutline, IoChevronDownOutline, IoChevronForwardOutline, IoCloseOutline, IoGameControllerOutline, IoPlay } from "react-icons/io5";
 import { StoreBadge } from "./ui/StoreBadge";
 import { useDeckCompat, type DeckCompatCategory } from "../hooks/useDeckCompat";
 import { useStoreMetadata } from "../hooks/useStoreMetadata";
