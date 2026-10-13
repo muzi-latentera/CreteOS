@@ -27,6 +27,7 @@ Review these deliberate integration points during updates:
 - `src/components/GameDetailsModal.tsx`: named presentation slots, Crete metadata panel, management dropdown and Crete-only keyboard access. Install, uninstall, account and management actions remain the inherited handlers.
 - `src/constants.ts`, `src/utils/palettes.ts`, `src/main.jsx`, `src-tauri/src/lib.rs`: theme defaults, styles, identity/data/release namespaces. New installs include owned/uninstalled games; existing saved preferences remain authoritative.
 - `src-tauri/src/crete_news.rs` and its command registration: a bounded public RSS request for the Android-style news rail. This adds no dependency and does not alter discovery or launching.
+- `src/types.ts`, UI picker/glyph imports, `src/theme/surfaces.ts` / `tabStyle.ts`, and palette/locales: Crete theme support, product wording and production TypeScript/case-sensitive import fixes. Several inherited files change only branding or comments.
 - `src-tauri/tauri.conf.json`, package/crate files, icons, update links and workflow: CreteOS product/release identity and packaging.
 
 Crete Home reads persisted history through existing backend commands because LiftOff's frontend falls back to installed titles on first run. Crete filters operate on the inherited discovered/owned library; this skin does not add bundled emulators, Android games, ROM scraping, Steam achievements, HowLongToBeat data or GameNative on Windows. Those capabilities must not be inferred from the Android reference screenshots.

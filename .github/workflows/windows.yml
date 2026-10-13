@@ -45,7 +45,7 @@ jobs:
       - name: Test controller interface with mocked Windows commands
         run: npm run test:e2e
       - name: Build CreteOS Windows installer
-        run: npm run tauri -- build --locked
+        run: npm run tauri -- build -- --locked
       - name: Test Windows backend
         run: cargo test --release --locked --manifest-path src-tauri/Cargo.toml
       - name: Record installer identity

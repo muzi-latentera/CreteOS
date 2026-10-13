@@ -19,6 +19,6 @@ Crete preserves LiftOff's install/management handlers, original optional themes 
 
 ## Native and device acceptance
 
-The GitHub Windows workflow is being run on the fork branch to produce an unsigned NSIS installer and execute backend tests. Record its completed result and exact artifact in the app build ledger; a passing mocked frontend suite is not native verification.
+The GitHub Windows workflow passed the frontend checks on the Windows runner. Its first packaging attempt exposed a CLI argument error; the command was corrected to `npm run tauri -- build -- --locked` to forward the Cargo flag. Native installer/backend checks are being rerun on the fork branch. Record its completed result and exact artifact in the app build ledger; a passing mocked frontend suite is not native verification.
 
 Install the artifact on the target GPD and complete the [device acceptance checklist](WINDOWS_SETUP.md#device-acceptance-checks). Native discovery, credentials, focus handoff, Xbox/AnyFSE transitions, suspend/resume and GPD TDP controls require that hardware validation. The exact GPD model, utility and executable path remain needed for the final device profile.

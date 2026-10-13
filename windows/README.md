@@ -28,7 +28,7 @@ $env:SGDB_API_KEY = "" # Optional SteamGridDB artwork key.
 npm run tauri -- dev
 ```
 
-Create an installer with `npm run tauri -- build --locked`. The unsigned installer is written under `src-tauri/target/release/bundle/`. Supply a SteamGridDB key through the build environment if artwork lookup is needed; no key is bundled in this repository.
+Create an installer with `npm run tauri -- build -- --locked`. The unsigned installer is written under `src-tauri/target/release/bundle/`. Supply a SteamGridDB key through the build environment if artwork lookup is needed; no key is bundled in this repository.
 
 ```powershell
 npm run build
