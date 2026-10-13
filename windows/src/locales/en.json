@@ -984,6 +984,10 @@
     "Open_Moonlight": "Open Moonlight",
     "Cancel": "Cancel",
     "Settings_are_saved_for_this_display_when_the_stream_starts_Codec_availability_depends_on_the_host_and_device": "Settings are saved for this display when the stream starts. Codec availability depends on the host and device.",
-    "All": "All"
+    "All": "All",
+    "Saved_host_availability_refreshes_once_a_day_Starting_a_stream_checks_the_connection": "Saved host availability refreshes once a day. Starting a stream checks the connection.",
+    "No_network_connection_Installed_local_games_are_available_offline": "No network connection. Installed local games are available offline.",
+    "Bosgame_could_not_be_refreshed_Using_saved_availability_You_can_retry_with_Refresh_host": "Bosgame could not be refreshed. Using saved availability. You can retry with Refresh host.",
+    "Play_locally": "Play locally"
   }
 }

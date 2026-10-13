@@ -96,7 +96,7 @@ test.beforeEach(async ({ page }) => {
         if (params.has("parity") && command === "get_game_memberships") return { "steam://rungameid/620": ["favourites"], "steam://rungameid/621": ["favourites"] };
         if (params.has("sizes") && command === "get_install_size") return 1073741824;
         if (params.has("sizes") && command === "get_steam_download_size") return 2147483648;
-        if (command === "launch_moonlight") { (window as any).__lastStream = args; return null; }
+        if (command === "launch_moonlight") { if (params.has("streamOffline")) throw new Error("Host unavailable"); (window as any).__lastStream = args; return null; }
         if (command === "get_host_installed_games") { if (params.has("holdHost")) await new Promise<void>(resolve => { (window as any).__releaseHostCheck = resolve; }); if (params.has("inventoryOffline")) throw new Error("SSH unavailable"); return params.has("hostInstalled") ? [{ steamAppId: "870780", name: "Control Ultimate Edition" }] : []; }
         if (command === "get_moondeck_status") return { paired: !params.has("buddyUnpaired"), version: 8 };
         if (command === "get_moonlight_profile") return { displayKey: "DISPLAY1:1920x1080", profile: { host: "Bosgame", resolution: "1920x1080", fps: 120, bitrate: 80000, codec: "auto" } };
@@ -730,6 +730,7 @@ test("MoonDeckStream passes the selected Steam ID and requires its own pairing",
   await expect(stream.getByLabel("Host app")).toHaveValue("MoonDeckStream");
   await stream.getByRole("button", { name: "Start stream", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__lastStream?.steamId)).toBe("870780");
+  await page.evaluate(() => localStorage.removeItem("crete.host-snapshots.v1"));
   await page.goto("/?crete&rich&gfn&hostInstalled&buddyUnpaired");
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
@@ -904,41 +905,91 @@ test("Bosgame MoonDeck is preferred over a local copy, with explicit local Play 
   expect(await page.evaluate(() => (window as any).__invokeCounts.launch_moonlight ?? 0)).toBe(0);
 });
 
-test("Host checks show a transparent spinner, reveal purple Play and preserve stream settings during refresh", async ({ page }, info) => {
-  await page.goto("/?crete&rich&gfn&hostInstalled&holdHost");
+test("Daily host refresh never blocks local Play and keeps purple Play during manual refresh", async ({ page }) => {
+  await page.goto("/?crete&rich&gfn&gfnLocal&hostInstalled&holdHost");
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
   const details = page.locator('[data-crete-details="true"]');
-  const loader = details.locator(".crete-launch-loading");
-  await expect(loader).toBeVisible();
-  await expect(loader).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-  await expect(details.locator("[data-launch-btn]")).toHaveCount(0);
-  await expect(details.getByRole("button", { name: "Launch options", exact: true })).toHaveCount(0);
-  await expect(details.getByText("Checking Bosgame…", { exact: true })).toHaveCount(0);
-  await page.screenshot({ path: info.outputPath("creteos-launch-loading.png") });
+  await expect(details.locator("[data-launch-btn]")).toHaveAttribute("data-provider", "local");
+  await expect(details.locator(".crete-launch-loading")).toHaveCount(0);
+  await expect(details.getByRole("button", { name: "Launch options", exact: true })).toBeVisible();
   await page.evaluate(() => (window as any).__releaseHostCheck());
-  await expect(loader).toHaveCount(0);
-  await expect(details.locator("[data-launch-btn]")).toHaveText("Play");
-  await expect(details.locator("[data-launch-btn]")).toHaveCSS("background-color", "rgb(113, 100, 217)");
+  await expect(details.locator("[data-launch-btn]")).toHaveAttribute("data-provider", "moonlight");
   await details.locator("[data-launch-btn]").click();
   const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
   await stream.getByRole("button", { name: "Refresh host", exact: true }).click();
-  await expect(loader).toBeVisible();
-  await expect(stream).toBeVisible();
-  await expect(stream.getByRole("button", { name: "Start stream", exact: true })).toBeDisabled();
+  await expect(stream.getByRole("button", { name: "Checking…", exact: true })).toBeDisabled();
+  await expect(details.locator("[data-launch-btn]")).toHaveCSS("background-color", "rgb(113, 100, 217)");
+  await expect(details.locator(".crete-launch-loading")).toHaveCount(0);
+  await expect(stream.getByRole("button", { name: "Start stream", exact: true })).toBeEnabled();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.get_host_installed_games)).toBe(2);
   await page.evaluate(() => (window as any).__releaseHostCheck());
-  await expect(loader).toHaveCount(0);
-  await expect(stream).toBeVisible();
-  await stream.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(stream.getByRole("button", { name: "Refresh host", exact: true })).toBeEnabled();
 });
 
-test("Home hides its Play button behind a muted spinner until host availability resolves", async ({ page }) => {
-  await page.goto("/?crete&rich&played&gfnHero&hostInstalled&holdHost");
+async function savedHost(page: Page, age = 0) {
+  await page.addInitScript(age => {
+    if (!localStorage.getItem("crete.host-snapshots.v1")) localStorage.setItem("crete.host-snapshots.v1", JSON.stringify({ bosgame: {
+      attemptedAt: Date.now() - age, checkedAt: Date.now() - age, apps: ["MoonDeckStream", "Desktop"],
+      games: [{ steamAppId: "870780", name: "Control Ultimate Edition" }], buddy: { paired: true, version: 8 },
+    } }));
+  }, age);
+}
+
+test("Saved Moonlight availability survives reload without host requests", async ({ page }) => {
+  await savedHost(page);
+  await page.goto("/?crete&rich&played&gfnHero&hostOffline");
   const hero = page.locator(".crete-hero");
-  await expect(hero.locator(".crete-launch-loading")).toBeVisible();
-  await expect(hero.locator(".crete-play")).toHaveCount(0);
+  await expect(hero.locator(".crete-play")).toHaveCSS("background-color", "rgb(113, 100, 217)");
+  await page.reload();
+  await expect(hero.locator(".crete-play")).toHaveCSS("background-color", "rgb(113, 100, 217)");
+  for (const command of ["get_host_installed_games", "get_moonlight_apps", "get_moondeck_status"]) {
+    expect(await page.evaluate(command => (window as any).__invokeCounts[command] ?? 0, command)).toBe(0);
+  }
+});
+
+test("Expired snapshot remains usable while refresh is pending and after it fails", async ({ page }) => {
+  await savedHost(page, 86400001);
+  await page.goto("/?crete&rich&gfn&holdHost&hostOffline&inventoryOffline");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const primary = page.locator('[data-crete-details="true"] [data-launch-btn]');
+  await expect(primary).toHaveAttribute("data-provider", "moonlight");
   await page.evaluate(() => (window as any).__releaseHostCheck());
-  await expect(hero.locator(".crete-launch-loading")).toHaveCount(0);
-  await expect(hero.locator(".crete-play")).toHaveText("Play");
+  await expect(primary).toHaveAttribute("data-provider", "moonlight");
+  await page.reload();
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  await expect(primary).toHaveAttribute("data-provider", "moonlight");
+  expect(await page.evaluate(() => (window as any).__invokeCounts.get_host_installed_games ?? 0)).toBe(0);
+});
+
+test("Offline network selects installed local play without host or cloud requests", async ({ page, context }) => {
+  await savedHost(page);
+  await page.goto("/?crete&rich&gfn&gfnLocal");
+  await context.setOffline(true);
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const primary = page.locator('[data-crete-details="true"] [data-launch-btn]');
+  await expect(primary).toHaveAttribute("data-provider", "local");
+  await primary.click();
+  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
+  expect(await page.evaluate(() => (window as any).__invokeCounts.get_host_installed_games ?? 0)).toBe(0);
+  expect(await page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"] ?? 0)).toBe(0);
+});
+
+test("A failed cached Moonlight launch offers explicit local play", async ({ page }) => {
+  await savedHost(page);
+  await page.goto("/?crete&rich&gfn&gfnLocal&streamOffline");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const details = page.locator('[data-crete-details="true"]');
+  await expect(details.locator("[data-launch-btn]")).toHaveAttribute("data-provider", "moonlight");
+  await details.locator("[data-launch-btn]").click();
+  const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
+  await stream.getByRole("button", { name: "Start stream", exact: true }).click();
+  await expect(stream.getByRole("alert")).toContainText("Connect to the host's network");
+  await stream.getByRole("button", { name: "Play locally", exact: true }).click();
+  await expect(stream).not.toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
 });

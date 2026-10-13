@@ -6,7 +6,7 @@ import { IoGameControllerOutline, IoPlay } from "react-icons/io5";
 import type { App, Settings } from "../types";
 import { useStoreMetadata } from "../hooks/useStoreMetadata";
 import { CreteGameCard } from "./CreteGameCard";
-import { defaultProvider, geforceNowUrl, moonlightTarget } from "./streaming";
+import { geforceNowUrl, moonlightTarget } from "./streaming";
 import { useStreaming } from "./useStreaming";
 import { LaunchLoading } from "./LaunchLoading";
 import { scrollPane } from "./smoothScroll";
@@ -68,13 +68,13 @@ export function CreteHomeView(p: CreteHomeProps) {
   const animatedArtwork = hero && (p.heroAnimated?.[hero.id] || (heroType === "animated" ? p.customHeroArt[hero.id] : undefined));
   const artwork = heroType === "animated" && animatedArtwork ? animatedArtwork : staticArtwork;
   const showArtwork = p.settings.home_mode === "normal" || p.settings.show_immersive_hero_art !== false;
-  const heroProvider = hero ? p.isRunning(hero.id) ? "local" : defaultProvider(hero, streaming.moonlightGame, geforceNowUrl(hero)) : "install";
+  const heroProvider = hero ? p.isRunning(hero.id) ? "local" : streaming.provider : "install";
   const open = (app: App) => {
     if (!p.settings.home_launch_games_directly) { p.onOpenDetails(app); return; }
-    const host = moonlightTarget(app, streaming.apps, streaming.hostGames?.map(game => game.steamAppId) ?? []);
+    const host = streaming.online && streaming.clients.moonlight ? moonlightTarget(app, streaming.apps, streaming.hostGames?.map(game => game.steamAppId) ?? []) : undefined;
     if (!p.isRunning(app.id) && (streaming.checking || host)) { p.onOpenDetails(app); return; }
     setLaunchError(null);
-    const url = app.installed === false ? geforceNowUrl(app) : undefined;
+    const url = streaming.online && app.installed === false ? geforceNowUrl(app) : undefined;
     if (url) void openUrl(url).catch(error => setLaunchError(String(error)));
     else if (app.installed === false) p.onOpenDetails(app);
     else p.triggerLaunch(app, p.recentRef.current);

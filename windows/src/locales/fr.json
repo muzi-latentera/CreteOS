@@ -984,6 +984,10 @@
     "Open_Moonlight": "Ouvrir Moonlight",
     "Cancel": "Annuler",
     "Settings_are_saved_for_this_display_when_the_stream_starts_Codec_availability_depends_on_the_host_and_device": "Les paramètres de cet écran sont enregistrés au démarrage du streaming. Les codecs disponibles dépendent de l'hôte et de l'appareil.",
-    "All": "Tous"
+    "All": "Tous",
+    "Saved_host_availability_refreshes_once_a_day_Starting_a_stream_checks_the_connection": "La disponibilité enregistrée de l’hôte est actualisée une fois par jour. Le démarrage du streaming vérifie la connexion.",
+    "No_network_connection_Installed_local_games_are_available_offline": "Aucune connexion réseau. Les jeux installés localement sont disponibles hors ligne.",
+    "Bosgame_could_not_be_refreshed_Using_saved_availability_You_can_retry_with_Refresh_host": "Impossible d’actualiser Bosgame. Utilisation de la disponibilité enregistrée. Réessayez avec Actualiser l’hôte.",
+    "Play_locally": "Jouer localement"
   }
 }
