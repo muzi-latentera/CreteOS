@@ -6,9 +6,9 @@ import { getBestGamepad, readGpState } from "../utils/gamepad";
 import type { useStreaming, MoonlightProfile } from "./useStreaming";
 
 type Streaming = ReturnType<typeof useStreaming>;
-export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, localEnabled, manage, manageLabel, block }: {
+export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, localEnabled, manage, manageLabel, block, loading = false }: {
   streaming: Streaming; open: boolean; setOpen: (open: boolean) => void; local: () => void;
-  localLabel: string; localEnabled: boolean; manage: () => void; manageLabel: string; block: (blocked: boolean) => void;
+  localLabel: string; localEnabled: boolean; manage: () => void; manageLabel: string; block: (blocked: boolean) => void; loading?: boolean;
 }) {
   const text = useCreteText();
   const root = useRef<HTMLDivElement>(null);
@@ -76,8 +76,8 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     setProfile(p => ({ ...p, resolution, fps, bitrate: 80000 }));
   };
   return <div ref={root} className="crete-launch-menu">
-    <button ref={anchor} type="button" className="crete-details-manage" aria-label={text("Launch options")} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><IoChevronDownOutline /></button>
-    {open && <div className="crete-launch-popover" role="menu" aria-label={text("Launch options")}>
+    {!loading && <button ref={anchor} type="button" className="crete-details-manage" aria-label={text("Launch options")} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><IoChevronDownOutline /></button>}
+    {open && !loading && <div className="crete-launch-popover" role="menu" aria-label={text("Launch options")}>
       {row(localLabel, "local", "#c9482a", local, !localEnabled)}
       {s.pcGame && row("Moonlight", "moonlight", "#7164d9", () => s.launch("moonlight"), !s.clients.moonlight)}
       {s.gameUrl && row("GeForce NOW", "geforceNow", "#7cab00", () => s.launch("geforceNow", true))}

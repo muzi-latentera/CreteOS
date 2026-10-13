@@ -1,6 +1,7 @@
 import { useCreteText } from "../crete/text";
 import { CreteDetailsInfo } from "../crete/CreteDetailsInfo";
 import { LaunchMenu } from "../crete/LaunchMenu";
+import { LaunchLoading } from "../crete/LaunchLoading";
 import { useStreaming } from "../crete/useStreaming";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { IoChevronBackOutline, IoChevronDownOutline, IoChevronForwardOutline, IoCloseOutline, IoGameControllerOutline, IoPlay } from "react-icons/io5";
@@ -793,7 +794,8 @@ export function GameDetailsModal({
   const xboxInstallLabel = xboxProductId
     ? t("install.install")
     : t("install.getOnXbox", { defaultValue: "Get in Store" });
-  const primaryLabel = !running && !installing && streaming.checking ? creteText("Checking Bosgame…") : cloudDefault ? t("details.play") : running
+  const launchLoading = resolvedTheme === "crete" && !running && !installing && streaming.checking;
+  const primaryLabel = cloudDefault ? t("details.play") : running
     ? t("home.resume")
     : installed
       ? t("details.play")
@@ -1178,7 +1180,7 @@ export function GameDetailsModal({
               gap: 10,
               flexWrap: "wrap",
             }}>
-              <button
+              {launchLoading ? <LaunchLoading /> : <button
                 data-launch-btn={resolvedTheme === "crete" ? "" : undefined}
                 data-cloud={isCloud || cloudDefault}
                 data-provider={cloudDefault ? streaming.provider : isCloud ? "geforceNow" : "local"}
@@ -1204,9 +1206,9 @@ export function GameDetailsModal({
             >
               {resolvedTheme === "crete" && <IoGameControllerOutline size={20} aria-hidden="true" />}
               {primaryLabel}
-              </button>
+              </button>}
               {streaming.error && <span role="alert">{streaming.error}</span>}
-              {resolvedTheme === "crete" && <LaunchMenu streaming={streaming} open={launchMenuOpen} setOpen={setLaunchMenuOpen}
+              {resolvedTheme === "crete" && <LaunchMenu streaming={streaming} open={launchMenuOpen} setOpen={setLaunchMenuOpen} loading={launchLoading}
                 block={blockLaunchPopup} local={handleLocalAction} localLabel={installed ? "Local" : installing ? "Cancel installation" : "Install locally"}
                 manageLabel={activeTab === "manage" ? "Game information" : "Manage game"}
                 localEnabled={installed || canInstall || canXboxInstall || installing} manage={() => {

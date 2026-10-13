@@ -97,7 +97,7 @@ test.beforeEach(async ({ page }) => {
         if (params.has("sizes") && command === "get_install_size") return 1073741824;
         if (params.has("sizes") && command === "get_steam_download_size") return 2147483648;
         if (command === "launch_moonlight") { (window as any).__lastStream = args; return null; }
-        if (command === "get_host_installed_games") { if (params.has("inventoryOffline")) throw new Error("SSH unavailable"); return params.has("hostInstalled") ? [{ steamAppId: "870780", name: "Control Ultimate Edition" }] : []; }
+        if (command === "get_host_installed_games") { if (params.has("holdHost")) await new Promise<void>(resolve => { (window as any).__releaseHostCheck = resolve; }); if (params.has("inventoryOffline")) throw new Error("SSH unavailable"); return params.has("hostInstalled") ? [{ steamAppId: "870780", name: "Control Ultimate Edition" }] : []; }
         if (command === "get_moondeck_status") return { paired: !params.has("buddyUnpaired"), version: 8 };
         if (command === "get_moonlight_profile") return { displayKey: "DISPLAY1:1920x1080", profile: { host: "Bosgame", resolution: "1920x1080", fps: 120, bitrate: 80000, codec: "auto" } };
         if (command === "get_moonlight_apps") { if (params.has("hostOffline")) throw new Error("Host offline"); return params.has("hostGame") ? ["Control Ultimate Edition", "Desktop"] : ["Desktop", "Steam Big Picture", "MoonDeckStream"]; }
@@ -902,4 +902,43 @@ test("Bosgame MoonDeck is preferred over a local copy, with explicit local Play 
   await details.getByRole("menuitem", { name: "Local", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
   expect(await page.evaluate(() => (window as any).__invokeCounts.launch_moonlight ?? 0)).toBe(0);
+});
+
+test("Host checks show a transparent spinner, reveal purple Play and preserve stream settings during refresh", async ({ page }, info) => {
+  await page.goto("/?crete&rich&gfn&hostInstalled&holdHost");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const details = page.locator('[data-crete-details="true"]');
+  const loader = details.locator(".crete-launch-loading");
+  await expect(loader).toBeVisible();
+  await expect(loader).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(details.locator("[data-launch-btn]")).toHaveCount(0);
+  await expect(details.getByRole("button", { name: "Launch options", exact: true })).toHaveCount(0);
+  await expect(details.getByText("Checking Bosgame…", { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("creteos-launch-loading.png") });
+  await page.evaluate(() => (window as any).__releaseHostCheck());
+  await expect(loader).toHaveCount(0);
+  await expect(details.locator("[data-launch-btn]")).toHaveText("Play");
+  await expect(details.locator("[data-launch-btn]")).toHaveCSS("background-color", "rgb(113, 100, 217)");
+  await details.locator("[data-launch-btn]").click();
+  const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
+  await stream.getByRole("button", { name: "Refresh host", exact: true }).click();
+  await expect(loader).toBeVisible();
+  await expect(stream).toBeVisible();
+  await expect(stream.getByRole("button", { name: "Start stream", exact: true })).toBeDisabled();
+  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.get_host_installed_games)).toBe(2);
+  await page.evaluate(() => (window as any).__releaseHostCheck());
+  await expect(loader).toHaveCount(0);
+  await expect(stream).toBeVisible();
+  await stream.getByRole("button", { name: "Cancel", exact: true }).click();
+});
+
+test("Home hides its Play button behind a muted spinner until host availability resolves", async ({ page }) => {
+  await page.goto("/?crete&rich&played&gfnHero&hostInstalled&holdHost");
+  const hero = page.locator(".crete-hero");
+  await expect(hero.locator(".crete-launch-loading")).toBeVisible();
+  await expect(hero.locator(".crete-play")).toHaveCount(0);
+  await page.evaluate(() => (window as any).__releaseHostCheck());
+  await expect(hero.locator(".crete-launch-loading")).toHaveCount(0);
+  await expect(hero.locator(".crete-play")).toHaveText("Play");
 });

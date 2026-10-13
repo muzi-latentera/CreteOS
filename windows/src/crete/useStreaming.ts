@@ -16,25 +16,32 @@ export function useStreaming(app: App, enabled: boolean) {
   const [display, setDisplay] = useState(fallback);
   const [configure, setConfigure] = useState(false);
   const [refreshId, setRefreshId] = useState(0);
-  const [checking, setChecking] = useState(false);
+  const [checkingHost, setCheckingHost] = useState(false);
+  const [clientsFor, setClientsFor] = useState<string | null>(null);
+  const [hostReadyFor, setHostReadyFor] = useState<string | null>(null);
   const [buddy, setBuddy] = useState<{ paired: boolean; version: number } | null>(null);
   const [buddyError, setBuddyError] = useState<string | null>(null);
   const [hostGames, setHostGames] = useState<{ steamAppId: string; name: string }[] | null>(null);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
   const pcGame = enabled && isPcGame(app);
+  // Stay pending from the first render, including native client detection.
+  // Otherwise a GFN/local button briefly appears before host checks begin.
+  const checking = pcGame && (clientsFor !== app.id || (clients.moonlight && (checkingHost || hostReadyFor !== app.id)));
   const gameUrl = pcGame ? geforceNowUrl(app) : undefined;
   const hostInstalled = app.source === "steam" && !!app.steam_appid && !!hostGames?.some(game => game.steamAppId === String(app.steam_appid));
   const moonlightGame = pcGame ? moonlightTarget(app, apps, hostGames?.map(game => game.steamAppId) ?? []) : undefined;
   useEffect(() => {
     let active = true;
     setError(null); setApps([]); setConfigure(false);
-    if (pcGame) void invoke<typeof clients>("get_streaming_clients").then(value => { if (active && value) setClients(value); }).catch(() => {});
+    if (pcGame) void invoke<typeof clients>("get_streaming_clients").then(value => {
+      if (active) { setClients(value ?? { geforceNow: false, moonlight: false }); setClientsFor(app.id); }
+    }).catch(() => { if (active) { setClients({ geforceNow: false, moonlight: false }); setClientsFor(app.id); } });
     return () => { active = false; };
   }, [pcGame, app.id]);
   useEffect(() => {
-    if (!pcGame || !clients.moonlight) return;
+    if (!pcGame || clientsFor !== app.id || !clients.moonlight) return;
     let active = true;
-    setChecking(true); setApps([]); setHostError(null); setHostGames(null); setInventoryError(null); setBuddy(null);
+    setCheckingHost(true); setApps([]); setHostError(null); setHostGames(null); setInventoryError(null); setBuddy(null);
     void (async () => {
       const current = await invoke<DisplayProfile>("get_moonlight_profile");
       if (!current?.profile) throw new Error("Display settings unavailable");
@@ -48,10 +55,10 @@ export function useStreaming(app: App, enabled: boolean) {
       const list = await promise;
       if (active) setApps(list ?? []);
       await Promise.all([inventoryRequest, buddyRequest]);
-    })().catch(reason => { if (active) setHostError(String(reason)); }).finally(() => { if (active) setChecking(false); });
+    })().catch(reason => { if (active) setHostError(String(reason)); }).finally(() => { if (active) { setCheckingHost(false); setHostReadyFor(app.id); } });
     return () => { active = false; };
-  }, [pcGame, clients.moonlight, refreshId, app.id]);
-  const refresh = () => { requests.clear(); setRefreshId(value => value + 1); };
+  }, [pcGame, clients.moonlight, clientsFor, refreshId, app.id]);
+  const refresh = () => { requests.clear(); setHostReadyFor(null); setRefreshId(value => value + 1); };
   const launch = (provider: "geforceNow" | "moonlight", direct = false) => {
     setError(null);
     if (provider === "moonlight") {
