@@ -114,7 +114,7 @@ fn host_games(host: &str) -> Result<Vec<HostGame>, String> {
     validate_host(host)?;
     let folder = dirs::data_local_dir().ok_or("No local data directory")?.join("CreteOS-Bootstrap/ssh");
     let settings: serde_json::Value = std::fs::read(folder.join("bosgame.json")).ok()
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok()).ok_or("Set up Bosgame SSH access to detect installed games")?;
+        .and_then(|bytes| serde_json::from_slice(bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(&bytes)).ok()).ok_or("Set up Bosgame SSH access to detect installed games")?;
     let configured = settings["host"].as_str().ok_or("Missing SSH host")?;
     if !configured.eq_ignore_ascii_case(host) { return Err("SSH inventory is configured for another host".into()); }
     let username = settings["username"].as_str().ok_or("Missing SSH username")?;
