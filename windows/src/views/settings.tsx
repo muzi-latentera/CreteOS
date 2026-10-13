@@ -157,7 +157,7 @@ export function buildSettingsItems(t: TFunction, activeTheme: string): SettingsI
     { key: "home_mode",              section: 0, group: 1, label: t("settings.homeMode"),            type: "cycle", options: ["normal", "semi", "immersive"] },
     { key: "home_launch_games_directly", section: 0, group: 1, label: t("settings.homeLaunchGamesDirectly"), type: "toggle" },
     { key: "show_immersive_hero_art",section: 0, group: 1, label: t("settings.showGameHeroBanner"),type: "toggle" },
-    { key: "show_hero_cover",        section: 0, group: 1, label: t("settings.showHeroCover"),        type: "toggle" },
+    ...(activeTheme !== "crete" ? [{ key: "show_hero_cover" as const, section: 0, group: 1, label: t("settings.showHeroCover"), type: "toggle" as const }] : []),
     ...(activeTheme === "crete" ? [{ key: "show_home_pinned" as const, section: 0, group: 1, label: t("settings.showHomePinned"), type: "toggle" as const }] : []),
     ...(HOME_PINNED_SHELF_ENABLED || activeTheme === "crete" ? [{ key: "home_pinned_pos" as const, section: 0, group: 1, label: t("settings.homePinnedPos"), type: "cycle" as const, options: ["none", "top", "bottom"] }] : []),
     ...(activeTheme === "crete" ? [{ key: "hero_content_pos" as const, section: 0, group: 1, label: t("settings.heroContentPos"), type: "cycle" as const, options: ["center", "bottom"] }] : []),

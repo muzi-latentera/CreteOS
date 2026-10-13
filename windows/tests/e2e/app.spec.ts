@@ -465,6 +465,7 @@ test("CreteOS played Home keeps hero separate from the rail", async ({ page }, i
   await page.setViewportSize({ width: 1280, height: 800 });
   await richCrete(page, true);
   await expect(page.locator(".crete-hero h1")).toHaveText("Portal 2");
+  await expect(page.locator(".crete-hero-cover")).toHaveCount(0);
   await expect(page.locator(".crete-hero-info")).toContainText("1h 33m");
   await expect(page.locator(".crete-rail .crete-game-card")).toHaveCount(23);
   await expect(page.locator('.crete-rail [aria-label="Portal 2"]')).toHaveCount(0);

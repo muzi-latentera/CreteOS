@@ -151,7 +151,7 @@ export function CreteHomeView(p: CreteHomeProps) {
           : <img className="crete-hero-art" src={animatedArtwork} alt="" onError={event => { event.currentTarget.style.display = "none"; }} />)}
         <div className="crete-hero-shade" />
         <div className="crete-hero-copy"><span className="crete-eyebrow crete-amber">{text("Continue where you stopped")}</span>
-          <div className="crete-hero-title">{p.settings.show_hero_cover && (p.customArt[hero.id] || p.gameArt[hero.id]) && <img className="crete-hero-cover" src={p.customArt[hero.id] || p.gameArt[hero.id]} alt="" />}<h1>{hero.name}</h1></div>
+          <div className="crete-hero-title"><h1>{hero.name}</h1></div>
           <div className="crete-hero-tags">{p.settings.show_store_badges !== false && <span>{sourceLabel(hero.source)}</span>}{hero.installed && <span className="crete-local">{text("Local")}</span>}</div>
           <button type="button" className="crete-play" disabled={!p.isRunning(hero.id) && streaming.checking} data-provider={heroProvider} data-cloud={heroProvider === "moonlight" || heroProvider === "geforceNow"}
             title={heroProvider === "moonlight" ? "Moonlight" : heroProvider === "geforceNow" ? "GeForce NOW" : undefined}

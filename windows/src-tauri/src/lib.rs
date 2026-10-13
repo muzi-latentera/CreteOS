@@ -681,7 +681,7 @@ fn recents_path() -> std::path::PathBuf {
     liftoff_dir().join("recents.json")
 }
 fn art_cache_path() -> std::path::PathBuf {
-    liftoff_dir().join("art_cache.json")
+    liftoff_dir().join("art_cache_v2.json")
 }
 
 fn bundled_lofi_source_dirs(app: &tauri::AppHandle) -> Vec<PathBuf> {
@@ -1098,7 +1098,13 @@ fn save_recent_games(recents: &Vec<RecentEntry>) {
 fn load_art_cache() -> HashMap<String, String> {
     let path = art_cache_path();
     if !path.exists() {
-        return HashMap::new();
+        // Migrate real portraits only. Earlier versions cached landscape store
+        // headers and blank failures as covers, preventing a proper retry.
+        let legacy: HashMap<String, String> = std::fs::read_to_string(liftoff_dir().join("art_cache.json"))
+            .ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        let portraits = legacy.into_iter().filter(|(_, path)| steam_artwork::is_portrait(path)).collect();
+        save_art_cache(&portraits);
+        return portraits;
     }
     std::fs::read_to_string(&path)
         .ok()
@@ -5821,6 +5827,7 @@ fn fetch_game_art(
     source: Option<String>,
     appid: Option<u32>,
     force_refresh: Option<bool>,
+    product_id: Option<String>,
 ) -> GameArtBundle {
     let mut grid_cache = load_art_cache();
     let mut hero_static_cache = load_hero_cache();
@@ -5878,6 +5885,27 @@ fn fetch_game_art(
         }
     };
 
+    if source.as_deref().map(|s| s.eq_ignore_ascii_case("xbox")).unwrap_or(false) {
+        let normalized = normalize_xbox_catalog_name(&game_name);
+        let catalog = bundled_xcloud_games().into_iter().find(|game| normalize_xbox_catalog_name(&game.name) == normalized);
+        let id = product_id.filter(|id| is_microsoft_store_product_id(id))
+            .or_else(|| catalog.as_ref().map(|game| game.product_id.clone()));
+        let (cover, hero) = id.as_deref().map(|id| steam_artwork::fetch_xbox_images(&client, id)).unwrap_or((None, None));
+        let cover = cover.or_else(|| catalog.and_then(|game| game.box_art_url));
+        if grid_cached.is_none() {
+            if let Some(url) = cover {
+                grid_cached = steam_artwork::download_portrait(&client, &url, &grid_art_dir().join("portrait-v2"), &sanitize_filename(&game_name));
+                if let Some(path) = &grid_cached { grid_cache.insert(game_name.clone(), path.clone()); save_art_cache(&grid_cache); }
+            }
+        }
+        if hero_static_cached.is_none() {
+            if let Some(url) = hero {
+                hero_static_cached = download_file(&client, &url, &hero_static_art_dir(), &game_name);
+                if let Some(path) = &hero_static_cached { hero_static_cache.insert(game_name.clone(), path.clone()); save_hero_cache(&hero_static_cache); }
+            }
+        }
+    }
+
     let is_steam = source
         .as_deref()
         .map(|value| value.eq_ignore_ascii_case("steam"))
@@ -5905,10 +5933,24 @@ fn fetch_game_art(
                 None
             };
 
-            let mut grid = if let Some(cached) = grid_cached.clone() {
+            let (portrait, library_hero) = if grid_cached.is_none() || hero_static_cached.is_none() {
+                steam_artwork::fetch_library_images(&client, appid)
+            } else { (None, None) };
+            let grid = if let Some(cached) = grid_cached.clone() {
                 cached
             } else {
-                let path = try_download("library_600x900.jpg", &grid_art_dir()).unwrap_or_default();
+                let dir = grid_art_dir().join("portrait-v2");
+                let mut path = portrait.and_then(|url| steam_artwork::download_portrait(&client, &url, &dir, &sanitize_filename(&game_name)));
+                if path.is_none() {
+                    for filename in ["library_600x900.jpg", "library_600x900_2x.jpg", "library_capsule.jpg", "library_capsule_2x.jpg"] {
+                        for url in steam_asset_urls(filename) {
+                            path = steam_artwork::download_portrait(&client, &url, &dir, &sanitize_filename(&game_name));
+                            if path.is_some() { break; }
+                        }
+                        if path.is_some() { break; }
+                    }
+                }
+                let path = path.unwrap_or_default();
                 grid_cache.insert(game_name.clone(), path.clone());
                 save_art_cache(&grid_cache);
                 path
@@ -5916,25 +5958,16 @@ fn fetch_game_art(
             let mut hero_static = if let Some(cached) = hero_static_cached.clone() {
                 cached
             } else {
-                let path =
-                    try_download("library_hero.jpg", &hero_static_art_dir()).unwrap_or_default();
+                let path = library_hero.and_then(|url| download_file(&client, &url, &hero_static_art_dir(), &game_name))
+                    .or_else(|| try_download("library_hero.jpg", &hero_static_art_dir())).unwrap_or_default();
                 hero_static_cache.insert(game_name.clone(), path.clone());
                 save_hero_cache(&hero_static_cache);
                 path
             };
 
-            // New store assets can have per-image hash directories, so the
-            // legacy library URLs are not enough. Use the actual store response
-            // as a fallback (header for a missing cover, background for a hero).
-            if grid.is_empty() || hero_static.is_empty() {
-                let (header, background) = steam_artwork::fetch_store_images(&client, appid);
-                if grid.is_empty() {
-                    if let Some(url) = header {
-                        grid = download_file(&client, &url, &grid_art_dir(), &game_name).unwrap_or_default();
-                        grid_cache.insert(game_name.clone(), grid.clone());
-                        save_art_cache(&grid_cache);
-                    }
-                }
+            // Store headers are landscape and must never be cached as covers.
+            if hero_static.is_empty() {
+                let (_, background) = steam_artwork::fetch_store_images(&client, appid);
                 if hero_static.is_empty() {
                     if let Some(url) = background {
                         hero_static = download_file(&client, &url, &hero_static_art_dir(), &game_name).unwrap_or_default();
@@ -6027,11 +6060,10 @@ fn fetch_game_art(
             .and_then(|d| d.data)
             .and_then(|v| v.into_iter().next())
             .map(|g| g.url);
-        // Download to disk; fall back to remote URL if download fails
+        // Only successfully validated portraits belong in the cover cache.
         let result = remote_url
             .as_deref()
-            .and_then(|u| download_file(&client, u, &grid_art_dir(), &game_name))
-            .or(remote_url);
+            .and_then(|u| steam_artwork::download_portrait(&client, u, &grid_art_dir().join("portrait-v2"), &sanitize_filename(&game_name)));
         grid_cache.insert(game_name.clone(), result.clone().unwrap_or_default());
         save_art_cache(&grid_cache);
         result

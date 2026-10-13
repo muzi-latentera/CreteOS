@@ -82,6 +82,7 @@ export function useCustomArt() {
           source: game.source ?? null,
           appid: game.steam_appid ?? null,
           forceRefresh: options.forceRefresh ?? false,
+          productId: game.xbox_product_id ?? null,
         })
           .then(bundle => {
             batchGrid[game.id] = toUrl(bundle.grid) ?? "";
