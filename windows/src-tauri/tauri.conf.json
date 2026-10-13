@@ -29,8 +29,8 @@
       "assetProtocol": {
         "enable": true,
         "scope": [
-          "C:\\Users\\*\\AppData\\Local\\CreteOS\\art\\**",
-          "C:\\Users\\*\\AppData\\Local\\CreteOS\\media\\**"
+          "$LOCALDATA/CreteOS/art/**",
+          "$LOCALDATA/CreteOS/media/**"
         ]
       }
     }
