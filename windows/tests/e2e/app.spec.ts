@@ -770,16 +770,21 @@ test("Controller opens compact launch menu, chooses Moonlight and cancels only t
 test("Home selection scroll interpolates and a rapid reversal returns to the hero", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 600 });
   await richCrete(page, true);
+  // Control animation time before input; sampling after input can miss every
+  // intermediate frame on a busy native CI runner.
+  await page.clock.install({ time: new Date("2026-10-13T12:00:00Z") });
+  await page.clock.pauseAt(new Date("2026-10-13T12:00:01Z"));
   await page.keyboard.press("ArrowDown");
-  const positions = await page.locator(".crete-home").evaluate(el => new Promise<number[]>(resolve => {
-    const values: number[] = [];
-    const tick = () => { values.push(el.scrollTop); if (values.length === 15) resolve(values); else requestAnimationFrame(tick); };
-    requestAnimationFrame(tick);
-  }));
-  expect(positions.some(value => value > 0 && value < positions.at(-1)!)).toBe(true);
+  await page.clock.runFor(80);
+  const intermediate = await page.locator(".crete-home").evaluate(el => el.scrollTop);
+  await page.clock.runFor(160);
+  const destination = await page.locator(".crete-home").evaluate(el => el.scrollTop);
+  expect(intermediate).toBeGreaterThan(0);
+  expect(intermediate).toBeLessThan(destination);
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowUp");
   await page.keyboard.press("ArrowUp");
+  await page.clock.runFor(240);
   await expect.poll(() => page.locator(".crete-home").evaluate(el => el.scrollTop)).toBe(0);
 });
 
