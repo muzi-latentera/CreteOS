@@ -1,0 +1,11 @@
+export { default as AuroraBg } from "./AuroraBg";
+export { default as SynthwaveBg } from "./SynthwaveBg";
+export { default as CyberpunkBg } from "./CyberpunkBg";
+export { default as ForestBg } from "./ForestBg";
+export { default as WebcoreBg } from "./WebcoreBg";
+export { default as SpaceBg } from "./SpaceBg";
+export { default as SkyBg } from "./SkyBg";
+export { default as WashBg } from "./WashBg";
+export { default as CinderBg } from "./CinderBg";
+export { default as PlasmaBg } from "./PlasmaBg";
+export { default as LofiBg } from "./LofiBg";

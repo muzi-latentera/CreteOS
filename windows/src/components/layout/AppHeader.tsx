@@ -1,0 +1,321 @@
+import { CreteHeader } from "../../crete/CreteChrome";
+import type { CSSProperties, ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import { IoHomeOutline, IoHomeSharp, IoGameController, IoGameControllerOutline, IoApps, IoAppsOutline, IoSettings, IoSettingsOutline } from "react-icons/io5";
+import { CreteMark } from "../CreteMark";
+import { GamepadBtn } from "../GamepadBtn";
+import { SectionTabHeader } from "../SectionTabHeader";
+import type { TabItem } from "../SectionTabBar";
+import { useTheme } from "../../contexts/ThemeContext";
+import { useSettings } from "../../contexts/SettingsContext";
+import { FocusRing } from "../ui/FocusRing";
+import { GlitchText } from "../neonblade-ui/glitch-text";
+import { getTabPillStyle } from "../../theme/tabStyle";
+
+const TAB_ICONS: Record<string, (size: number, color: string) => ReactNode> = {
+  Home:     (s, c) => <IoHomeSharp     size={s} color={c} />,
+  Games:    (s, c) => <IoGameController size={s} color={c} />,
+  Apps:     (s, c) => <IoApps          size={s} color={c} />,
+  Settings: (s, c) => <IoSettings      size={s} color={c} />,
+};
+
+const CYBER_TAB_ICONS: Record<string, (size: number, color: string) => ReactNode> = {
+  Home:     (s, c) => <IoHomeOutline           size={s} color={c} />,
+  Games:    (s, c) => <IoGameControllerOutline size={s} color={c} />,
+  Apps:     (s, c) => <IoAppsOutline           size={s} color={c} />,
+  Settings: (s, c) => <IoSettingsOutline       size={s} color={c} />,
+};
+
+interface Props {
+  tab: string;
+  tabs: string[];
+  switchTab: (tab: string) => void;
+  date: string;
+  time: string;
+  hasBattery: boolean;
+  battery: number;
+  batteryWidth: string;
+  batteryColor: string;
+  batteryTextColor: string;
+  batteryBoltFill: string;
+  batteryBoltStroke: string;
+  charging: boolean;
+  headerTabItems: TabItem[];
+  headerActiveIndex: number;
+  headerOnSelect: (i: number) => void;
+  headerRightActions?: ReactNode;
+}
+
+function widthConstraints(wideLayout: boolean, transparent: boolean, topMargin: boolean, uiScale: number): CSSProperties {
+  const px = (n: number) => `${Math.round(n / uiScale)}px`;
+  const mt = topMargin ? px(14) : px(4);
+  if (wideLayout) {
+    return transparent
+      ? { width: "100%", margin: `${mt} 0 0`, boxSizing: "border-box" }
+      : { width: "calc(100% - 16px)", margin: `${mt} 8px 0`, boxSizing: "border-box" };
+  }
+  return { maxWidth: 1400, margin: `${mt} auto 0`, width: "calc(100% - 48px)" };
+}
+
+export function AppHeader({
+  tab, tabs, switchTab,
+  date, time, hasBattery, battery, batteryWidth, batteryColor, batteryTextColor, batteryBoltFill, batteryBoltStroke, charging,
+  headerTabItems, headerActiveIndex, headerOnSelect, headerRightActions,
+}: Props) {
+  const { t } = useTranslation();
+  const { glassBar, accent, theme, isDark, glassEnabled, surfaceStyle, surface, resolvedTheme } = useTheme();
+  const { settings } = useSettings();
+  if (resolvedTheme === "crete") return <CreteHeader tab={tab} time={time} hasBattery={hasBattery} battery={battery} charging={charging}
+    sections={<SectionTabHeader items={headerTabItems} activeIndex={headerActiveIndex} onSelect={headerOnSelect} rightActions={headerRightActions} />} />;
+  const activePillText = "rgba(20, 14, 10, 0.90)";
+  const activeTextColor = isDark
+    ? (accent.darkText ? activePillText : "white")
+    : (accent.lightDarkText ? activePillText : "white");
+
+  const transparentNav    = !(settings.topbar_background ?? true);
+  const tabbarBg          = settings.tabbar_with_background ?? true;
+  const tabbarBgCompact   = tabbarBg && (settings.tabbar_background_compact ?? false);
+  const wideLayout        = (settings.wide_layout ?? false) && (settings.wide_topbar ?? false);
+  const isHome         = tab === "Home";
+  const uiScale        = settings.ui_scale ?? 1;
+  const subtabGap      = Math.round(16 / uiScale);
+  const isPixel        = surfaceStyle === "win9x";
+  const navRadius      = resolvedTheme === "cyberpunk" ? 0 : isPixel ? 0 : surfaceStyle === "material" ? 8 : 16;
+  const isCyberpunk = resolvedTheme === "cyberpunk";
+  const pixelFullBleedNav: CSSProperties = isPixel ? {
+    width: "100%",
+    maxWidth: "none",
+    margin: 0,
+    boxSizing: "border-box",
+  } : {};
+  const pixelTitleBar = isPixel ? (
+    <div style={{
+      height: 22,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "0 5px 0 7px",
+      boxSizing: "border-box",
+      background: surface.titleBarBg,
+      borderBottom: surface.titleBarBorder,
+    }}>
+      <span style={{ color: "white", fontSize: 11, fontFamily: "Tahoma, Arial, sans-serif", fontWeight: 700 }}>
+        CreteOS
+      </span>
+      <span style={{ width: 14, height: 14, background: surface.buttonBg, border: "1px solid", borderColor: surface.buttonBorder, boxShadow: surface.buttonShadow, color: surface.buttonText, fontSize: 10, lineHeight: "12px", textAlign: "center", fontFamily: "monospace", fontWeight: 700 }}>
+        x
+      </span>
+    </div>
+  ) : null;
+
+  // Hologram corner brackets framing the whole nav bar (cyberpunk only).
+  const cyberNavFrame = isCyberpunk
+    ? (["tl", "tr", "bl", "br"] as const).map((c) => {
+        const isTop = c[0] === "t";
+        const isLeft = c[1] === "l";
+        return (
+          <span key={c} aria-hidden="true" style={{
+            position: "absolute", width: 11, height: 11, pointerEvents: "none", zIndex: 3,
+            [isTop ? "top" : "bottom"]: -1,
+            [isLeft ? "left" : "right"]: -1,
+            borderTop: isTop ? `2px solid ${accent.primary}` : undefined,
+            borderBottom: !isTop ? `2px solid ${accent.primary}` : undefined,
+            borderLeft: isLeft ? `2px solid ${accent.primary}` : undefined,
+            borderRight: !isLeft ? `2px solid ${accent.primary}` : undefined,
+            filter: `drop-shadow(0 0 5px ${accent.glow}0.90))`,
+          }} />
+        );
+      })
+    : null;
+
+  const navContent = (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+        {!isCyberpunk && <CreteMark color={accent.primary} />}
+        {isCyberpunk ? (
+          <GlitchText
+            text="CreteOS"
+            mode="active"
+            intensity="subtle"
+            speed="slow"
+            colorA="rgba(255,20,140,0.95)"
+            colorB={accent.primary}
+            neon
+            glowColor={accent.primary}
+            style={{ fontWeight: 800, fontSize: 16, letterSpacing: "0.08em", color: accent.primary, textTransform: "uppercase" }}
+          >
+            CreteOS
+          </GlitchText>
+        ) : (
+        <span key={`${settings.accent}-${settings.theme}`} style={{
+          fontWeight: 700, fontSize: 16, letterSpacing: "0.04em",
+          background: `linear-gradient(135deg, ${accent.light}, ${accent.primary})`,
+          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
+        }}>CreteOS</span>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: "40px", justifyContent: "center", alignItems: "center" }}>
+        {settings.nav_bumpers_pos === "header" && (
+          <GamepadBtn btn="LB" label="" style={{ gap: 0 }} />
+        )}
+        <div style={{ display: "flex", gap: 2 }}>
+          {tabs.map((tabName) => {
+            const isActive = tab === tabName;
+            const iconMode = settings.tabbar_icon_mode ?? "text";
+            const tabPillStyle = getTabPillStyle({
+              active: isActive,
+              surfaceStyle,
+              resolvedTheme,
+              accent,
+              isDark,
+              activeTextColor,
+              textDim: theme.textDim,
+              glassEnabled,
+            });
+            const color = tabPillStyle.color ?? theme.textDim;
+            const iconNode = (isCyberpunk ? CYBER_TAB_ICONS : TAB_ICONS)[tabName]?.(isCyberpunk && tabName === "Settings" ? 14 : 16, color);
+            const showIcon = iconMode === "icons" || iconMode === "both";
+            const showText = iconMode === "text"  || iconMode === "both";
+            const label = t(`tabs.${tabName.toLowerCase()}`);
+            return (
+              <button type="button" aria-current={isActive ? "page" : undefined} key={tabName} data-tab-pill="" className={isActive ? "active" : ""} onClick={() => switchTab(tabName)} style={{
+                fontFamily: "inherit", fontSize: resolvedTheme === "crete" ? 13 : isCyberpunk ? 9 : 11, fontWeight: isCyberpunk ? 500 : 600, letterSpacing: isCyberpunk ? "0.10em" : "0.08em", textTransform: "uppercase",
+                padding: showIcon && !showText ? "6px 10px" : "6px 16px",
+                borderRadius: isPixel || isCyberpunk ? 0 : 8, cursor: "pointer",
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                gap: showIcon && showText ? 2 : 0,
+                position: "relative",
+                transition: "background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease",
+                background: "transparent",
+                border: "1px solid transparent",
+                ...tabPillStyle,
+              }}>
+                {showIcon && iconNode}
+                {showText && <span style={{ lineHeight: 1 }}>{label}</span>}
+                {isCyberpunk && isActive && <span style={{ position: "absolute", bottom: 0, width: 4, height: 4, borderRadius: "50%", background: accent.primary, boxShadow: `0 0 8px ${accent.primary}` }} />}
+                <FocusRing focused={isActive && !isCyberpunk && resolvedTheme !== "crete"} variant="spin" elementRadius={isPixel ? 0 : 8} />
+              </button>
+            );
+          })}
+        </div>
+        {settings.nav_bumpers_pos === "header" && (
+          <GamepadBtn btn="RB" label="" style={{ gap: 0 }} />
+        )}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, justifyContent: "flex-end" }}>
+        {settings.show_date && <span style={{ fontSize: 12, color: theme.textDim, ...(isDark && glassEnabled && surfaceStyle !== "material" ? { textShadow: "0 1px 2px rgba(0,0,0,0.55)" } : {}) }}>{date}</span>}
+        {settings.show_clock && (
+          <span style={{ fontSize: 13, fontWeight: 600, color: isDark ? "rgba(245,237,232,0.7)" : "rgba(42,26,14,0.7)", ...(isDark && glassEnabled && surfaceStyle !== "material" ? { textShadow: "0 1px 2px rgba(0,0,0,0.55)" } : {}) }}>{time}</span>
+        )}
+        {hasBattery && settings.show_battery && (
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <div style={{
+                width: 22, height: 11,
+                border: `1.5px solid ${isDark ? "rgba(245,237,232,0.3)" : "rgba(42,26,14,0.3)"}`,
+                borderRadius: 3, padding: "1.5px", display: "flex", alignItems: "center",
+              }}>
+                <div style={{ height: "100%", width: batteryWidth, background: batteryColor, borderRadius: 1, transition: "width 0.3s ease, background 0.3s ease" }} />
+              </div>
+              {charging && (
+                <svg width="8" height="11" viewBox="0 0 8 12" fill="none" style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", pointerEvents: "none" }}>
+                  <path d="M5 1L1 7h3l-1 4 4-6H4l1-4z" fill={batteryBoltFill} stroke={batteryBoltStroke} strokeWidth="0.45" strokeLinejoin="round"/>
+                </svg>
+              )}
+            </div>
+            <span style={{ fontSize: 11, color: batteryTextColor, ...(isDark && glassEnabled && surfaceStyle !== "material" ? { textShadow: "0 1px 2px rgba(0,0,0,0.55)" } : {}) }}>{battery}%</span>
+          </div>
+        )}
+      </div>
+    </>
+  );
+
+  const subtab = (
+    <SectionTabHeader
+      items={headerTabItems}
+      activeIndex={headerActiveIndex}
+      onSelect={headerOnSelect}
+      showButtons={settings.tabbar_show_buttons === "tabbar"}
+      textTabs={settings.tabbar_text_tabs}
+      fontWeight={settings.tabbar_font_weight}
+      labelCase={settings.tabbar_label_case}
+      rightActions={headerRightActions}
+    />
+  );
+
+  // ── Case: nav + subtab share a single glass container ──────────
+  if (!transparentNav && tabbarBg && !tabbarBgCompact) {
+    return (
+      <div data-liftoff-nav-boundary style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 100 }}>
+        <div data-top-bar="" style={{
+          ...widthConstraints(wideLayout, false, true, uiScale),
+          ...pixelFullBleedNav,
+          ...glassBar, borderRadius: navRadius,
+          display: "flex", flexDirection: "column",
+          position: "relative",
+        }}>
+          {cyberNavFrame}
+          {pixelTitleBar}
+          <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 20px" }}>
+            {navContent}
+          </div>
+          {!isHome && subtab}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Cases: independent nav / subtab backgrounds ────────────────
+  return (
+    <div data-liftoff-nav-boundary style={{ position: transparentNav ? "sticky" : "absolute", top: 0, left: 0, right: 0, zIndex: 100 }}>
+
+      {/* Nav row */}
+      <div data-top-bar="" style={{
+        display: "flex", flexDirection: isPixel ? "column" : "row", alignItems: isPixel ? "stretch" : "center", gap: isPixel ? 0 : 16, padding: isPixel ? 0 : "10px 20px",
+        ...widthConstraints(wideLayout, transparentNav, true, uiScale),
+        ...pixelFullBleedNav,
+        ...(transparentNav ? {} : { ...glassBar, borderRadius: navRadius }),
+        position: "relative",
+      }}>
+        {cyberNavFrame}
+        {!transparentNav && pixelTitleBar}
+        <div style={{ display: "flex", alignItems: "center", gap: 16, padding: isPixel ? "10px 20px" : 0, width: "100%", flex: 1, boxSizing: "border-box" }}>
+          {navContent}
+        </div>
+      </div>
+
+      {/* Subtab row */}
+      {!isHome && (
+        tabbarBg ? (
+          tabbarBgCompact ? (
+            <div style={{ position: "relative", marginTop: subtabGap, ...widthConstraints(wideLayout, false, false, uiScale) }}>
+              <div style={{ width: "fit-content", margin: "0 auto", padding: "0 12px", ...glassBar, borderRadius: navRadius }}>
+                <SectionTabHeader
+                  items={headerTabItems}
+                  activeIndex={headerActiveIndex}
+                  onSelect={headerOnSelect}
+                  showButtons={settings.tabbar_show_buttons === "tabbar"}
+                  textTabs={settings.tabbar_text_tabs}
+                  fontWeight={settings.tabbar_font_weight}
+                  labelCase={settings.tabbar_label_case}
+                />
+              </div>
+              {headerRightActions && (
+                <div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", display: "flex", gap: 6, alignItems: "center" }}>
+                  {headerRightActions}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ ...widthConstraints(wideLayout, false, false, uiScale), marginTop: subtabGap, ...glassBar, borderRadius: navRadius }}>
+              {subtab}
+            </div>
+          )
+        ) : (
+          <div style={{ marginTop: subtabGap }}>{subtab}</div>
+        )
+      )}
+
+    </div>
+  );
+}

@@ -1,0 +1,1450 @@
+import { invoke } from "@tauri-apps/api/core";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
+import { IoAlbumsOutline, IoChevronForward, IoColorPaletteOutline, IoGridOutline, IoHomeOutline, IoPersonCircleOutline } from "react-icons/io5";
+import { CollapsibleGroup, ToggleKnob, FocusRing } from "../components/ui";
+import { useTheme } from "../contexts/ThemeContext";
+import { useSettings } from "../contexts/SettingsContext";
+import { ACCENTS, APP_VERSION, FSE_RETURN_SHORTCUT_OPTIONS, GITHUB_REPO, HOME_PINNED_SHELF_ENABLED, LANGUAGE_OPTIONS, THEME_LOCKED_SETTINGS, normalizeThemeKey } from "../constants";
+import type { Settings, SettingsItem, SettingsDividerItem, SettingsSubItem, CustomFolder, SettingsHomeCollectionItem, SettingsAppearanceCategoryItem, SettingsAppearanceBackItem, XboxStatus, DriveStorageInfo } from "../types";
+import type { SpotifyStatus } from "../hooks/useSpotify";
+import { SPOTIFY_REDIRECT_URI } from "../components/spotify/constants";
+import { formatBytes } from "../utils/formatBytes";
+import { allowsBottomBumperBadges, normalizeBottomBarMode, resolveNavBumpersPos } from "../utils/smartBar";
+
+export interface SteamStatus {
+  connected: boolean;
+  account_name?: string;
+  steamid?: string;
+  owned_count?: number;
+  updated_at?: number;
+}
+
+// ── Section definitions ────────────────────────────────────────
+export const SETTINGS_SECTIONS = [
+  { key: "appearance", labelKey: "settings.sections.appearance" },
+  { key: "library",    labelKey: "settings.sections.library"    },
+  { key: "behavior",   labelKey: "settings.sections.behavior"   },
+  { key: "controller", labelKey: "settings.sections.controller" },
+  { key: "data",       labelKey: "settings.sections.data"       },
+  { key: "about",      labelKey: "settings.sections.about"      },
+] as const;
+
+export const APPEARANCE_GROUPS = [
+  { key: "style", labelKey: "settings.appearanceGroups.style" },
+  { key: "home", labelKey: "settings.appearanceGroups.home" },
+  { key: "layout", labelKey: "settings.appearanceGroups.layout" },
+  { key: "nav", labelKey: "settings.appearanceGroups.nav" },
+] as const;
+
+const CATEGORY_ICONS = [IoColorPaletteOutline, IoHomeOutline, IoGridOutline, IoAlbumsOutline] as const;
+
+const categoryLabelKey = (idx: number) => APPEARANCE_GROUPS[idx]?.key ?? "style";
+
+function visibleInAppearance(item: SettingsItem, group: number | null): boolean {
+  if (item.type === "appearance_back") return group !== null && item.categoryIndex === group;
+  if (group === null) return item.type === "appearance_category";
+  if (item.type === "appearance_category") return false;
+  return item.group === undefined || item.group === group;
+}
+
+function makeAppearanceBackItem(group: number, allItems: SettingsItem[]): SettingsAppearanceBackItem {
+  const category = allItems.find((item) => item.type === "appearance_category" && item.categoryIndex === group);
+  return {
+    key: `back_${group}`,
+    section: 0,
+    type: "appearance_back",
+    categoryIndex: group,
+    label: category?.label ?? categoryLabelKey(group),
+  };
+}
+
+function getVisibleSectionItems(sectionIndex: number, allItems: SettingsItem[], appearanceGroup: number | null): SettingsItem[] {
+  if (sectionIndex !== 0) return allItems.filter((item) => item.section === sectionIndex);
+  if (appearanceGroup === null) {
+    return allItems.filter((item) => item.section === 0 && visibleInAppearance(item, null));
+  }
+  let skippedFirstDivider = false;
+  const pageItems = allItems
+    .filter((item) => item.section === 0 && visibleInAppearance(item, appearanceGroup))
+    .filter((item) => {
+      if (item.type === "divider" && !skippedFirstDivider) {
+        skippedFirstDivider = true;
+        return false;
+      }
+      return true;
+    });
+  return [makeAppearanceBackItem(appearanceGroup, allItems), ...pageItems];
+}
+
+function getCategorySummary(idx: number, settings: Settings, t: TFunction): string {
+  switch (idx) {
+    case 0: {
+      const themeLabel = String(t(`settings.values.${normalizeThemeKey(String(settings.theme))}`));
+      const surfaceLabel = String(t(`settings.values.${settings.surface_style ?? "glass"}`));
+      return `${themeLabel} · ${surfaceLabel}`;
+    }
+    case 1:
+      return settingValueLabel("home_mode", settings.home_mode ?? "normal", t);
+    case 2:
+      return `${Math.round((settings.ui_scale ?? 1) * 100)}%`;
+    default:
+      return "";
+  }
+}
+
+function settingValueLabel(key: string, value: string, t: TFunction): string {
+  if (key === "home_mode") {
+    return String(t(`settings.homeModeValues.${value}`, String(t(`settings.values.${value}`, value))));
+  }
+  if (key === "bottombar_mode") {
+    const suffix = value === "full" ? "Full" : value === "hidden" ? "Hidden" : "Smart";
+    return String(t(`settings.bottombarMode${suffix}`, value));
+  }
+  return String(t(`settings.values.${value}`, value));
+}
+
+function CategoryIcon({ index, focused }: { index: number; focused: boolean }) {
+  const { accent, theme } = useTheme();
+  const Icon = CATEGORY_ICONS[index] ?? IoColorPaletteOutline;
+  return <Icon size={20} color={focused ? accent.primary : theme.textDim} />;
+}
+
+/** Build full SETTINGS_ITEMS array with translated labels, annotated with section index. */
+export function buildSettingsItems(t: TFunction, activeTheme: string): SettingsItem[] {
+  const D = (key: string, section: number, group?: number): SettingsDividerItem => ({ key: `div_${key}`, section, group, type: "divider", label: t(`settings.dividers.${key}`) as string });
+  const C = (idx: number, key: string): SettingsAppearanceCategoryItem => ({
+    key: `cat_${key}`,
+    section: 0,
+    type: "appearance_category",
+    categoryIndex: idx,
+    label: t(`settings.appearanceGroups.${key}`),
+    descriptionKey: `settings.appearanceGroupDesc.${key}`,
+  });
+  const bgLabel =
+    activeTheme === "space"     ? t("settings.backgroundStars")     :
+    activeTheme === "sky"       ? t("settings.backgroundClouds")    :
+    activeTheme === "plasma"    ? t("settings.backgroundPlasma")    :
+    activeTheme === "cinder"    ? t("settings.backgroundCinder")    :
+    activeTheme === "aurora"    ? t("settings.backgroundAurora")    :
+    activeTheme === "synthwave" ? t("settings.backgroundSynthwave") :
+    activeTheme === "cyberpunk" ? t("settings.backgroundCyberpunk") :
+    activeTheme === "lofi"      ? t("settings.backgroundLofi")      :
+    activeTheme === "forest"    ? t("settings.backgroundForest")    :
+    activeTheme === "webcore"   ? t("settings.backgroundWebcore")   :
+    activeTheme === "wash"      ? t("settings.backgroundWash")      :
+    t("settings.backgroundEffects");
+  const items: SettingsItem[] = [
+    // ── Appearance ───────────────────────────────────────────────
+    C(0, "style"),
+    C(1, "home"),
+    C(2, "layout"),
+    C(3, "nav"),
+
+    D("theme", 0, 0),
+    { key: "theme",         section: 0, group: 0, label: t("settings.theme"),         type: "theme_picker" },
+    { key: "accent",        section: 0, group: 0, label: t("settings.accentColor"),   type: "accent",  indent: true },
+    { key: "stars_enabled", section: 0, group: 0, label: bgLabel, type: "toggle", indent: true, subItems: activeTheme === "lofi" ? [
+      { key: "lofi_music_enabled", label: t("settings.lofiMusic"), type: "toggle" },
+    ] : undefined },
+    ...(activeTheme === "lofi" ? [{ key: "lofi_scene" as const, section: 0, group: 0, label: t("settings.lofiScene"), type: "lofi_scene_picker" as const, indent: true }] : []),
+    { key: "ui_motion",     section: 0, group: 0, label: t("settings.uiMotion"),      type: "toggle", indent: true },
+    { key: "sfx_enabled",   section: 0, group: 0, label: t("settings.sfxEnabled"),    type: "toggle", indent: true },
+    { key: "surface_style", section: 0, group: 0, label: t("settings.surfaceStyle"),  type: "surface_picker", indent: true },
+
+    D("home", 0, 1),
+    { key: "home_mode",              section: 0, group: 1, label: t("settings.homeMode"),            type: "cycle", options: ["normal", "semi", "immersive"] },
+    { key: "home_launch_games_directly", section: 0, group: 1, label: t("settings.homeLaunchGamesDirectly"), type: "toggle" },
+    { key: "show_immersive_hero_art",section: 0, group: 1, label: t("settings.showGameHeroBanner"),type: "toggle" },
+    { key: "show_hero_cover",        section: 0, group: 1, label: t("settings.showHeroCover"),        type: "toggle" },
+    ...(HOME_PINNED_SHELF_ENABLED ? [{ key: "home_pinned_pos" as const, section: 0, group: 1, label: t("settings.homePinnedPos"), type: "cycle" as const, options: ["none", "top", "bottom"] }] : []),
+    { key: "show_home_recents",      section: 0, group: 1, label: t("settings.showHomeRecents"),      type: "toggle" },
+    { key: "show_recent_games_only", section: 0, group: 1, label: t("settings.showRecentGamesOnly"),  type: "toggle" },
+    { key: "home_section_title_size",section: 0, group: 1, label: t("settings.homeSectionTitleSize"), type: "cycle", options: ["small", "medium", "large"] },
+    { key: "show_home_collections",  section: 0, group: 1, label: t("settings.showHomeCollections"),  type: "toggle", subItems: [
+      { key: "show_home_collection_names", label: t("settings.showHomeCollectionNames"), type: "toggle" },
+    ]},
+
+    D("layout", 0, 2),
+    { key: "wide_layout",       section: 0, group: 2, label: t("settings.wideLayout"),     type: "toggle", subItems: [
+      { key: "wide_topbar",    label: t("settings.wideTopbar"),    type: "toggle" },
+      { key: "wide_games",     label: t("settings.wideGames"),     type: "toggle" },
+      { key: "wide_apps",      label: t("settings.wideApps"),      type: "toggle" },
+      { key: "wide_settings",  label: t("settings.wideSettings"),  type: "toggle" },
+      { key: "wide_bottombar", label: t("settings.wideBottombar"), type: "toggle" },
+    ]},
+    { key: "ui_scale",          section: 0, group: 2, label: t("settings.uiScale"),         type: "slider", min: 0.75, max: 2.0, step: 0.05 },
+    { key: "reset_scale",       section: 0, group: 2, label: t("settings.resetScale"),      type: "action" },
+    { key: "home_cover_scale",  section: 0, group: 2, label: t("settings.homeCoverScale"),  type: "slider", min: 0.5, max: 2.0, step: 0.05 },
+    { key: "game_cover_scale",  section: 0, group: 2, label: t("settings.gameCoverScale"),  type: "slider", min: 0.5, max: 2.0, step: 0.05 },
+    { key: "show_store_badges", section: 0, group: 2, label: t("settings.showStoreBadges"), type: "toggle" },
+    { key: "app_cover_scale",   section: 0, group: 2, label: t("settings.appCoverScale"),   type: "slider", min: 0.5, max: 2.0, step: 0.05 },
+    { key: "app_list_view",     section: 0, group: 2, label: t("settings.appListView"),     type: "toggle", subItems: [
+      { key: "app_list_cols", label: t("settings.appListCols"), type: "slider", min: 1, max: 6, step: 1, integer: true },
+    ]},
+
+    D("navbar", 0, 3),
+    { key: "bottombar_mode",      section: 0, group: 3, label: t("settings.bottombarMode"),       type: "cycle", options: ["smart", "full", "hidden"] },
+    { key: "bottombar_idle_collapse", section: 0, group: 3, label: t("settings.bottombarIdleCollapse"), type: "toggle", indent: true },
+    { key: "bottombar_peek_on_track", section: 0, group: 3, label: t("settings.bottombarPeekOnActivity"), type: "toggle", indent: true },
+    { key: "topbar_background",   section: 0, group: 3, label: t("settings.topbarBackground"),   type: "toggle" },
+    { key: "tabbar_with_background", section: 0, group: 3, label: t("settings.tabbarBackground"), type: "toggle", subItems: [
+      { key: "tabbar_background_compact", label: t("settings.tabbarBackgroundCompact"), type: "toggle" },
+    ]},
+    { key: "bottombar_background", section: 0, group: 3, label: t("settings.bottombarBackground"), type: "toggle", subItems: [
+      { key: "bottombar_alignment", label: t("settings.bottombarAlignment"), type: "cycle", options: ["left", "center", "right"] },
+    ]},
+    { key: "nav_bumpers_pos",     section: 0, group: 3, label: t("settings.navBumpersPos"),      type: "cycle",  options: ["header", "bottom", "hidden"] },
+    D("tabbar", 0, 3),
+    { key: "tabbar_show_buttons", section: 0, group: 3, label: t("settings.tabbarBadges"),       type: "cycle",  options: ["tabbar", "bottom", "hidden"] },
+    { key: "tabbar_label_case",   section: 0, group: 3, label: t("settings.tabbarLabelCase"),    type: "cycle",  options: ["default", "ucfirst", "uppercase"] },
+    { key: "tabbar_text_tabs",    section: 0, group: 3, label: t("settings.tabbarTextTabs"),     type: "toggle", subItems: [
+      { key: "tabbar_font_weight", label: t("settings.tabbarFontWeight"), type: "cycle", options: ["thin", "medium", "bold"] },
+    ]},
+    { key: "tabbar_icon_mode",    section: 0, group: 3, label: t("settings.tabbarIconMode"),     type: "cycle",  options: ["text", "icons", "both"] },
+
+    // ── Library ──────────────────────────────────────────────────
+    D("sources", 1),
+    { key: "scan_steam",     section: 1, label: t("settings.scanSteam"),     type: "toggle" },
+    { key: "steam_account",  section: 1, label: t("steam.title"),            type: "steam" },
+    { key: "show_uninstalled_games", section: 1, label: t("settings.showUninstalledGames"), type: "toggle" },
+    { key: "scan_xbox",      section: 1, label: t("settings.scanXbox"),      type: "toggle" },
+    { key: "xbox_account",   section: 1, label: t("xbox.title"),             type: "xbox" },
+    { key: "scan_uwp",       section: 1, label: t("settings.scanStoreApps"), type: "toggle" },
+    { key: "scan_desktop",   section: 1, label: t("settings.scanDesktop"),   type: "toggle" },
+    { key: "scan_battlenet", section: 1, label: t("settings.scanBattlenet"), type: "toggle" },
+    { key: "scan_gog",       section: 1, label: t("settings.scanGog"),       type: "toggle" },
+    { key: "scan_epic",      section: 1, label: t("settings.scanEpic"),      type: "toggle" },
+
+    D("customFolders", 1),
+    { key: "custom_folders",  section: 1, label: t("settings.customFolders"),  type: "custom_folders" },
+    { key: "refresh_library", section: 1, label: t("settings.refreshLibrary"), type: "refresh" },
+
+    // ── Behavior ─────────────────────────────────────────────────
+    D("navigation", 2),
+    { key: "default_tab",      section: 2, label: t("settings.defaultTab"),      type: "cycle",  options: ["Home","Games","Apps"] },
+    { key: "repeat_speed",     section: 2, label: t("settings.repeatSpeed"),     type: "cycle",  options: ["slow","normal","fast"] },
+    { key: "launch_at_startup",section: 2, label: t("settings.launchAtStartup"), type: "toggle" },
+
+    D("localization", 2),
+    { key: "language",    section: 2, label: t("settings.language"),   type: "cycle",  options: [...LANGUAGE_OPTIONS] },
+    { key: "time_format", section: 2, label: t("settings.timeFormat"), type: "cycle",  options: ["auto","12h","24h"] },
+    { key: "show_clock",  section: 2, label: t("settings.showClock"),  type: "toggle" },
+    { key: "show_date",   section: 2, label: t("settings.showDate"),   type: "toggle" },
+    { key: "show_battery",section: 2, label: t("settings.showBattery"),type: "toggle" },
+
+    D("media", 2),
+    { key: "animated_heroes", section: 2, label: t("settings.heroArtMode"), type: "cycle", options: ["static","animated","custom"] },
+
+    D("spotify", 2),
+    { key: "spotify", section: 2, label: t("spotify.title"), type: "spotify" },
+
+    // ── Controller ───────────────────────────────────────────────
+    { key: "gamepad_platform",       section: 3, label: t("settings.gamepadPlatform"),     type: "cycle",  options: ["xbox","ps","switch"] },
+    { key: "gamepad_auto_detect",    section: 3, label: t("settings.gamepadAutoDetect"),    type: "toggle" },
+    { key: "haptic_feedback",        section: 3, label: t("settings.hapticFeedback"),       type: "toggle" },
+    { key: "fse_return_shortcut",     section: 3, label: t("settings.fseReturnShortcut"),    type: "cycle",  options: FSE_RETURN_SHORTCUT_OPTIONS },
+    { key: "gamepad_icons_colored",     section: 3, label: t("settings.gamepadIconsColored"),    type: "toggle" },
+    { key: "gamepad_icons_filled",      section: 3, label: t("settings.gamepadIconsFilled"),     type: "toggle" },
+    { key: "gamepad_icons_theme_color", section: 3, label: t("settings.gamepadIconsThemeColor"), type: "toggle" },
+    { key: "gamepad_btn_size",          section: 3, label: t("settings.gamepadBtnSize"),          type: "cycle",  options: ["small", "medium", "large"] },
+    { key: "gamepad_icon_preview",      section: 3, label: t("settings.gamepadIconPreview"),     type: "icon_preview" },
+    { key: "controller_test",           section: 3, label: t("settings.controllerTest"),         type: "controller_test" },
+
+    // ── Data ─────────────────────────────────────────────────────
+    { key: "device_storage", section: 4, label: t("settings.deviceStorage"), type: "storage_info" },
+    { key: "clear_recents", section: 4, label: t("settings.clearRecents"), type: "action" },
+    { key: "clear_cache",   section: 4, label: t("settings.clearCache"),   type: "action" },
+    { key: "rerun_onboarding", section: 4, label: t("settings.rerunOnboarding"), type: "action" },
+    { key: "factory_reset", section: 4, label: t("settings.factoryReset"), type: "action" },
+
+    // ── About ─────────────────────────────────────────────────────
+    { key: "version",      section: 5, label: t("settings.version", { version: APP_VERSION }), type: "info" },
+    { key: "update_channel", section: 5, label: t("settings.updateChannel"), type: "cycle", options: ["stable","prerelease"] },
+    { key: "auto_update_check", section: 5, label: t("update.autoCheck"), type: "toggle" },
+    { key: "check_updates",section: 5, label: t("settings.checkUpdates"), type: "update" },
+
+    D("community", 5),
+    { key: "coffee",  section: 5, label: t("settings.coffee"),  type: "link" },
+    { key: "github",  section: 5, label: t("settings.github"),  type: "link" },
+    { key: "discord", section: 5, label: t("settings.discord"), type: "link" },
+    { key: "privacy", section: 5, label: t("settings.privacy"), type: "link" },
+
+    D("credits", 5),
+    { key: "credit-upstream", section: 5, label: "Windows launcher foundation", author: "LiftOff / PixelateWizard", license: "GPL-3.0", url: "https://github.com/PixelateWizard/LiftOff", type: "attribution" },
+    { key: "credit0", section: 5, label: "i18n, SGDB art, custom sources, controller glyphs, themes & settings", author: "moi952", license: "GitHub", url: "https://github.com/moi952", type: "attribution" },
+    { key: "credit1", section: 5, label: "Mysterious Magical Bell Flourish", author: "DanaiOuranos",  license: "CC0",        url: "https://freesound.org/s/848847/",                       type: "attribution" },
+    { key: "credit2", section: 5, label: "achievement-sparkle",              author: "DriftSpeira",   license: "Creative Commons 0", url: "https://freesound.org/s/715067/",  type: "attribution" },
+    { key: "credit3", section: 5, label: "fantasy world UI sound",           author: "114802300",     license: "Creative Commons 0", url: "https://freesound.org/s/841346/",  type: "attribution" },
+    { key: "credit4", section: 5, label: "Simple or Cute UI / UX / Interface Pause sound", author: "Feraly_", license: "Creative Commons 0", url: "https://freesound.org/s/836452/", type: "attribution" },
+    { key: "credit5", section: 5, label: "Universal UI Soundpack",           author: "Nathan Gibson", license: "CC BY 4.0",  url: "https://cyrex-studios.itch.io/universal-ui-soundpack", type: "attribution" },
+    { key: "credit6", section: 5, label: "Night Stock Videos by Vecteezy",   author: "Vecteezy",      license: "Vecteezy Free License", url: "https://www.vecteezy.com/free-videos/night", type: "attribution" },
+    { key: "credit7", section: 5, label: "Rainy street and pixel night videos", author: "Vecteezy", license: "Vecteezy Free License", url: "https://www.vecteezy.com/free-videos/rain", type: "attribution" },
+  ];
+
+  // Insert theme-specific items after stars_enabled (only visible for that theme)
+  if (activeTheme === "onyx") {
+    const starsIdx = items.findIndex(i => i.key === "stars_enabled");
+    if (starsIdx !== -1) items.splice(starsIdx + 1, 0,
+      { key: "onyx_top_light", section: 0, group: 0, label: t("settings.onyxTopLight"), type: "toggle", indent: true },
+      { key: "onyx_flat_settings", section: 0, group: 0, label: t("settings.onyxFlatSettings"), type: "toggle", indent: true },
+    );
+  }
+
+  // Mark items whose value is forced by the active theme
+  const lockedByTheme = THEME_LOCKED_SETTINGS[activeTheme] ?? {};
+  if (Object.keys(lockedByTheme).length === 0) return items;
+  return items.map(item =>
+    item.type !== "divider" && item.key in lockedByTheme
+      ? { ...item, locked: true, lockedValue: lockedByTheme[item.key] }
+      : item
+  );
+}
+
+/** Returns the navigable items for a given section index. */
+export function getSectionNavigableItems(
+  sectionIndex: number,
+  allItems: SettingsItem[],
+  settings: Settings,
+  collections?: { gameCollections: { id: string; name: string }[]; appCollections: { id: string; name: string }[] },
+  appearanceGroup: number | null = null
+): (SettingsItem | SettingsSubItem | SettingsHomeCollectionItem)[] {
+  const visibleItems = allItems
+    .filter((i) => i.section === sectionIndex)
+    .filter((i) => i.key !== "bottombar_peek_on_track" || settings.bottombar_mode === "hidden")
+    .filter((i) => i.key !== "bottombar_idle_collapse" || normalizeBottomBarMode(settings.bottombar_mode) === "smart")
+    .filter((i) => i.key !== "show_immersive_hero_art" || settings.home_mode !== "normal")
+    .filter((i) => sectionIndex !== 0 || visibleInAppearance(i, appearanceGroup))
+    .filter((i) => !(sectionIndex === 0 && appearanceGroup !== null && i.type === "divider" && i.group === appearanceGroup))
+    .flatMap((i): (SettingsItem | SettingsSubItem | SettingsHomeCollectionItem)[] => {
+      if (i.type === "toggle" && i.key === "show_home_collections" && settings[i.key]) {
+        const colItems: SettingsHomeCollectionItem[] = [
+          ...(collections?.gameCollections ?? []).map(c => ({
+            key: `home_col_${c.id}`, section: i.section, label: c.name,
+            type: "home_collection_toggle" as const, colName: c.name,
+          })),
+          ...(collections?.appCollections ?? []).map(c => ({
+            key: `home_col_${c.id}`, section: i.section, label: c.name,
+            type: "home_collection_toggle" as const, colName: c.name,
+          })),
+        ];
+        return i.subItems ? [i, ...i.subItems, ...colItems] : [i, ...colItems];
+      }
+      return i.type === "toggle" && i.subItems && settings[i.key] ? [i, ...i.subItems] : [i];
+    })
+    .filter(
+      (i) =>
+        i.type !== "divider" &&
+        i.type !== "info" &&
+        i.type !== "storage_info" &&
+        !('locked' in i && i.locked)
+    );
+  return sectionIndex === 0 && appearanceGroup !== null
+    ? [makeAppearanceBackItem(appearanceGroup, allItems), ...visibleItems]
+    : visibleItems;
+}
+
+// ── SettingsScreen props ───────────────────────────────────────
+export interface SettingsScreenProps {
+  settingsFocusIndex: number;
+  settingsActionIndex: number | null;
+  settingsSection: number;
+  appearanceGroup: number | null;
+  onEnterAppearanceCategory: (group: number) => void;
+  onExitAppearanceCategory: () => void;
+  settingsFocusedRef: React.RefObject<any>;
+  settingsBottomRef: React.RefObject<any>;
+  customFolders: CustomFolder[];
+  onOpenFolderManager: () => void;
+  libraryRefreshStatus: string | null;
+  refreshLibrary: () => void;
+  updateStatus: string | null;
+  updateInfo: string | null;
+  checkForUpdates: () => void;
+  onClearRecents: () => void;
+  handleClearCache: () => void;
+  autoScale: number;
+  sliderDraft: { key: string | null; value: number | null };
+  sliderDraftRef: React.RefObject<{ key: string | null; value: number | null }>;
+  setSliderDraft: (v: { key: string | null; value: number | null }) => void;
+  gameCollections?: { id: string; name: string }[];
+  appCollections?: { id: string; name: string }[];
+  homeHiddenCollections?: string[];
+  onToggleHomeCollection?: (colName: string) => void;
+  onOpenThemePicker: () => void;
+  onOpenSurfacePicker: () => void;
+  onOpenLofiScenePicker: () => void;
+  spotifyStatus?: SpotifyStatus;
+  onOpenSpotifyGuide?: () => void;
+  onSpotifyDisconnect?: () => void;
+  steamStatus?: SteamStatus;
+  onOpenSteamQr?: () => void;
+  onSteamDisconnect?: () => void;
+  xboxStatus?: XboxStatus;
+  xboxRefreshStatus?: string | null;
+  onOpenXboxGuide?: () => void;
+  onXboxDisconnect?: () => void;
+  onXboxRefresh?: () => void;
+  onRerunOnboarding?: () => void;
+  onFactoryReset?: () => void;
+  onOpenGamepadIconPreview?: () => void;
+  onOpenControllerTest?: () => void;
+}
+
+export function getSettingCycleOptions(
+  item: { key: keyof Settings; type: "cycle"; options: readonly string[] },
+  settings: Settings
+): readonly string[] {
+  if (item.key === "home_pinned_pos" && settings.home_mode === "semi") {
+    return item.options.filter(option => option !== "bottom");
+  }
+  if (item.key === "nav_bumpers_pos" && !allowsBottomBumperBadges(settings.bottombar_mode)) {
+    return item.options.filter(option => option !== "bottom");
+  }
+  return item.options;
+}
+
+interface MoveSettingsAccountActionFocusOptions {
+  current: number | null;
+  actionCount: number;
+  direction: -1 | 1;
+}
+
+export function moveSettingsAccountActionFocus({
+  current,
+  actionCount,
+  direction,
+}: MoveSettingsAccountActionFocusOptions): number | null {
+  if (actionCount <= 0) return null;
+  if (current === null) return 0;
+  return Math.max(0, Math.min(actionCount - 1, current + direction));
+}
+
+export function SettingsScreen({
+  settingsFocusIndex,
+  settingsActionIndex,
+  settingsSection,
+  appearanceGroup,
+  onEnterAppearanceCategory,
+  onExitAppearanceCategory,
+  settingsFocusedRef,
+  settingsBottomRef,
+  customFolders,
+  onOpenFolderManager,
+  libraryRefreshStatus,
+  refreshLibrary,
+  updateStatus,
+  updateInfo,
+  checkForUpdates,
+  onClearRecents,
+  handleClearCache,
+  autoScale,
+  sliderDraft,
+  sliderDraftRef,
+  setSliderDraft,
+  gameCollections = [],
+  appCollections = [],
+  homeHiddenCollections = [],
+  onToggleHomeCollection,
+  onOpenThemePicker,
+  onOpenSurfacePicker,
+  onOpenLofiScenePicker,
+  spotifyStatus,
+  onOpenSpotifyGuide,
+  onSpotifyDisconnect,
+  steamStatus,
+  onOpenSteamQr,
+  onSteamDisconnect,
+  xboxStatus,
+  xboxRefreshStatus,
+  onOpenXboxGuide,
+  onXboxDisconnect,
+  onXboxRefresh,
+  onRerunOnboarding,
+  onFactoryReset,
+  onOpenGamepadIconPreview,
+  onOpenControllerTest,
+}: SettingsScreenProps) {
+  const { t } = useTranslation();
+  const { settingsRowGlass, accent, theme, isDark, glassEnabled, surfaceStyle, surface, resolvedTheme } = useTheme();
+  const { settings, updateSetting } = useSettings();
+  const [storageDrives, setStorageDrives] = useState<DriveStorageInfo[]>([]);
+  const wideLayout = settings.wide_settings ?? false;
+
+  useEffect(() => {
+    if (settingsSection !== 4) return;
+    let cancelled = false;
+    invoke<DriveStorageInfo[]>("get_storage_info")
+      .then((drives) => {
+        if (!cancelled) setStorageDrives(Array.isArray(drives) ? drives : []);
+      })
+      .catch(() => {
+        if (!cancelled) setStorageDrives([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [settingsSection]);
+
+  const ALL_ITEMS: SettingsItem[] = buildSettingsItems(t, normalizeThemeKey(String(settings.theme))).map(item =>
+    item.key === "show_immersive_hero_art" && settings.home_mode === "normal"
+      ? { ...item, locked: true, lockedValue: true }
+      : item
+  );
+  const sectionItems = getVisibleSectionItems(settingsSection, ALL_ITEMS, appearanceGroup)
+    .filter((item) => item.key !== "bottombar_peek_on_track" || settings.bottombar_mode === "hidden")
+    .filter((item) => item.key !== "bottombar_idle_collapse" || normalizeBottomBarMode(settings.bottombar_mode) === "smart");
+  const navigableItems = getSectionNavigableItems(settingsSection, ALL_ITEMS, settings, { gameCollections, appCollections }, appearanceGroup);
+  const isMaterial = surfaceStyle === "material";
+  const isPixel = surfaceStyle === "win9x";
+  const isOnyx = resolvedTheme === "onyx";
+  const isCyber = resolvedTheme === "cyberpunk";
+  const materialFocusStyle = isMaterial ? {
+    border: `2px solid ${accent.primary}`,
+    background: isDark
+      ? `color-mix(in srgb, var(--material-elevation-3) 82%, ${accent.primary} 18%)`
+      : `color-mix(in srgb, var(--material-elevation-3) 88%, ${accent.primary} 12%)`,
+    boxShadow: "var(--material-shadow-high)",
+  } : {};
+  const materialSubFocusStyle = isMaterial ? {
+    border: `2px solid ${accent.primary}`,
+    background: isDark
+      ? `color-mix(in srgb, var(--material-inset-row-active) 82%, ${accent.primary} 18%)`
+      : `color-mix(in srgb, var(--material-inset-row-active) 88%, ${accent.primary} 12%)`,
+    boxShadow: "var(--material-shadow-medium)",
+  } : {};
+  const pixelFocusStyle = isPixel ? {
+    border: "2px solid",
+    borderColor: surface.borderRaised,
+    background: surface.activeBg,
+    backdropFilter: undefined,
+    WebkitBackdropFilter: undefined,
+    boxShadow: `${surface.bevelRaisedSoft}, 0 0 0 2px ${accent.primary}`,
+  } : {};
+  const pixelSubFocusStyle = isPixel ? {
+    background: surface.activeBg,
+    boxShadow: `${surface.bevelSunken}, 0 0 0 1px ${accent.primary}`,
+  } : {};
+
+  const flatSettings = isOnyx && (settings.onyx_flat_settings ?? true);
+  const onyxSettingsFocusRadius = 10;
+
+  const makeRowStyle = (focused: boolean, sub = false, indent = false) => {
+    if (flatSettings) {
+      return {
+        background: "transparent",
+        borderRadius: focused ? onyxSettingsFocusRadius : 0,
+        padding: "12px 20px",
+        marginBottom: 0,
+        borderBottom: "1px solid rgba(255,255,255,0.07)",
+        marginLeft: indent ? 24 : 0,
+        position: "relative" as const,
+        zIndex: focused ? 2 : undefined,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        cursor: "pointer",
+        transition: "background 0.15s ease, border-radius 0.15s ease",
+      };
+    }
+    return {
+      ...settingsRowGlass,
+      borderRadius: isPixel || isCyber ? 0 : isMaterial ? 8 : 16,
+      padding: "12px 20px",
+      marginBottom: sub ? 6 : 8,
+      marginLeft: indent ? 24 : 0,
+      position: "relative" as const,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      cursor: "pointer",
+      transition: "all 0.15s ease",
+      ...(focused && !sub
+        ? {
+            border: `1px solid ${surfaceStyle === "material" ? accent.primary : accent.glow + (surfaceStyle === "aero" ? "0.50)" : "0.45)")}`,
+            backdropFilter: isCyber || surfaceStyle === "material" ? undefined : surfaceStyle === "aero" ? "blur(8px) saturate(120%) brightness(1.04)" : "blur(12px) saturate(115%) brightness(1.02)",
+            WebkitBackdropFilter: isCyber || surfaceStyle === "material" ? undefined : surfaceStyle === "aero" ? "blur(8px) saturate(120%) brightness(1.04)" : "blur(12px) saturate(115%) brightness(1.02)",
+            boxShadow: surfaceStyle === "aero"
+              ? `inset 0 1px 0 rgba(255,255,255,0.38), inset 0 2px 5px rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.10), 0 0 0 1px ${accent.glow}0.16), 0 6px 20px ${accent.glow}0.14)`
+              : surfaceStyle === "material"
+              ? "var(--material-shadow-medium)"
+              : `inset 0 1px 0 rgba(255,255,255,0.14), 0 0 0 1px ${accent.glow}0.12), 0 8px 22px ${accent.glow}0.10), 0 10px 28px rgba(0,0,0,0.28)`,
+            background: isDark
+              ? (surfaceStyle === "aero"
+                  ? "linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.08) 25%, rgba(255,255,255,0.05) 100%)"
+                  : surfaceStyle === "material" ? "var(--material-elevation-2)"
+                  : surfaceStyle === "obsidian" ? "linear-gradient(180deg, rgba(6,4,14,0.92), rgba(6,4,14,0.86))"
+                  : "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.032))")
+              : surfaceStyle === "material" ? "var(--material-elevation-3)" : `${accent.glow}0.05)`,
+            ...(isMaterial ? materialFocusStyle : {}),
+            ...(isPixel ? pixelFocusStyle : {}),
+          }
+        : {}),
+    };
+  };
+
+  const renderItem = (item: SettingsItem) => {
+    if (item.type === "appearance_back") {
+      const isFocused = navigableItems[settingsFocusIndex]?.key === item.key;
+      return (
+        <div key={item.key} style={{ display: "flex", alignItems: "center", gap: 10, margin: "6px 0 10px" }}>
+          <div
+            ref={isFocused ? settingsFocusedRef : undefined}
+            onClick={onExitAppearanceCategory}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              fontSize: 11,
+              letterSpacing: "0.1em",
+              fontWeight: 600,
+              color: accent.primary,
+              cursor: "pointer",
+              padding: "3px 8px 3px 4px",
+              borderRadius: isPixel ? 0 : 7,
+              outline: isFocused ? `1.5px solid ${accent.glow}0.55)` : "1.5px solid transparent",
+              outlineOffset: 2,
+              transition: "outline-color 0.12s ease",
+              textTransform: "uppercase" as const,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span style={{ fontSize: 13, lineHeight: 1 }}>{"\u2039"}</span>
+            {item.label}
+          </div>
+          <div style={{ flex: 1, height: 1, background: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)" }} />
+          <span style={{ fontSize: 10, color: theme.textFaint, whiteSpace: "nowrap" }}>{t("settings.backHint")}</span>
+        </div>
+      );
+    }
+
+    if (item.type === "divider") {
+      return (
+        <div key={item.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "22px 4px 16px" }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: theme.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", flexShrink: 0 }}>
+            {item.label}
+          </span>
+          <div style={{ flex: 1, height: 1, background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)" }} />
+        </div>
+      );
+    }
+
+    // Locked by active theme — greyed row, non-interactive, shows forced value
+    if ("locked" in item && item.locked) {
+      const forced = typeof item.lockedValue === "boolean"
+        ? (item.lockedValue ? t("settings.values.on", "On") : t("settings.values.off", "Off"))
+        : String(t(`settings.values.${item.lockedValue}`, String(item.lockedValue ?? "")));
+      return (
+        <div key={item.key} data-settings-row="" style={{ ...settingsRowGlass, borderRadius: isPixel || isCyber ? 0 : isMaterial ? 8 : 16, padding: "12px 20px", marginBottom: 8, marginLeft: item.indent ? 24 : 0, display: "flex", alignItems: "center", justifyContent: "space-between", opacity: 0.42, cursor: "not-allowed", pointerEvents: "none" }}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: theme.text }}>{item.label}</span>
+          <span style={{ fontSize: 12, color: theme.textDim }}>{forced}</span>
+        </div>
+      );
+    }
+
+    const navIdx = navigableItems.findIndex((n) => n.key === item.key);
+    const focused = settingsFocusIndex === navIdx && navIdx !== -1;
+    const rowRef = focused ? settingsFocusedRef : null;
+    const rowStyle = makeRowStyle(focused, false, !!item.indent);
+    const onyxRing = <FocusRing focused={focused} variant="spin" wide elementRadius={flatSettings ? onyxSettingsFocusRadius : isPixel || isCyber ? 0 : isMaterial ? 8 : 16} />;
+    const accountActionFocusStyle = (actionIndex: number) => focused && settingsActionIndex === actionIndex
+      ? {
+          outline: `2px solid ${accent.primary}`,
+          outlineOffset: 2,
+          boxShadow: `0 0 12px ${accent.glow}0.45)`,
+        }
+      : {};
+
+    if (item.type === "appearance_category") {
+      const summary = getCategorySummary(item.categoryIndex, settings, t);
+      return (
+        <div
+          key={item.key}
+          data-settings-row=""
+          className={focused ? "focused" : ""}
+          ref={rowRef}
+          onClick={() => onEnterAppearanceCategory(item.categoryIndex)}
+          style={{ ...rowStyle, gap: 14 }}
+        >
+          <CategoryIcon index={item.categoryIndex} focused={focused} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: theme.text }}>{item.label}</div>
+            <div style={{ fontSize: 11, color: theme.textDim, marginTop: 2 }}>{t(item.descriptionKey)}</div>
+          </div>
+          {summary && <span style={{ fontSize: 12, color: focused ? accent.primary : theme.textDim, whiteSpace: "nowrap" }}>{summary}</span>}
+          <IoChevronForward size={16} color={theme.textFaint} />
+          {onyxRing}
+        </div>
+      );
+    }
+
+    if (item.type === "info")
+      return (
+        <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={{ ...rowStyle, justifyContent: "center", cursor: "default" }}>
+          <span style={{ fontSize: 13, color: theme.textDim }}>{item.label}</span>
+        </div>
+      );
+
+    if (item.type === "storage_info") {
+      return (
+        <div
+          key={item.key}
+          data-settings-row=""
+          style={{
+            ...settingsRowGlass,
+            borderRadius: isPixel || isCyber ? 0 : isMaterial ? 8 : 16,
+            padding: "14px 20px",
+            marginBottom: 8,
+            cursor: "default",
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 700, color: theme.text, marginBottom: 12 }}>
+            {item.label}
+          </div>
+          {storageDrives.length === 0 ? (
+            <div style={{ fontSize: 12, color: theme.textDim }}>
+              {t("settings.deviceStorageUnavailable")}
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {storageDrives.map((drive) => {
+                const usedFraction = drive.totalBytes > 0
+                  ? Math.max(0, Math.min(1, (drive.totalBytes - drive.freeBytes) / drive.totalBytes))
+                  : 0;
+                const mount = drive.mountPoint.replace(/[\\/]+$/, "");
+                const title = drive.label ? `${mount} — ${drive.label}` : mount;
+                return (
+                  <div key={drive.mountPoint}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 7 }}>
+                      <span style={{ fontSize: 13, fontWeight: 650, color: theme.text }}>{title}</span>
+                      {drive.isDefaultInstallDrive && (
+                        <span style={{ fontSize: 11, color: theme.textDim }}>
+                          {t("settings.deviceStorageDefault")}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ width: "100%", height: 8, overflow: "hidden", borderRadius: isPixel ? 0 : 999, background: isMaterial ? "var(--material-inset-bg)" : isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)" }}>
+                      <div style={{ width: `${usedFraction * 100}%`, height: "100%", background: usedFraction > 0.9 ? "#e85a5a" : accent.primary }} />
+                    </div>
+                    <div style={{ marginTop: 6, fontSize: 11, color: theme.textDim }}>
+                      {t("settings.deviceStorageFree", {
+                        free: formatBytes(drive.freeBytes),
+                        total: formatBytes(drive.totalBytes),
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (item.type === "toggle") {
+      const val = settings[item.key] as boolean;
+
+      if (item.key === "show_home_collections") {
+        const allCols = [
+          ...gameCollections.map(c => ({ ...c, group: t("tabs.games") })),
+          ...appCollections.map(c => ({ ...c, group: t("tabs.apps") })),
+        ];
+        const subNavIdx = navigableItems.findIndex((n) => n.key === "show_home_collection_names");
+        const subFocused = settingsFocusIndex === subNavIdx && subNavIdx !== -1;
+        const subContainerStyle = {
+          marginBottom: 8,
+          padding: isMaterial ? "5px 6px 6px" : undefined,
+          background: isCyber ? `color-mix(in srgb, ${accent.primary} 10%, #04060d 90%)` : isPixel ? surface.insetBg : isMaterial ? "var(--material-inset-bg)" : isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+          borderRadius: isPixel || isCyber ? 0 : isMaterial ? "0 0 8px 8px" : "0 0 16px 16px",
+          border: isPixel ? "2px solid" : "none",
+          borderColor: isPixel ? surface.borderSunken : undefined,
+          borderTop: isPixel ? undefined : isCyber ? `1px solid ${accent.glow}0.14)` : isMaterial ? "1px solid var(--material-inset-top-edge)" : `1px solid ${isDark ? "rgba(255,255,255,0.045)" : "rgba(0,0,0,0.05)"}`,
+          boxShadow: isMaterial
+            ? isDark
+              ? "inset 0 9px 18px rgba(0,0,0,0.18), inset 0 1px 0 var(--material-inset-top-edge), inset 0 -1px 0 var(--material-inset-bottom-edge)"
+              : "inset 0 9px 18px rgba(70,50,30,0.10), inset 0 1px 0 var(--material-inset-top-edge), inset 0 -1px 0 var(--material-inset-bottom-edge)"
+            : undefined,
+          overflow: "hidden" as const,
+        };
+        const parentStyle = {
+          ...settingsRowGlass,
+          borderRadius: isPixel || isCyber ? 0 : val ? (isMaterial ? "8px 8px 0 0" : "16px 16px 0 0") : isMaterial ? 8 : 16,
+          padding: "12px 20px",
+          marginBottom: val ? 0 : 8,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          cursor: "pointer",
+          transition: "all 0.15s ease",
+          position: "relative" as const,
+          zIndex: focused ? 2 : undefined,
+          ...(focused
+            ? {
+                border: `1px solid ${surfaceStyle === "material" ? accent.primary : accent.glow + (surfaceStyle === "aero" ? "0.50)" : "0.45)")}`,
+                backdropFilter: surfaceStyle === "material" ? undefined : surfaceStyle === "aero" ? "blur(8px) saturate(120%) brightness(1.04)" : "blur(12px) saturate(115%) brightness(1.02)",
+                WebkitBackdropFilter: surfaceStyle === "material" ? undefined : surfaceStyle === "aero" ? "blur(8px) saturate(120%) brightness(1.04)" : "blur(12px) saturate(115%) brightness(1.02)",
+                boxShadow: surfaceStyle === "aero"
+                  ? `inset 0 1px 0 rgba(255,255,255,0.38), inset 0 2px 5px rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.10), 0 0 0 1px ${accent.glow}0.16), 0 6px 20px ${accent.glow}0.14)`
+                  : surfaceStyle === "material"
+                  ? "var(--material-shadow-medium)"
+                  : `inset 0 1px 0 rgba(255,255,255,0.14), 0 0 0 1px ${accent.glow}0.12), 0 8px 22px ${accent.glow}0.10), 0 10px 28px rgba(0,0,0,0.28)`,
+                background: isDark
+                  ? (surfaceStyle === "aero" ? "linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.08) 25%, rgba(255,255,255,0.05) 100%)" : isMaterial ? "var(--material-elevation-3)" : "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.032))")
+                  : isMaterial ? "var(--material-elevation-3)" : `${accent.glow}0.05)`,
+                ...(isMaterial ? materialFocusStyle : {}),
+                ...(isPixel ? pixelFocusStyle : {}),
+              }
+            : {}),
+        };
+        const rowBase = {
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: isMaterial ? "13px 16px" : "14px 20px",
+          cursor: "pointer",
+          transition: "background 0.15s ease, box-shadow 0.15s ease",
+          borderRadius: isPixel ? 0 : isMaterial ? 8 : undefined,
+        } as const;
+        const dividerRow = (label: string) => (
+          <div style={{ padding: isMaterial ? "11px 16px 5px" : "10px 20px 4px", borderTop: `1px solid ${isMaterial ? "var(--material-border-subtle)" : isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: theme.textFaint, textTransform: "uppercase" as const, letterSpacing: "0.12em" }}>{label}</span>
+          </div>
+        );
+        return (
+          <div key={item.key}>
+            <div data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={parentStyle} onClick={() => updateSetting(item.key, !val)}>
+              <span style={{ fontSize: 14, fontWeight: 500, color: theme.text }}>{item.label}</span>
+              <ToggleKnob value={val} />
+              {onyxRing}
+            </div>
+            {val && (
+              <div style={subContainerStyle}>
+                {/* Show Collection Names sub-toggle */}
+                <div
+                  data-settings-row=""
+                  className={subFocused ? "focused" : ""}
+                  ref={subFocused ? settingsFocusedRef : undefined}
+                  style={{ ...rowBase, marginBottom: isMaterial ? 3 : undefined, background: subFocused ? (isPixel ? surface.activeBg : isMaterial ? "var(--material-inset-row-active)" : isDark ? `${accent.glow}0.08)` : `${accent.glow}0.05)`) : isPixel ? surface.insetBg : isMaterial ? "var(--material-inset-row)" : "transparent", boxShadow: subFocused && isPixel ? pixelSubFocusStyle.boxShadow : subFocused && isMaterial ? "var(--material-shadow-pressed)" : isPixel ? surface.bevelRaisedSoft : isMaterial ? (isDark ? "inset 0 1px 0 rgba(255,255,255,0.018)" : "inset 0 1px 0 rgba(255,255,255,0.45)") : undefined, borderBottom: isMaterial || isPixel ? "none" : `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`, ...(subFocused && isMaterial ? materialSubFocusStyle : {}), ...(subFocused && isPixel ? pixelSubFocusStyle : {}) }}
+                  onClick={() => updateSetting("show_home_collection_names", !settings.show_home_collection_names)}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 500, color: isMaterial ? theme.text : theme.textDim }}>{t("settings.showHomeCollectionNames")}</span>
+                  <ToggleKnob value={settings.show_home_collection_names as boolean} />
+                </div>
+                {/* Per-collection visibility */}
+                {allCols.length === 0 ? (
+                  <div style={{ padding: "12px 20px", fontSize: 12, color: theme.textFaint, fontStyle: "italic" }}>
+                    {t("settings.noCollections", "No collections yet")}
+                  </div>
+                ) : (
+                  <>
+                    {gameCollections.length > 0 && dividerRow(t("tabs.games"))}
+                    {gameCollections.map((col) => {
+                      const visible = !homeHiddenCollections.includes(col.name);
+                      const colNavIdx = navigableItems.findIndex(n => n.type === "home_collection_toggle" && (n as any).colName === col.name);
+                      const colFocused = colNavIdx !== -1 && settingsFocusIndex === colNavIdx;
+                      return (
+                        <div key={col.id}
+                          data-settings-row=""
+                          className={colFocused ? "focused" : ""}
+                          ref={colFocused ? settingsFocusedRef : undefined}
+                          style={{ ...rowBase, marginBottom: isMaterial ? 3 : undefined, background: colFocused ? (isPixel ? surface.activeBg : isMaterial ? "var(--material-inset-row-active)" : isDark ? `${accent.glow}0.08)` : `${accent.glow}0.05)`) : isPixel ? surface.insetBg : isMaterial ? "var(--material-inset-row)" : "transparent", boxShadow: colFocused && isPixel ? pixelSubFocusStyle.boxShadow : colFocused && isMaterial ? "var(--material-shadow-pressed)" : isPixel ? surface.bevelRaisedSoft : isMaterial ? (isDark ? "inset 0 1px 0 rgba(255,255,255,0.018)" : "inset 0 1px 0 rgba(255,255,255,0.45)") : undefined, borderBottom: isMaterial || isPixel ? "none" : `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"}`, ...(colFocused && isMaterial ? materialSubFocusStyle : {}), ...(colFocused && isPixel ? pixelSubFocusStyle : {}) }}
+                          onClick={() => onToggleHomeCollection?.(col.name)}>
+                          <span style={{ fontSize: 13, fontWeight: 500, color: isMaterial ? theme.text : theme.textDim }}>{col.name}</span>
+                          <ToggleKnob value={visible} />
+                        </div>
+                      );
+                    })}
+                    {appCollections.length > 0 && dividerRow(t("tabs.apps"))}
+                    {appCollections.map((col) => {
+                      const visible = !homeHiddenCollections.includes(col.name);
+                      const colNavIdx = navigableItems.findIndex(n => n.type === "home_collection_toggle" && (n as any).colName === col.name);
+                      const colFocused = colNavIdx !== -1 && settingsFocusIndex === colNavIdx;
+                      return (
+                        <div key={col.id}
+                          data-settings-row=""
+                          className={colFocused ? "focused" : ""}
+                          ref={colFocused ? settingsFocusedRef : undefined}
+                          style={{ ...rowBase, marginBottom: isMaterial ? 3 : undefined, background: colFocused ? (isPixel ? surface.activeBg : isMaterial ? "var(--material-inset-row-active)" : isDark ? `${accent.glow}0.08)` : `${accent.glow}0.05)`) : isPixel ? surface.insetBg : isMaterial ? "var(--material-inset-row)" : "transparent", boxShadow: colFocused && isPixel ? pixelSubFocusStyle.boxShadow : colFocused && isMaterial ? "var(--material-shadow-pressed)" : isPixel ? surface.bevelRaisedSoft : isMaterial ? (isDark ? "inset 0 1px 0 rgba(255,255,255,0.018)" : "inset 0 1px 0 rgba(255,255,255,0.45)") : undefined, borderBottom: isMaterial || isPixel ? "none" : `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"}`, ...(colFocused && isMaterial ? materialSubFocusStyle : {}), ...(colFocused && isPixel ? pixelSubFocusStyle : {}) }}
+                          onClick={() => onToggleHomeCollection?.(col.name)}>
+                          <span style={{ fontSize: 13, fontWeight: 500, color: isMaterial ? theme.text : theme.textDim }}>{col.name}</span>
+                          <ToggleKnob value={visible} />
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      if (item.subItems) {
+        return (
+          <CollapsibleGroup
+            key={item.key}
+            label={item.label}
+            value={val}
+            onChange={(newVal: boolean) => updateSetting(item.key, newVal)}
+            focused={focused}
+            focusedRef={rowRef}
+            items={item.subItems.map((sub) => {
+              const subNavIdx = navigableItems.findIndex((n) => n.key === sub.key);
+              const subFocused = settingsFocusIndex === subNavIdx && subNavIdx !== -1;
+              if (sub.type === "cycle") {
+                return {
+                  type: "cycle" as const,
+                  label: sub.label,
+                  cycleValue: settings[sub.key] as string,
+                  cycleOptions: sub.options,
+                  onCycleChange: (newVal: string) => updateSetting(sub.key, newVal),
+                  cycleLabel: (v: string) => String(t(`settings.values.${v}`, v)),
+                  focused: subFocused,
+                  focusedRef: settingsFocusedRef,
+                };
+              }
+              if (sub.type === "slider") {
+                const isDraggingSub = sliderDraft.key === sub.key;
+                return {
+                  type: "slider" as const,
+                  label: sub.label,
+                  sliderValue: isDraggingSub ? (sliderDraft.value ?? (settings[sub.key] as number)) : (settings[sub.key] as number),
+                  sliderMin: sub.min,
+                  sliderMax: sub.max,
+                  sliderStep: sub.step,
+                  integer: sub.integer,
+                  onSliderChange: (newVal: number) => updateSetting(sub.key, newVal),
+                  focused: subFocused,
+                  focusedRef: settingsFocusedRef,
+                };
+              }
+              return {
+                label: sub.label,
+                value: settings[sub.key] as boolean,
+                onChange: (newVal: boolean) => updateSetting(sub.key, newVal),
+                focused: subFocused,
+                focusedRef: settingsFocusedRef,
+              };
+            })}
+          />
+        );
+      }
+      return (
+        <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={rowStyle} onClick={() => updateSetting(item.key, !val)}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: theme.text }}>{item.label}</span>
+          <ToggleKnob value={val} />
+          {onyxRing}
+        </div>
+      );
+    }
+
+    if (item.type === "theme_picker") {
+      const currentTheme = normalizeThemeKey(String(settings.theme));
+      return (
+        <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={rowStyle} onClick={onOpenThemePicker}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: theme.text }}>{item.label}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 12, color: accent.primary, fontWeight: 700 }}>
+              {String(t(`settings.values.${currentTheme}`, currentTheme))}
+            </span>
+            <span style={{ fontSize: 12, color: theme.textDim }}>{"\u21b5"}</span>
+          </div>
+          {onyxRing}
+        </div>
+      );
+    }
+
+    if (item.type === "surface_picker") {
+      const currentSurface = String(settings.surface_style ?? "glass");
+      return (
+        <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={rowStyle} onClick={onOpenSurfacePicker}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: theme.text }}>{item.label}</span>
+          <span style={{ fontSize: 12, color: accent.primary, fontWeight: 700 }}>
+            {String(t(`settings.values.${currentSurface}`, currentSurface))}
+          </span>
+          {onyxRing}
+        </div>
+      );
+    }
+
+    if (item.type === "lofi_scene_picker") {
+      const currentScene = String(settings.lofi_scene ?? "cozy");
+      return (
+        <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={rowStyle} onClick={onOpenLofiScenePicker}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: theme.text }}>{item.label}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 12, color: accent.primary, fontWeight: 700 }}>
+              {String(t(`settings.values.${currentScene}`, currentScene))}
+            </span>
+            <span style={{ fontSize: 12, color: theme.textDim }}>{"\u21b5"}</span>
+          </div>
+          {onyxRing}
+        </div>
+      );
+    }
+
+    if (item.type === "cycle") {
+      const opts = getSettingCycleOptions(item, settings);
+      const curVal = item.key === "theme"
+        ? normalizeThemeKey(String(settings[item.key]))
+        : item.key === "home_pinned_pos" && settings.home_mode === "semi" && settings[item.key] === "bottom"
+          ? "top"
+          : item.key === "nav_bumpers_pos"
+            ? resolveNavBumpersPos(String(settings[item.key]), settings.bottombar_mode)
+          : settings[item.key] as string;
+      const cur = opts.indexOf(curVal);
+      return (
+        <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={rowStyle}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: theme.text }}>{item.label}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 10, color: theme.textDim, cursor: "pointer", userSelect: "none" }}
+              onClick={() => updateSetting(item.key, opts[(cur - 1 + opts.length) % opts.length])}>◀</span>
+            <span style={{ fontSize: 12, color: accent.primary, fontWeight: 600 }}>
+              {settingValueLabel(item.key, curVal, t)}
+            </span>
+            <span style={{ fontSize: 10, color: theme.textDim, cursor: "pointer", userSelect: "none" }}
+              onClick={() => updateSetting(item.key, opts[(cur + 1) % opts.length])}>▶</span>
+          </div>
+          {onyxRing}
+        </div>
+      );
+    }
+
+    if (item.type === "accent") {
+      const accentKeys = Object.keys(ACCENTS);
+      const curIdx = accentKeys.indexOf(settings.accent);
+      return (
+        <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={rowStyle}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: theme.text }}>{item.label}</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 10, color: theme.textDim, cursor: "pointer", userSelect: "none" }}
+              onClick={() => updateSetting("accent", accentKeys[(curIdx - 1 + accentKeys.length) % accentKeys.length])}>◀</span>
+            {Object.entries(ACCENTS).map(([name, a]) => (
+              <div key={name} onClick={() => updateSetting("accent", name)}
+                style={{ width: 20, height: 20, borderRadius: "50%", background: a.primary, border: settings.accent === name ? "2px solid white" : "2px solid transparent", boxShadow: settings.accent === name ? `0 0 8px ${a.glow}0.8)` : "none", cursor: "pointer", transition: "all 0.15s ease" }} />
+            ))}
+            <span style={{ fontSize: 10, color: theme.textDim, cursor: "pointer", userSelect: "none" }}
+              onClick={() => updateSetting("accent", accentKeys[(curIdx + 1) % accentKeys.length])}>▶</span>
+          </div>
+          {onyxRing}
+        </div>
+      );
+    }
+
+    if (item.type === "refresh") {
+      const statusText = libraryRefreshStatus === "scanning" ? t("settings.status.scanning")
+        : libraryRefreshStatus === "done" ? t("settings.status.done")
+        : t("settings.status.refresh");
+      const statusColor = libraryRefreshStatus === "done" ? "#4ae88a" : theme.textDim;
+      return (
+        <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={rowStyle} onClick={refreshLibrary}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: theme.text }}>{item.label}</span>
+          <span style={{ fontSize: 12, color: statusColor }}>{statusText}</span>
+          {onyxRing}
+        </div>
+      );
+    }
+
+    if (item.type === "slider") {
+      const val = (settings[item.key] as number) ?? 1.0;
+      const isDragging = sliderDraft.key === item.key;
+      const displayVal = isDragging ? sliderDraft.value! : val;
+      const pct = item.integer ? `${Math.round(displayVal)}` : `${Math.round(displayVal * 100)}%`;
+      const trackPct = ((displayVal - item.min) / (item.max - item.min)) * 100;
+
+      const handleTrackMouseDown = (e: React.MouseEvent) => {
+        e.preventDefault();
+        const rect = e.currentTarget.getBoundingClientRect();
+        const clamp = (v: number) => Math.round(Math.max(item.min, Math.min(item.max, v)) * 100) / 100;
+        const snap = (v: number) => Math.round(v / item.step) * item.step;
+        const calcVal = (clientX: number) =>
+          clamp(snap(item.min + ((clientX - rect.left) / rect.width) * (item.max - item.min)));
+        const initial = calcVal(e.clientX);
+        sliderDraftRef.current = { key: item.key, value: initial };
+        setSliderDraft({ key: item.key, value: initial });
+        const onMove = (me: MouseEvent) => {
+          const v = calcVal(me.clientX);
+          sliderDraftRef.current = { key: item.key, value: v };
+          setSliderDraft({ key: item.key, value: v });
+        };
+        const onUp = () => {
+          updateSetting(item.key, sliderDraftRef.current.value);
+          sliderDraftRef.current = { key: null, value: null };
+          setSliderDraft({ key: null, value: null });
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+        };
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      };
+
+      return (
+        <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={rowStyle}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: theme.text }}>{item.label}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 11, color: focused ? accent.primary : theme.textDim, cursor: "pointer", userSelect: "none" }}
+              onClick={() => updateSetting(item.key, Math.max(item.min, Math.round((val - item.step) * 100) / 100))}>◀</span>
+            <div onMouseDown={handleTrackMouseDown}
+              style={{ width: 140, height: 4, borderRadius: 2, background: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)", position: "relative", flexShrink: 0, cursor: "pointer" }}>
+              <div style={{ height: "100%", borderRadius: 2, background: accent.primary, width: `${trackPct}%`, transition: isDragging ? "none" : "width 0.08s ease" }} />
+              <div style={{ width: 14, height: 14, borderRadius: "50%", background: accent.primary, position: "absolute", top: -5, left: `calc(${trackPct}% - 7px)`, transition: isDragging ? "none" : "left 0.08s ease", boxShadow: surfaceStyle === "material" ? "0 2px 7px rgba(0,0,0,0.22)" : `0 0 8px ${accent.glow}0.6)` }} />
+            </div>
+            <span style={{ fontSize: 11, color: focused ? accent.primary : theme.textDim, cursor: "pointer", userSelect: "none" }}
+              onClick={() => updateSetting(item.key, Math.min(item.max, Math.round((val + item.step) * 100) / 100))}>▶</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: accent.primary, minWidth: 40, textAlign: "right" }}>{pct}</span>
+          </div>
+          {onyxRing}
+        </div>
+      );
+    }
+
+    if (item.type === "action")
+      return (
+        <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={rowStyle} onClick={() => {
+          if (item.key === "clear_recents") onClearRecents();
+          if (item.key === "clear_cache")   handleClearCache();
+          if (item.key === "reset_scale")   updateSetting("ui_scale", autoScale);
+          if (item.key === "rerun_onboarding") onRerunOnboarding?.();
+          if (item.key === "factory_reset") onFactoryReset?.();
+        }}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: item.key === "reset_scale" || item.key === "rerun_onboarding" ? theme.text : "#e84a4a" }}>{item.label}</span>
+          <span style={{ fontSize: 12, color: theme.textDim }}>
+            {item.key === "reset_scale" ? t("settings.status.apply") : item.key === "rerun_onboarding" ? t("settings.status.open") : t("settings.status.confirm")}
+          </span>
+          {onyxRing}
+        </div>
+      );
+
+    if (item.type === "spotify") {
+      const connected = !!spotifyStatus?.connected;
+      const product = spotifyStatus?.product ? t("spotify.product", { product: spotifyStatus.product }) : t("spotify.notConnected");
+      return (
+        <div
+          key={item.key}
+          data-settings-row=""
+          className={focused ? "focused" : ""}
+          ref={rowRef}
+          style={{ ...rowStyle, gap: 18, alignItems: "stretch" }}
+          onClick={() => connected ? onSpotifyDisconnect?.() : onOpenSpotifyGuide?.()}
+        >
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: theme.text }}>{item.label}</div>
+            <div style={{ fontSize: 11, color: theme.textDim, lineHeight: 1.45, marginTop: 3 }}>
+              {connected ? t("spotify.connectedHint") : t("spotify.guideIntro")}
+            </div>
+            {!connected && (
+              <div style={{ fontSize: 10, color: theme.textFaint, marginTop: 5, userSelect: "text" }}>
+                {t("spotify.redirectUri")}: <code>{SPOTIFY_REDIRECT_URI}</code>
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+            <span style={{ fontSize: 12, color: connected ? accent.primary : theme.textDim, fontWeight: connected ? 800 : 500, whiteSpace: "nowrap" }}>
+              {connected ? product : t("spotify.notConnected")}
+            </span>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                connected ? onSpotifyDisconnect?.() : onOpenSpotifyGuide?.();
+              }}
+              style={{
+                border: `1px solid ${connected ? "rgba(232,74,74,0.52)" : accent.primary}`,
+                background: connected ? "rgba(232,74,74,0.12)" : accent.primary,
+                color: connected ? "#ff8d8d" : accent.darkText ? "#161616" : "#fff",
+                borderRadius: isPixel || isCyber ? 0 : isMaterial ? 8 : 10,
+                padding: "8px 12px",
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: "pointer",
+                ...accountActionFocusStyle(0),
+              }}
+            >
+              {connected ? t("spotify.disconnect") : t("spotify.connect")}
+            </button>
+          </div>
+          {onyxRing}
+        </div>
+      );
+    }
+
+    if (item.type === "steam") {
+      const connected = !!steamStatus?.connected;
+      const ownedCount = steamStatus?.owned_count ?? 0;
+      return (
+        <div
+          key={item.key}
+          data-settings-row=""
+          className={focused ? "focused" : ""}
+          ref={rowRef}
+          style={{ ...rowStyle, gap: 18, alignItems: "stretch" }}
+          onClick={() => connected ? onSteamDisconnect?.() : onOpenSteamQr?.()}
+        >
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: theme.text }}>{item.label}</div>
+            <div style={{ fontSize: 11, color: theme.textDim, lineHeight: 1.45, marginTop: 3 }}>
+              {connected ? t("steam.connectedHint", { count: ownedCount }) : t("steam.connectHint")}
+            </div>
+            <div style={{ fontSize: 10, color: theme.textFaint, marginTop: 5 }}>
+              {t("steam.securityHint")}
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+            <span style={{ fontSize: 12, color: connected ? accent.primary : theme.textDim, fontWeight: connected ? 800 : 500, whiteSpace: "nowrap" }}>
+              {connected ? (steamStatus?.account_name || t("steam.connected")) : t("steam.notConnected")}
+            </span>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                connected ? onSteamDisconnect?.() : onOpenSteamQr?.();
+              }}
+              style={{
+                border: `1px solid ${connected ? "rgba(232,74,74,0.52)" : accent.primary}`,
+                background: connected ? "rgba(232,74,74,0.12)" : accent.primary,
+                color: connected ? "#ff8d8d" : accent.darkText ? "#161616" : "#fff",
+                borderRadius: isPixel || isCyber ? 0 : isMaterial ? 8 : 10,
+                padding: "8px 12px",
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: "pointer",
+                ...accountActionFocusStyle(0),
+              }}
+            >
+              {connected ? t("steam.disconnect") : t("steam.connect")}
+            </button>
+          </div>
+          {onyxRing}
+        </div>
+      );
+    }
+
+    if (item.type === "xbox") {
+      const connected = !!xboxStatus?.connected;
+      const ownedCount = xboxStatus?.owned_count ?? 0;
+      const refreshText =
+        xboxRefreshStatus === "refreshing" ? t("xbox.refreshing") :
+        xboxRefreshStatus === "done" ? t("xbox.refreshDone") :
+        xboxRefreshStatus === "error" ? t("xbox.refreshFailed") :
+        "";
+      return (
+        <div
+          key={item.key}
+          data-settings-row=""
+          className={focused ? "focused" : ""}
+          ref={rowRef}
+          style={{ ...rowStyle, gap: 18, alignItems: "stretch" }}
+          onClick={() => connected ? onXboxDisconnect?.() : onOpenXboxGuide?.()}
+        >
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 12, minWidth: 0, flex: 1 }}>
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: isPixel || isCyber ? 0 : 10,
+                display: "grid",
+                placeItems: "center",
+                border: `1px solid ${focused ? accent.primary : isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)"}`,
+                background: isDark ? "rgba(255,255,255,0.045)" : "rgba(0,0,0,0.035)",
+                color: connected ? accent.primary : theme.textDim,
+                flexShrink: 0,
+              }}
+            >
+              <IoPersonCircleOutline size={22} />
+            </div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: theme.text }}>{item.label}</div>
+              <div style={{ fontSize: 11, color: theme.textDim, lineHeight: 1.45, marginTop: 3 }}>
+                {connected
+                  ? t("xbox.connectedHint", { gamertag: xboxStatus?.gamertag || t("xbox.connected"), count: ownedCount })
+                  : t("xbox.connectHint")}
+              </div>
+              <div style={{ fontSize: 10, color: theme.textFaint, marginTop: 5 }}>
+                {refreshText || t("xbox.securityHint")}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <span style={{ fontSize: 12, color: connected ? accent.primary : theme.textDim, fontWeight: connected ? 800 : 500, whiteSpace: "nowrap" }}>
+              {connected ? (xboxStatus?.gamertag || t("xbox.connected")) : t("xbox.notConnected")}
+            </span>
+            {connected && (
+              <button
+                type="button"
+                disabled={xboxRefreshStatus === "refreshing"}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onXboxRefresh?.();
+                }}
+                style={{
+                  border: `1px solid ${accent.primary}`,
+                  background: xboxRefreshStatus === "refreshing" ? `${accent.glow}0.14)` : "transparent",
+                  color: accent.primary,
+                  borderRadius: isPixel || isCyber ? 0 : isMaterial ? 8 : 10,
+                  padding: "8px 12px",
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: xboxRefreshStatus === "refreshing" ? "default" : "pointer",
+                  opacity: xboxRefreshStatus === "refreshing" ? 0.72 : 1,
+                  ...accountActionFocusStyle(0),
+                }}
+              >
+                {t("xbox.refresh")}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                connected ? onXboxDisconnect?.() : onOpenXboxGuide?.();
+              }}
+              style={{
+                border: `1px solid ${connected ? "rgba(232,74,74,0.52)" : accent.primary}`,
+                background: connected ? "rgba(232,74,74,0.12)" : accent.primary,
+                color: connected ? "#ff8d8d" : accent.darkText ? "#161616" : "#fff",
+                borderRadius: isPixel || isCyber ? 0 : isMaterial ? 8 : 10,
+                padding: "8px 12px",
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: "pointer",
+                ...accountActionFocusStyle(connected ? 1 : 0),
+              }}
+            >
+              {connected ? t("xbox.disconnect") : t("xbox.connect")}
+            </button>
+          </div>
+          {onyxRing}
+        </div>
+      );
+    }
+
+    if (item.type === "update") {
+      const statusText =
+        updateStatus === "checking"   ? t("settings.status.checking")
+        : updateStatus === "up_to_date" ? t("settings.status.upToDate")
+        : updateStatus === "available"  ? t("settings.status.updateAvailable", { version: updateInfo })
+        : updateStatus === "error"      ? t("settings.status.checkFailed")
+        : t("settings.status.check");
+      const statusColor =
+        updateStatus === "up_to_date" ? "#4ae88a"
+        : updateStatus === "available"  ? accent.primary
+        : updateStatus === "error"      ? "#e84a4a"
+        : theme.textDim;
+      return (
+        <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={rowStyle} onClick={() => {
+          if (updateStatus === "available")
+            invoke("launch_app", { path: (settings.update_channel ?? "stable") === "prerelease" ? `https://github.com/${GITHUB_REPO}/releases` : `https://github.com/${GITHUB_REPO}/releases`, id: "releases", name: "CreteOS Releases", appType: "app", source: "", runAsAdmin: false }).catch(() => {});
+          else checkForUpdates();
+        }}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: theme.text }}>{item.label}</span>
+          <span style={{ fontSize: 12, color: statusColor, fontWeight: updateStatus === "available" ? 600 : 400 }}>{statusText}</span>
+          {onyxRing}
+        </div>
+      );
+    }
+
+    if (item.type === "link")
+      return (
+        <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={rowStyle} onClick={() => {
+          if (item.key === "coffee")  invoke("launch_app", { path: "https://buymeacoffee.com/liftoff_handheld_launcher", id: "coffee", name: "Buy Me a Coffee", appType: "app", source: "", runAsAdmin: false }).catch(() => {});
+          if (item.key === "github")  invoke("launch_app", { path: "https://github.com/muzi-latentera/CreteOS", id: "github", name: "GitHub", appType: "app", source: "", runAsAdmin: false }).catch(() => {});
+          if (item.key === "discord") invoke("launch_app", { path: "https://discord.gg/F5ncP75WtD", id: "discord", name: "Discord", appType: "app", source: "", runAsAdmin: false }).catch(() => {});
+          if (item.key === "privacy") invoke("launch_app", { path: "https://github.com/muzi-latentera/CreteOS/blob/codex/windows-liftoff/windows/PRIVACY.md", id: "privacy", name: "Privacy Policy", appType: "app", source: "", runAsAdmin: false }).catch(() => {});
+        }}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: theme.text }}>{item.label}</span>
+          <span style={{ fontSize: 12, color: theme.textDim }}>{t("settings.status.open")}</span>
+          {onyxRing}
+        </div>
+      );
+
+    if (item.type === "attribution")
+      return (
+        <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={rowStyle} onClick={() => {
+          if (item.url) invoke("launch_app", { path: item.url, id: item.key, name: item.label, appType: "app", source: "", runAsAdmin: false }).catch(() => {});
+        }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: theme.text }}>{item.label}</span>
+            <span style={{ fontSize: 11, color: theme.textDim }}>{t("settings.attribution", { author: item.author, license: item.license })}</span>
+          </div>
+          <span style={{ fontSize: 12, color: theme.textDim }}>{t("settings.status.open")}</span>
+          {onyxRing}
+        </div>
+      );
+
+    if (item.type === "icon_preview" || item.type === "controller_test")
+      return (
+        <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={rowStyle} onClick={() => {
+          if (item.type === "icon_preview") onOpenGamepadIconPreview?.();
+          else onOpenControllerTest?.();
+        }}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: theme.text }}>{item.label}</span>
+          <span style={{ fontSize: 12, color: theme.textDim }}>{t("settings.status.open")}</span>
+          {onyxRing}
+        </div>
+      );
+
+    if (item.type === "custom_folders") {
+      const gameFolders = customFolders.filter((f) => f.app_type === "game");
+      const appFolders  = customFolders.filter((f) => f.app_type !== "game");
+      const toggleFolder = (folderId: string, enabled: boolean) => {
+        invoke("toggle_custom_folder", { id: folderId, enabled }).then(() => {
+          // state update handled in parent via onOpenFolderManager
+        });
+      };
+      const renderFolderGroup = (folders: CustomFolder[], groupLabel: string) =>
+        folders.length === 0 ? null : (
+          <div key={groupLabel}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: theme.textFaint, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4, marginTop: 8 }}>{groupLabel}</div>
+            {folders.map((folder) => (
+              <div key={folder.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}` }}>
+                <div style={{ fontSize: 11, color: folder.enabled !== false ? theme.text : theme.textFaint, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{folder.path}</div>
+                <div style={{ fontSize: 9, color: theme.textFaint, flexShrink: 0 }}>{folder.source}</div>
+                <div onClick={() => toggleFolder(folder.id, folder.enabled !== false ? false : true)}
+                  style={{ width: 36, height: 20, borderRadius: 10, background: folder.enabled !== false ? accent.primary : (isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"), position: "relative", cursor: "pointer", flexShrink: 0 }}>
+                  <div style={{ width: 14, height: 14, borderRadius: "50%", background: "white", position: "absolute", top: 3, left: folder.enabled !== false ? 19 : 3, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.3)" }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+
+      return (
+        <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={{ ...settingsRowGlass, borderRadius: isPixel || isCyber ? 0 : isMaterial ? 8 : 16, padding: "12px 20px", marginBottom: 8, ...(focused ? {
+          border: `1px solid ${surfaceStyle === "material" ? accent.primary : accent.glow + (surfaceStyle === "aero" ? "0.50)" : "0.45)")}`,
+          backdropFilter: isCyber || surfaceStyle === "material" ? undefined : surfaceStyle === "aero" ? "blur(8px) saturate(120%) brightness(1.04)" : "blur(12px) saturate(115%) brightness(1.02)",
+          WebkitBackdropFilter: isCyber || surfaceStyle === "material" ? undefined : surfaceStyle === "aero" ? "blur(8px) saturate(120%) brightness(1.04)" : "blur(12px) saturate(115%) brightness(1.02)",
+          boxShadow: surfaceStyle === "aero"
+            ? `inset 0 1px 0 rgba(255,255,255,0.38), inset 0 2px 5px rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.10), 0 0 0 1px ${accent.glow}0.16), 0 6px 20px ${accent.glow}0.14)`
+            : surfaceStyle === "material"
+            ? "var(--material-shadow-medium)"
+            : `inset 0 1px 0 rgba(255,255,255,0.14), 0 0 0 1px ${accent.glow}0.12), 0 8px 22px ${accent.glow}0.10), 0 10px 28px rgba(0,0,0,0.28)`,
+          background: isDark
+            ? (surfaceStyle === "aero" ? "linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.08) 25%, rgba(255,255,255,0.05) 100%)" : surfaceStyle === "material" ? "var(--material-elevation-2)" : "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.032))")
+            : surfaceStyle === "material" ? "var(--material-elevation-3)" : `${accent.glow}0.05)`,
+          ...(isMaterial ? materialFocusStyle : {}),
+          ...(isPixel ? pixelFocusStyle : {}),
+        } : {}) }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: customFolders.length > 0 ? 4 : 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: focused ? accent.primary : theme.textDim, textTransform: "uppercase", letterSpacing: "0.08em" }}>{item.label}</div>
+            <span style={{ fontSize: 10, color: theme.textFaint, cursor: "pointer" }} onClick={onOpenFolderManager}>↵ {t("grid.manage")}</span>
+          </div>
+          {customFolders.length === 0 && <div style={{ fontSize: 12, color: theme.textFaint, fontStyle: "italic" }}>{t("settings.noCustomFolders")}</div>}
+          {renderFolderGroup(gameFolders, t("tabs.games"))}
+          {renderFolderGroup(appFolders, t("tabs.apps"))}
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <div style={{ ...(wideLayout ? {} : { maxWidth: 1400, margin: "0 auto" }), width: "100%", boxSizing: "border-box" as const }}>
+      <div style={{ padding: `${sectionItems[0]?.type !== "divider" ? "22px" : "0"} 24px 160px` }}>
+        {sectionItems.map(renderItem)}
+        <div ref={settingsBottomRef} />
+      </div>
+    </div>
+  );
+}

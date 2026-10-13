@@ -1,5 +1,7 @@
 <div align="center">
 
+> The **CreteOS Windows edition** lives in [windows/](windows/README.md): a LiftOff-based launcher with AnyFSE and native GPD-tool startup. See its [setup guide](windows/docs/WINDOWS_SETUP.md).
+
 # 🎮 eOr
 
 ### Your retro library, beautifully organized.

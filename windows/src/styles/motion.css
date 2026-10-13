@@ -1,0 +1,257 @@
+:root {
+  --dur-instant: 90ms;
+  --dur-fast: 160ms;
+  --dur-base: 220ms;
+  --dur-slow: 320ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-decel: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-accel: cubic-bezier(0.3, 0, 1, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --accent-pulse: rgba(255, 255, 255, 0);
+}
+
+[data-motion="crisp"] {
+  --ease-spring: var(--ease-standard);
+  --ease-decel: var(--ease-standard);
+  --dur-base: 200ms;
+  --dur-slow: 280ms;
+}
+
+[data-motion="playful"] {
+  --ease-spring: cubic-bezier(0.34, 1.8, 0.5, 1);
+  --dur-base: 280ms;
+  --dur-slow: 400ms;
+}
+
+[data-motion="instant"] {
+  --dur-instant: 0ms;
+  --dur-fast: 0ms;
+  --dur-base: 0ms;
+  --dur-slow: 0ms;
+  --ease-spring: linear;
+  --ease-decel: linear;
+}
+
+@keyframes lo-tab-enter {
+  from { transform: translateX(24px); }
+  to { transform: translateX(0); }
+}
+
+@keyframes lo-tab-enter-rev {
+  from { transform: translateX(-24px); }
+  to { transform: translateX(0); }
+}
+
+@keyframes lo-drill-in {
+  from { opacity: 0; transform: scale(0.82); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes lo-modal-rise {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes lo-overlay-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes lo-tray-rise {
+  from { opacity: 0; transform: translateY(54px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes lo-tray-fall {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(30px) scale(0.99); }
+}
+
+@keyframes lo-tray-scrim-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes lo-tray-row-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes lo-focus-pulse {
+  0% { box-shadow: 0 0 0 0 var(--accent-pulse); }
+  40% { box-shadow: 0 0 0 6px var(--accent-pulse); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+@keyframes lo-push-in {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes lo-push-out {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0.4; transform: translateX(-22%); }
+}
+
+@keyframes lo-pop-in {
+  from { opacity: 0.4; transform: translateX(-22%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes lo-pop-out {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(100%); }
+}
+
+@keyframes onboardingPanelIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes onboardingStepIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes onboardingCardIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Only the onboarding scrim may fade. Opacity animation on the glass panel,
+   step body, or cards left screenshot <img> descendants unpainted in WebView2
+   when those stills were a cold fetch after factory reset. */
+
+/* No persistent compositing hint here on purpose. will-change: transform and
+   will-change: opacity both make an element a backdrop root, and these classes
+   are applied with animation-fill-mode: both and never removed, so the
+   promotion outlived the animation. Every backdrop-filter surface inside a
+   promoted element samples an unrasterized backdrop for the first frames after
+   the layer is created or destroyed, which is what made Glass and Aero panels
+   visibly settle into place. Chromium promotes an element for the duration of a
+   transform/opacity animation on its own, so the hint bought nothing.
+   Anything that genuinely needs a persistent layer should opt in locally and
+   carry a device measurement justifying it. */
+
+.lo-anim-tab { animation: lo-tab-enter var(--dur-base) var(--ease-decel) both; }
+.lo-anim-tab-rev { animation: lo-tab-enter-rev var(--dur-base) var(--ease-decel) both; }
+.lo-anim-drill { animation: lo-drill-in var(--dur-base) var(--ease-spring) both; }
+.lo-anim-modal { animation: lo-modal-rise var(--dur-base) var(--ease-decel) both; }
+.lo-anim-overlay { animation: lo-overlay-fade var(--dur-fast) var(--ease-standard) both; }
+.lo-anim-tray-scrim { animation: lo-overlay-fade var(--dur-fast) var(--ease-standard) both; }
+.lo-anim-tray { animation: lo-tray-rise var(--dur-slow) var(--ease-decel) both; }
+.lo-tray-row { animation: lo-tray-row-in var(--dur-base) var(--ease-decel) both; }
+[data-tray-state="closing"].lo-anim-tray-scrim { animation: lo-tray-scrim-out var(--dur-fast) var(--ease-accel) both; }
+[data-tray-state="closing"] .lo-anim-tray { animation: lo-tray-fall var(--dur-fast) var(--ease-accel) both; }
+[data-tray-state="closing"] .lo-tray-row { animation: none; opacity: 1; transform: none; }
+.lo-anim-pulse {
+  position: relative;
+}
+.lo-anim-pulse::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 20;
+  animation: lo-focus-pulse var(--dur-base) var(--ease-standard);
+}
+.lo-anim-push-in { animation: lo-push-in var(--dur-base) var(--ease-decel) both; }
+.lo-anim-push-out { animation: lo-push-out var(--dur-base) var(--ease-decel) both; }
+.lo-anim-pop-in { animation: lo-pop-in var(--dur-base) var(--ease-decel) both; }
+.lo-anim-pop-out { animation: lo-pop-out var(--dur-base) var(--ease-decel) both; }
+@keyframes lo-smartbar-event-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.lo-smartbar-event { animation: lo-smartbar-event-in var(--dur-base) var(--ease-decel) both; }
+/* Transitions, not animations: suppressed separately below. No will-change,
+   per the backdrop-root note above; the pill sits on a backdrop-filter surface. */
+.lo-smartbar-hints { transition: max-width var(--dur-slow) var(--ease-decel), opacity var(--dur-base) var(--ease-standard); }
+.lo-smartbar-tint { transition: opacity var(--dur-base) var(--ease-standard); }
+[data-ui-motion="off"] .lo-smartbar-hints,
+[data-ui-motion="off"] .lo-smartbar-tint { transition: none; }
+@keyframes lo-loading-spin { to { transform: rotate(360deg); } }
+.lo-loading-spinner {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: 3px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: lo-loading-spin 0.8s linear infinite;
+}
+[data-ui-motion="off"] .lo-loading-spinner { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .lo-loading-spinner { animation: none; }
+}
+
+.lo-onb-scrim { animation: onboardingPanelIn 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+[data-ui-motion="off"] .lo-anim-tab,
+[data-ui-motion="off"] .lo-anim-tab-rev,
+[data-ui-motion="off"] .lo-anim-drill,
+[data-ui-motion="off"] .lo-anim-modal,
+[data-ui-motion="off"] .lo-anim-overlay,
+[data-ui-motion="off"] .lo-anim-tray-scrim,
+[data-ui-motion="off"] .lo-anim-tray,
+[data-ui-motion="off"] .lo-tray-row,
+[data-ui-motion="off"] .lo-anim-pulse::after,
+[data-ui-motion="off"] .lo-anim-push-in,
+[data-ui-motion="off"] .lo-anim-push-out,
+[data-ui-motion="off"] .lo-anim-pop-in,
+[data-ui-motion="off"] .lo-anim-pop-out,
+[data-ui-motion="off"] .lo-smartbar-event,
+[data-ui-motion="off"] .lo-onb-scrim,
+[data-effects="static"] .lo-anim-pulse::after {
+  animation-duration: 0ms !important;
+}
+
+.app-launch-paused .lo-anim-tab,
+.app-launch-paused .lo-anim-tab-rev,
+.app-launch-paused .lo-anim-drill,
+.app-launch-paused .lo-anim-modal,
+.app-launch-paused .lo-anim-overlay,
+.app-launch-paused .lo-anim-tray-scrim,
+.app-launch-paused .lo-anim-tray,
+.app-launch-paused .lo-tray-row,
+.app-launch-paused .lo-anim-pulse::after,
+.app-launch-paused .lo-anim-push-in,
+.app-launch-paused .lo-anim-push-out,
+.app-launch-paused .lo-anim-pop-in,
+.app-launch-paused .lo-anim-pop-out,
+.app-launch-paused .lo-smartbar-event,
+.app-launch-paused .lo-onb-scrim {
+  animation-play-state: paused;
+}
+
+.app-launch-paused .launch-overlay,
+.app-launch-paused .launch-icon,
+.app-launch-paused .launch-text,
+.app-launch-paused .launch-dot,
+.app-launch-paused .launch-glow {
+  animation-play-state: running;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lo-anim-tab,
+  .lo-anim-tab-rev,
+  .lo-anim-drill,
+  .lo-anim-modal,
+  .lo-anim-overlay,
+  .lo-anim-tray-scrim,
+  .lo-anim-tray,
+  .lo-tray-row,
+  .lo-anim-pulse::after,
+  .lo-anim-push-in,
+  .lo-anim-push-out,
+  .lo-anim-pop-in,
+  .lo-anim-pop-out,
+  .lo-smartbar-event,
+  .lo-onb-scrim {
+    animation-duration: 1ms !important;
+  }
+  .lo-smartbar-hints,
+  .lo-smartbar-tint { transition: none; }
+}

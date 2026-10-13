@@ -1,0 +1,79 @@
+name: CreteOS Windows
+
+on:
+  push:
+    branches: [product, 'codex/windows-*']
+    paths: ['windows/**', '.github/workflows/windows.yml']
+  pull_request:
+    paths: ['windows/**', '.github/workflows/windows.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: creteos-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+    env:
+      SGDB_API_KEY: ${{ secrets.SGDB_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: windows/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: windows/src-tauri
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Check and test the frontend
+        run: |
+          npm run typecheck
+          npm test
+      - name: Install browser for interface checks
+        run: npx playwright install chromium
+      - name: Test controller interface with mocked Windows commands
+        run: npm run test:e2e
+      - name: Build CreteOS Windows installer
+        run: npm run tauri -- build -- --locked
+      - name: Test Windows backend
+        run: cargo test --release --locked --manifest-path src-tauri/Cargo.toml
+      - name: Record installer identity
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe)
+          if ($installers.Count -ne 1) { throw "Expected exactly one Windows installer" }
+          $installer = $installers[0]
+          $digest = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$digest  $($installer.Name)" | Set-Content -Encoding utf8 src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
+          @{
+            product = 'CreteOS'; version = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
+            sourceCommit = $env:GITHUB_SHA; runId = $env:GITHUB_RUN_ID
+            installer = $installer.Name; sha256 = $digest; signed = $false
+            builtAtUtc = [DateTime]::UtcNow.ToString('o')
+          } | ConvertTo-Json | Set-Content -Encoding utf8 src-tauri/target/release/bundle/nsis/build-metadata.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CreteOS-Windows-${{ github.run_number }}
+          path: |
+            windows/src-tauri/target/release/bundle/nsis/*.exe
+            windows/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
+            windows/src-tauri/target/release/bundle/nsis/build-metadata.json
+            windows/README.md
+            windows/LICENSE
+            windows/UPSTREAM.md
+            windows/PRIVACY.md
+            windows/docs/WINDOWS_SETUP.md
+            windows/docs/VALIDATION.md
+            windows/scripts/prepare-anyfse.mjs
+          if-no-files-found: error

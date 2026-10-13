@@ -1,0 +1,652 @@
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  IoChevronBack, IoChevronForward, IoGameControllerOutline, IoMusicalNotesOutline,
+  IoPause, IoPlay, IoPlayBack, IoPlayForward, IoPowerOutline, IoRefresh,
+  IoSettingsOutline, IoStop, IoSunnyOutline, IoVolumeHighOutline,
+} from "react-icons/io5";
+import type { SpotifyController } from "../../hooks/useSpotify";
+import type { App } from "../../types";
+import { useSystemControls } from "../../hooks/useSystemControls";
+import { getBestGamepad, readGpState, shouldHandleDirectionRepeat, type GpState } from "../../utils/gamepad";
+import { useTheme } from "../../contexts/ThemeContext";
+import { useSettings } from "../../contexts/SettingsContext";
+import { GamepadBtn } from "../GamepadBtn";
+import { modalPanelStyle } from "../modals/modalStyles";
+import { installPhaseLabelKey, runningMinutes, type BarDownload, type BarRunning } from "../../utils/smartBar";
+
+type HelperBarMode = "full" | "smart" | "hidden";
+
+interface HelperTrayProps {
+  open: boolean;
+  mode: HelperBarMode;
+  spotify: SpotifyController;
+  pinnedApps: App[];
+  pinnedArtwork?: Record<string, string>;
+  repeatSpeed?: "slow" | "normal" | "fast";
+  onClose: () => void;
+  onOpenPlaylists: () => void;
+  onConnectSpotify: () => void;
+  onOpenSettings: () => void;
+  onOpenPower: () => void;
+  onRefreshLibrary: () => void;
+  onOpenControls: () => void;
+  onOpenPinned: (app: App) => void;
+  runningEntries?: BarRunning[];
+  downloadEntries?: BarDownload[];
+  now?: number;
+  onResumeRunning?: (app: App) => void;
+  onCloseRunning?: (app: App) => void;
+  onOpenDownload?: (app: App) => void;
+}
+
+type FocusItem = { key: string; row: number; column: number; app?: App };
+
+const TRAY_EXIT_MS = 160;
+const FOCUS_REVEAL_DELAY_MS = 300;
+const TRAY_ACTIVITY_LIMIT = 2;
+const EMPTY_RUNNING: BarRunning[] = [];
+const EMPTY_DOWNLOADS: BarDownload[] = [];
+const noop = () => {};
+
+const HELPER_TRAY_UNDERLAY_FILTERS: Record<string, string> = {
+  glass: "blur(18px) saturate(120%)",
+  aero: "blur(16px) saturate(125%)",
+  clear: "blur(12px) saturate(105%)",
+  obsidian: "blur(18px) saturate(110%)",
+};
+const DENSE_TRANSLUCENT_TRAY_SURFACES = new Set(Object.keys(HELPER_TRAY_UNDERLAY_FILTERS));
+const DEFAULT_HELPER_TRAY_UNDERLAY_FILTER = "blur(16px) saturate(115%)";
+
+export function getHelperTrayUnderlayFilter(surfaceStyle: string): string {
+  return HELPER_TRAY_UNDERLAY_FILTERS[surfaceStyle] ?? DEFAULT_HELPER_TRAY_UNDERLAY_FILTER;
+}
+
+export function usesDenseTranslucentHelperTray(surfaceStyle: string): boolean {
+  return DENSE_TRANSLUCENT_TRAY_SURFACES.has(surfaceStyle);
+}
+
+const formatTime = (ms: number) => {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+};
+
+export function HelperTray({
+  open,
+  mode,
+  spotify,
+  pinnedApps,
+  pinnedArtwork = {},
+  repeatSpeed = "normal",
+  onClose,
+  onOpenPlaylists,
+  onConnectSpotify,
+  onOpenSettings,
+  onOpenPower,
+  onRefreshLibrary,
+  onOpenControls,
+  onOpenPinned,
+  runningEntries = EMPTY_RUNNING,
+  downloadEntries = EMPTY_DOWNLOADS,
+  now = Date.now(),
+  onResumeRunning = noop,
+  onCloseRunning = noop,
+  onOpenDownload = noop,
+}: HelperTrayProps) {
+  const { t } = useTranslation();
+  const themeValue = useTheme();
+  const { accent, theme, isDark, surfaceStyle, resolvedTheme } = themeValue;
+  const { settings, updateSetting } = useSettings();
+  const motionProfile =
+    surfaceStyle === "win9x" || resolvedTheme === "webcore" ? "instant" :
+    surfaceStyle === "material" ? "crisp" :
+    resolvedTheme === "synthwave" ? "playful" :
+    "standard";
+  const { volume, brightness, requestVolume, requestBrightness } = useSystemControls(open);
+  const track = spotify.track;
+  const [visible, setVisible] = useState(open);
+  const [closing, setClosing] = useState(false);
+  const closeTimerRef = useRef<number | undefined>(undefined);
+  const [focusKey, setFocusKey] = useState("settings");
+  const focusKeyRef = useRef("settings");
+  const [seekDraft, setSeekDraft] = useState<number | null>(null);
+  const seekDraftRef = useRef<number | null>(null);
+  const [adjustmentKey, setAdjustmentKey] = useState<string | null>(null);
+  const adjustmentKeyRef = useRef<string | null>(null);
+  const closedRef = useRef(false);
+  const pinnedRowRef = useRef<HTMLDivElement | null>(null);
+  const pinnedButtonRefs = useRef(new Map<string, HTMLButtonElement>());
+
+  const visibleRunning = useMemo(() => runningEntries.slice(0, TRAY_ACTIVITY_LIMIT), [runningEntries]);
+  const visibleDownloads = useMemo(() => downloadEntries.slice(0, TRAY_ACTIVITY_LIMIT), [downloadEntries]);
+  const activityRows = Math.max(visibleRunning.length, visibleDownloads.length);
+  const isLofi = resolvedTheme === "lofi";
+  const lofiMusicOn = settings.lofi_music_enabled !== false;
+  // Opening focus goes to the most time-sensitive thing: a running session,
+  // then a download, then Settings.
+  const initialFocusKey = visibleRunning[0]
+    ? `run:${visibleRunning[0].app.id}`
+    : visibleDownloads[0]
+      ? `dl:${visibleDownloads[0].app.id}`
+      : "settings";
+  const initialFocusKeyRef = useRef(initialFocusKey);
+  initialFocusKeyRef.current = initialFocusKey;
+
+  const focusItems = useMemo<FocusItem[]>(() => {
+    const base = activityRows;
+    const pinnedRow = pinnedApps.length > 0 ? base + 2 : null;
+    const musicRow = pinnedRow == null ? base + 2 : base + 3;
+    const downloadColumn = visibleRunning.length > 0 ? 2 : 0;
+    const activity: FocusItem[] = [];
+    for (let row = 0; row < activityRows; row += 1) {
+      const run = visibleRunning[row];
+      const dl = visibleDownloads[row];
+      if (run) {
+        activity.push({ key: `run:${run.app.id}`, row, column: 0, app: run.app });
+        activity.push({ key: `runclose:${run.app.id}`, row, column: 1, app: run.app });
+      }
+      if (dl) activity.push({ key: `dl:${dl.app.id}`, row, column: downloadColumn, app: dl.app });
+    }
+    const music = track
+      ? [
+          { key: "previous", row: musicRow, column: 0 },
+          { key: "play", row: musicRow, column: 1 },
+          { key: "next", row: musicRow, column: 2 },
+          { key: "stop", row: musicRow, column: 3 },
+          { key: "seek", row: musicRow, column: 4 },
+          { key: "playlists", row: musicRow, column: 5 },
+        ]
+      : [{ key: "playlists", row: musicRow, column: 0 }];
+    const sliders = [
+      { key: "volume", row: base + 1, column: 0 },
+      ...(brightness != null && brightness >= 0 ? [{ key: "brightness", row: base + 1, column: 1 }] : []),
+    ];
+    const pinned = pinnedRow == null ? [] : pinnedApps.map((app, column) => ({
+      key: `pinned:${app.id}`,
+      row: pinnedRow,
+      column,
+      app,
+    }));
+    return [
+      ...activity,
+      { key: "settings", row: base, column: 0 },
+      { key: "power", row: base, column: 1 },
+      { key: "refresh", row: base, column: 2 },
+      { key: "controls", row: base, column: 3 },
+      ...(isLofi ? [{ key: "lofiMusic", row: base, column: 4 }] : []),
+      ...sliders,
+      ...pinned,
+      ...music,
+    ];
+  }, [track, brightness, pinnedApps, activityRows, visibleRunning, visibleDownloads, isLofi]);
+  const focusItemsRef = useRef(focusItems);
+  useEffect(() => { focusItemsRef.current = focusItems; }, [focusItems]);
+
+  const setFocus = (key: string) => {
+    focusKeyRef.current = key;
+    setFocusKey(key);
+    if (key.startsWith("pinned:")) {
+      const row = pinnedRowRef.current;
+      const button = pinnedButtonRefs.current.get(key);
+      if (row && button) {
+        const rowRect = row.getBoundingClientRect();
+        const buttonRect = button.getBoundingClientRect();
+        if (buttonRect.left < rowRect.left) {
+          row.scrollTo({ left: Math.max(0, row.scrollLeft + buttonRect.left - rowRect.left - 2), behavior: "smooth" });
+        } else if (buttonRect.right > rowRect.right) {
+          row.scrollTo({ left: row.scrollLeft + buttonRect.right - rowRect.right + 2, behavior: "smooth" });
+        }
+      }
+    }
+  };
+
+  const setAdjustment = (key: string | null) => {
+    adjustmentKeyRef.current = key;
+    setAdjustmentKey(key);
+  };
+
+  useEffect(() => {
+    if (open) {
+      window.clearTimeout(closeTimerRef.current);
+      setVisible(true);
+      setClosing(false);
+    } else if (visible) {
+      setClosing(true);
+      closeTimerRef.current = window.setTimeout(() => {
+        setVisible(false);
+        setClosing(false);
+      }, TRAY_EXIT_MS);
+    }
+    return () => window.clearTimeout(closeTimerRef.current);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!open) return;
+    setFocus(initialFocusKeyRef.current);
+    setAdjustment(null);
+    setSeekDraft(null);
+    seekDraftRef.current = null;
+  }, [open, track?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!open) return;
+    if (motionProfile === "instant" || settings.ui_motion === false) {
+      setFocus(initialFocusKeyRef.current);
+      return;
+    }
+    setFocus("");
+    const timer = window.setTimeout(() => setFocus(initialFocusKeyRef.current), FOCUS_REVEAL_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [open, motionProfile, settings.ui_motion]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!open || focusKeyRef.current === "") return;
+    if (!focusItems.some((item) => item.key === focusKeyRef.current)) setFocus(initialFocusKeyRef.current);
+  }, [open, focusItems]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const activate = (key: string) => {
+    if (key === "seek" || key === "volume" || key === "brightness") {
+      const finishing = adjustmentKeyRef.current === key;
+      if (finishing && key === "seek" && track && seekDraftRef.current != null) {
+        spotify.seek(seekDraftRef.current);
+        seekDraftRef.current = null;
+        setSeekDraft(null);
+      }
+      setAdjustment(finishing ? null : key);
+      return;
+    }
+    if (key === "previous") spotify.previous();
+    if (key === "play") track?.isPlaying ? spotify.pause() : spotify.play();
+    if (key === "next") spotify.next();
+    if (key === "stop") spotify.stop();
+    if (key === "lofiMusic") updateSetting("lofi_music_enabled", !lofiMusicOn);
+    if (key === "playlists") {
+      if (spotify.status.connected) onOpenPlaylists();
+      else onConnectSpotify();
+    }
+    if (key === "settings") onOpenSettings();
+    if (key === "power") onOpenPower();
+    if (key === "refresh") onRefreshLibrary();
+    if (key === "controls") onOpenControls();
+    const item = focusItemsRef.current.find((entry) => entry.key === key);
+    if (item?.app && key.startsWith("run:")) onResumeRunning(item.app);
+    else if (item?.app && key.startsWith("runclose:")) onCloseRunning(item.app);
+    else if (item?.app && key.startsWith("dl:")) onOpenDownload(item.app);
+    else if (item?.app && key.startsWith("pinned:")) onOpenPinned(item.app);
+  };
+  const activateRef = useRef(activate);
+  useEffect(() => { activateRef.current = activate; });
+
+  const adjustFocused = (direction: -1 | 1) => {
+    const key = focusKeyRef.current;
+    if (key === "volume") requestVolume((volume?.percent ?? 0) + direction * 5);
+    if (key === "brightness" && brightness != null && brightness >= 0) requestBrightness(brightness + direction * 5);
+    if (key === "seek" && track) {
+      const next = Math.max(0, Math.min(track.durationMs, (seekDraftRef.current ?? track.progressMs) + direction * 10_000));
+      seekDraftRef.current = next;
+      setSeekDraft(next);
+    }
+  };
+  const adjustRef = useRef(adjustFocused);
+  useEffect(() => { adjustRef.current = adjustFocused; });
+
+  const move = (direction: "up" | "down" | "left" | "right") => {
+    const items = focusItemsRef.current;
+    const current = items.find((item) => item.key === focusKeyRef.current) ?? items[0];
+    if (!current) return;
+    if (adjustmentKeyRef.current === current.key) {
+      if (direction === "left" || direction === "right") adjustRef.current(direction === "left" ? -1 : 1);
+      return;
+    }
+    if (direction === "left" || direction === "right") {
+      const row = items.filter((item) => item.row === current.row);
+      const index = row.findIndex((item) => item.key === current.key);
+      const next = row[Math.max(0, Math.min(row.length - 1, index + (direction === "left" ? -1 : 1)))];
+      if (next) setFocus(next.key);
+      return;
+    }
+    const targetRow = current.row + (direction === "up" ? -1 : 1);
+    const row = items.filter((item) => item.row === targetRow);
+    if (row.length === 0) return;
+    const next = row.reduce((best, item) => Math.abs(item.column - current.column) < Math.abs(best.column - current.column) ? item : best, row[0]);
+    setFocus(next.key);
+  };
+  const moveRef = useRef(move);
+  useEffect(() => { moveRef.current = move; });
+
+  useEffect(() => {
+    if (!open) return;
+    closedRef.current = false;
+    const close = () => {
+      if (closedRef.current) return;
+      closedRef.current = true;
+      onClose();
+    };
+    const handle = (key: string) => {
+      if (key === "Escape" && adjustmentKeyRef.current) activateRef.current(adjustmentKeyRef.current);
+      else if (key === "Escape") close();
+      else if (key === "Enter") activateRef.current(focusKeyRef.current);
+      else if (key === "ArrowUp") moveRef.current("up");
+      else if (key === "ArrowDown") moveRef.current("down");
+      else if (key === "ArrowLeft") moveRef.current("left");
+      else if (key === "ArrowRight") moveRef.current("right");
+    };
+    const onKey = (event: KeyboardEvent) => {
+      const accepted = ["Escape", "Enter", " ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+      if (!accepted.includes(event.key)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      handle(event.key === " " ? "Enter" : event.key);
+    };
+    window.addEventListener("keydown", onKey, true);
+
+    const delays = repeatSpeed === "slow" ? [500, 170] : repeatSpeed === "fast" ? [240, 65] : [350, 100];
+    let raf = 0;
+    const last: Partial<GpState> = {};
+    const pressTime: Record<string, number> = {};
+    const repeating: Record<string, boolean> = {};
+    let enterReleased = false;
+    let escapeReleased = false;
+    const poll = (now: number) => {
+      if (closedRef.current) return;
+      const gp = getBestGamepad();
+      if (gp) {
+        const base = readGpState(gp);
+        if (!base.Enter) enterReleased = true;
+        if (!base.Escape) escapeReleased = true;
+        const state = { ...base, Enter: enterReleased && base.Enter, Escape: escapeReleased && base.Escape };
+        let directionHandled = false;
+        (Object.keys(state) as (keyof GpState)[]).forEach((key) => {
+          const pressed = state[key];
+          const wasPressed = last[key];
+          if (key === "ArrowUp" || key === "ArrowDown" || key === "ArrowLeft" || key === "ArrowRight") {
+            if (!directionHandled && shouldHandleDirectionRepeat(key, state, last, now, pressTime, repeating, delays[0], delays[1])) {
+              directionHandled = true;
+              handle(key);
+            }
+          } else if (pressed && !wasPressed) {
+            handle(key);
+          }
+          last[key] = pressed;
+        });
+      }
+      raf = requestAnimationFrame(poll);
+    };
+    raf = requestAnimationFrame(poll);
+    return () => {
+      closedRef.current = true;
+      window.removeEventListener("keydown", onKey, true);
+      cancelAnimationFrame(raf);
+    };
+  }, [open, repeatSpeed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!visible) return null;
+
+  const squareCorners = resolvedTheme === "cyberpunk" || surfaceStyle === "win9x";
+  const helperTrayUnderlayFilter = getHelperTrayUnderlayFilter(surfaceStyle);
+  const needsDenseTranslucentTray = usesDenseTranslucentHelperTray(surfaceStyle);
+  const translucentTrayFilter = helperTrayUnderlayFilter;
+  const trayWidth = "min(980px, calc(100vw - 32px))";
+  const trayMaxHeight = mode === "full" ? "calc(100vh - 94px)" : "calc(100vh - 34px)";
+  const shellStyle: CSSProperties = {
+    ...modalPanelStyle(themeValue, { width: trayWidth, maxHeight: trayMaxHeight, padding: "18px" }),
+    // The tray is a dense control surface over Home or Settings content.
+    ...(needsDenseTranslucentTray ? {
+      background: isDark
+        ? `linear-gradient(180deg, color-mix(in srgb, ${accent.primary} 4%, rgba(8,10,16,0.93) 96%), rgba(8,10,16,0.90))`
+        : `linear-gradient(180deg, color-mix(in srgb, ${accent.primary} 3%, rgba(255,255,255,0.94) 97%), rgba(250,250,252,0.91))`,
+      // The moving panel stays unfiltered; App.jsx applies the reliable blur
+      // directly to the underlay while this translucent tray is open.
+      backdropFilter: "none",
+      WebkitBackdropFilter: "none",
+    } : {}),
+    ...(surfaceStyle === "neon" ? {
+      background: `linear-gradient(180deg, color-mix(in srgb, ${accent.primary} 10%, rgba(3,6,12,0.88) 90%), color-mix(in srgb, ${accent.primary} 6%, rgba(1,3,7,0.84) 94%))`,
+      backdropFilter: "blur(12px) saturate(120%)",
+      WebkitBackdropFilter: "blur(12px) saturate(120%)",
+    } : {}),
+  };
+  const focusStyle = (key: string): CSSProperties => ({
+    outline: focusKey === key ? `2px solid ${accent.primary}` : "2px solid transparent",
+    boxShadow: focusKey === key ? (surfaceStyle === "material" ? "var(--material-shadow-medium)" : `0 0 18px ${accent.glow}0.24)`) : undefined,
+    transition: "box-shadow var(--dur-base) var(--ease-decel), outline-color var(--dur-base) var(--ease-decel)",
+  });
+  const buttonStyle = (key: string): CSSProperties => ({
+    ...focusStyle(key),
+    border: `1px solid ${isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)"}`,
+    background: focusKey === key ? `${accent.glow}0.16)` : isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+    color: theme.text,
+    borderRadius: squareCorners ? 0 : 12,
+    minHeight: 40,
+    font: "inherit",
+    cursor: "pointer",
+  });
+  const transportButton = (key: string, label: string, icon: ReactNode, action: () => void) => (
+    <button type="button" aria-label={label} onClick={action} onMouseMove={() => setFocus(key)} style={{ ...buttonStyle(key), width: 42, padding: 0 }}>{icon}</button>
+  );
+  const progress = seekDraft ?? track?.progressMs ?? 0;
+  const shortcut = (key: string, label: string, icon: ReactNode, action: () => void, active = false) => (
+    <button type="button" data-helper-shortcut={key} onClick={action} onMouseMove={() => setFocus(key)} aria-pressed={key === "lofiMusic" ? active : undefined} style={{ ...buttonStyle(key), flex: 1, minWidth: 140, padding: "12px 15px", display: "flex", alignItems: "center", gap: 10, justifyContent: "center", fontWeight: 700, background: active ? `${accent.glow}0.22)` : buttonStyle(key).background }}>{icon}{label}</button>
+  );
+  const appThumb = (app: App, size: number) => {
+    const artwork = pinnedArtwork[app.id];
+    return (
+      <span style={{ width: size, height: size, borderRadius: squareCorners ? 0 : 8, overflow: "hidden", flexShrink: 0, display: "grid", placeItems: "center", background: `${accent.glow}0.18)`, color: accent.primary, fontWeight: 800 }}>
+        {artwork ? <img src={artwork} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          : app.icon_base64 ? <img src={`data:image/png;base64,${app.icon_base64}`} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+          : app.name.charAt(0).toUpperCase()}
+      </span>
+    );
+  };
+  const sectionLabel: CSSProperties = { color: theme.textDim, fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 9, display: "flex", alignItems: "center", gap: 7 };
+  const activityRowStyle: CSSProperties = {
+    display: "flex", alignItems: "center", gap: 11, minHeight: 62, boxSizing: "border-box", padding: 8,
+    borderRadius: squareCorners ? 0 : 12,
+    background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.025)",
+    border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)"}`,
+  };
+
+  return (
+    <div data-theme={resolvedTheme} data-tray-state={closing ? "closing" : "open"} data-motion={motionProfile} data-ui-motion={settings.ui_motion === false ? "off" : "on"} className="lo-anim-tray-scrim" style={{ position: "fixed", inset: 0, zIndex: 9200, background: "rgba(0,0,0,0.56)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: mode === "full" ? 78 : 18, boxSizing: "border-box" }} onClick={() => { if (!closing) onClose(); }}>
+
+      <div style={{ position: "relative", width: trayWidth, maxHeight: trayMaxHeight }}>
+        {needsDenseTranslucentTray && (
+          <div
+            aria-hidden="true"
+            data-helper-tray-frost
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 0,
+              pointerEvents: "none",
+              borderRadius: shellStyle.borderRadius,
+              background: isDark ? "rgba(8,10,16,0.16)" : "rgba(255,255,255,0.14)",
+              backdropFilter: translucentTrayFilter,
+              WebkitBackdropFilter: translucentTrayFilter,
+            }}
+          />
+        )}
+        <div data-modal="helper" className="lo-anim-tray" style={{ ...shellStyle, zIndex: 1 }} onClick={(event) => event.stopPropagation()}>
+        <div className="lo-tray-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, animationDelay: "60ms" }}>
+          <strong style={{ color: theme.text }}>{t("helper.trayTitle")}</strong>
+          {mode !== "full" && <GamepadBtn btn="B" label={t("helper.closeTray")} />}
+        </div>
+
+        {activityRows > 0 && (
+          <div className="lo-tray-row" data-helper-activity="" style={{ display: "grid", gridTemplateColumns: visibleRunning.length > 0 && visibleDownloads.length > 0 ? "repeat(2, minmax(0, 1fr))" : "minmax(0, 1fr)", gap: 16, paddingBottom: 16, marginBottom: 16, borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.08)"}`, animationDelay: "85ms" }}>
+            {visibleRunning.length > 0 && (
+              <div style={{ minWidth: 0 }}>
+                <div style={sectionLabel}><span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: isDark ? "#4ae88a" : "#1f8a4c" }} />{t("helper.running")}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {visibleRunning.map(({ app, startedAt }) => {
+                    const minutes = runningMinutes(startedAt, now);
+                    return (
+                      <div key={app.id} data-helper-running={app.id} style={activityRowStyle}>
+                        {appThumb(app, 44)}
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ color: theme.text, fontSize: 13, fontWeight: 750, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{app.name}</div>
+                          <div style={{ color: theme.textDim, fontSize: 11, marginTop: 2 }}>{minutes < 1 ? t("helper.runningJustNow") : t("helper.runningFor", { count: minutes })}</div>
+                        </div>
+                        <button type="button" onClick={() => onResumeRunning(app)} onMouseMove={() => setFocus(`run:${app.id}`)} style={{ ...buttonStyle(`run:${app.id}`), padding: "0 14px", fontWeight: 700, fontSize: 12 }}>{t("helper.resume")}</button>
+                        <button type="button" onClick={() => onCloseRunning(app)} onMouseMove={() => setFocus(`runclose:${app.id}`)} style={{ ...buttonStyle(`runclose:${app.id}`), padding: "0 14px", fontWeight: 700, fontSize: 12 }}>{t("helper.closeApp")}</button>
+                      </div>
+                    );
+                  })}
+                </div>
+                {runningEntries.length > TRAY_ACTIVITY_LIMIT && <div style={{ color: theme.textFaint, fontSize: 11, marginTop: 6 }}>{t("helper.moreCount", { count: runningEntries.length - TRAY_ACTIVITY_LIMIT })}</div>}
+              </div>
+            )}
+            {visibleDownloads.length > 0 && (
+              <div style={{ minWidth: 0 }}>
+                <div style={sectionLabel}>{t("helper.downloads")}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {visibleDownloads.map((d) => {
+                    const pct = Math.round(d.pct);
+                    const phase = t(installPhaseLabelKey(d.phase));
+                    return (
+                      <div key={d.app.id} data-helper-download={d.app.id} style={activityRowStyle}>
+                        {appThumb(d.app, 44)}
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, color: theme.text, fontSize: 13, fontWeight: 750 }}>
+                            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.app.name}</span>
+                            {!d.indeterminate && <span style={{ color: accent.primary, fontSize: 12 }}>{pct}%</span>}
+                          </div>
+                          <div style={{ marginTop: 6, height: 5, borderRadius: 999, background: isDark ? "rgba(255,255,255,0.13)" : "rgba(0,0,0,0.11)", overflow: "hidden" }}>
+                            <div style={{ height: "100%", width: d.indeterminate ? "100%" : `${pct}%`, opacity: d.indeterminate ? 0.35 : 1, background: accent.primary, borderRadius: 999 }} />
+                          </div>
+                          <div style={{ color: theme.textDim, fontSize: 11, marginTop: 5 }}>{phase}</div>
+                        </div>
+                        <button type="button" onClick={() => onOpenDownload(d.app)} onMouseMove={() => setFocus(`dl:${d.app.id}`)} style={{ ...buttonStyle(`dl:${d.app.id}`), padding: "0 14px", fontWeight: 700, fontSize: 12 }}>{t("helper.details")}</button>
+                      </div>
+                    );
+                  })}
+                </div>
+                {downloadEntries.length > TRAY_ACTIVITY_LIMIT && <div style={{ color: theme.textFaint, fontSize: 11, marginTop: 6 }}>{t("helper.moreCount", { count: downloadEntries.length - TRAY_ACTIVITY_LIMIT })}</div>}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="lo-tray-row" style={{ display: "flex", gap: 10, paddingBottom: 16, flexWrap: "wrap", borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.08)"}`, animationDelay: "110ms" }}>
+          {shortcut("settings", t("helper.settings"), <IoSettingsOutline />, onOpenSettings)}
+          {shortcut("power", t("helper.power"), <IoPowerOutline />, onOpenPower)}
+          {shortcut("refresh", t("helper.refreshLibrary"), <IoRefresh />, onRefreshLibrary)}
+          {shortcut("controls", t("helper.controls"), <IoGameControllerOutline />, onOpenControls)}
+          {isLofi && shortcut("lofiMusic", t(lofiMusicOn ? "helper.lofiMusicOn" : "helper.lofiMusicOff"), <IoMusicalNotesOutline />, () => updateSetting("lofi_music_enabled", !lofiMusicOn), lofiMusicOn)}
+        </div>
+
+        <div className="lo-tray-row" style={{ display: "grid", gridTemplateColumns: brightness != null && brightness >= 0 ? "1fr 1fr" : "1fr", gap: 16, padding: "16px 0", borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.08)"}`, animationDelay: "165ms" }}>
+          <SliderControl icon={<IoVolumeHighOutline />} label={t("helper.volume")} focusKey="volume" focused={focusKey === "volume"} editing={adjustmentKey === "volume"} adjustLabel={t("helper.adjust")} doneLabel={t("helper.done")} value={volume?.percent ?? 0} onFocus={setFocus} onChange={requestVolume} accent={accent.primary} text={theme.text} dim={theme.textDim} square={squareCorners} />
+          {brightness != null && brightness >= 0 && <SliderControl icon={<IoSunnyOutline />} label={t("helper.brightness")} focusKey="brightness" focused={focusKey === "brightness"} editing={adjustmentKey === "brightness"} adjustLabel={t("helper.adjust")} doneLabel={t("helper.done")} value={brightness} onFocus={setFocus} onChange={requestBrightness} accent={accent.primary} text={theme.text} dim={theme.textDim} square={squareCorners} />}
+        </div>
+
+        {pinnedApps.length > 0 && (
+          <div style={{ padding: "14px 0 16px", borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.08)"}` }}>
+            <div style={{ color: theme.textDim, fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 9 }}>
+              {t("helper.pinned")}
+            </div>
+            <div ref={pinnedRowRef} style={{ display: "flex", gap: 9, overflowX: "auto", padding: "2px", scrollbarWidth: "thin" }}>
+              {pinnedApps.map((app) => {
+                const key = `pinned:${app.id}`;
+                const artwork = pinnedArtwork[app.id];
+                return (
+                  <button
+                    key={app.id}
+                    ref={(node) => {
+                      if (node) pinnedButtonRefs.current.set(key, node);
+                      else pinnedButtonRefs.current.delete(key);
+                    }}
+                    type="button"
+                    data-helper-pinned={app.id}
+                    aria-label={app.name}
+                    onClick={() => onOpenPinned(app)}
+                    onMouseMove={() => setFocus(key)}
+                    style={{ ...buttonStyle(key), width: 164, minWidth: 164, padding: "8px 10px", display: "flex", alignItems: "center", gap: 9, textAlign: "left" }}
+                  >
+                    <span style={{ width: 38, height: 38, borderRadius: squareCorners ? 0 : 8, overflow: "hidden", flexShrink: 0, display: "grid", placeItems: "center", background: `${accent.glow}0.18)`, color: accent.primary, fontWeight: 800 }}>
+                      {artwork ? (
+                        <img src={artwork} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : app.icon_base64 ? (
+                        <img src={`data:image/png;base64,${app.icon_base64}`} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                      ) : app.name.charAt(0).toUpperCase()}
+                    </span>
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: "block", color: theme.text, fontSize: 12, fontWeight: 750, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{app.name}</span>
+                      <span style={{ display: "block", color: theme.textFaint, fontSize: 10, marginTop: 2 }}>{t(app.app_type === "game" ? "home.game" : "home.app")}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="lo-tray-row" style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 15, animationDelay: "215ms" }}>
+          {track ? (
+            <>
+              <div style={{ width: 46, height: 46, borderRadius: squareCorners ? 0 : 9, overflow: "hidden", flexShrink: 0, background: `${accent.glow}0.18)`, display: "grid", placeItems: "center" }}>
+                {track.image ? <img src={track.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <IoMusicalNotesOutline color={accent.primary} />}
+              </div>
+              <div style={{ width: 190, minWidth: 0 }}>
+                <div style={{ color: theme.text, fontWeight: 700, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{track.title}</div>
+                <div style={{ color: theme.textDim, fontSize: 12, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{track.artist}</div>
+              </div>
+              <div style={{ display: "flex", gap: 7 }}>
+                {transportButton("previous", t("spotify.previous"), <IoPlayBack size={18} />, spotify.previous)}
+                {transportButton("play", track.isPlaying ? t("spotify.pause") : t("spotify.play"), track.isPlaying ? <IoPause size={18} /> : <IoPlay size={18} />, () => track.isPlaying ? spotify.pause() : spotify.play())}
+                {transportButton("next", t("spotify.next"), <IoPlayForward size={18} />, spotify.next)}
+                {transportButton("stop", t("spotify.stop"), <IoStop size={16} />, spotify.stop)}
+              </div>
+              <div style={{ flex: 1, minWidth: 150, ...focusStyle("seek"), borderRadius: squareCorners ? 0 : 10, padding: "6px 8px", background: adjustmentKey === "seek" ? `color-mix(in srgb, ${accent.primary} 14%, transparent)` : undefined }} onMouseMove={() => setFocus("seek")}>
+                <input type="range" min={0} max={track.durationMs || 1} value={progress} onChange={(event) => { const value = Number(event.target.value); seekDraftRef.current = value; setSeekDraft(value); }} onPointerUp={() => { spotify.seek(seekDraftRef.current ?? track.progressMs); seekDraftRef.current = null; setSeekDraft(null); }} style={{ width: "100%", accentColor: accent.primary }} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", minHeight: 22, color: theme.textFaint, fontSize: 10 }}>
+                  <span>{formatTime(progress)}</span>
+                  <span style={{ visibility: focusKey === "seek" ? "visible" : "hidden" }}><GamepadBtn btn="A" label={adjustmentKey === "seek" ? t("helper.done") : t("helper.adjust")} /></span>
+                  <span style={{ justifySelf: "end" }}>{formatTime(track.durationMs)}</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <><IoMusicalNotesOutline size={28} color={theme.textDim} /><div style={{ flex: 1, color: theme.textDim }}>{t("helper.nothingPlaying")}</div></>
+          )}
+          <button type="button" onClick={spotify.status.connected ? onOpenPlaylists : onConnectSpotify} onMouseMove={() => setFocus("playlists")} style={{ ...buttonStyle("playlists"), padding: "0 15px", fontWeight: 700 }}>
+            {t(!spotify.status.connected ? "helper.connectSpotify" : track ? "helper.playlists" : "helper.openSpotify")}
+          </button>
+        </div>
+
+        {spotify.requiresPremium && <div style={{ color: accent.primary, fontSize: 11, marginTop: 9 }}>{t("spotify.premiumHint")}</div>}
+      </div>
+      </div>
+    </div>
+  );
+}
+
+interface SliderControlProps {
+  icon: ReactNode;
+  label: string;
+  focusKey: string;
+  focused: boolean;
+  editing: boolean;
+  adjustLabel: string;
+  doneLabel: string;
+  value: number;
+  onFocus: (key: string) => void;
+  onChange: (value: number) => void;
+  accent: string;
+  text: string;
+  dim: string;
+  square: boolean;
+}
+
+function SliderControl({ icon, label, focusKey, focused, editing, adjustLabel, doneLabel, value, onFocus, onChange, accent, text, dim, square }: SliderControlProps) {
+  return (
+    <div onMouseMove={() => onFocus(focusKey)} style={{ padding: "9px 11px", borderRadius: square ? 0 : 10, outline: focused ? `2px solid ${accent}` : "2px solid transparent", background: editing ? `color-mix(in srgb, ${accent} 14%, transparent)` : undefined }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 22, marginBottom: 7, color: text, fontSize: 12, fontWeight: 700 }}>{icon}{label}<span style={{ marginLeft: "auto", minWidth: 76, visibility: focused ? "visible" : "hidden" }}><GamepadBtn btn="A" label={editing ? doneLabel : adjustLabel} /></span><span style={{ color: dim }}>{Math.round(value)}%</span></div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <IoChevronBack size={13} color={editing ? accent : dim} />
+        <input type="range" min={0} max={100} value={value} onChange={(event) => onChange(Number(event.target.value))} style={{ flex: 1, accentColor: accent }} />
+        <IoChevronForward size={13} color={editing ? accent : dim} />
+      </div>
+    </div>
+  );
+}
