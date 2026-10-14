@@ -56,6 +56,7 @@ mod steam_artwork;
 mod streaming;
 mod gfn_catalog;
 mod launch_cover;
+mod luna;
 mod moondeck;
 mod crete_news;
 mod crete_videos;
@@ -4886,6 +4887,7 @@ fn classify_browser(exe_path: &str) -> BrowserFamily {
 }
 
 fn launch_cloud_game_kiosk(url: &str) -> Result<u32, String> {
+    if let Some(result) = luna::launch(url) { return result; }
     if !(url.starts_with("http://") || url.starts_with("https://")) {
         return Err("cloud kiosk launch requires an http(s) URL".to_string());
     }
@@ -8898,6 +8900,7 @@ fn match_launch_window_score(
     let launch_file = launch_exe.as_deref().and_then(file_name_lower);
     let candidate_exe = candidate.exe_path.as_deref().unwrap_or_default();
     let candidate_file = file_name_lower(candidate_exe);
+    if source_lower == "cloud" && luna::luna_url(launch_path) && candidate_file.as_deref() == Some("chrome.exe") && title_norm.contains("amazonluna") { return 70; }
     let mut score = 0;
 
     if let (Some(expected), Some(actual)) = (launch_exe.as_ref(), candidate.exe_path.as_ref()) {
@@ -8948,6 +8951,12 @@ fn match_launch_window_score(
 #[cfg(test)]
 mod steam_launch_confirmation_tests {
     use super::*;
+    #[test]
+    fn luna_app_window_is_a_target_for_its_cloud_game() {
+        let candidate = LaunchWindowCandidate { hwnd:1, pid:2, title:"Amazon Luna".into(), exe_path:Some(r"C:\Program Files\Google\Chrome\Application\chrome.exe".into()) };
+        assert_eq!(match_launch_window_score(&candidate, "Dispatch", "https://luna.amazon.co.uk/play?asin=B0H6GQJMBN", "cloud"), 70);
+        assert_eq!(match_launch_window_score(&candidate, "Dispatch", "https://unrelated.test/", "cloud"), 0);
+    }
 
     #[test]
     fn steam_popup_is_not_a_game_even_without_source_metadata() {
@@ -9286,8 +9295,8 @@ fn check_launch_focus(name: String, launch_path: String, source: String) -> Laun
 }
 
 fn stream_window(provider: &str) -> Option<LaunchWindowCandidate> {
-    let executable = match provider { "moonlight" => "Moonlight.exe", "geforceNow" => "GeForceNOWStreamer.exe", _ => return None };
-    collect_launch_windows().into_iter().filter(|window| window.exe_path.as_deref().and_then(|path| std::path::Path::new(path).file_name()).is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case(executable)))
+    let executables: &[&str] = match provider { "moonlight" => &["Moonlight.exe"], "geforceNow" => &["GeForceNOWStreamer.exe", "GeForceNOW.exe"], _ => return None };
+    collect_launch_windows().into_iter().filter(|window| window.exe_path.as_deref().and_then(|path| std::path::Path::new(path).file_name()).is_some_and(|name| executables.iter().any(|exe| name.to_string_lossy().eq_ignore_ascii_case(exe))))
         .find(|window| unsafe {
             let mut rect = windows::Win32::Foundation::RECT::default();
             windows::Win32::UI::WindowsAndMessaging::GetClientRect(windows::Win32::Foundation::HWND(window.hwnd as _), &mut rect).is_ok() && rect.right >= 640 && rect.bottom >= 360
@@ -9679,12 +9688,14 @@ async fn launch_app(
     let cloud_kiosk_pid = if source.eq_ignore_ascii_case("cloud") {
         match launch_cloud_game_kiosk(&path) {
             Ok(pid) => {
-                launch_mode = "cloud-kiosk".to_string();
-                launch_detail =
-                    get_default_browser_exe().map(|browser| format!("{} pid={}", browser, pid));
+                launch_mode = if luna::luna_url(&path) { "cloud-installed-app" } else { "cloud-kiosk" }.to_string();
+                launch_detail = if luna::luna_url(&path) { Some("Installed Amazon Luna app".into()) } else {
+                    get_default_browser_exe().map(|browser| format!("{} pid={}", browser, pid))
+                };
                 Some(pid)
             }
             Err(error) => {
+                if luna::luna_url(&path) { return Err(error); }
                 eprintln!("Cloud kiosk launch fallback: {}", error);
                 launch_mode = "cloud-url-fallback".to_string();
                 fallback_reason = Some(error);

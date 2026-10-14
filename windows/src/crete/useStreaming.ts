@@ -74,7 +74,7 @@ export function useStreaming(app: App, enabled: boolean) {
     if (!gameUrl) return;
     setError(null);
     try {
-      await (profile ? withStreamCover(app, "geforceNow", () => invoke("start_geforce_game", { gameUrl, source: app.source, displayKey: geforceDisplay.displayKey, profile })) : invoke("launch_geforce_game", { gameUrl, source: app.source, play: false }));
+      await withStreamCover(app, "geforceNow", () => profile ? invoke("start_geforce_game", { gameUrl, source: app.source, displayKey: geforceDisplay.displayKey, profile }) : invoke("launch_geforce_game", { gameUrl, source: app.source, play: true }));
       setGeforceConfigure(false);
     } catch (reason) { setError(String(reason)); }
   };

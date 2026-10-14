@@ -991,7 +991,7 @@
     "Play_locally": "Jugar localmente",
     "GeForce_NOW_stream_settings": "Ajustes de streaming de GeForce NOW",
     "Start_game": "Iniciar juego",
-    "Open_game_with_current_settings": "Abrir el juego con los ajustes actuales",
+    "Play_with_current_settings": "Jugar con los ajustes actuales",
     "Close_GeForce_NOW_before_applying_settings_NVIDIA_may_limit_quality_according_to_your_membership_and_device_Codec_is_managed_in_the_NVIDIA_app": "Cierra GeForce NOW antes de aplicar ajustes. NVIDIA puede limitar la calidad segun tu suscripcion y dispositivo. El codec se controla en su aplicacion.",
     "Achievements": "Logros",
     "Unlocked_achievements": "{{count}} desbloqueados"

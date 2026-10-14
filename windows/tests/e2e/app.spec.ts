@@ -102,6 +102,7 @@ test.beforeEach(async ({ page }) => {
         if (command === "get_moonlight_profile") return { displayKey: "DISPLAY1:1920x1080", profile: { host: "Bosgame", resolution: "1920x1080", fps: 120, bitrate: 80000, codec: "auto" } };
         if (command === "get_moonlight_apps") { if (params.has("hostOffline")) throw new Error("Host offline"); return params.has("hostGame") ? ["Control Ultimate Edition", "Desktop"] : ["Desktop", "Steam Big Picture", "MoonDeckStream"]; }
         if (command === "get_streaming_clients") return { geforceNow: true, moonlight: true };
+        if (command === "wait_stream_window" && params.has("holdStreamWindow")) return new Promise<void>(resolve => { (window as any).__releaseStreamWindow = resolve; });
         if (command === "get_geforce_profile") return { displayKey: "DISPLAY1:1920x1080", profile: { host: "GeForce NOW", resolution: "1920x1080", fps: 120, bitrate: 80000, codec: "auto" } };
         if (command === "start_geforce_game" || command === "launch_geforce_game") { (window as any).__lastGeforce = args; return null; }
         if (command === "get_crete_review_videos") return params.has("xboxDetails") ? [{ id: "abcdefghijk", title: "A Plague Tale Requiem analysis", channel: "Whitelight", thumbnail: "https://fixture.test/review.svg", url: "https://www.youtube.com/watch?v=abcdefghijk" }, { id: "lmnopqrstuv", title: "A Plague Tale Requiem review", channel: "Skill Up", thumbnail: "https://fixture.test/review.svg", url: "https://www.youtube.com/watch?v=lmnopqrstuv" }] : [];
@@ -658,6 +659,23 @@ for (const input of ["keyboard", "controller"]) {
     }).toBe(true);
   });
 }
+
+test("GFN current settings start Play and keep an artwork-only spinner until handoff", async ({ page }) => {
+  await richCrete(page);
+  await page.goto("/?crete&rich&gfn&holdStreamWindow");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  await page.locator('[data-crete-details="true"]').getByRole("button", { name: "Play", exact: true }).click();
+  await page.getByRole("button", { name: "Play with current settings", exact: true }).click();
+  const cover = page.locator("[data-stream-launch-cover]");
+  await expect(cover).toBeVisible();
+  await expect(cover.locator("h1,h2,button")).toHaveCount(0);
+  await expect(cover.locator("span")).toHaveCSS("animation-name", "creteLaunchSpinner");
+  expect(await page.evaluate(() => (window as any).__lastGeforce.play)).toBe(true);
+  expect(await page.evaluate(() => (window as any).__invokeCounts.start_geforce_game ?? 0)).toBe(0);
+  await page.evaluate(() => (window as any).__releaseStreamWindow());
+  await expect(cover).toHaveCount(0);
+});
 
 test("Uninstalled mapped games offer green GFN Play plus native install and streaming alternatives", async ({ page }) => {
   await richCrete(page);

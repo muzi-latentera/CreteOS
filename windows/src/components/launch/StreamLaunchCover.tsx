@@ -42,8 +42,8 @@ export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<
   }, [!!cover]);
   if (!cover) return null;
   const art = customHeroArt[cover.app.id] || heroArt[cover.app.id];
-  return <div data-stream-launch-cover="" role="status" aria-live="polite" style={{ position: "fixed", inset: 0, zIndex: 10000, display: "grid", placeContent: "center", textAlign: "center", gap: 16, color: "#f2eadb", background: art ? `linear-gradient(rgba(0,0,0,.35),rgba(0,0,0,.8)),url(${JSON.stringify(art)}) center/cover` : "rgba(10,13,16,.92)", opacity: cover.fading ? 0 : 1, transition: "opacity 650ms ease" }}>
-    <h1>{cover.app.name}</h1><p>{t("launch.launching")}</p>
-    <button type="button" onClick={dismiss}>{t("launch.dismiss")}</button>
+  return <div data-stream-launch-cover="" role="status" aria-label={t("launch.launching")} style={{ position: "fixed", inset: 0, zIndex: 10000, display: "grid", placeContent: "center", background: art ? `linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.4)),url(${JSON.stringify(art)}) center/cover` : "rgba(10,13,16,.92)", opacity: cover.fading ? 0 : 1, transition: "opacity 650ms ease" }}>
+    <style>{"@keyframes creteLaunchSpinner { to { transform:rotate(360deg) } }"}</style>
+    <span aria-hidden="true" style={{ width: 42, height: 42, borderRadius: "50%", border: "3px solid rgba(242,234,219,.18)", borderTopColor: "rgba(242,234,219,.7)", animation: "creteLaunchSpinner 1s linear infinite" }} />
   </div>;
 }

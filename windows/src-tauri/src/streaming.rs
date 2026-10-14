@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::io::{Read, Write};
 
-fn bounded_output(mut command: std::process::Command, input: Option<&[u8]>) -> Result<std::process::Output, String> {
+pub(crate) fn bounded_output(mut command: std::process::Command, input: Option<&[u8]>) -> Result<std::process::Output, String> {
     command.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
     if input.is_some() { command.stdin(std::process::Stdio::piped()); }
     #[cfg(windows)] { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
@@ -89,8 +89,27 @@ fn geforce_native_game_uri(game_url: &str) -> Result<String, String> {
 pub async fn launch_geforce_game(game_url: String, source: Option<String>, play: Option<bool>) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let (client, argument) = geforce_launch(&game_url, source.as_deref(), play.unwrap_or(true))?;
-        std::process::Command::new(client).arg(argument).spawn().map(|_| ()).map_err(|error| error.to_string())
+        spawn_geforce(&client, &argument)
     }).await.map_err(|e| e.to_string())?
+}
+
+fn geforce_raw_route(argument: &str) -> Result<String, String> {
+    let route = argument.strip_prefix("--url-route=").ok_or("Missing NVIDIA route")?;
+    if route.contains('"') || route.chars().any(char::is_control) { return Err("Invalid NVIDIA route".into()); }
+    // NVIDIA's proxy reads its raw Windows command line. Preserve the quoted
+    // value exactly as NVIDIA-created desktop shortcuts do.
+    Ok(format!("--url-route=\"{route}\""))
+}
+fn spawn_geforce(client: &std::path::Path, argument: &str) -> Result<(), String> {
+    let mut command = std::process::Command::new(client);
+    command.current_dir(client.parent().ok_or("Missing NVIDIA client directory")?);
+    #[cfg(windows)] {
+        use std::os::windows::process::CommandExt;
+        if argument.starts_with("--url-route=") { command.raw_arg(geforce_raw_route(argument)?); }
+        else { command.arg(argument); }
+    }
+    #[cfg(not(windows))] { command.arg(argument); }
+    command.spawn().map(|_| ()).map_err(|error| error.to_string())
 }
 
 fn shortcut_route(arguments: &str, game_id: &str, source: Option<&str>) -> Option<String> {
@@ -182,7 +201,7 @@ pub async fn start_geforce_game(game_url: String, display_key: String, profile: 
         let temporary = path.with_file_name("sharedstorage.creteos.tmp");
         std::fs::write(&temporary, serde_json::to_vec(&settings).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         std::fs::rename(&temporary, &path).map_err(|e| e.to_string())?;
-        let launch = std::process::Command::new(client).arg(argument).spawn();
+        let launch = spawn_geforce(&client, &argument);
         if let Err(error) = launch { let _ = std::fs::write(&path, original); return Err(error.to_string()); }
         let path = super::liftoff_dir().join("geforce_profiles.json");
         let mut profiles: serde_json::Value = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(serde_json::json!({}));
@@ -327,6 +346,11 @@ pub async fn launch_moonlight(app_name: String, display_key: String, profile: Mo
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn nvidia_raw_route_matches_desktop_shortcut_quoting() {
+        assert_eq!(super::geforce_raw_route("--url-route=#?cmsId=107016426&launchSource=External").unwrap(), "--url-route=\"#?cmsId=107016426&launchSource=External\"");
+        assert!(super::geforce_raw_route("--url-route=bad\"injection").is_err());
+    }
     #[test]
     fn geforce_routes_reject_external_urls_and_preserve_exact_game_ids() {
         let route = super::geforce_native_game_uri("https://play.geforcenow.com/games?game-id=5aa78bb8-6af4-49d9-b678-4b7c3685a98c").unwrap();
