@@ -184,3 +184,30 @@ describe("Crete minimal game launch cover", () => {
     act(() => root.unmount()); node.remove(); vi.unstubAllGlobals();
   });
 });
+
+
+describe("launch preparation ordering", () => {
+  it("waits for native preparation, painted artwork and minimum visible time before dispatch", async () => {
+    vi.clearAllMocks(); callbacks.clear(); vi.useFakeTimers();
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    let frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", vi.fn(callback => { frames.push(callback); return 1; }));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    let prepared!: () => void;
+    invoke.mockImplementation(async command => {
+      if (command === "set_launch_cover") await new Promise<void>(resolve => { prepared = resolve; });
+    });
+    const node = document.createElement("div"); document.body.appendChild(node);
+    const root = createRoot(node); const ready = vi.fn();
+    await act(async () => root.render(<LaunchOverlay minimal app={{ id: "luna", name: "Dispatch", source: "cloud", app_type: "game", launch_path: "https://luna.amazon.co.uk/play?asin=test" } as App} gameArt={{}} customArt={{}} heroArt="https://fixture.test/hero.jpg" accent={{ primary: "#fff", glow: "rgba(0,0,0," } as AccentColors} onReady={ready} onDone={() => {}} />));
+    expect(node.querySelector('[data-game-launch-cover]')).not.toBeNull();
+    expect(ready).not.toHaveBeenCalled();
+    await act(async () => prepared());
+    expect(ready).not.toHaveBeenCalled();
+    for (let frame = 0; frame < 2; frame++) await act(async () => { const pending = frames; frames = []; pending.forEach(callback => callback(0)); });
+    expect(ready).not.toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTime(200));
+    expect(ready).toHaveBeenCalledOnce();
+    act(() => root.unmount()); node.remove(); vi.useRealTimers(); vi.unstubAllGlobals();
+  });
+});

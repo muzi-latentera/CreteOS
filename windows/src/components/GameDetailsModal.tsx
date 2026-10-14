@@ -1,3 +1,4 @@
+import { cloudProvider } from "../crete/streaming";
 import { useCreteText } from "../crete/text";
 import { CreteDetailsInfo } from "../crete/CreteDetailsInfo";
 import { LaunchMenu } from "../crete/LaunchMenu";
@@ -1182,7 +1183,7 @@ export function GameDetailsModal({
               </div>
             )}
 
-            <div data-crete-detail-slot="primary-actions" data-cloud={isCloud || cloudDefault} data-provider={cloudDefault ? streaming.provider : isCloud ? "geforceNow" : "local"} style={{
+            <div data-crete-detail-slot="primary-actions" data-cloud={isCloud || cloudDefault} data-provider={cloudDefault ? streaming.provider : isCloud ? cloudProvider(app) : "local"} style={{
               display: "flex",
               alignItems: "center",
               gap: 10,
@@ -1191,8 +1192,8 @@ export function GameDetailsModal({
               {launchLoading ? <LaunchLoading /> : <button
                 data-launch-btn={resolvedTheme === "crete" ? "" : undefined}
                 data-cloud={isCloud || cloudDefault}
-                data-provider={cloudDefault ? streaming.provider : isCloud ? "geforceNow" : "local"}
-                title={cloudDefault ? streaming.provider === "moonlight" ? "Moonlight" : "GeForce NOW" : undefined}
+                data-provider={cloudDefault ? streaming.provider : isCloud ? cloudProvider(app) : "local"}
+                title={isCloud ? cloudProvider(app) === "luna" ? "Amazon Luna" : cloudProvider(app) === "geforceNow" ? "GeForce NOW" : app.name : cloudDefault ? streaming.provider === "moonlight" ? "Moonlight" : "GeForce NOW" : undefined}
                 ref={(node) => { focusRefs.current[0] = node; }}
                 onClick={primaryDisabled ? undefined : handlePrimaryAction}
                 disabled={primaryDisabled}

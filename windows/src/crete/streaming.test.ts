@@ -3,6 +3,10 @@ import { defaultProvider, geforceNowUrl, isPcGame, moonlightMatch, moonlightTarg
 import type { App } from "../types";
 
 describe("streaming targets", () => {
+  it("identifies Luna from its exact launch host even for a saved installed entry", () => {
+    expect(defaultProvider({ source: "cloud", installed: true, launch_path: "https://luna.amazon.co.uk/play?asin=test" } as App)).toBe("luna");
+    expect(defaultProvider({ source: "cloud", launch_path: "https://luna.amazon.co.uk.example.com/play" } as App)).toBe("cloud");
+  });
   it("routes exact installed Steam IDs to MoonDeck setup, without inferring from a launcher", () => {
     const game: App = { id: "re2", name: "Resident Evil 2", source: "steam", steam_appid: 883710, installed: false };
     const apps = ["MoonDeckStream", "Desktop", "Steam"];

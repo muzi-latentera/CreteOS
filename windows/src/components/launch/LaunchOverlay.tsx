@@ -23,11 +23,12 @@ interface LaunchOverlayProps {
   heroArt?: string;
   accent: AccentColors;
   onDone: () => void;
+  onReady?: () => void;
   onSuccess?: () => void;
   hapticEnabled?: boolean;
 }
 
-export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone, onSuccess, hapticEnabled = true, minimal = false }: LaunchOverlayProps) {
+export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone, onSuccess, hapticEnabled = true, minimal = false, onReady }: LaunchOverlayProps) {
   const { t } = useTranslation();
   const art = app?.app_type === "game" ? (customArt?.[app.id] || gameArt[app.id]) : null;
   const [status, setStatus] = useState<LaunchStatus>("launching");
@@ -61,7 +62,7 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
     const done = onDone;
     const success = onSuccess;
     mounted.current = true;
-    void Promise.resolve(invoke("set_launch_cover", { active: true, ...(launchTarget.source === "cloud" && /^https:\/\/luna\.amazon\.(co\.uk|com)(?:\/|$)/.test(launchTarget.launch_path) ? { allowExternalFocus: true } : {}) })).catch(() => {});
+    const coverReady = Promise.resolve(invoke("set_launch_cover", { active: true, ...(launchTarget.source === "cloud" && /^https:\/\/luna\.amazon\.(co\.uk|com)(?:\/|$)/.test(launchTarget.launch_path) ? { allowExternalFocus: true } : {}) })).catch(() => {});
 
     const style = document.createElement("style");
     style.id = "launch-overlay-styles";
@@ -223,6 +224,13 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
       rafRef.current = requestAnimationFrame(poll);
     };
     rafRef.current = requestAnimationFrame(poll);
+
+    // Launch only after native preparation and two paint opportunities. This
+    // prevents a late window.show/overlay mount from raising CreteOS over Luna.
+    void coverReady.then(() => new Promise<void>(resolve => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    })).then(() => new Promise<void>(resolve => window.setTimeout(resolve, minimal ? 200 : 0)))
+      .then(() => { if (mounted.current) onReady?.(); });
 
     return () => {
       mounted.current = false;

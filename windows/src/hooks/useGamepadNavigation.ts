@@ -254,6 +254,7 @@ export interface GamepadNavigationResult {
   switchTab: (newTab: string, direction?: "forward" | "back") => void;
   triggerLaunch: (app: App, rec: App[]) => void;
   closeLaunchOverlay: () => void;
+  startPreparedLaunch: () => void;
   closeHideModal: () => void;
   closeLibraryActionsModal: () => void;
   closePowerModal: () => void;
@@ -283,6 +284,12 @@ export function useGamepadNavigation(
   const [homeColFocusCol, setHomeColFocusCol] = useState(0);
   const [heroActionIndex, setHeroActionIndex] = useState(0);
   const [launchingApp, setLaunchingApp] = useState<App | null>(null);
+  const pendingLaunchRef = useRef<App | null>(null);
+  const startPreparedLaunch = useRef(() => {
+    const app = pendingLaunchRef.current;
+    pendingLaunchRef.current = null;
+    if (app) launchApp(app).catch(err => console.warn("launch_app failed", err));
+  }).current;
   const [windowFocused, setWindowFocused] = useState(true);
   const tabRef = useRef(options.initialTab ?? "Home");
   const focusSectionRef = useRef("hero");
@@ -505,9 +512,9 @@ export function useGamepadNavigation(
     lastLaunchTime.current = now;
     launchedAppSessionRef.current = true;
     playSoundGameStart();
+    pendingLaunchRef.current = app;
     setLaunchingApp(app); launchingAppRef.current = app;
     haptic("confirm");
-    launchApp(app).catch((err) => console.warn("launch_app failed", err));
     const updated = [app, ...rec.filter(r => r.id !== app.id)].slice(0, 10);
     setRecent(updated); recentRef.current = updated;
     if (app.app_type === "game") {
@@ -534,6 +541,7 @@ export function useGamepadNavigation(
         Start: s.Start,
       };
     }
+    pendingLaunchRef.current = null;
     setLaunchingApp(null);
     launchingAppRef.current = null;
   };
@@ -2059,6 +2067,7 @@ export function useGamepadNavigation(
     switchTab,
     triggerLaunch,
     closeLaunchOverlay,
+    startPreparedLaunch,
     closeHideModal,
     closeLibraryActionsModal,
     closePowerModal,

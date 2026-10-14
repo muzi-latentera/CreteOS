@@ -122,7 +122,7 @@ test.beforeEach(async ({ page }) => {
             home_launch_games_directly: params.has("direct") };
         }
         if (command === "get_all_apps") {
-          if (params.has("lunaDetails")) return [{ id: "cloud:luna:dispatch", name: "Dispatch", source: "cloud", app_type: "game", installed: true, steam_appid: 2592160, launch_path: "https://luna.amazon.co.uk/play?asin=B0H6GQJMBN" }, { id: "cloud:luna:galactic", name: "STAR WARS: Galactic Racer", source: "cloud", app_type: "game", installed: true, steam_appid: 4078430, launch_path: "https://luna.amazon.co.uk/play?asin=B0HLN4GG5K" }];
+          if (params.has("lunaDetails")) return [{ id: "cloud:luna:dispatch", name: "Dispatch", last_played: params.has("played") ? 1725000000 : undefined, source: "cloud", app_type: "game", installed: true, steam_appid: 2592160, launch_path: "https://luna.amazon.co.uk/play?asin=B0H6GQJMBN" }, { id: "cloud:luna:galactic", name: "STAR WARS: Galactic Racer", source: "cloud", app_type: "game", installed: true, steam_appid: 4078430, launch_path: "https://luna.amazon.co.uk/play?asin=B0HLN4GG5K" }];
           if (params.has("xboxDetails")) return [{ id: "xbox-owned:2089483628", name: "A Plague Tale: Requiem", source: "xbox", app_type: "game", xbox_product_id: "2089483628", installed: false }];
           if (params.has("applications")) return [
             { id: "app:terminal", name: "Terminal", launch_path: "C:\\Windows\\Terminal.exe", app_type: "app", installed: true },
@@ -131,7 +131,7 @@ test.beforeEach(async ({ page }) => {
           if (params.has("holdRefresh") && counts[command] > 1) await new Promise((resolve) => { (window as any).__releaseScan = resolve; });
           if (params.has("rich")) return Array.from({ length: 24 }, (_, i) => ({
             id: `steam://rungameid/${620 + i}`, name: i === 0 ? (params.has("gfnHero") ? "Control Ultimate Edition" : "Portal 2") : i === 1 ? "Hollow Knight" : i === 2 && params.has("gfn") ? "Control Ultimate Edition" : `Test Game ${String(i + 1).padStart(2, "0")}`,
-            app_type: "game", source: i === 23 ? "cloud" : "steam", steam_appid: (i === 2 && params.has("gfn")) || (i === 0 && params.has("gfnHero")) ? 870780 : 620 + i,
+            app_type: "game", launch_path: i === 23 ? "https://example.test/play" : `steam://rungameid/${620 + i}`, source: i === 23 ? "cloud" : "steam", steam_appid: (i === 2 && params.has("gfn")) || (i === 0 && params.has("gfnHero")) ? 870780 : 620 + i,
             installed: i === 0 && params.has("gfnHero") ? false : i === 2 && params.has("gfnLocal") ? true : i % 3 !== 2, last_played: params.has("played") ? 1725000000 - i * 86400 : undefined,
             playtime_minutes: i === 0 ? 93 : undefined,
           }));
@@ -769,8 +769,8 @@ test("MoonDeckStream passes the selected Steam ID and requires its own pairing",
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
   await expect(details.locator("[data-launch-btn]")).toHaveText("Play");
   await expect(details.locator("[data-launch-btn]")).toHaveAttribute("data-provider", "moonlight");
-  await expect(details.locator("[data-launch-btn]")).toHaveCSS("background-color", "rgb(113, 100, 217)");
-  await expect(details.getByRole("button", { name: "Launch options", exact: true })).toHaveCSS("background-color", "rgb(113, 100, 217)");
+  await expect(details.locator("[data-launch-btn]")).toHaveCSS("background-color", "rgb(105, 117, 128)");
+  await expect(details.getByRole("button", { name: "Launch options", exact: true })).toHaveCSS("background-color", "rgb(105, 117, 128)");
   await details.locator("[data-launch-btn]").click();
   await expect(stream.getByRole("button", { name: "Start stream", exact: true })).toBeDisabled();
   await expect(stream.getByRole("button", { name: "Pair MoonDeck Buddy", exact: true })).toBeVisible();
@@ -952,7 +952,7 @@ test("Daily host refresh never blocks local Play and keeps purple Play during ma
   const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
   await stream.getByRole("button", { name: "Refresh host", exact: true }).click();
   await expect(stream.getByRole("button", { name: "Checking…", exact: true })).toBeDisabled();
-  await expect(details.locator("[data-launch-btn]")).toHaveCSS("background-color", "rgb(113, 100, 217)");
+  await expect(details.locator("[data-launch-btn]")).toHaveCSS("background-color", "rgb(105, 117, 128)");
   await expect(details.locator(".crete-launch-loading")).toHaveCount(0);
   await expect(stream.getByRole("button", { name: "Start stream", exact: true })).toBeEnabled();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.get_host_installed_games)).toBe(2);
@@ -973,9 +973,9 @@ test("Saved Moonlight availability survives reload without host requests", async
   await savedHost(page);
   await page.goto("/?crete&rich&played&gfnHero&hostOffline");
   const hero = page.locator(".crete-hero");
-  await expect(hero.locator(".crete-play")).toHaveCSS("background-color", "rgb(113, 100, 217)");
+  await expect(hero.locator(".crete-play")).toHaveCSS("background-color", "rgb(105, 117, 128)");
   await page.reload();
-  await expect(hero.locator(".crete-play")).toHaveCSS("background-color", "rgb(113, 100, 217)");
+  await expect(hero.locator(".crete-play")).toHaveCSS("background-color", "rgb(105, 117, 128)");
   for (const command of ["get_host_installed_games", "get_moonlight_apps", "get_moondeck_status"]) {
     expect(await page.evaluate(command => (window as any).__invokeCounts[command] ?? 0, command)).toBe(0);
   }
@@ -1145,4 +1145,19 @@ test("Pointer-opened provider menu shows D-pad focus and activates the selected 
   await expect(moonlight).toHaveCSS("outline-width", "2px");
   await pad(page, 0);
   await expect(details.getByRole("dialog", { name: "Moonlight stream settings" })).toBeVisible();
+});
+
+
+test("Luna hero and details share purple Play while Home and Library have two pixel focus", async ({ page }) => {
+  await page.goto("/?crete&rich&lunaDetails&played");
+  const hero = page.locator(".crete-hero");
+  await expect(hero.locator(".crete-play")).toHaveCSS("background-color", "rgb(145, 70, 255)");
+  await expect(hero).toHaveCSS("outline-width", "2px");
+  await hero.locator(".crete-play").click();
+  const details = page.locator('[data-crete-details="true"]');
+  await expect(details.locator("[data-launch-btn]")).toHaveCSS("background-color", "rgb(145, 70, 255)");
+  await expect(details.getByRole("button", { name: "Launch options", exact: true })).toHaveCSS("background-color", "rgb(145, 70, 255)");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await expect(page.locator('.crete-game-card[data-selected="true"]').first()).toHaveCSS("outline-width", "2px");
 });

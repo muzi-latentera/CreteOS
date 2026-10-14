@@ -72,7 +72,7 @@ export function CreteHomeView(p: CreteHomeProps) {
   const animatedArtwork = hero && (p.heroAnimated?.[hero.id] || (heroType === "animated" ? p.customHeroArt[hero.id] : undefined));
   const artwork = heroType === "animated" && animatedArtwork ? animatedArtwork : staticArtwork;
   const showArtwork = p.settings.home_mode === "normal" || p.settings.show_immersive_hero_art !== false;
-  const heroProvider = hero ? p.isRunning(hero.id) ? "local" : streaming.provider : "install";
+  const heroProvider = hero ? p.isRunning(hero.id) && hero.source !== "cloud" ? "local" : streaming.provider : "install";
   const open = (app: App) => {
     if (!p.settings.home_launch_games_directly) { p.onOpenDetails(app); return; }
     const host = streaming.online && streaming.clients.moonlight ? moonlightTarget(app, streaming.apps, streaming.hostGames?.map(game => game.steamAppId) ?? []) : undefined;
@@ -159,8 +159,8 @@ export function CreteHomeView(p: CreteHomeProps) {
         <div className="crete-hero-copy"><span className="crete-eyebrow crete-amber">{text("Continue where you stopped")}</span>
           <div className="crete-hero-title"><h1>{hero.name}</h1></div>
           <div className="crete-hero-tags">{p.settings.show_store_badges !== false && <span>{sourceLabel(hero.source)}</span>}{hero.installed && <span className="crete-local">{text("Local")}</span>}</div>
-          {!p.isRunning(hero.id) && streaming.checking ? <LaunchLoading /> : <button type="button" className="crete-play" data-provider={heroProvider} data-cloud={heroProvider === "moonlight" || heroProvider === "geforceNow"}
-            title={heroProvider === "moonlight" ? "Moonlight" : heroProvider === "geforceNow" ? "GeForce NOW" : undefined}
+          {!p.isRunning(hero.id) && streaming.checking ? <LaunchLoading /> : <button type="button" className="crete-play" data-provider={heroProvider} data-cloud={heroProvider === "moonlight" || heroProvider === "geforceNow" || heroProvider === "luna" || heroProvider === "cloud"}
+            title={heroProvider === "moonlight" ? "Moonlight" : heroProvider === "geforceNow" ? "GeForce NOW" : heroProvider === "luna" ? "Amazon Luna" : undefined}
             onFocus={() => { setSelection(null); setNewsIndex(-1); }} onClick={() => open(hero)}><IoPlay />{text("Play")}</button>}
           {launchError && <p role="alert">{launchError}</p>}{p.spotifyHeroChip}
         </div>

@@ -24,7 +24,7 @@
 .crete-tool { height:40px; min-width:40px; padding:0 11px; border:1px solid var(--crete-border); border-radius:10px; background:rgba(242,234,219,.045); color:var(--crete-dim); display:flex; align-items:center; justify-content:center; gap:9px; font-size:13px!important; }
 .crete-tool svg { width:19px; height:19px; }
 .crete-count { font:12px ui-monospace,monospace; color:var(--crete-dim); white-space:nowrap; margin-right:2px; }
-[data-nav-focused="true"] { outline:1px solid var(--crete-accent); outline-offset:3px; }
+[data-nav-focused="true"] { outline:2px solid var(--crete-accent); outline-offset:3px; }
 .crete-library-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:16px; padding:4px; margin:0 -4px; }
 .crete-game-card { display:block; position:relative; width:100%; aspect-ratio:152/203; padding:0; overflow:hidden; border-radius:12px; border:1px solid var(--crete-border); background:#171b21; color:var(--crete-text); text-align:left; transition:transform .12s ease,border-color .12s ease; }
 .crete-game-card[data-selected="true"] { border-color:var(--crete-accent); transform:scale(1.025); z-index:2; }
@@ -64,7 +64,7 @@
 .crete-hero-tags span { padding:5px 9px; background:#ffffff10; border:1px solid var(--crete-border); border-radius:5px; font:10px ui-monospace,monospace; text-transform:uppercase; }
 .crete-local { color:#7cd19b; }
 .crete-play { height:44px; padding:0 20px; border:0; border-radius:10px; background:#c9482a; color:#fff; font-weight:700!important; display:inline-flex; align-items:center; gap:10px; }
-.crete-play[data-provider="moonlight"], [data-crete-details="true"] [data-crete-detail-slot="primary-actions"][data-provider="moonlight"] { --crete-play-colour:#7164d9; }
+.crete-play[data-provider="moonlight"], [data-crete-details="true"] [data-crete-detail-slot="primary-actions"][data-provider="moonlight"] { --crete-play-colour:#697580; }
 .crete-play[data-provider="geforceNow"], [data-crete-details="true"] [data-crete-detail-slot="primary-actions"][data-provider="geforceNow"] { --crete-play-colour:#7cab00; }
 .crete-hero-info { position:relative; margin:24px; width:256px; padding:20px; border-radius:16px; background:#08090ba8; border:1px solid var(--crete-border); }
 .crete-hero-info dl { display:grid; grid-template-columns:auto minmax(0,1fr); gap:16px 12px; font-size:12px; margin:22px 0 0; }
@@ -176,3 +176,7 @@
 .crete-hero-copy,.crete-hero-info { z-index:2; pointer-events:none; }
 .crete-hero-copy :is(button,a,input,select,[role="button"]) { pointer-events:auto; }
 .crete-hero-open:focus-visible { outline:2px solid var(--crete-accent); outline-offset:-3px; }
+
+.crete-play[data-provider="luna"], [data-crete-details="true"] [data-crete-detail-slot="primary-actions"][data-provider="luna"] { --crete-play-colour:#9146ff; }
+.crete-play[data-provider="cloud"], [data-crete-details="true"] [data-crete-detail-slot="primary-actions"][data-provider="cloud"] { --crete-play-colour:#697580; }
+.crete-game-card[data-selected="true"], .crete-hero[data-focused="true"], .crete-news-card[data-selected="true"] { outline:2px solid var(--crete-accent); outline-offset:-2px; }

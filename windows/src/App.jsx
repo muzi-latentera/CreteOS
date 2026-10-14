@@ -943,6 +943,7 @@ export default function App() {
     switchTab,
     triggerLaunch,
     closeLaunchOverlay,
+    startPreparedLaunch,
     closeHideModal,
     closeLibraryActionsModal,
     closePowerModal,
@@ -3293,7 +3294,7 @@ export default function App() {
           {fseHintText}
         </div>
       )}
-      {launchingApp && <LaunchOverlay minimal={resolvedTheme === "crete" && launchingApp.app_type === "game"} app={launchingApp} gameArt={gameArt} customArt={customArt} heroArt={customHeroArt[launchingApp.id] || heroStatic[launchingApp.id]} accent={accent} onDone={closeLaunchOverlay} onSuccess={playLaunchSuccessSound} hapticEnabled={settings.haptic_feedback ?? true} />}
+      {launchingApp && <LaunchOverlay onReady={startPreparedLaunch} minimal={resolvedTheme === "crete" && launchingApp.app_type === "game"} app={launchingApp} gameArt={gameArt} customArt={customArt} heroArt={customHeroArt[launchingApp.id] || heroStatic[launchingApp.id]} accent={accent} onDone={closeLaunchOverlay} onSuccess={playLaunchSuccessSound} hapticEnabled={settings.haptic_feedback ?? true} />}
       {closeRequest && (
         <ConfirmModal
           message={closeRequest.force

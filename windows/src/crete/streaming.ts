@@ -17,7 +17,17 @@ export function moonlightMatch(app: App, apps: string[]): string | undefined {
   return apps.find(name => normalize(name) === normalize(app.name));
 }
 
-export function defaultProvider(app: App, moonlightGame?: string, gfnUrl?: string): "local" | "moonlight" | "geforceNow" | "install" {
+export function cloudProvider(app: App): "luna" | "geforceNow" | "cloud" {
+  try {
+    const host = new URL(app.launch_path).hostname;
+    if (["luna.amazon.co.uk", "luna.amazon.com"].includes(host)) return "luna";
+    if (["play.geforcenow.com", "geforcenow.com"].includes(host)) return "geforceNow";
+  } catch { /* Unknown cloud provider keeps a neutral presentation. */ }
+  return "cloud";
+}
+
+export function defaultProvider(app: App, moonlightGame?: string, gfnUrl?: string): "local" | "moonlight" | "geforceNow" | "luna" | "cloud" | "install" {
+  if (app.source === "cloud") return cloudProvider(app);
   return moonlightGame ? "moonlight" : app.installed ? "local" : gfnUrl ? "geforceNow" : "install";
 }
 

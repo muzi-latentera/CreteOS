@@ -94,7 +94,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     {!loading && <button ref={anchor} type="button" className="crete-details-manage" aria-label={text("Launch options")} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><IoChevronDownOutline /></button>}
     {open && !loading && <div className="crete-launch-popover" role="menu" aria-label={text("Launch options")}>
       {row(localLabel, "local", "#c9482a", local, !localEnabled)}
-      {s.pcGame && row("Moonlight", "moonlight", "#7164d9", () => s.launch("moonlight"), !s.clients.moonlight)}
+      {s.pcGame && row("Moonlight", "moonlight", "#697580", () => s.launch("moonlight"), !s.clients.moonlight)}
       {s.gameUrl && row("GeForce NOW", "geforceNow", "#7cab00", () => s.launch("geforceNow", true))}
       {!s.gameUrl && s.clients.geforceNow && row("GeForce NOW library", "", "#7cab00", () => s.launch("geforceNow"))}
       <button type="button" role="menuitem" onClick={() => choose(manage)}>{text(manageLabel)}</button>
