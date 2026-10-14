@@ -10,6 +10,7 @@ pub fn set_launch_cover(window: tauri::Window, active: bool) -> Result<(), Strin
     // Fail open after two minutes, even if the webview crashes during startup.
     let until = if active { now() + 120 } else { 0 };
     UNTIL.store(until, Ordering::SeqCst);
+    if active { crate::stream_readiness::begin(); }
     window.set_always_on_top(active).map_err(|e| e.to_string())?;
     if active {
         window.show().map_err(|e| e.to_string())?;

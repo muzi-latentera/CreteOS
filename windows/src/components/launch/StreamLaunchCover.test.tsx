@@ -5,19 +5,26 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 
 describe("stream artwork handoff", () => {
   afterEach(() => { vi.clearAllMocks(); vi.useRealTimers(); });
-  it("waits for client readiness and fade before releasing the cover", async () => {
-    vi.useFakeTimers();
-    let ready!: () => void;
-    invoke.mockImplementation(async command => { if (command === "wait_stream_window") await new Promise<void>(resolve => { ready = resolve; }); });
-    const launch = vi.fn(async () => undefined);
-    const pending = withStreamCover({ id: "re2", name: "Resident Evil 2" }, "moonlight", launch);
+  it("keeps the artwork opaque through native focus transfer before removing it", async () => {
+    let ready!: () => void; let focused!: () => void;
+    const states: unknown[] = [];
+    const listener = (event: Event) => states.push((event as CustomEvent).detail);
+    window.addEventListener("crete-stream-cover", listener);
+    invoke.mockImplementation(async command => {
+      if (command === "wait_stream_window") await new Promise<void>(resolve => { ready = resolve; });
+      if (command === "focus_stream_window") await new Promise<void>(resolve => { focused = resolve; });
+    });
+    const pending = withStreamCover({ id: "re2", name: "Resident Evil 2" }, "moonlight", async () => undefined);
     await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("wait_stream_window", { provider: "moonlight" }));
+    expect(states).toHaveLength(1);
+    ready();
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("focus_stream_window", { provider: "moonlight" }));
+    expect(states).toHaveLength(1);
     expect(invoke).not.toHaveBeenCalledWith("set_launch_cover", { active: false });
-    ready(); await vi.advanceTimersByTimeAsync(649);
-    expect(invoke).not.toHaveBeenCalledWith("focus_stream_window", expect.anything());
-    await vi.advanceTimersByTimeAsync(1); await pending;
-    expect(invoke).toHaveBeenCalledWith("set_launch_cover", { active: false });
-    expect(invoke).toHaveBeenLastCalledWith("focus_stream_window", { provider: "moonlight" });
+    focused(); await pending;
+    expect(states[states.length - 1]).toBeNull();
+    expect(invoke).toHaveBeenLastCalledWith("set_launch_cover", { active: false });
+    window.removeEventListener("crete-stream-cover", listener);
   });
   it("releases the cover after a failed launch and keeps the error", async () => {
     invoke.mockResolvedValue(undefined);

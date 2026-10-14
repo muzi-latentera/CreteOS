@@ -56,6 +56,7 @@ mod steam_artwork;
 mod streaming;
 mod gfn_catalog;
 mod launch_cover;
+mod stream_readiness;
 mod luna;
 mod moondeck;
 mod crete_news;
@@ -9308,24 +9309,35 @@ async fn wait_stream_window(provider: String) -> Result<(), String> {
     if !matches!(provider.as_str(), "moonlight" | "geforceNow") { return Err("Unknown streaming client".into()); }
     tauri::async_runtime::spawn_blocking(move || {
         let start = Instant::now(); let mut candidate: Option<(isize, Instant)> = None;
+        let mut log = stream_readiness::take();
+        let mut stream_ready = false;
         while start.elapsed() < Duration::from_secs(45) {
+            if !launch_cover::active() { return Ok(()); }
+            if provider == "geforceNow" { stream_ready |= log.poll() != stream_readiness::Signal::Waiting; }
             if let Some(window) = stream_window(&provider) {
                 let ready = candidate.get_or_insert((window.hwnd, Instant::now()));
                 if ready.0 != window.hwnd { *ready = (window.hwnd, Instant::now()); }
-                if ready.1.elapsed() >= Duration::from_secs(2) { return Ok(()); }
+                if ready.1.elapsed() >= Duration::from_secs(2) && (provider != "geforceNow" || stream_ready) { return Ok(()); }
             } else { candidate = None; }
             std::thread::sleep(Duration::from_millis(250));
         }
-        Err("The streaming window has not opened. Check the streaming app.".into())
+        // NVIDIA may need login/queue interaction or stop logging a signal in a
+        // future client. Hand off to its existing window instead of trapping it.
+        if stream_window(&provider).is_some() { Ok(()) }
+        else { Err("The streaming window has not opened. Check the streaming app.".into()) }
     }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn focus_stream_window(app_handle: tauri::AppHandle, provider: String) {
-    if let Some(window) = stream_window(&provider) {
-        focus_external_window(windows::Win32::Foundation::HWND(window.hwnd as _));
-        if load_settings_inner().hide_on_launch { fse_watcher::start_gpu_release_watch(app_handle, OUR_HWND.load(Ordering::Relaxed), Some(window.hwnd)); }
-    }
+fn focus_stream_window(app_handle: tauri::AppHandle, window: tauri::Window, provider: String) -> Result<(), String> {
+    let target = stream_window(&provider).ok_or("The streaming window closed before handoff")?;
+    // The web cover remains opaque until this command returns. Release our
+    // topmost flag and put the destination in front before clearing that cover.
+    launch_cover::set_launch_cover(window, false)?;
+    focus_external_window(windows::Win32::Foundation::HWND(target.hwnd as _));
+    if unsafe { GetForegroundWindow().0 as isize } != target.hwnd { return Err("Could not bring the streaming app forward. Open it from the taskbar.".into()); }
+    if load_settings_inner().hide_on_launch { fse_watcher::start_gpu_release_watch(app_handle, OUR_HWND.load(Ordering::Relaxed), Some(target.hwnd)); }
+    Ok(())
 }
 
 fn focus_external_window(hwnd: windows::Win32::Foundation::HWND) {

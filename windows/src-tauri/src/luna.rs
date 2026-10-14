@@ -43,7 +43,7 @@ pub fn launch(url: &str) -> Option<Result<u32, String>> {
         let mut command = std::process::Command::new(&app.target);
         command.current_dir(app.target.parent().ok_or("Missing Luna app directory")?)
             .arg(format!("--profile-directory={}", app.profile)).arg(format!("--app-id={}", app.app_id))
-            .arg(format!("--app-launch-url-for-shortcuts-menu-item={url}"));
+            .arg(format!("--app-launch-url-for-shortcuts-menu-item={url}")).arg("--start-fullscreen");
         command.spawn().map(|child| child.id()).map_err(|e| e.to_string())
     })())
 }
