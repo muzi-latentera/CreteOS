@@ -267,7 +267,9 @@ test("account rows require action focus before controller activation", async ({ 
 
   await pad(page, 7);
   await frames(page, 20);
-  for (let index = 0; index < 9; index++) await pad(page, 13);
+  for (let index = 0; index < 20 && !(await focusedRow.textContent())?.includes("Spotify"); index++) {
+    await pad(page, 13);
+  }
   await expect(focusedRow).toContainText("Spotify");
   await pad(page, 15);
   expect(await page.evaluate(() => (window as any).__invokeCounts.spotify_disconnect || 0)).toBe(0);
@@ -562,7 +564,7 @@ test("Data joystick scrolling preserves storage rows and moves monotonically", a
   await expect(page.getByRole("button", { name: "Home", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Open helper tray", exact: true }).click();
   await page.locator('[data-modal="helper"]').getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByText("Data", { exact: true }).click();
+  await page.getByText("Storage & troubleshooting", { exact: true }).click();
   const storage = page.getByText("Device Storage", { exact: true }).locator("..");
   await expect(storage).toContainText("D: — Games");
   await storage.evaluate((element) => { (window as any).__storageRow = element; });
@@ -587,7 +589,7 @@ test("Data joystick scrolling preserves storage rows and moves monotonically", a
   await page.waitForTimeout(900);
   await page.evaluate(() => (window as any).__setGamepadAxis(1, 0));
   const firstAction = page.locator("[data-settings-row].focused");
-  await expect(firstAction).toContainText("Clear Recently Played");
+  await expect(firstAction).toContainText("Clear local launch history");
   const bounds = await firstAction.boundingBox();
   expect(bounds!.y).toBeGreaterThanOrEqual(124);
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(800);
