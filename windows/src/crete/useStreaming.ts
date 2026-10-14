@@ -62,12 +62,14 @@ export function useStreaming(app: App, enabled: boolean) {
   const launch = (provider: "geforceNow" | "moonlight", direct = false) => {
     setError(null);
     if (provider === "moonlight") {
-      void invoke<DisplayProfile>("get_moonlight_profile").then(current => { if (current?.profile) setDisplay(current); setConfigure(true); }).catch(reason => setError(String(reason)));
+      setConfigure(true);
+      void invoke<DisplayProfile>("get_moonlight_profile").then(current => { if (current?.profile) setDisplay(current); }).catch(reason => setError(String(reason)));
       return;
     }
     if (!online) { setError("GeForce NOW needs an internet connection. Choose an installed local game while offline."); return; }
     if (direct && gameUrl) {
-      void invoke<DisplayProfile>("get_geforce_profile").then(current => { if (current?.profile) setGeforceDisplay(current); setGeforceConfigure(true); }).catch(reason => setError(String(reason)));
+      setGeforceConfigure(true);
+      void invoke<DisplayProfile>("get_geforce_profile").then(current => { if (current?.profile) setGeforceDisplay(current); }).catch(reason => setError(String(reason)));
     } else void invoke("launch_streaming_client", { provider }).catch(reason => setError(String(reason)));
   };
   const geforceStream = async (profile?: MoonlightProfile) => {

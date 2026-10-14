@@ -27,12 +27,16 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   useEffect(() => {
     if (!s.configure && !gfn) return;
     setOpen(false); setProfile(gfn ? s.geforceDisplay.profile : s.display.profile);
-  }, [s.configure, gfn]);
+  }, [s.configure, gfn, s.display.profile, s.geforceDisplay.profile]);
   useEffect(() => {
     if (!s.configure) return;
     setTarget(s.moonlightGame || (s.steamId && s.apps.includes("MoonDeckStream") ? "MoonDeckStream" : undefined) || s.apps.find(name => name === "Steam Big Picture") || s.apps[0] || "");
   }, [s.configure, s.apps, s.moonlightGame]);
-  const close = () => { setOpen(false); s.setConfigure(false); s.setGeforceConfigure(false); choicesRef.current = null; setChoices(null); anchor.current?.focus(); };
+  const close = () => {
+    const returnFocus = s.configure || gfn ? root.current?.closest('[data-crete-detail-slot="primary-actions"]')?.querySelector<HTMLButtonElement>('[data-launch-btn]') : anchor.current;
+    setOpen(false); s.setConfigure(false); s.setGeforceConfigure(false); choicesRef.current = null; setChoices(null);
+    returnFocus?.focus({ preventScroll: true });
+  };
   useEffect(() => {
     if (!active) return;
     const controls = () => Array.from((root.current?.querySelector('[data-stream-choices]') ?? root.current)?.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('button:not([disabled]), select:not([disabled])') ?? []).filter(el => el !== anchor.current);

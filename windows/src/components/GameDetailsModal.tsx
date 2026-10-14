@@ -3,7 +3,7 @@ import { CreteDetailsInfo } from "../crete/CreteDetailsInfo";
 import { LaunchMenu } from "../crete/LaunchMenu";
 import { LaunchLoading } from "../crete/LaunchLoading";
 import { useStreaming } from "../crete/useStreaming";
-import { useReviewVideos } from "../crete/useReviewVideos";
+import { useReviewVideos, reviewChoices } from "../crete/useReviewVideos";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { IoChevronBackOutline, IoChevronDownOutline, IoChevronForwardOutline, IoCloseOutline, IoGameControllerOutline, IoPlay } from "react-icons/io5";
@@ -271,8 +271,8 @@ export function GameDetailsModal({
   const screenshots = store.data?.screenshots ?? [];
   const shortDescription = store.data?.shortDescription || (store.data?.aboutHtml ? new DOMParser().parseFromString(store.data.aboutHtml, "text/html").body.textContent ?? "" : "");
   const mediaItems = useMemo<StoreMediaItem[]>(() => [
-    ...reviews.map(video => ({ type: "youtube" as const, url: video.url, thumb: video.thumbnail, title: `${video.channel} · ${video.title}` })),
-    ...movies.map((movie, index) => ({
+    ...reviewChoices(reviews).map(video => ({ type: "youtube" as const, url: video.url, thumb: video.thumbnail, title: `${video.channel} · ${video.title}` })),
+    ...movies.slice(0, 4).map((movie, index) => ({
       type: "trailer" as const,
       movie,
       thumb: movie.thumbnail,
@@ -1403,6 +1403,7 @@ export function GameDetailsModal({
                             <button
                               key={`${item.type}-${item.type === "trailer" ? item.movie.id || index : index}`}
                               data-details-media-index={index}
+                              data-media-type={item.type}
                               aria-current={focusIdx === 1 + index}
                               ref={(node) => { focusRefs.current[1 + index] = node; }}
                               onClick={() => {

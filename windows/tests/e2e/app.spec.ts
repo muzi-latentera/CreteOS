@@ -103,8 +103,10 @@ test.beforeEach(async ({ page }) => {
         if (command === "get_moonlight_apps") { if (params.has("hostOffline")) throw new Error("Host offline"); return params.has("hostGame") ? ["Control Ultimate Edition", "Desktop"] : ["Desktop", "Steam Big Picture", "MoonDeckStream"]; }
         if (command === "get_streaming_clients") return { geforceNow: true, moonlight: true };
         if (command === "wait_stream_window" && params.has("holdStreamWindow")) return new Promise<void>(resolve => { (window as any).__releaseStreamWindow = resolve; });
+        if (command === "get_geforce_profile" && params.has("holdGfnProfile")) await new Promise<void>(resolve => { (window as any).__releaseGfnProfile = resolve; });
         if (command === "get_geforce_profile") return { displayKey: "DISPLAY1:1920x1080", profile: { host: "GeForce NOW", resolution: "1920x1080", fps: 120, bitrate: 80000, codec: "auto" } };
         if (command === "start_geforce_game" || command === "launch_geforce_game") { (window as any).__lastGeforce = args; return null; }
+        if (command === "get_crete_review_videos" && params.has("manyMedia")) return ["Whitelight", "Whitelight", "Skill Up", "Joseph Anderson", "Noah Caldwell-Gervais", "gameranx"].map((channel, i) => ({ id: `review${i}`, title: `Review ${i}`, channel, thumbnail: "https://fixture.test/review.svg", url: `https://www.youtube.com/watch?v=review${i}` }));
         if (command === "get_crete_review_videos") return params.has("xboxDetails") ? [{ id: "abcdefghijk", title: "A Plague Tale Requiem analysis", channel: "Whitelight", thumbnail: "https://fixture.test/review.svg", url: "https://www.youtube.com/watch?v=abcdefghijk" }, { id: "lmnopqrstuv", title: "A Plague Tale Requiem review", channel: "Skill Up", thumbnail: "https://fixture.test/review.svg", url: "https://www.youtube.com/watch?v=lmnopqrstuv" }] : [];
         if (command === "get_xbox_game_progress") return { minutes: 922, earned: 20, total: null, gamerscore: 330, totalGamerscore: 1000 };
         if (command === "fetch_title_store_metadata") return { source: "xbox", appId: "2089483628", developers: ["Asobo Studio"], publishers: ["Focus Entertainment"], shortDescription: "A Plague Tale: Requiem description", aboutHtml: "", genres: [], screenshots: [], movies: [], controllerSupport: "none", fetchedAt: 0 };
@@ -138,7 +140,7 @@ test.beforeEach(async ({ page }) => {
         if (params.has("rich") && command === "fetch_store_metadata") return {
           source: "steam", appId: "620", shortDescription: "Test catalogue description. This fixture verifies the Windows layout and metadata pipeline.",
           aboutHtml: "", developers: ["Test Developer"], publishers: ["Test Publisher"], genres: [],
-          screenshots: [], movies: [], controllerSupport: "full", fetchedAt: Date.now(),
+          screenshots: [], movies: params.has("manyMedia") ? Array.from({ length: 6 }, (_, i) => ({ id: i, name: `Trailer ${i}`, thumbnail: "https://fixture.test/review.svg", mp4: "https://fixture.test/trailer.mp4" })) : [], controllerSupport: "full", fetchedAt: Date.now(),
         };
         if (params.has("rich") && command === "get_cached_art_bulk") return Object.fromEntries(Array.from({ length: 24 }, (_, i) => [
           i === 0 ? "Portal 2" : i === 1 ? "Hollow Knight" : `Test Game ${String(i + 1).padStart(2, "0")}`,
@@ -1068,4 +1070,38 @@ test("Xbox activity-ID titles show metadata, account hours and preferred review 
   await expect(media.nth(0)).toHaveAttribute("aria-label", /Whitelight/);
   await expect(media.nth(1)).toHaveAttribute("aria-label", /Skill Up/);
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.fetch_title_store_metadata ?? 0)).toBe(1);
+});
+
+
+test("Streaming menu opens settings before profile hydration and B returns to Play", async ({ page }) => {
+  await richCrete(page);
+  await page.goto("/?crete&rich&gfn&holdGfnProfile");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const details = page.locator('[data-crete-details="true"]');
+  await details.getByRole("button", { name: "Launch options", exact: true }).click();
+  await details.getByRole("menuitem", { name: "GeForce NOW", exact: true }).click();
+  const dialog = details.getByRole("dialog", { name: "GeForce NOW stream settings" });
+  await expect(dialog).toBeVisible();
+  await expect.poll(() => page.evaluate(() => typeof (window as any).__releaseGfnProfile)).toBe("function");
+  await pad(page, 1);
+  await expect(dialog).not.toBeVisible();
+  await expect(details.getByRole("button", { name: "Play", exact: true })).toBeFocused();
+  await page.evaluate(() => (window as any).__releaseGfnProfile());
+  await expect(dialog).not.toBeVisible();
+  await details.getByRole("button", { name: "Launch options", exact: true }).click();
+  await details.getByRole("menuitem", { name: "Moonlight", exact: true }).click();
+  await expect(details.getByRole("dialog", { name: "Moonlight stream settings" })).toBeVisible();
+});
+
+
+test("Game media retains four preferred reviews and four original trailers", async ({ page }) => {
+  await richCrete(page);
+  await page.goto("/?crete&rich&manyMedia");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Portal 2", exact: true }).click();
+  const details = page.locator('[data-crete-details="true"]');
+  await expect(details.locator('[data-media-type="youtube"]')).toHaveCount(4);
+  await expect(details.locator('[data-media-type="trailer"]')).toHaveCount(4);
+  await expect(details.locator('[data-media-type="youtube"]').nth(3)).toHaveAttribute("aria-label", /Noah Caldwell-Gervais/);
 });
