@@ -692,7 +692,7 @@ test("Uninstalled mapped games offer green GFN Play plus native install and stre
   const gfn = details.getByRole("dialog", { name: "GeForce NOW stream settings" });
   await expect(gfn).toBeVisible();
   await gfn.getByLabel("Bitrate").selectOption("20000");
-  await gfn.getByRole("button", { name: "Start game", exact: true }).click();
+  await gfn.getByRole("button", { name: "Apply settings and play", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.start_geforce_game)).toBe(1);
   expect(await page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"] ?? 0)).toBe(0);
   expect(await page.evaluate(() => (window as any).__invokeCounts.launch_app ?? 0)).toBe(0);
