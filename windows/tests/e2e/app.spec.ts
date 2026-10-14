@@ -122,6 +122,7 @@ test.beforeEach(async ({ page }) => {
             home_launch_games_directly: params.has("direct") };
         }
         if (command === "get_all_apps") {
+          if (params.has("lunaDetails")) return [{ id: "cloud:luna:dispatch", name: "Dispatch", source: "cloud", app_type: "game", installed: true, steam_appid: 2592160, launch_path: "https://luna.amazon.co.uk/play?asin=B0H6GQJMBN" }, { id: "cloud:luna:galactic", name: "STAR WARS: Galactic Racer", source: "cloud", app_type: "game", installed: true, steam_appid: 4078430, launch_path: "https://luna.amazon.co.uk/play?asin=B0HLN4GG5K" }];
           if (params.has("xboxDetails")) return [{ id: "xbox-owned:2089483628", name: "A Plague Tale: Requiem", source: "xbox", app_type: "game", xbox_product_id: "2089483628", installed: false }];
           if (params.has("applications")) return [
             { id: "app:terminal", name: "Terminal", launch_path: "C:\\Windows\\Terminal.exe", app_type: "app", installed: true },
@@ -137,6 +138,7 @@ test.beforeEach(async ({ page }) => {
           return params.has("catalog") ? [{ id: "steam://rungameid/620", name: "Portal 2", app_type: "game", installed: true }] : [];
         }
         if (params.has("rich") && command === "fetch_game_art") return { grid: "https://fixture.test/cover.svg", hero_static: "https://fixture.test/hero.svg", hero_animated: params.has("animated") ? "https://fixture.test/hero.mp4" : undefined };
+        if (params.has("lunaDetails") && command === "fetch_store_metadata") { (window as any).__lastStoreMeta = args; return { source: "steam", appId: args.appId, developers: ["Luna Info Developer"], publishers: ["Luna Info Publisher"], shortDescription: "Cloud game informational description", screenshots: [], movies: [], genres: [], aboutHtml: "", controllerSupport: "full", fetchedAt: Date.now() }; }
         if (params.has("rich") && command === "fetch_store_metadata") return {
           source: "steam", appId: "620", shortDescription: "Test catalogue description. This fixture verifies the Windows layout and metadata pipeline.",
           aboutHtml: "", developers: ["Test Developer"], publishers: ["Test Publisher"], genres: [],
@@ -1104,4 +1106,17 @@ test("Game media retains four preferred reviews and four original trailers", asy
   await expect(details.locator('[data-media-type="youtube"]')).toHaveCount(4);
   await expect(details.locator('[data-media-type="trailer"]')).toHaveCount(4);
   await expect(details.locator('[data-media-type="youtube"]').nth(3)).toHaveAttribute("aria-label", /Noah Caldwell-Gervais/);
+});
+
+
+test("Luna titles show informational metadata without replacing their launch identity", async ({ page }) => {
+  await richCrete(page);
+  await page.goto("/?crete&rich&lunaDetails");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Dispatch", exact: true }).click();
+  const details = page.locator('[data-crete-details="true"]');
+  await expect(details.getByText("Luna Info Developer", { exact: true })).toBeVisible();
+  await expect(details.getByText("Cloud game informational description", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (window as any).__lastStoreMeta)).toEqual({ source: "steam", appId: "2592160" });
+  await expect(details.getByText("Cloud", { exact: true }).first()).toBeVisible();
 });

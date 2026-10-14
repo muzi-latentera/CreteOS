@@ -22,8 +22,8 @@ export function useStoreMetadata(
 
   useEffect(() => {
     const normalizedSource = source?.toLowerCase();
-    const metadataId = normalizedSource === "steam" ? appId : normalizedSource === "xbox" ? productId : undefined;
-    if (!enabled || (!metadataId && !(normalizedSource === "xbox" && gameName)) || !["steam", "xbox"].includes(normalizedSource ?? "")) {
+    const metadataId = normalizedSource === "steam" || normalizedSource === "cloud" ? appId : normalizedSource === "xbox" ? productId : undefined;
+    if (!enabled || (!metadataId && !(["xbox", "cloud"].includes(normalizedSource ?? "") && gameName)) || !["steam", "xbox", "cloud"].includes(normalizedSource ?? "")) {
       setState({ data: null, loading: false, error: null });
       return;
     }
@@ -40,7 +40,8 @@ export function useStoreMetadata(
     const titleFallback = () => invoke<StoreMetadata>("fetch_title_store_metadata", { gameName, offline: !navigator.onLine });
     const request = normalizedSource === "xbox"
       ? (metadataId ? invoke<StoreMetadata>("fetch_xbox_store_metadata", { productId: metadataId }).then(meta => meta.shortDescription || meta.aboutHtml || meta.movies.length ? meta : titleFallback()).catch(() => titleFallback()) : titleFallback())
-      : invoke<StoreMetadata>("fetch_store_metadata", { source: normalizedSource, appId: metadataId });
+      : normalizedSource === "cloud" && !metadataId ? titleFallback()
+      : invoke<StoreMetadata>("fetch_store_metadata", { source: normalizedSource === "cloud" ? "steam" : normalizedSource, appId: metadataId });
     request
       .then((meta) => {
         memCache.set(key, meta);

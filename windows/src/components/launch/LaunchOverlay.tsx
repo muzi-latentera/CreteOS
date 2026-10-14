@@ -17,6 +17,7 @@ interface LaunchPhasePayload {
 
 interface LaunchOverlayProps {
   app: App | null;
+  minimal?: boolean;
   gameArt: Record<string, string>;
   customArt: Record<string, string>;
   heroArt?: string;
@@ -26,7 +27,7 @@ interface LaunchOverlayProps {
   hapticEnabled?: boolean;
 }
 
-export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone, onSuccess, hapticEnabled = true }: LaunchOverlayProps) {
+export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone, onSuccess, hapticEnabled = true, minimal = false }: LaunchOverlayProps) {
   const { t } = useTranslation();
   const art = app?.app_type === "game" ? (customArt?.[app.id] || gameArt[app.id]) : null;
   const [status, setStatus] = useState<LaunchStatus>("launching");
@@ -90,7 +91,7 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
     }).then(fn => { unlistenPhase = fn; });
     listen<string>("launch-success", async (event) => {
       if (!mounted.current || event.payload !== launchTarget.launch_path) return;
-      const requiresConfirmation = (launchTarget.app_type === "game" && !isHttpLaunchPath(launchTarget.launch_path))
+      const requiresConfirmation = (launchTarget.app_type === "game" && (minimal || !isHttpLaunchPath(launchTarget.launch_path)))
         || (launchTarget.app_type !== "game" && !isHttpLaunchPath(launchTarget.launch_path));
       setStatus("verifying");
 
@@ -105,6 +106,13 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
 
         if (requiresConfirmation && !result.focused && !result.running) {
           setStatus("unconfirmed");
+          return;
+        }
+        if (minimal) {
+          const handedOff = await invoke<boolean>("handoff_launched_app", { name: launchTarget.name, launchPath: launchTarget.launch_path, source: launchTarget.source, appType: launchTarget.app_type });
+          if (!mounted.current) return;
+          if (!handedOff) { setStatus("unconfirmed"); return; }
+          success?.(); rumble("launch", hapticEnabled); setStatus("focused"); done();
           return;
         }
         success?.();
@@ -219,7 +227,7 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
     return () => {
       mounted.current = false;
       void Promise.resolve(invoke("set_launch_cover", { active: false })).then(() => {
-        if (statusRef.current === "focused") return invoke("try_focus_launched_app", { name: launchTarget.name, launchPath: launchTarget.launch_path, source: launchTarget.source, appType: launchTarget.app_type });
+        if (!minimal && statusRef.current === "focused") return invoke("try_focus_launched_app", { name: launchTarget.name, launchPath: launchTarget.launch_path, source: launchTarget.source, appType: launchTarget.app_type });
       }).catch(() => {});
       document.getElementById("launch-overlay-styles")?.remove();
       window.removeEventListener("keydown", handleKey);
@@ -284,6 +292,10 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
     }).catch(() => {});
   };
 
+  if (minimal && (isBusy || status === "focused")) return <div data-game-launch-cover="" role="status" aria-label={t("launch.launching")} style={{ position: "fixed", inset: 0, zIndex: 9000, display: "grid", placeContent: "center", background: heroArt ? `linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.4)),url(${JSON.stringify(heroArt)}) center/cover` : "rgba(10,13,16,.92)" }}>
+    <style>{"@keyframes creteGameLaunchSpinner { to { transform:rotate(360deg) } }"}</style>
+    <span aria-hidden="true" style={{ width: 42, height: 42, borderRadius: "50%", border: "3px solid rgba(242,234,219,.18)", borderTopColor: "rgba(242,234,219,.7)", animation: "creteGameLaunchSpinner 1s linear infinite" }} />
+  </div>;
   return (
     <div className="launch-overlay" style={{ position: "fixed", inset: 0, zIndex: 9000, background: heroArt ? `linear-gradient(rgba(0,0,0,.35),rgba(0,0,0,.8)),url(${JSON.stringify(heroArt)}) center/cover` : "rgba(0,0,0,0.88)", opacity: status === "focused" ? 0 : 1, transition: "opacity 650ms ease", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20 }}>
       <div className="launch-glow" style={{ position: "absolute", width: 320, height: 320, borderRadius: "50%", background: `radial-gradient(circle, ${accent.glow}0.25) 0%, transparent 70%)`, pointerEvents: "none" }} />

@@ -8901,7 +8901,9 @@ fn match_launch_window_score(
     let launch_file = launch_exe.as_deref().and_then(file_name_lower);
     let candidate_exe = candidate.exe_path.as_deref().unwrap_or_default();
     let candidate_file = file_name_lower(candidate_exe);
-    if source_lower == "cloud" && luna::luna_url(launch_path) && candidate_file.as_deref() == Some("chrome.exe") && title_norm.contains("amazonluna") { return 70; }
+    if source_lower == "cloud" && luna::luna_url(launch_path) {
+        return if candidate_file.as_deref() == Some("chrome.exe") && title_norm.contains("amazonluna") { 70 } else { 0 };
+    }
     let mut score = 0;
 
     if let (Some(expected), Some(actual)) = (launch_exe.as_ref(), candidate.exe_path.as_ref()) {
@@ -8957,6 +8959,8 @@ mod steam_launch_confirmation_tests {
         let candidate = LaunchWindowCandidate { hwnd:1, pid:2, title:"Amazon Luna".into(), exe_path:Some(r"C:\Program Files\Google\Chrome\Application\chrome.exe".into()) };
         assert_eq!(match_launch_window_score(&candidate, "Dispatch", "https://luna.amazon.co.uk/play?asin=B0H6GQJMBN", "cloud"), 70);
         assert_eq!(match_launch_window_score(&candidate, "Dispatch", "https://unrelated.test/", "cloud"), 0);
+        let local = LaunchWindowCandidate { hwnd:3, pid:4, title:"Dispatch".into(), exe_path:Some(r"C:\Games\Dispatch.exe".into()) };
+        assert_eq!(match_launch_window_score(&local, "Dispatch", "https://luna.amazon.co.uk/play?asin=B0H6GQJMBN", "cloud"), 0);
     }
 
     #[test]
@@ -9416,6 +9420,22 @@ fn focus_external_window_attempt(hwnd: windows::Win32::Foundation::HWND) {
             let _ = AttachThreadInput(our_thread, fg_thread, false);
         }
     }
+}
+
+#[tauri::command]
+fn handoff_launched_app(name: String, launch_path: String, source: String, app_type: Option<String>, app_handle: tauri::AppHandle, window: tauri::Window) -> bool {
+    let target = best_launch_window(&name, &launch_path, &source).map(|(window, _)| window.hwnd).or_else(|| {
+        let aumid = launch_path.strip_prefix("shell:AppsFolder\\")?;
+        foreground_process_aumid().filter(|foreground| aumid_family(foreground).eq_ignore_ascii_case(aumid_family(aumid)))
+            .map(|_| unsafe { GetForegroundWindow().0 as isize })
+    });
+    let Some(target) = target else { return false; };
+    if launch_cover::set_launch_cover(window, false).is_err() { return false; }
+    focus_external_window(windows::Win32::Foundation::HWND(target as _));
+    if source.eq_ignore_ascii_case("cloud") && luna::luna_url(&launch_path) { let _ = luna::request_fullscreen(target); }
+    if unsafe { GetForegroundWindow().0 as isize } != target { return false; }
+    if app_type.as_deref() == Some("game") && load_settings_inner().hide_on_launch { fse_watcher::start_gpu_release_watch(app_handle, OUR_HWND.load(Ordering::Relaxed), Some(target)); }
+    true
 }
 
 #[tauri::command]
@@ -10072,6 +10092,7 @@ pub fn run() {
             launch_app,
             check_launch_focus,
             try_focus_launched_app,
+            handoff_launched_app,
             get_running_launched,
             focus_self,
             close_launched,
@@ -10196,6 +10217,9 @@ pub fn run() {
             set_game_memberships,
             get_xcloud_games
         ])
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Focused(_)) { fse_watcher::keep_main_borderless(window.app_handle()); }
+        })
         .setup(|app| {
             let lofi_sources = bundled_lofi_source_dirs(app.handle());
             for name in lofi_media::LOFI_MEDIA_FILES {

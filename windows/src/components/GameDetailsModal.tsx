@@ -258,7 +258,7 @@ export function GameDetailsModal({
     app.source,
     steamAppId,
     xboxProductId,
-    storeMetaEnabled && (isSteam || isXbox),
+    storeMetaEnabled && (isSteam || isXbox || isCloud),
     app.name,
   );
   const deckCompat = useDeckCompat(
@@ -286,7 +286,7 @@ export function GameDetailsModal({
     })),
   ], [reviews, movies, screenshots, t]);
   const mediaCount = mediaItems.length;
-  const hasStoreContent = (isSteam || isXbox) && (shortDescription.trim().length > 0 || mediaCount > 0);
+  const hasStoreContent = (isSteam || isXbox || isCloud) && (shortDescription.trim().length > 0 || mediaCount > 0);
   const [activeTab, setActiveTab] = useState<"details" | "manage">("details");
   const activeTabRef = useRef<"details" | "manage">("details");
   const [overlay, setOverlayState] = useState<{ index: number; item?: StoreMediaItem } | null>(null);

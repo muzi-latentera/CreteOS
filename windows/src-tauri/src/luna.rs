@@ -47,6 +47,28 @@ pub fn launch(url: &str) -> Option<Result<u32, String>> {
         command.spawn().map(|child| child.id()).map_err(|e| e.to_string())
     })())
 }
+// Chromium may reuse an existing app process and ignore startup-only flags.
+// On the matched, foreground Luna window, request its normal F11 fullscreen
+// action once, and skip the toggle if its client already covers the monitor.
+pub fn request_fullscreen(hwnd: isize) -> bool {
+    use windows::Win32::{Foundation::{HWND, RECT}, Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST}, UI::{WindowsAndMessaging::{GetClientRect, GetForegroundWindow}, Input::KeyboardAndMouse::{keybd_event, VK_F11, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP}}};
+    let hwnd = HWND(hwnd as _);
+    let fullscreen = || unsafe {
+        let mut client = RECT::default();
+        let mut monitor = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
+        GetClientRect(hwnd, &mut client).is_ok() && GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &mut monitor).as_bool()
+            && (client.right - (monitor.rcMonitor.right - monitor.rcMonitor.left)).abs() <= 2
+            && (client.bottom - (monitor.rcMonitor.bottom - monitor.rcMonitor.top)).abs() <= 2
+    };
+    if fullscreen() { return true; }
+    if unsafe { GetForegroundWindow() } != hwnd { return false; }
+    unsafe { keybd_event(VK_F11.0 as u8, 0, KEYBD_EVENT_FLAGS(0), 0); keybd_event(VK_F11.0 as u8, 0, KEYEVENTF_KEYUP, 0); }
+    for _ in 0..15 {
+        if fullscreen() { return true; }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    false
+}
 #[cfg(test)] mod tests {
     #[test] fn windows_shortcut_path_separators_match() {
         assert!(super::same_executable(std::path::Path::new(r"C:\Program Files\Google/Chrome/Application/chrome_proxy.exe"), std::path::Path::new(r"c:\Program Files\Google\Chrome\Application\chrome_proxy.exe")));

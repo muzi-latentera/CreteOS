@@ -153,3 +153,33 @@ describe("app launch confirmation", () => {
     expect(onDone).toHaveBeenCalledOnce();
   });
 });
+
+
+describe("Crete minimal game launch cover", () => {
+  it.each(["steam", "cloud"])("keeps %s artwork visible until native handoff completes", async (source) => {
+    vi.clearAllMocks(); callbacks.clear();
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const node = document.createElement("div"); document.body.appendChild(node);
+    const root = createRoot(node); const done = vi.fn();
+    let release!: (value: boolean) => void;
+    const path = source === "cloud" ? "https://luna.amazon.co.uk/play?asin=test" : "steam://rungameid/620";
+    invoke.mockImplementation(async command => {
+      if (command === "check_launch_focus") return { running: true, focused: true };
+      if (command === "handoff_launched_app") return await new Promise<boolean>(resolve => { release = resolve; });
+      return undefined;
+    });
+    await act(async () => root.render(<LaunchOverlay minimal app={{ id: source, name: "Test Game", source, app_type: "game", launch_path: path } as App} gameArt={{}} customArt={{}} heroArt="https://fixture.test/hero.jpg" accent={{ primary: "#fff", glow: "rgba(0,0,0," } as AccentColors} onDone={done} />));
+    expect(node.querySelector('[data-game-launch-cover]')).not.toBeNull();
+    expect(node.textContent).not.toContain("Test Game");
+    expect(node.querySelector("button")).toBeNull();
+    let pending: unknown;
+    await act(async () => { pending = callbacks.get("launch-success")?.({ payload: path }); await Promise.resolve(); });
+    expect(done).not.toHaveBeenCalled();
+    expect(node.querySelector('[data-game-launch-cover]')).not.toBeNull();
+    await act(async () => { release(true); await pending; });
+    expect(done).toHaveBeenCalledOnce();
+    act(() => root.unmount()); node.remove(); vi.unstubAllGlobals();
+  });
+});

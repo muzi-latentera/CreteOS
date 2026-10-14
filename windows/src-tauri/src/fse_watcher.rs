@@ -835,6 +835,30 @@ fn window_snapshot(app: &AppHandle, hwnd: HWND) -> String {
     }
 }
 
+// Keep our own host borderless even if shell/fullscreen classification changes
+// its non-client frame on deactivation. No show, resize or foreground claim.
+pub fn keep_main_borderless(app: &AppHandle) {
+    #[cfg(windows)]
+    if let Some(hwnd) = main_window_hwnd(app) {
+        use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongPtrW, SetWindowLongPtrW, GWL_STYLE, WS_CAPTION, WS_THICKFRAME};
+        unsafe {
+            let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+            let next = style & !((WS_CAPTION.0 | WS_THICKFRAME.0) as isize);
+            if next != style {
+                SetWindowLongPtrW(hwnd, GWL_STYLE, next);
+                let _ = SetWindowPos(hwnd, None, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+            }
+        }
+    }
+}
+fn should_suspend_for_target(ours: isize, game: isize, foreground: isize, fully_covered: bool, launching: bool) -> bool {
+    !launching && ours != 0 && game != 0 && game != ours && foreground == game && fully_covered
+}
+#[cfg(windows)]
+fn target_covers_main(ours: HWND, target: HWND) -> bool {
+    is_fullscreen_like(target) && monitor_rect(ours).zip(monitor_rect(target)).is_some_and(|(ours, target)| ours == target)
+}
+
 // Re-cover the monitor if the host moved or shrank. Shell reclassification is
 // one hypothesis for the titled black window; geometry logging distinguishes
 // it from a correctly sized window with a stale composition surface.
@@ -1251,22 +1275,22 @@ pub fn start_gpu_release_watch(
                 clear_topmost(liftoff_hwnd);
             }
 
-            if !suspend_webview(&app) {
-                let _ = app.emit("fse:no-foreground", ());
-                app.state::<FseWatch>().cancel();
-                return;
+            let mut webview_suspended = false;
+            let covered = hwnd_from_value(our_hwnd).is_some_and(|ours| target_covers_main(ours, game_hwnd));
+            if should_suspend_for_target(our_hwnd, hwnd_value(game_hwnd), hwnd_value(unsafe { GetForegroundWindow() }), covered, crate::launch_cover::active()) {
+                if !suspend_webview(&app) {
+                    let _ = app.emit("fse:no-foreground", ()); app.state::<FseWatch>().cancel(); return;
+                }
+                webview_suspended = true;
+                let _ = app.emit("fse:gpu-suspended", ());
             }
-            let _ = app.emit("fse:gpu-suspended", ());
             if let Some(hwnd) = hwnd_from_value(our_hwnd) {
                 fse_log(&format!(
-                    "suspended for game 0x{:x}: {}",
+                    "watching game 0x{:x}, presentation_suspended={webview_suspended}: {}",
                     hwnd_value(game_hwnd),
                     window_snapshot(&app, hwnd)
                 ));
             }
-
-            focus_game_window(game_hwnd);
-            let mut webview_suspended = true;
 
             loop {
                 if cancel.load(Ordering::SeqCst) {
@@ -1319,7 +1343,7 @@ pub fn start_gpu_release_watch(
                     if reacquired {
                         // A successor fullscreen window took the foreground.
                         // Hand the GPU back to it.
-                        if !webview_suspended && suspend_webview(&app) {
+                        if !webview_suspended && hwnd_from_value(our_hwnd).is_some_and(|ours| target_covers_main(ours, game_hwnd)) && !crate::launch_cover::active() && suspend_webview(&app) {
                             webview_suspended = true;
                             let _ = app.emit("fse:gpu-suspended", ());
                         }
@@ -1328,21 +1352,19 @@ pub fn start_gpu_release_watch(
                     break;
                 }
 
-                let foreground = unsafe { GetForegroundWindow() };
-                let foreground_value = hwnd_value(foreground);
-                if foreground_value == our_hwnd {
-                    if webview_suspended && resume_webview_verified(&app) {
+                let foreground = hwnd_value(unsafe { GetForegroundWindow() });
+                let covered = hwnd_from_value(our_hwnd).is_some_and(|ours| target_covers_main(ours, game_hwnd));
+                let should_suspend = should_suspend_for_target(our_hwnd, hwnd_value(game_hwnd), foreground, covered, crate::launch_cover::active());
+                if !should_suspend { keep_main_borderless(&app); }
+                if !should_suspend && webview_suspended {
+                    if resume_webview_verified(&app) {
                         webview_suspended = false;
-                        if let Some(hwnd) = hwnd_from_value(our_hwnd) {
-                            nudge_webview_composition(&app, hwnd);
-                        }
+                        keep_main_borderless(&app);
+                        if let Some(hwnd) = hwnd_from_value(our_hwnd) { nudge_webview_composition(&app, hwnd); }
                         let _ = app.emit("fse:gpu-resumed", ());
-                        fse_log(&format!(
-                            "foreground return: {}",
-                            window_snapshot(&app, foreground)
-                        ));
+                        fse_log("presentation resumed: CreteOS may be visible beside another app");
                     }
-                } else if foreground_value != 0 && !webview_suspended && suspend_webview(&app) {
+                } else if should_suspend && !webview_suspended && suspend_webview(&app) {
                     webview_suspended = true;
                     let _ = app.emit("fse:gpu-suspended", ());
                 }
@@ -1626,6 +1648,14 @@ pub fn set_window_background_color(app: AppHandle, r: u8, g: u8, b: u8) {
 mod tests {
     use super::{webview_transition, WebviewMemoryTarget, WebviewTransition};
 
+    #[test]
+    fn only_suspend_when_the_watched_game_covers_creteos() {
+        assert!(super::should_suspend_for_target(1, 2, 2, true, false));
+        assert!(!super::should_suspend_for_target(1, 2, 3, true, false)); // ChatGPT/third app
+        assert!(!super::should_suspend_for_target(1, 2, 1, true, false)); // CreteOS return
+        assert!(!super::should_suspend_for_target(1, 2, 2, false, false)); // windowed/other monitor
+        assert!(!super::should_suspend_for_target(1, 2, 2, true, true)); // new launch artwork
+    }
     #[test]
     fn recovery_accepts_only_the_managed_process_window() {
         // Shell startup/foreground handles must never become CreteOS's identity,
