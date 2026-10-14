@@ -1596,6 +1596,18 @@ pub fn show_liftoff(app: AppHandle) {
 // Frontend watchdog escape hatch. requestAnimationFrame staying silent is a
 // weak signal, but when the frontend does report it we run the same
 // screen-probed ladder as the game-exit path instead of one blind resume.
+fn watchdog_may_recover(ours: isize, foreground: isize) -> bool { ours != 0 && ours == foreground }
+
+#[cfg(test)]
+mod watchdog_focus_tests {
+    #[test] fn background_renderer_resume_must_not_reclaim_the_streaming_apps_foreground() {
+        assert!(super::watchdog_may_recover(100, 100));
+        assert!(!super::watchdog_may_recover(100, 200));
+        assert!(!super::watchdog_may_recover(100, 0));
+        assert!(!super::watchdog_may_recover(0, 0));
+    }
+}
+
 #[tauri::command]
 pub fn force_webview_resume(app: AppHandle) {
     #[cfg(windows)]
@@ -1610,11 +1622,11 @@ pub fn force_webview_resume(app: AppHandle) {
             {
                 return;
             }
-            let _ = resume_webview_verified(&app);
-            let Some(hwnd) = main_window_hwnd(&app) else {
-                return;
-            };
+            let Some(hwnd) = main_window_hwnd(&app) else { return; };
             let our_hwnd = hwnd_value(hwnd);
+            if !watchdog_may_recover(our_hwnd, unsafe { hwnd_value(GetForegroundWindow()) }) { return; }
+            let _ = resume_webview_verified(&app);
+            if !watchdog_may_recover(our_hwnd, unsafe { hwnd_value(GetForegroundWindow()) }) { return; }
             ensure_fullscreen_geometry(hwnd);
             nudge_webview_composition(&app, hwnd);
             let _ = app.emit("fse:gpu-resumed", ());

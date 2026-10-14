@@ -1992,8 +1992,13 @@ export function useGamepadNavigation(
       else fseRestoredUnlisten = unlisten;
     }).catch(() => {});
     listen("fse:gpu-resumed", () => {
-      resumeFromBackground();
-      verifyRenderResumed();
+      // Rendering can resume behind a streaming app; that is not a return to
+      // CreteOS and must not enable its controller or foreground watchdog.
+      getCurrentWindow().isFocused().then(focused => {
+        if (cancelled) return;
+        if (focused && !document.hidden) { resumeFromBackground(); verifyRenderResumed(); }
+        else pauseForBackground();
+      }).catch(() => {});
     }).then((unlisten) => {
       if (cancelled) unlisten();
       else fseGpuResumedUnlisten = unlisten;
