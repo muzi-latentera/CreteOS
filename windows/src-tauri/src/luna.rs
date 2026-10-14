@@ -10,10 +10,13 @@ fn option(args: &str, key: &str) -> Option<String> {
     let value = args.split_once(&format!("--{key}="))?.1;
     Some(if let Some(value) = value.strip_prefix('"') { value.split_once('"')?.0.to_string() } else { value.split_whitespace().next()?.to_string() })
 }
+fn same_executable(left: &std::path::Path, right: &std::path::Path) -> bool {
+    left.to_string_lossy().replace('/', "\\").eq_ignore_ascii_case(&right.to_string_lossy().replace('/', "\\"))
+}
 fn valid(app: &InstalledApp) -> bool {
     let mut roots = Vec::new();
     for key in ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"] { if let Some(root) = std::env::var_os(key) { roots.push(PathBuf::from(root).join("Google/Chrome/Application/chrome_proxy.exe")); } }
-    roots.iter().any(|path| path.to_string_lossy().eq_ignore_ascii_case(&app.target.to_string_lossy())) && app.target.is_file()
+    roots.iter().any(|path| same_executable(path, &app.target)) && app.target.is_file()
         && app.app_id.len() == 32 && app.app_id.bytes().all(|c| (b'a'..=b'p').contains(&c))
         && (app.profile == "Default" || app.profile.strip_prefix("Profile ").is_some_and(|number| !number.is_empty() && number.bytes().all(|c| c.is_ascii_digit())))
 }
@@ -45,6 +48,10 @@ pub fn launch(url: &str) -> Option<Result<u32, String>> {
     })())
 }
 #[cfg(test)] mod tests {
+    #[test] fn windows_shortcut_path_separators_match() {
+        assert!(super::same_executable(std::path::Path::new(r"C:\Program Files\Google/Chrome/Application/chrome_proxy.exe"), std::path::Path::new(r"c:\Program Files\Google\Chrome\Application\chrome_proxy.exe")));
+        assert!(!super::same_executable(std::path::Path::new(r"C:\Program Files\Google/Chrome/Application/chrome_proxy.exe"), std::path::Path::new(r"C:\Other\chrome_proxy.exe")));
+    }
     #[test] fn exact_luna_domains_and_shortcut_flags() {
         assert!(super::luna_url("https://luna.amazon.co.uk/play?asin=B0H6GQJMBN"));
         assert!(!super::luna_url("https://luna.amazon.co.uk.attacker.test/play"));
