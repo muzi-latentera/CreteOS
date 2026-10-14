@@ -9717,6 +9717,15 @@ async fn launch_app(
     let mut launch_mode = "direct".to_string();
     let mut launch_detail: Option<String> = None;
     let mut fallback_reason: Option<String> = None;
+    // Luna attempts browser autoplay once when its Play action mounts, and skips
+    // it when unfocused. Keep the artwork painted, but release topmost before
+    // navigation so the launched PWA can take focus instead of loading behind us.
+    if source.eq_ignore_ascii_case("cloud") && luna::luna_url(&path) {
+        if let Some(main) = app_handle.get_webview_window("main") { let _ = main.set_always_on_top(false); }
+        if let Some((window, _)) = best_launch_window(&name_for_tracking, &path, &source) {
+            focus_external_window(windows::Win32::Foundation::HWND(window.hwnd as _));
+        }
+    }
     let cloud_kiosk_pid = if source.eq_ignore_ascii_case("cloud") {
         match launch_cloud_game_kiosk(&path) {
             Ok(pid) => {

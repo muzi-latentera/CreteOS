@@ -127,7 +127,7 @@
 @media(prefers-reduced-motion:reduce) { .crete-launch-spinner { animation:none; } }
 .crete-launch-popover { position: absolute; z-index: 60; top: calc(100% + 8px); left: 0; width: 290px; max-width:calc(100vw - 32px); box-sizing:border-box; padding: 8px; border: 1px solid #ffffff28; border-radius: 12px; background: #12161b; box-shadow: 0 16px 40px #0008; }
 .crete-launch-popover button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; padding: 10px 14px; border: 0; border-radius: 6px; background: transparent; color: #eee8da; text-align: left; font-size: 16px; }
-.crete-launch-popover button:is(:hover,:focus-visible) { background: #ffffff12; outline: 2px solid #d6aa4f; }
+.crete-launch-popover button:is(:hover,:focus) { background: #ffffff12; outline: 2px solid #d6aa4f; }
 .crete-launch-popover button:disabled { opacity: .45; }
 .crete-launch-popover i { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .crete-launch-popover small { margin-left: auto; color: #c8a456; font-size: 10px; letter-spacing: 1px; }
@@ -170,3 +170,9 @@
 @media (max-height:650px) { .crete-home[data-home-mode="semi"] .crete-hero { min-height:260px; } }
 
 .crete-home[data-home-mode="immersive"] .crete-hero { min-height: max(260px, calc(var(--crete-viewport-height, 100vh) - 150px)); }
+
+/* The hero surface opens details; its independent Play and Spotify controls remain interactive. */
+.crete-hero-open { position:absolute; inset:0; z-index:1; border:0; padding:0; background:transparent; cursor:pointer; border-radius:inherit; }
+.crete-hero-copy,.crete-hero-info { z-index:2; pointer-events:none; }
+.crete-hero-copy :is(button,a,input,select,[role="button"]) { pointer-events:auto; }
+.crete-hero-open:focus-visible { outline:2px solid var(--crete-accent); outline-offset:-3px; }

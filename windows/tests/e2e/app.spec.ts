@@ -1120,3 +1120,29 @@ test("Luna titles show informational metadata without replacing their launch ide
   expect(await page.evaluate(() => (window as any).__lastStoreMeta)).toEqual({ source: "steam", appId: "2592160" });
   await expect(details.getByText("Cloud", { exact: true }).first()).toBeVisible();
 });
+
+
+test("Home hero title and artwork open details by touch without launching", async ({ page }) => {
+  await richCrete(page, true);
+  await expect(page.locator(".crete-hero h1")).toHaveText("Portal 2");
+  const title = await page.locator(".crete-hero h1").boundingBox();
+  await page.mouse.click(title!.x + title!.width / 2, title!.y + title!.height / 2);
+  await expect(page.locator('[data-crete-details="true"]')).toBeVisible();
+  expect(await page.evaluate(() => (window as any).__invokeCounts.launch_app || 0)).toBe(0);
+});
+
+test("Pointer-opened provider menu shows D-pad focus and activates the selected provider", async ({ page }) => {
+  await page.goto("/?crete&rich&gfn&hostInstalled");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const details = page.locator('[data-crete-details="true"]');
+  await details.getByRole("button", { name: "Launch options", exact: true }).click();
+  await frames(page, 10);
+  await pad(page, 13);
+  const moonlight = details.getByRole("menuitem", { name: "Moonlight", exact: true });
+  await expect(moonlight).toBeFocused();
+  await expect(moonlight).toHaveCSS("outline-style", "solid");
+  await expect(moonlight).toHaveCSS("outline-width", "2px");
+  await pad(page, 0);
+  await expect(details.getByRole("dialog", { name: "Moonlight stream settings" })).toBeVisible();
+});

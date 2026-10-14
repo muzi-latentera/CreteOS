@@ -155,6 +155,7 @@ export function CreteHomeView(p: CreteHomeProps) {
             onPlaying={event => { event.currentTarget.style.opacity = "1"; }} onError={event => { event.currentTarget.style.opacity = "0"; }} />
           : <img className="crete-hero-art" src={animatedArtwork} alt="" onError={event => { event.currentTarget.style.display = "none"; }} />)}
         <div className="crete-hero-shade" />
+        <button type="button" className="crete-hero-open" aria-label={`${text("Game info")}: ${hero.name}`} onFocus={() => { setSelection(null); setNewsIndex(-1); }} onClick={() => p.onOpenDetails(hero)} />
         <div className="crete-hero-copy"><span className="crete-eyebrow crete-amber">{text("Continue where you stopped")}</span>
           <div className="crete-hero-title"><h1>{hero.name}</h1></div>
           <div className="crete-hero-tags">{p.settings.show_store_badges !== false && <span>{sourceLabel(hero.source)}</span>}{hero.installed && <span className="crete-local">{text("Local")}</span>}</div>

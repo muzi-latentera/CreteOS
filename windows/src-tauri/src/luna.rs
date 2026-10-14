@@ -36,10 +36,22 @@ fn installed() -> Result<InstalledApp, String> {
     let _ = std::fs::write(cache, serde_json::to_vec(&app).map_err(|e| e.to_string())?);
     Ok(app)
 }
+// Luna's browser client uses presence/truthiness for transferRequest (including
+// the string "false") and defaults an unspecified target to its native client.
+// Keep the shortcut's game/territory identity, but explicitly launch this PWA.
+fn browser_play_url(text: &str) -> Option<String> {
+    if !luna_url(text) { return None; }
+    let mut url = reqwest::Url::parse(text).ok()?;
+    let pairs: Vec<(String, String)> = url.query_pairs().filter(|(key, _)| !matches!(key.as_ref(), "target" | "autoplay" | "transferRequest" | "r")).map(|(key, value)| (key.into_owned(), value.into_owned())).collect();
+    url.set_query(None);
+    url.query_pairs_mut().extend_pairs(pairs).append_pair("target", "browser").append_pair("autoplay", "1");
+    Some(url.into())
+}
 pub fn launch(url: &str) -> Option<Result<u32, String>> {
     if !luna_url(url) { return None; }
     Some((|| {
         let app = installed()?;
+        let url = browser_play_url(url).ok_or("Invalid Luna game URL")?;
         let mut command = std::process::Command::new(&app.target);
         command.current_dir(app.target.parent().ok_or("Missing Luna app directory")?)
             .arg(format!("--profile-directory={}", app.profile)).arg(format!("--app-id={}", app.app_id))
@@ -70,6 +82,16 @@ pub fn request_fullscreen(hwnd: isize) -> bool {
     false
 }
 #[cfg(test)] mod tests {
+    #[test] fn browser_launch_preserves_game_and_removes_transfer_flag() {
+        let url = reqwest::Url::parse(&super::browser_play_url("https://luna.amazon.co.uk/play?autoplay=1&transferRequest=false&asin=B0H6GQJMBN&territory=GB&ref=tmp_dp_shortcut").unwrap()).unwrap();
+        let query: std::collections::HashMap<_, _> = url.query_pairs().collect();
+        assert_eq!(query.get("asin").unwrap(), "B0H6GQJMBN");
+        assert_eq!(query.get("territory").unwrap(), "GB");
+        assert_eq!(query.get("target").unwrap(), "browser");
+        assert_eq!(query.get("autoplay").unwrap(), "1");
+        assert!(!query.contains_key("transferRequest"));
+        assert!(super::browser_play_url("https://example.com/play?asin=x").is_none());
+    }
     #[test] fn windows_shortcut_path_separators_match() {
         assert!(super::same_executable(std::path::Path::new(r"C:\Program Files\Google/Chrome/Application/chrome_proxy.exe"), std::path::Path::new(r"c:\Program Files\Google\Chrome\Application\chrome_proxy.exe")));
         assert!(!super::same_executable(std::path::Path::new(r"C:\Program Files\Google/Chrome/Application/chrome_proxy.exe"), std::path::Path::new(r"C:\Other\chrome_proxy.exe")));
