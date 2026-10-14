@@ -6,12 +6,12 @@ fn now() -> u64 { SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default
 pub fn active() -> bool { UNTIL.load(Ordering::SeqCst) > now() }
 
 #[tauri::command]
-pub fn set_launch_cover(window: tauri::Window, active: bool) -> Result<(), String> {
+pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focus: Option<bool>) -> Result<(), String> {
     // Fail open after two minutes, even if the webview crashes during startup.
     let until = if active { now() + 120 } else { 0 };
     UNTIL.store(until, Ordering::SeqCst);
     if active { crate::stream_readiness::begin(); }
-    window.set_always_on_top(active).map_err(|e| e.to_string())?;
+    window.set_always_on_top(active && !allow_external_focus.unwrap_or(false)).map_err(|e| e.to_string())?;
     if active {
         window.show().map_err(|e| e.to_string())?;
         let handle = window.clone();

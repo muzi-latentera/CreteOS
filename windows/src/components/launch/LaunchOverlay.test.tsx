@@ -171,6 +171,7 @@ describe("Crete minimal game launch cover", () => {
       return undefined;
     });
     await act(async () => root.render(<LaunchOverlay minimal app={{ id: source, name: "Test Game", source, app_type: "game", launch_path: path } as App} gameArt={{}} customArt={{}} heroArt="https://fixture.test/hero.jpg" accent={{ primary: "#fff", glow: "rgba(0,0,0," } as AccentColors} onDone={done} />));
+    expect(invoke).toHaveBeenCalledWith("set_launch_cover", source === "cloud" ? { active: true, allowExternalFocus: true } : { active: true });
     expect(node.querySelector('[data-game-launch-cover]')).not.toBeNull();
     expect(node.textContent).not.toContain("Test Game");
     expect(node.querySelector("button")).toBeNull();

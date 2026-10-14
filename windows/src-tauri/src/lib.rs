@@ -9337,7 +9337,7 @@ fn focus_stream_window(app_handle: tauri::AppHandle, window: tauri::Window, prov
     let target = stream_window(&provider).ok_or("The streaming window closed before handoff")?;
     // The web cover remains opaque until this command returns. Release our
     // topmost flag and put the destination in front before clearing that cover.
-    launch_cover::set_launch_cover(window, false)?;
+    launch_cover::set_launch_cover(window, false, None)?;
     focus_external_window(windows::Win32::Foundation::HWND(target.hwnd as _));
     if unsafe { GetForegroundWindow().0 as isize } != target.hwnd { return Err("Could not bring the streaming app forward. Open it from the taskbar.".into()); }
     if load_settings_inner().hide_on_launch { fse_watcher::start_gpu_release_watch(app_handle, OUR_HWND.load(Ordering::Relaxed), Some(target.hwnd)); }
@@ -9430,7 +9430,7 @@ fn handoff_launched_app(name: String, launch_path: String, source: String, app_t
             .map(|_| unsafe { GetForegroundWindow().0 as isize })
     });
     let Some(target) = target else { return false; };
-    if launch_cover::set_launch_cover(window, false).is_err() { return false; }
+    if launch_cover::set_launch_cover(window, false, None).is_err() { return false; }
     focus_external_window(windows::Win32::Foundation::HWND(target as _));
     if source.eq_ignore_ascii_case("cloud") && luna::luna_url(&launch_path) { let _ = luna::request_fullscreen(target); }
     if unsafe { GetForegroundWindow().0 as isize } != target { return false; }

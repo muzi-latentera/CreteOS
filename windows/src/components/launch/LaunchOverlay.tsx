@@ -61,7 +61,7 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
     const done = onDone;
     const success = onSuccess;
     mounted.current = true;
-    void Promise.resolve(invoke("set_launch_cover", { active: true })).catch(() => {});
+    void Promise.resolve(invoke("set_launch_cover", { active: true, ...(launchTarget.source === "cloud" && /^https:\/\/luna\.amazon\.(co\.uk|com)(?:\/|$)/.test(launchTarget.launch_path) ? { allowExternalFocus: true } : {}) })).catch(() => {});
 
     const style = document.createElement("style");
     style.id = "launch-overlay-styles";
