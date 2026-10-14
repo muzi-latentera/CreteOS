@@ -180,3 +180,5 @@
 .crete-play[data-provider="luna"], [data-crete-details="true"] [data-crete-detail-slot="primary-actions"][data-provider="luna"] { --crete-play-colour:#9146ff; }
 .crete-play[data-provider="cloud"], [data-crete-details="true"] [data-crete-detail-slot="primary-actions"][data-provider="cloud"] { --crete-play-colour:#697580; }
 .crete-game-card[data-selected="true"], .crete-hero[data-focused="true"], .crete-news-card[data-selected="true"] { outline:2px solid var(--crete-accent); outline-offset:-2px; }
+
+[data-theme="crete"][data-ui-motion="off"] .crete-game-card { transition:none; }

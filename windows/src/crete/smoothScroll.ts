@@ -6,7 +6,7 @@ export function scrollPane(element: HTMLElement, destination: { top?: number; le
   if (previous) cancelAnimationFrame(previous.frame);
   const top = Math.max(0, Math.min(element.scrollHeight - element.clientHeight, destination.top ?? element.scrollTop));
   const left = Math.max(0, Math.min(element.scrollWidth - element.clientWidth, destination.left ?? element.scrollLeft));
-  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+  if (element.closest('[data-ui-motion="off"]') || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
     element.scrollTo({ top, left, behavior: "auto" });
     animations.delete(element);
     return;

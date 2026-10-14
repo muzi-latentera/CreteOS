@@ -62,7 +62,8 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
     const done = onDone;
     const success = onSuccess;
     mounted.current = true;
-    const coverReady = Promise.resolve(invoke("set_launch_cover", { active: true, ...(launchTarget.source === "cloud" && /^https:\/\/luna\.amazon\.(co\.uk|com)(?:\/|$)/.test(launchTarget.launch_path) ? { allowExternalFocus: true } : {}) })).catch(() => {});
+    const lunaLaunch = launchTarget.source === "cloud" && /^https:\/\/luna\.amazon\.(co\.uk|com)(?:\/|$)/.test(launchTarget.launch_path);
+    const coverReady = Promise.resolve(invoke("set_launch_cover", { active: true, ...(lunaLaunch ? { allowExternalFocus: true } : {}) })).catch(() => {});
 
     const style = document.createElement("style");
     style.id = "launch-overlay-styles";
@@ -229,7 +230,7 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
     // prevents a late window.show/overlay mount from raising CreteOS over Luna.
     void coverReady.then(() => new Promise<void>(resolve => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-    })).then(() => new Promise<void>(resolve => window.setTimeout(resolve, minimal ? 200 : 0)))
+    })).then(() => new Promise<void>(resolve => window.setTimeout(resolve, minimal ? lunaLaunch ? 400 : 200 : 0)))
       .then(() => { if (mounted.current) onReady?.(); });
 
     return () => {

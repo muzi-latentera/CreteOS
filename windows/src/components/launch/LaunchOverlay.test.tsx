@@ -206,7 +206,7 @@ describe("launch preparation ordering", () => {
     expect(ready).not.toHaveBeenCalled();
     for (let frame = 0; frame < 2; frame++) await act(async () => { const pending = frames; frames = []; pending.forEach(callback => callback(0)); });
     expect(ready).not.toHaveBeenCalled();
-    await act(async () => vi.advanceTimersByTime(200));
+    await act(async () => vi.advanceTimersByTime(400));
     expect(ready).toHaveBeenCalledOnce();
     act(() => root.unmount()); node.remove(); vi.useRealTimers(); vi.unstubAllGlobals();
   });

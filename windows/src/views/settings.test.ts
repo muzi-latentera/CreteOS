@@ -162,3 +162,15 @@ describe("Account row action navigation", () => {
     expect(moveSettingsAccountActionFocus({ current: 0, actionCount: 1, direction: 1 })).toBe(0);
   });
 });
+
+
+describe("Crete settings cleanup", () => {
+  it("keeps actionable streaming entries and hides the inherited community invite", () => {
+    const items = buildSettingsItems(((key: string) => key) as never, "crete");
+    expect(items.some(item => item.key === "moonlight_client" && item.type === "link")).toBe(true);
+    expect(items.some(item => item.key === "geforce_client" && item.type === "link")).toBe(true);
+    expect(items.some(item => item.key === "discord")).toBe(false);
+    expect(items.some(item => item.key === "credit-upstream")).toBe(true);
+    expect(buildSettingsItems(((key: string) => key) as never, "space").some(item => item.key === "discord")).toBe(true);
+  });
+});

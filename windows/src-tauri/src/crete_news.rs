@@ -56,7 +56,7 @@ fn thumbnail(html: &str) -> Option<String> {
 #[tauri::command]
 pub async fn get_crete_article_thumbnail(article_url: String) -> Result<Option<String>, String> {
     let url = reqwest::Url::parse(&article_url).map_err(|_| "Invalid news link")?;
-    if url.scheme() != "https" || !url.username().is_empty() || url.port().is_some() || !url.host_str().is_some_and(article_host) { return Ok(None); }
+    if url.scheme() != "https" || !url.username().is_empty() || url.password().is_some() || url.port().is_some() || !url.host_str().is_some_and(article_host) { return Ok(None); }
     // Follow bounded canonical publisher redirects, retaining the fixed public
     // domain allowlist at every hop.
     let redirects = reqwest::redirect::Policy::custom(|attempt| {
@@ -68,10 +68,53 @@ pub async fn get_crete_article_thumbnail(article_url: String) -> Result<Option<S
     let mut bytes = Vec::new();
     while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? { if bytes.len() + chunk.len() > 2_000_000 { return Ok(None); } bytes.extend_from_slice(&chunk); }
     let html = String::from_utf8_lossy(&bytes);
-    Ok(thumbnail(&html))
+    let Some(image_url) = thumbnail(&html) else { return Ok(None); };
+    cache_news_image(&image_url).await.map(Some)
+
+}
+
+// Publisher images are fetched once through the native client and served by
+// the existing scoped asset protocol, avoiding WebView hotlink/referrer failures.
+fn image_extension(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") { Some("png") }
+    else if bytes.starts_with(&[0xff, 0xd8, 0xff]) { Some("jpg") }
+    else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") { Some("webp") }
+    else { None }
+}
+async fn cache_news_image(image_url: &str) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    let folder = crate::liftoff_dir().join("media").join("news");
+    std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+    let key = format!("{:x}", Sha256::digest(image_url.as_bytes()));
+    for ext in ["jpg", "png", "webp"] {
+        let path = folder.join(format!("{key}.{ext}"));
+        if path.metadata().is_ok_and(|meta| meta.len() > 0 && meta.len() <= 5_000_000) { return Ok(path.to_string_lossy().into_owned()); }
+    }
+    let redirects = reqwest::redirect::Policy::custom(|attempt| {
+        let image = format!("<meta property='og:image' content='{}'>", attempt.url());
+        if attempt.previous().len() < 3 && thumbnail(&image).is_some() { attempt.follow() } else { attempt.stop() }
+    });
+    let client = reqwest::Client::builder().redirect(redirects).timeout(std::time::Duration::from_secs(8)).user_agent("Mozilla/5.0 CreteOS/0.1").build().map_err(|e| e.to_string())?;
+    let mut response = client.get(image_url).send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?;
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+        if bytes.len() + chunk.len() > 5_000_000 { return Err("News image exceeds size limit".into()); }
+        bytes.extend_from_slice(&chunk);
+    }
+    let ext = image_extension(&bytes).ok_or("Unsupported news image format")?;
+    let path = folder.join(format!("{key}.{ext}"));
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
 }
 
 #[cfg(test)] mod tests {
+    #[test] fn caches_only_browser_image_formats_not_error_pages() {
+        assert_eq!(super::image_extension(b"\x89PNG\r\n\x1a\nrest"), Some("png"));
+        assert_eq!(super::image_extension(&[0xff, 0xd8, 0xff, 0]), Some("jpg"));
+        assert_eq!(super::image_extension(b"RIFF1234WEBPrest"), Some("webp"));
+        assert!(super::image_extension(b"<html>denied</html>").is_none());
+        assert!(super::image_extension(b"<svg onload='x'/>").is_none());
+    }
     #[test] fn reads_real_games_publisher_cdn_and_flexible_tags() {
         assert_eq!(super::thumbnail("<META\ncontent = 'https://assetsio.gnwcdn.com/nvidia.jpg?x=1&amp;y=2' property = 'og:image'>").unwrap(), "https://assetsio.gnwcdn.com/nvidia.jpg?x=1&y=2");
         assert!(super::thumbnail("<meta name=\"twitter:image\" content=\"https://xboxwire.thesourcemediaassets.com/labs.jpg\">").is_some());

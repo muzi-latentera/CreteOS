@@ -256,12 +256,12 @@
   },
   "settings": {
     "sections": {
-      "appearance": "Appearance",
-      "library": "Library",
-      "behavior": "Behavior",
+      "appearance": "Display & Home",
+      "library": "Library & accounts",
+      "behavior": "Startup & streaming",
       "controller": "Controller",
-      "data": "Data",
-      "about": "About"
+      "data": "Storage & troubleshooting",
+      "about": "About & updates"
     },
     "immersiveHome": "Immersive Home",
     "hideBottomBar": "Hide Bottom Bar",
@@ -276,10 +276,10 @@
     "tabbarShowTriggers": "Show Trigger Badges in Tab Bar",
     "tabbarTextTabs": "Text-Only Tabs",
     "tabbarIconMode": "Tab Icons",
-    "topbarBackground": "Top Nav Background",
+    "topbarBackground": "Status background",
     "tabbarBackground": "Tab Bar Background",
     "tabbarBackgroundCompact": "Compact Background",
-    "bottombarBackground": "Bottom Bar Background",
+    "bottombarBackground": "Navigation background",
     "bottombarAlignment": "Button Alignment",
     "tabbarLabelCase": "Tab Label Format",
     "tabbarFontWeight": "Label Weight",
@@ -292,7 +292,7 @@
     "showStoreBadges": "Show Store Badges",
     "showStoreBadgesDesc": "Display a small store icon (Steam, Xbox, Battle.net, GOG, Epic, Cloud) on game covers",
     "showHomePinned": "Show Pinned on Home",
-    "homePinnedPos": "Pinned apps position",
+    "homePinnedPos": "Pinned row position",
     "accentColor": "Accent Color",
     "theme": "Theme",
     "backgroundStars": "Star Effects",
@@ -310,7 +310,7 @@
     "backgroundWebcore": "Webcore Effects",
     "uiMotion": "UI Motion",
     "sfxEnabled": "Sound Effects",
-    "surfaceStyle": "Surface Style",
+    "surfaceStyle": "Dialog and panel style",
     "appearanceGroups": {
       "style": "Style",
       "home": "Home Screen",
@@ -375,9 +375,9 @@
     "topbarShowBumpers": "Show Bumper Badges in Nav Bar",
     "uiScale": "UI Scale",
     "resetScale": "Reset Scale to Auto",
-    "homeCoverScale": "Home Cover Scale",
-    "gameCoverScale": "Games Cover Scale",
-    "appCoverScale": "Apps Cover Scale",
+    "homeCoverScale": "Home tile size",
+    "gameCoverScale": "Game tile size",
+    "appCoverScale": "Application tile size",
     "appListView": "Apps List View",
     "appListCols": "Columns Per Row",
     "scanSteam": "Scan Steam",
@@ -401,8 +401,8 @@
     "controllerTest": "Controller Test",
     "gamepadIconPreview": "Controller Buttons",
     "noController": "No controller detected — connect a gamepad and press any button.",
-    "clearRecents": "Clear Recently Played",
-    "clearCache": "Clear Art Cache",
+    "clearRecents": "Clear local launch history",
+    "clearCache": "Rebuild artwork cache",
     "rerunOnboarding": "Run Setup Again",
     "factoryReset": "Reset CreteOS",
     "factoryResetConfirm": "Erase all settings, pins, recents, artwork, and signed-in accounts? CreteOS will restart on first-run setup.",
@@ -425,7 +425,7 @@
     "gamepadIconsColored": "Colored Icons",
     "gamepadBtnSize": "Button Size",
     "checkUpdates": "Check for Updates",
-    "coffee": "Support LiftOff",
+    "coffee": "Support LiftOff (upstream)",
     "github": "⭐ GitHub",
     "discord": "LiftOff community",
     "privacy": "Privacy Policy",
@@ -448,7 +448,8 @@
       "media": "MEDIA",
       "spotify": "SPOTIFY",
       "community": "COMMUNITY",
-      "tabbar": "SECTION TAB BAR"
+      "tabbar": "SECTION TAB BAR",
+      "streaming": "Streaming"
     },
     "status": {
       "scanning": "Scanning...",
@@ -461,7 +462,8 @@
       "upToDate": "✓ Up to date",
       "updateAvailable": "↓ v{{version}} available",
       "checkFailed": "⚠ Check failed",
-      "check": "↵ Check"
+      "check": "↵ Check",
+      "noRelease": "No published Windows release; preview builds are separate"
     },
     "attribution": "by {{author}} · {{license}}",
     "values": {
@@ -549,7 +551,10 @@
       "view_menu": "View + Menu",
       "lb_rb": "LB + RB",
       "crete": "CreteOS"
-    }
+    },
+    "openMoonlight": "Open Moonlight",
+    "openGeForce": "Open GeForce NOW",
+    "streamingHelp": "Stream resolution, frame rate and bitrate are saved per display from a game’s Play settings. Bosgame availability refreshes daily; Refresh host checks now."
   },
   "onboarding": {
     "on": "On",

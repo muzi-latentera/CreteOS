@@ -592,10 +592,6 @@ export default function App() {
     });
   }, [steamStatus.connected, settings.steam_owned_library_seen, updateSettingsBatch]);
   useEffect(() => {
-    if (!xboxStatus.connected || settings.show_uninstalled_games === true) return;
-    updateSettingsBatch({ show_uninstalled_games: true });
-  }, [xboxStatus.connected, settings.show_uninstalled_games, updateSettingsBatch]);
-  useEffect(() => {
     if (!showUninstalledGames && installFilterRef.current !== "all") {
       setInstallFilter("all");
     }

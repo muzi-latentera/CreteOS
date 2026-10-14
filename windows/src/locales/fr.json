@@ -256,12 +256,12 @@
   },
   "settings": {
     "sections": {
-      "appearance": "Apparence",
-      "library": "Bibliothèque",
-      "behavior": "Comportement",
+      "appearance": "Affichage et accueil",
+      "library": "Bibliothèque et comptes",
+      "behavior": "Démarrage et streaming",
       "controller": "Manette",
-      "data": "Données",
-      "about": "À propos"
+      "data": "Stockage et dépannage",
+      "about": "À propos et mises à jour"
     },
     "immersiveHome": "Accueil immersif",
     "hideBottomBar": "Masquer la barre inférieure",
@@ -276,10 +276,10 @@
     "tabbarShowTriggers": "Afficher les badges gâchettes dans la barre d'onglets",
     "tabbarTextTabs": "Onglets en texte seul",
     "tabbarIconMode": "Icônes des onglets",
-    "topbarBackground": "Fond barre de navigation",
+    "topbarBackground": "Fond de l’état système",
     "tabbarBackground": "Fond barre d'onglets",
     "tabbarBackgroundCompact": "Fond compact",
-    "bottombarBackground": "Fond barre inférieure",
+    "bottombarBackground": "Fond de navigation",
     "bottombarAlignment": "Alignement des boutons",
     "tabbarLabelCase": "Format des noms des onglets",
     "tabbarFontWeight": "Épaisseur des labels",
@@ -292,7 +292,7 @@
     "showStoreBadges": "Afficher les badges de plateforme",
     "showStoreBadgesDesc": "Afficher une petite icône de plateforme (Steam, Xbox, Battle.net, GOG, Epic, Cloud) sur les jaquettes de jeux",
     "showHomePinned": "Afficher les épinglés sur l'accueil",
-    "homePinnedPos": "Position des apps épinglées",
+    "homePinnedPos": "Position des favoris",
     "accentColor": "Couleur d'accent",
     "theme": "Thème",
     "backgroundStars": "Effets d'etoiles",
@@ -310,7 +310,7 @@
     "backgroundWebcore": "Effets webcore",
     "uiMotion": "Motion UI",
     "sfxEnabled": "Effets sonores",
-    "surfaceStyle": "Style de surface",
+    "surfaceStyle": "Style des fenêtres et panneaux",
     "appearanceGroups": {
       "style": "Style",
       "home": "Accueil",
@@ -375,9 +375,9 @@
     "topbarShowBumpers": "Badges palette dans la barre principale",
     "uiScale": "Échelle UI",
     "resetScale": "Réinitialiser l'échelle",
-    "homeCoverScale": "Taille jaquettes Accueil",
-    "gameCoverScale": "Taille jaquettes Jeux",
-    "appCoverScale": "Taille jaquettes Apps",
+    "homeCoverScale": "Taille des vignettes d’accueil",
+    "gameCoverScale": "Taille des vignettes de jeux",
+    "appCoverScale": "Taille des vignettes d’applications",
     "appListView": "Vue liste pour Apps",
     "appListCols": "Colonnes par ligne",
     "scanSteam": "Scanner Steam",
@@ -401,8 +401,8 @@
     "controllerTest": "Test manette",
     "gamepadIconPreview": "Boutons de la manette",
     "noController": "Aucune manette détectée — connectez un contrôleur et appuyez sur un bouton.",
-    "clearRecents": "Effacer l'historique",
-    "clearCache": "Vider le cache art",
+    "clearRecents": "Effacer l’historique local des lancements",
+    "clearCache": "Reconstruire le cache des images",
     "rerunOnboarding": "Relancer la configuration",
     "factoryReset": "Réinitialiser CreteOS",
     "factoryResetConfirm": "Effacer tous les réglages, les épingles, l'historique, les illustrations et les comptes connectés ? CreteOS redémarrera sur la configuration initiale.",
@@ -425,7 +425,7 @@
     "gamepadIconsColored": "Icônes colorées",
     "gamepadBtnSize": "Taille des boutons",
     "checkUpdates": "Vérifier les mises à jour",
-    "coffee": "Support LiftOff",
+    "coffee": "Soutenir LiftOff (projet amont)",
     "github": "⭐ GitHub",
     "discord": "LiftOff community",
     "privacy": "Politique de confidentialité",
@@ -448,7 +448,8 @@
       "media": "MÉDIAS",
       "spotify": "SPOTIFY",
       "community": "COMMUNAUTÉ",
-      "tabbar": "BARRE D'ONGLETS"
+      "tabbar": "BARRE D'ONGLETS",
+      "streaming": "Streaming"
     },
     "status": {
       "scanning": "Analyse...",
@@ -461,7 +462,8 @@
       "upToDate": "✓ À jour",
       "updateAvailable": "↓ v{{version}} disponible",
       "checkFailed": "⚠ Échec de la vérification",
-      "check": "↵ Vérifier"
+      "check": "↵ Vérifier",
+      "noRelease": "Aucune version Windows publiée ; aperçus séparés"
     },
     "attribution": "par {{author}} · {{license}}",
     "values": {
@@ -549,7 +551,10 @@
       "view_menu": "View + Menu",
       "lb_rb": "LB + RB",
       "crete": "CreteOS"
-    }
+    },
+    "openMoonlight": "Ouvrir Moonlight",
+    "openGeForce": "Ouvrir GeForce NOW",
+    "streamingHelp": "La résolution, la fréquence et le débit sont enregistrés par écran depuis les options Jouer. Bosgame est actualisé chaque jour ; Actualiser vérifie immédiatement."
   },
   "onboarding": {
     "on": "Activé",

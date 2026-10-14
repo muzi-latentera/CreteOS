@@ -1416,6 +1416,7 @@ export function useGamepadNavigation(
           haptic("confirm");
         }
         else if (item.type === "link") {
+          if (item.key === "moonlight_client" || item.key === "geforce_client") void invoke("launch_streaming_client", { provider: item.key === "moonlight_client" ? "moonlight" : "geforceNow" }).catch(error => window.dispatchEvent(new CustomEvent("settings-streaming-error", { detail: String(error) })));
           if (item.key === "coffee")  invoke("launch_app", { path: "https://buymeacoffee.com/liftoff_handheld_launcher", id: "coffee", name: "Buy Me a Coffee", appType: "app", source: "", runAsAdmin: false }).catch(() => {});
           if (item.key === "github")  invoke("launch_app", { path: "https://github.com/muzi-latentera/CreteOS", id: "github", name: "GitHub", appType: "app", source: "", runAsAdmin: false }).catch(() => {});
           if (item.key === "discord") invoke("launch_app", { path: "https://discord.gg/F5ncP75WtD", id: "discord", name: "Discord", appType: "app", source: "", runAsAdmin: false }).catch(() => {});

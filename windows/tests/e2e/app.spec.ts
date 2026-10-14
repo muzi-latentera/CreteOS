@@ -90,6 +90,11 @@ test.beforeEach(async ({ page }) => {
           return listenerId;
         }
         if (command === "plugin:event|unlisten" || command === "plugin:event|emit") return null;
+        if (command === "save_settings") { (window as any).__savedSettings = args.settings; return null; }
+        if (command === "get_build_identity") return {version:"0.1.0",sourceCommit:"fixturecommit"};
+        if (command === "launch_streaming_client") { (window as any).__lastStreamingClient = args; return null; }
+        if (params.has("newsAsset") && command === "get_crete_news_rss") return '<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Cached Games article</title><link href="https://www.reddit.com/r/Games/comments/cached"/><content type="html">&lt;a href="https://www.eurogamer.net/test"&gt;[link]&lt;/a&gt;</content></entry></feed>';
+        if (params.has("newsAsset") && command === "get_crete_article_thumbnail") return "C:/Users/Muzi/AppData/Local/CreteOS/media/news/fixture.jpg";
         if (command === "get_pins") return pinnedIds;
         if (command === "toggle_pin") { const id = args.appId; pinnedIds = pinnedIds.includes(id) ? pinnedIds.filter(value => value !== id) : [...pinnedIds, id]; return pinnedIds; }
         if (params.has("parity") && command === "get_game_collections") return [{ id: "favourites", name: "Favourites" }];
@@ -117,7 +122,7 @@ test.beforeEach(async ({ page }) => {
           const bottombarMode = new URLSearchParams(window.location.search).get("barMode") || "smart";
           return { ...(responses.get_settings as Record<string, unknown>), bottombar_mode: bottombarMode,
             onboarding_complete: params.get("fresh") !== "true", theme: params.get("theme") || (params.has("crete") ? "crete" : "space"),
-            accent: "crete", surface_style: params.get("surface") || "glass", ui_motion: false, ui_scale: 1, language: params.get("lang") || "en", app_list_view: params.has("listApps"), app_list_cols: 2,
+            accent: "crete", surface_style: params.get("surface") || "glass", ui_motion: params.has("motion"), ui_scale: 1, language: params.get("lang") || "en", app_list_view: params.has("listApps"), app_list_cols: 2,
             show_home_collections: params.has("parity"), show_home_collection_names: true, home_pinned_pos: params.has("parity") ? "top" : "none", home_mode: params.get("homeMode") || "semi", animated_heroes: params.has("animated") ? "animated" : "static",
             home_launch_games_directly: params.has("direct") };
         }
@@ -394,10 +399,10 @@ test("CreteOS empty Home and three controller tabs", async ({ page }, info) => {
   expect(errors).toEqual([]);
 });
 
-async function richCrete(page: Page, played = false) {
+async function richCrete(page: Page, played = false, motion = false) {
   await page.route("https://fixture.test/**", route => route.fulfill({ contentType: "image/svg+xml", body:
     `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><defs><linearGradient id="g" x2="1" y2="1"><stop stop-color="#34414f"/><stop offset="1" stop-color="#122029"/></linearGradient></defs><rect width="600" height="800" fill="url(#g)"/><circle cx="300" cy="300" r="170" fill="#e9a93c" opacity=".12"/><text x="300" y="500" text-anchor="middle" fill="#f2eadb" font-size="40" font-family="sans-serif">TEST ARTWORK</text></svg>` }));
-  await page.goto(`/?crete&rich${played ? "&played" : ""}`);
+  await page.goto(`/?crete&rich${played ? "&played" : ""}${motion ? "&motion" : ""}`);
   await expect(page.getByRole("button", { name: "Home", exact: true })).toBeVisible();
   await frames(page, 40);
 }
@@ -818,7 +823,7 @@ test("Controller opens compact launch menu, chooses Moonlight and cancels only t
 
 test("Home selection scroll interpolates and a rapid reversal returns to the hero", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 600 });
-  await richCrete(page, true);
+  await richCrete(page, true, true);
   // Control animation time before input; sampling after input can miss every
   // intermediate frame on a busy native CI runner.
   await page.clock.install({ time: new Date("2026-10-13T12:00:00Z") });
@@ -1160,4 +1165,35 @@ test("Luna hero and details share purple Play while Home and Library have two pi
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await expect(page.locator('.crete-game-card[data-selected="true"]').first()).toHaveCSS("outline-width", "2px");
+});
+
+
+test("Connected Microsoft account respects uninstalled visibility and settings open actual clients", async ({ page }) => {
+ await page.goto("/?crete&rich&connectedAccounts");
+ await page.getByRole("button",{name:"Settings",exact:true}).click();
+ await page.getByText("Library & accounts",{exact:true}).click();
+ await frames(page,30);
+ await page.getByText("Show not-installed games",{exact:true}).click();
+ await expect.poll(() => page.evaluate(() => (window as any).__savedSettings?.show_uninstalled_games)).toBe(false);
+ await frames(page,30);
+ expect(await page.evaluate(() => (window as any).__savedSettings.show_uninstalled_games)).toBe(false);
+ await page.getByText("Startup & streaming",{exact:true}).click();
+ await page.getByText("Open Moonlight",{exact:true}).click();
+ await expect.poll(() => page.evaluate(() => (window as any).__lastStreamingClient)).toEqual({provider:"moonlight"});
+ await page.getByText("Open GeForce NOW",{exact:true}).click();
+ await expect.poll(() => page.evaluate(() => (window as any).__lastStreamingClient)).toEqual({provider:"geforceNow"});
+ await page.getByText("About & updates",{exact:true}).click();
+ await expect(page.getByText("CreteOS v0.1.0 · fixture",{exact:true})).toBeVisible();
+ await page.getByText("Check for Updates",{exact:true}).click();
+ await expect(page.getByText("No published Windows release; preview builds are separate",{exact:true})).toBeVisible();
+});
+
+test("Games article images render from the native scoped cache", async ({ page }) => {
+ await page.route("http://asset.localhost/**", route => route.fulfill({contentType:"image/svg+xml",body:'<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"><rect width="120" height="60" fill="orange"/></svg>'}));
+ await page.goto("/?crete&rich&played&newsAsset");
+ const card = page.getByRole("button",{name:/Cached Games article/});
+ const image = card.locator("img");
+ await expect(image).toHaveAttribute("src",/asset.localhost.*media.*news/);
+ await card.scrollIntoViewIfNeeded();
+ await expect.poll(() => image.evaluate(node => (node as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
 });

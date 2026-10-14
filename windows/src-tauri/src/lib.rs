@@ -66,7 +66,7 @@ mod xbox_details;
 const SGDB_KEY: &str = env!("SGDB_API_KEY");
 const RECENTS_MAX: usize = 10;
 const XCLOUD_REMOTE_URL: &str =
-    "https://raw.githubusercontent.com/PixelateWizard/LiftOff/main/src/data/xcloudGames.json";
+    "https://raw.githubusercontent.com/muzi-latentera/CreteOS/codex/windows-liftoff/windows/src/data/xcloudGames.json";
 const XCLOUD_BUNDLED_JSON: &str = include_str!("../../src/data/xcloudGames.json");
 const XCLOUD_REFRESH_INTERVAL_SECS: u64 = 24 * 60 * 60;
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -5284,6 +5284,11 @@ fn toggle_hidden(app_id: String) -> Vec<String> {
 }
 
 #[tauri::command]
+fn get_build_identity() -> serde_json::Value {
+    serde_json::json!({"version":env!("CARGO_PKG_VERSION"), "sourceCommit":option_env!("CRETE_SOURCE_COMMIT").unwrap_or("development")})
+}
+
+#[tauri::command]
 fn save_settings(settings: Settings, app_handle: tauri::AppHandle) -> Result<(), String> {
     let autostart = app_handle.autolaunch();
     if settings.launch_at_startup {
@@ -9431,7 +9436,9 @@ fn handoff_launched_app(name: String, launch_path: String, source: String, app_t
     });
     let Some(target) = target else { return false; };
     if launch_cover::set_launch_cover(window, false, None).is_err() { return false; }
-    focus_external_window(windows::Win32::Foundation::HWND(target as _));
+    if unsafe { GetForegroundWindow().0 as isize } != target {
+        focus_external_window(windows::Win32::Foundation::HWND(target as _));
+    }
     if source.eq_ignore_ascii_case("cloud") && luna::luna_url(&launch_path) { let _ = luna::request_fullscreen(target); }
     if unsafe { GetForegroundWindow().0 as isize } != target { return false; }
     if app_type.as_deref() == Some("game") && load_settings_inner().hide_on_launch { fse_watcher::start_gpu_release_watch(app_handle, OUR_HWND.load(Ordering::Relaxed), Some(target)); }
@@ -10057,8 +10064,10 @@ async fn launch_app(
             }
             unsafe {
                 let hwnd = windows::Win32::Foundation::HWND(found as _);
-                let _ = SetForegroundWindow(hwnd);
-                let _ = ShowWindow(hwnd, SW_SHOW);
+                if GetForegroundWindow() != hwnd {
+                    let _ = SetForegroundWindow(hwnd);
+                    let _ = ShowWindow(hwnd, SW_SHOW);
+                }
             }
         }
 
@@ -10134,6 +10143,7 @@ pub fn run() {
             native_startup_rumble,
             get_settings,
             save_settings,
+            get_build_identity,
             clear_recents,
             open_uri,
             exit_app,

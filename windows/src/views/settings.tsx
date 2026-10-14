@@ -239,6 +239,10 @@ export function buildSettingsItems(t: TFunction, activeTheme: string): SettingsI
     D("media", 2),
     { key: "animated_heroes", section: 2, label: t("settings.heroArtMode"), type: "cycle", options: ["static","animated","custom"] },
 
+    D("streaming", 2),
+    { key: "moonlight_client", section: 2, label: t("settings.openMoonlight"), type: "link" },
+    { key: "geforce_client", section: 2, label: t("settings.openGeForce"), type: "link" },
+    { key: "streaming_help", section: 2, label: t("settings.streamingHelp"), type: "info" },
     D("spotify", 2),
     { key: "spotify", section: 2, label: t("spotify.title"), type: "spotify" },
 
@@ -297,7 +301,7 @@ export function buildSettingsItems(t: TFunction, activeTheme: string): SettingsI
   // Crete uses fixed Android navigation chrome. Keep preferences for the other
   // themes, but do not offer controls which cannot affect this presentation.
   if (activeTheme === "crete") {
-    const unsupported = new Set(["stars_enabled", "wide_topbar", "wide_bottombar", "bottombar_mode", "bottombar_idle_collapse", "bottombar_peek_on_track", "bottombar_alignment", "tabbar_with_background", "nav_bumpers_pos", "tabbar_show_buttons", "tabbar_label_case", "tabbar_text_tabs", "tabbar_icon_mode"]);
+    const unsupported = new Set(["stars_enabled", "wide_topbar", "wide_bottombar", "bottombar_mode", "bottombar_idle_collapse", "bottombar_peek_on_track", "bottombar_alignment", "tabbar_with_background", "nav_bumpers_pos", "tabbar_show_buttons", "tabbar_label_case", "tabbar_text_tabs", "tabbar_icon_mode", "discord"]);
     for (let i = items.length - 1; i >= 0; i--) {
       const item = items[i];
       if (unsupported.has(item.key)) items.splice(i, 1);
@@ -481,6 +485,12 @@ export function SettingsScreen({
   const { t } = useTranslation();
   const { settingsRowGlass, accent, theme, isDark, glassEnabled, surfaceStyle, surface, resolvedTheme } = useTheme();
   const { settings, updateSetting } = useSettings();
+  const [streamingError, setStreamingError] = useState("");
+  const [buildCommit, setBuildCommit] = useState("");
+  useEffect(() => { void invoke<{sourceCommit:string}>("get_build_identity").then(info => setBuildCommit(info.sourceCommit.slice(0, 7))).catch(() => {});
+    const error = (event: Event) => setStreamingError((event as CustomEvent<string>).detail);
+    window.addEventListener("settings-streaming-error", error); return () => window.removeEventListener("settings-streaming-error", error);
+  }, []);
   const [storageDrives, setStorageDrives] = useState<DriveStorageInfo[]>([]);
   const wideLayout = settings.wide_settings ?? false;
 
@@ -500,6 +510,7 @@ export function SettingsScreen({
   }, [settingsSection]);
 
   const ALL_ITEMS: SettingsItem[] = buildSettingsItems(t, normalizeThemeKey(String(settings.theme))).map(item =>
+    item.key === "version" && buildCommit ? { ...item, label: `${item.label} · ${buildCommit}` } :
     item.key === "show_immersive_hero_art" && settings.home_mode === "normal"
       ? { ...item, locked: true, lockedValue: true }
       : item
@@ -1333,7 +1344,8 @@ export function SettingsScreen({
 
     if (item.type === "update") {
       const statusText =
-        updateStatus === "checking"   ? t("settings.status.checking")
+        updateStatus === "no_release" ? t("settings.status.noRelease")
+        : updateStatus === "checking"   ? t("settings.status.checking")
         : updateStatus === "up_to_date" ? t("settings.status.upToDate")
         : updateStatus === "available"  ? t("settings.status.updateAvailable", { version: updateInfo })
         : updateStatus === "error"      ? t("settings.status.checkFailed")
@@ -1359,6 +1371,7 @@ export function SettingsScreen({
     if (item.type === "link")
       return (
         <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={rowStyle} onClick={() => {
+          if (item.key === "moonlight_client" || item.key === "geforce_client") void invoke("launch_streaming_client", { provider: item.key === "moonlight_client" ? "moonlight" : "geforceNow" }).catch(error => window.dispatchEvent(new CustomEvent("settings-streaming-error", { detail: String(error) })));
           if (item.key === "coffee")  invoke("launch_app", { path: "https://buymeacoffee.com/liftoff_handheld_launcher", id: "coffee", name: "Buy Me a Coffee", appType: "app", source: "", runAsAdmin: false }).catch(() => {});
           if (item.key === "github")  invoke("launch_app", { path: "https://github.com/muzi-latentera/CreteOS", id: "github", name: "GitHub", appType: "app", source: "", runAsAdmin: false }).catch(() => {});
           if (item.key === "discord") invoke("launch_app", { path: "https://discord.gg/F5ncP75WtD", id: "discord", name: "Discord", appType: "app", source: "", runAsAdmin: false }).catch(() => {});
@@ -1454,7 +1467,8 @@ export function SettingsScreen({
   return (
     <div style={{ ...(wideLayout ? {} : { maxWidth: 1400, margin: "0 auto" }), width: "100%", boxSizing: "border-box" as const }}>
       <div style={{ padding: `${sectionItems[0]?.type !== "divider" ? "22px" : "0"} 24px 160px` }}>
-        {sectionItems.map(renderItem)}
+        {streamingError && <p role="alert">{streamingError}</p>}
+      {sectionItems.map(renderItem)}
         <div ref={settingsBottomRef} />
       </div>
     </div>

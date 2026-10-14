@@ -3,7 +3,7 @@ import { isNewerVersion } from "../utils/version";
 import { selectWindowsRelease, type GithubRelease } from "../utils/windowsReleases";
 import { WINDOWS_RELEASE_PREFIX } from "../constants";
 
-export type UpdateStatus = "checking" | "up_to_date" | "available" | "error" | null;
+export type UpdateStatus = "checking" | "up_to_date" | "no_release" | "available" | "error" | null;
 
 export interface UpdateRelease {
   // Windows tag with "windows-v" stripped, e.g. "0.1.0-alpha.5".
@@ -149,7 +149,7 @@ export function useUpdateCheck({
         if (isAutomatic) writeLastChecked(Date.now());
 
         if (!release) {
-          if (!isAutomatic) setUpdateStatus("up_to_date");
+          if (!isAutomatic) setUpdateStatus("no_release");
           return;
         }
 

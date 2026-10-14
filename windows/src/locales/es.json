@@ -256,12 +256,12 @@
   },
   "settings": {
     "sections": {
-      "appearance": "Apariencia",
-      "library": "Biblioteca",
-      "behavior": "Comportamiento",
+      "appearance": "Pantalla e Inicio",
+      "library": "Biblioteca y cuentas",
+      "behavior": "Inicio y streaming",
       "controller": "Mando",
-      "data": "Datos",
-      "about": "Acerca de"
+      "data": "Almacenamiento y diagnóstico",
+      "about": "Acerca de y actualizaciones"
     },
     "immersiveHome": "Inicio inmersivo",
     "hideBottomBar": "Ocultar barra inferior",
@@ -276,10 +276,10 @@
     "tabbarShowTriggers": "Mostrar insignias de gatillos en la barra de pestañas",
     "tabbarTextTabs": "Pestañas solo de texto",
     "tabbarIconMode": "Iconos de pestaña",
-    "topbarBackground": "Fondo de la barra superior",
+    "topbarBackground": "Fondo del estado del sistema",
     "tabbarBackground": "Fondo de la barra de pestañas",
     "tabbarBackgroundCompact": "Fondo compacto",
-    "bottombarBackground": "Fondo de la barra inferior",
+    "bottombarBackground": "Fondo de navegación",
     "bottombarAlignment": "Alineación de botones",
     "tabbarLabelCase": "Formato de las etiquetas",
     "tabbarFontWeight": "Grosor de la etiqueta",
@@ -292,7 +292,7 @@
     "showStoreBadges": "Mostrar insignias de tienda",
     "showStoreBadgesDesc": "Muestra un icono pequeño de tienda (Steam, Game Pass, Battle.net, GOG, Epic, Nube) en las portadas",
     "showHomePinned": "Mostrar fijados en Inicio",
-    "homePinnedPos": "Posición de las apps fijadas",
+    "homePinnedPos": "Posición de favoritos",
     "accentColor": "Color de acento",
     "theme": "Tema",
     "backgroundStars": "Efectos de estrellas",
@@ -310,7 +310,7 @@
     "backgroundWebcore": "Efectos webcore",
     "uiMotion": "Movimiento de la interfaz",
     "sfxEnabled": "Efectos de sonido",
-    "surfaceStyle": "Estilo de superficie",
+    "surfaceStyle": "Estilo de ventanas y paneles",
     "appearanceGroups": {
       "style": "Estilo",
       "home": "Pantalla de inicio",
@@ -375,9 +375,9 @@
     "topbarShowBumpers": "Mostrar insignias de palancas en la barra",
     "uiScale": "Escala de la interfaz",
     "resetScale": "Restablecer escala automática",
-    "homeCoverScale": "Escala de portadas en Inicio",
-    "gameCoverScale": "Escala de portadas de juegos",
-    "appCoverScale": "Escala de portadas de apps",
+    "homeCoverScale": "Tamaño de tarjetas de Inicio",
+    "gameCoverScale": "Tamaño de tarjetas de juegos",
+    "appCoverScale": "Tamaño de tarjetas de aplicaciones",
     "appListView": "Vista de lista de apps",
     "appListCols": "Columnas por fila",
     "scanSteam": "Analizar Steam",
@@ -401,8 +401,8 @@
     "controllerTest": "Prueba de mando",
     "gamepadIconPreview": "Botones del mando",
     "noController": "No se detectó un mando — conecta un gamepad y pulsa cualquier botón.",
-    "clearRecents": "Borrar jugados recientemente",
-    "clearCache": "Vaciar caché de arte",
+    "clearRecents": "Borrar historial local de inicio",
+    "clearCache": "Reconstruir caché de imágenes",
     "rerunOnboarding": "Volver a ejecutar la configuración",
     "factoryReset": "Restablecer CreteOS",
     "factoryResetConfirm": "¿Borrar todos los ajustes, pines, recientes, ilustraciones y cuentas conectadas? CreteOS se reiniciará en la configuración inicial.",
@@ -425,7 +425,7 @@
     "gamepadIconsColored": "Iconos de color",
     "gamepadBtnSize": "Tamaño de botones",
     "checkUpdates": "Buscar actualizaciones",
-    "coffee": "Support LiftOff",
+    "coffee": "Apoyar a LiftOff (proyecto original)",
     "github": "⭐ GitHub",
     "discord": "LiftOff community",
     "privacy": "Política de privacidad",
@@ -448,7 +448,8 @@
       "media": "MEDIOS",
       "spotify": "SPOTIFY",
       "community": "COMUNIDAD",
-      "tabbar": "BARRA DE PESTAÑAS"
+      "tabbar": "BARRA DE PESTAÑAS",
+      "streaming": "Streaming"
     },
     "status": {
       "scanning": "Analizando...",
@@ -461,7 +462,8 @@
       "upToDate": "✓ Actualizado",
       "updateAvailable": "↓ v{{version}} disponible",
       "checkFailed": "⚠ Error al comprobar",
-      "check": "↵ Comprobar"
+      "check": "↵ Comprobar",
+      "noRelease": "No hay versión Windows publicada; las vistas previas son independientes"
     },
     "attribution": "por {{author}} · {{license}}",
     "values": {
@@ -549,7 +551,10 @@
       "view_menu": "View + Menu",
       "lb_rb": "LB + RB",
       "crete": "CreteOS"
-    }
+    },
+    "openMoonlight": "Abrir Moonlight",
+    "openGeForce": "Abrir GeForce NOW",
+    "streamingHelp": "Resolución, fotogramas y tasa de bits se guardan por pantalla desde las opciones Jugar. Bosgame se actualiza a diario; Actualizar comprueba ahora."
   },
   "onboarding": {
     "on": "Activado",

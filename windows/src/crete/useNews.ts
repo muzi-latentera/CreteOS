@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { parseNews, type NewsPost } from "./news";
 
 let cached: { posts: NewsPost[]; at: number } | undefined;
@@ -14,7 +14,7 @@ function load() {
     await Promise.all(Array.from({ length: 4 }, async () => {
       while (next < enriched.length) { const index = next++; const post = enriched[index]; if (!post.thumbnail && post.articleUrl) {
         const thumbnail = await invoke<string | null>("get_crete_article_thumbnail", { articleUrl: post.articleUrl }).catch(() => null);
-        if (thumbnail) { enriched[index] = { ...post, thumbnail }; publish(enriched); }
+        if (thumbnail) { enriched[index] = { ...post, thumbnail: /^https:\/\//.test(thumbnail) ? thumbnail : convertFileSrc(thumbnail) }; publish(enriched); }
       } }
     }));
     return enriched;
