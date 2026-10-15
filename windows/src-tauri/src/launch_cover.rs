@@ -26,8 +26,10 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
     let hwnd = window.hwnd().map_err(|e| e.to_string())?.0 as isize;
     let _z_order = Z_ORDER.lock().map_err(|_| "Launch cover state unavailable")?;
     let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
-    // Fail open after two minutes, even if the webview crashes during startup.
-    let until = if active { now() + 120 } else { 0 };
+    // Slow host launches need the same cover throughout game-window readiness.
+    // Retain a bounded escape if the renderer or host stops responding.
+    let cover_seconds = if stream_provider.as_deref() == Some("moonlight") { 240 } else { 120 };
+    let until = if active { now() + cover_seconds } else { 0 };
     UNTIL.store(until, Ordering::SeqCst);
     if active { crate::stream_readiness::begin(); }
     topmost_without_activation(hwnd, active && !allow_external_focus.unwrap_or(false))?;
@@ -57,7 +59,7 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
                     std::thread::sleep(std::time::Duration::from_millis(200));
                 }
             } else {
-                std::thread::sleep(std::time::Duration::from_secs(120));
+                std::thread::sleep(std::time::Duration::from_secs(cover_seconds));
             }
             let Ok(_z_order) = Z_ORDER.lock() else { return; };
             if GENERATION.load(Ordering::SeqCst) == generation && UNTIL.compare_exchange(until, 0, Ordering::SeqCst, Ordering::SeqCst).is_ok() { let _ = topmost_without_activation(hwnd, false); }
