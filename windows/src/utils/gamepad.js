@@ -88,8 +88,8 @@ export function getRawBestGamepad() {
 }
 
 export function getBestGamepad() {
-  if (_gamepadInputSuspended) return null;
-  return getRawBestGamepad();
+  // Modals and main navigation must follow the same physical controller.
+  return getActiveGamepad();
 }
 
 export function readGpState(gp) {

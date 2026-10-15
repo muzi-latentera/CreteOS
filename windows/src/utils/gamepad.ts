@@ -74,8 +74,9 @@ export function getRawBestGamepad(): Gamepad | null {
 }
 
 export function getBestGamepad(): Gamepad | null {
-  if (_gamepadInputSuspended) return null;
-  return getRawBestGamepad();
+  // Modals and the main navigation must follow the same physical controller.
+  // Choosing the first standard pad here strands docked users on the built-in pad.
+  return getActiveGamepad();
 }
 
 let _lastActiveIdx: number | null = null;

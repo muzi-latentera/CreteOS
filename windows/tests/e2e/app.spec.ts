@@ -1058,6 +1058,23 @@ test("A failed cached Moonlight launch offers explicit local play", async ({ pag
 });
 
 
+test("docked external controller operates details with an idle built-in controller", async ({ page }) => {
+  await page.goto("/?crete&rich&gfn&hostInstalled");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  await page.evaluate(() => {
+    const external = navigator.getGamepads()[0]!;
+    const builtIn = { mapping: "standard", index: 0, axes: [0, 0, 0, 0],
+      buttons: Array.from({ length: 16 }, () => ({ pressed: false, value: 0, touched: false })) };
+    Object.defineProperty(navigator, "getGamepads", { configurable: true, value: () => [builtIn, external] });
+  });
+  await frames(page, 35);
+  await pad(page, 0);
+  await expect(page.getByRole("dialog", { name: "Moonlight stream settings" })).toBeVisible();
+  await pad(page, 1);
+  await expect(page.getByRole("dialog", { name: "Moonlight stream settings" })).not.toBeVisible();
+});
+
 test("Moonlight controller opens dropdown choices and reaches the bottom actions", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 600 });
   await page.goto("/?crete&rich&gfn&hostInstalled");
