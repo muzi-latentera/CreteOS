@@ -1,0 +1,3 @@
+html[data-controller-cursor="hidden"], html[data-controller-cursor="hidden"] * {
+  cursor: none !important;
+}

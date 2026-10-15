@@ -1,6 +1,7 @@
 //Copyright (C) 2025 Taylor Denby
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
+import { useControllerCursor } from "./hooks/useControllerCursor";
 import { useTranslation } from "react-i18next";
 import i18n from "./i18n";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
@@ -103,6 +104,7 @@ const steamAppIdFor = (app) => {
 };
 
 export default function App() {
+  useControllerCursor();
   useAppFocusPause();
   const { t } = useTranslation();
   const [addAppType, setAddAppType]                 = useState("game"); // "game" | "app"

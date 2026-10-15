@@ -87,6 +87,33 @@ def write_state(folder, phase):
     temporary.replace(folder / "state.json")
 
 
+def steam_on_other_display(environment=None, proc=Path("/proc")):
+    """Check the existing Steam singleton from inside the dedicated compositor.
+
+    Steam's X11 DISPLAY takes precedence over an inherited Wayland variable.
+    Unknown/unreadable processes are not treated as proof of a mismatch.
+    """
+    environment = os.environ if environment is None else environment
+    mismatched = False
+    for process in proc.iterdir():
+        if not process.name.isdigit():
+            continue
+        try:
+            if (process / "comm").read_text().strip() != "steam":
+                continue
+            entries = (process / "environ").read_bytes().split(b"\0")
+            values = dict(entry.decode(errors="replace").split("=", 1) for entry in entries if b"=" in entry)
+        except OSError:
+            continue
+        for key in ("DISPLAY", "WAYLAND_DISPLAY"):
+            if environment.get(key) and values.get(key):
+                if environment[key] == values[key]:
+                    return False
+                mismatched = True
+                break
+    return mismatched
+
+
 def restore_saved(folder):
     path = folder / "moved.json"
     if not path.exists():
@@ -174,6 +201,8 @@ def stage(payload):
             state = json.loads(path.read_text())
             if state["phase"] == "ready":
                 return {"token": token}
+            if state["phase"] == "wrong-desktop":
+                return {"blocked": "steamWrongDesktop"}
             if state["phase"] == "failed":
                 break
         time.sleep(.05)
@@ -182,6 +211,10 @@ def stage(payload):
 
 
 def present(token):
+    folder = ROOT / token
+    if steam_on_other_display():
+        write_state(folder, "wrong-desktop")
+        return
     import fcntl
     import gi
     gi.require_version("Gtk", "3.0")

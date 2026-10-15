@@ -1,3 +1,5 @@
+import { noteControllerInput } from "./inputMode";
+
 let _lastActiveIdx = null;
 let _gamepadInputSuspended = false;
 let _resumeWhenReleasedRaf = null;
@@ -98,7 +100,7 @@ export function readGpState(gp) {
   const hatRight = (gp.axes[6] ?? 0) >  0.5;
   const hatUp    = (gp.axes[7] ?? 0) < -0.5;
   const hatDown  = (gp.axes[7] ?? 0) >  0.5;
-  return {
+  const state = {
     ArrowUp:      btn(12) || hatUp    || gp.axes[1] < -0.5,
     ArrowDown:    btn(13) || hatDown  || gp.axes[1] >  0.5,
     ArrowLeft:    btn(14) || hatLeft  || gp.axes[0] < -0.5,
@@ -114,6 +116,8 @@ export function readGpState(gp) {
     Select:       btn(8),
     Start:        btn(9),
   };
+  noteControllerInput(state);
+  return state;
 }
 
 export function shouldHandleDirectionRepeat(

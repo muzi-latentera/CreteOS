@@ -3,10 +3,22 @@ from unittest.mock import patch
 import tempfile
 from pathlib import Path
 import json
-from host_presentation import conceal_library, game_window, needs_attention, restore_saved, steam_library, windows
+from host_presentation import conceal_library, game_window, needs_attention, restore_saved, steam_library, steam_on_other_display, windows
 
 
 class PresentationIsolationTests(unittest.TestCase):
+    def test_existing_physical_steam_is_blocked_even_with_an_inherited_wayland_variable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            proc = Path(directory)
+            steam = proc / "123"
+            steam.mkdir()
+            (steam / "comm").write_text("steam\n")
+            (steam / "environ").write_bytes(b"DISPLAY=:0\0WAYLAND_DISPLAY=wayland-1\0")
+            self.assertTrue(steam_on_other_display({"DISPLAY": ":1", "WAYLAND_DISPLAY": "wayland-1"}, proc))
+            self.assertFalse(steam_on_other_display({"DISPLAY": ":0"}, proc))
+            (steam / "environ").unlink()
+            self.assertFalse(steam_on_other_display({"DISPLAY": ":1"}, proc))
+
     def test_main_library_is_hidden_but_dialogs_and_games_are_not(self):
         library = {"window_properties": {"class": "steam", "title": "Steam", "window_type": "normal"}}
         self.assertTrue(steam_library(library))

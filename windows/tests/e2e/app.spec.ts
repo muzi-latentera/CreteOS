@@ -1071,6 +1071,10 @@ test("docked external controller operates details with an idle built-in controll
   await frames(page, 35);
   await pad(page, 0);
   await expect(page.getByRole("dialog", { name: "Moonlight stream settings" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-controller-cursor", "hidden");
+  await expect(page.locator("body")).toHaveCSS("cursor", "none");
+  await page.mouse.move(12, 12);
+  await expect(page.locator("html")).not.toHaveAttribute("data-controller-cursor", "hidden");
   await pad(page, 1);
   await expect(page.getByRole("dialog", { name: "Moonlight stream settings" })).not.toBeVisible();
 });

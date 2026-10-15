@@ -418,6 +418,8 @@ fn host_games(host: &str) -> Result<Vec<HostGame>, String> {
     Ok(games)
 }
 
+const STEAM_WRONG_DESKTOP: &str = "Steam is open on Bosgame's regular desktop. Finish any running game and restart Steam on its streaming desktop before starting Moonlight.";
+
 fn stage_host_presentation(host: &str, id: &str, resolution: &str, game_id: Option<&str>, game_name: Option<&str>, generation: u64) -> Result<String, String> {
     use base64::Engine;
     let custom = game_id.and_then(|id| super::load_custom_art_inner().get(&format!("hero:{id}")).cloned());
@@ -446,6 +448,7 @@ fn stage_host_presentation(host: &str, id: &str, resolution: &str, game_id: Opti
     command.arg("python3 -");
     let output = bounded_output(command, Some(script.as_bytes()))?;
     let result: serde_json::Value = serde_json::from_slice(&output.stdout).map_err(|_| "Host artwork is unavailable")?;
+    if result["blocked"] == "steamWrongDesktop" { return Err(STEAM_WRONG_DESKTOP.into()); }
     if output.status.success() && result["token"].as_str() == Some(token.as_str()) { Ok(token) }
     else { Err("Host artwork is unavailable".into()) }
 }
@@ -590,10 +593,13 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         std::fs::create_dir_all(super::liftoff_dir()).map_err(|e| e.to_string())?;
         std::fs::write(path, serde_json::to_vec_pretty(&profiles).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         let generation = next_session();
-        let presentation = steam_id.as_ref().and_then(|id| match stage_host_presentation(&profile.host, id, &profile.resolution, game_id.as_deref(), game_name.as_deref(), generation) {
-            Ok(token) => { super::fse_watcher::log_stream_transition(window.app_handle(), "host-artwork-ready"); Some(token) },
-            Err(_) => { super::fse_watcher::log_stream_transition(window.app_handle(), "host-artwork-unavailable"); None },
-        });
+        let presentation = if let Some(id) = steam_id.as_ref() {
+            match stage_host_presentation(&profile.host, id, &profile.resolution, game_id.as_deref(), game_name.as_deref(), generation) {
+                Ok(token) => { super::fse_watcher::log_stream_transition(window.app_handle(), "host-artwork-ready"); Some(token) },
+                Err(error) if error == STEAM_WRONG_DESKTOP => return Err(error),
+                Err(_) => { super::fse_watcher::log_stream_transition(window.app_handle(), "host-artwork-unavailable"); None },
+            }
+        } else { None };
         let mut client = std::process::Command::new(client_path("moonlight")?).args(["stream", &profile.host, &app_name,
             "--resolution", &profile.resolution, "--fps", &profile.fps.to_string(), "--bitrate", &profile.bitrate.to_string(),
             "--video-codec", &profile.codec, "--display-mode", "borderless", "--quit-after"]).spawn().map_err(|e| {
