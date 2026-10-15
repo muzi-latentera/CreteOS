@@ -51,3 +51,24 @@ Automated checks cover exact game/library/dialog isolation and prompt fallback.
 A synthetic GTK window test on the dedicated host can check startup → game →
 return artwork and restoration. Real Moonlight launch/quit and frame-level Steam
 flash acceptance still require the GPD user test; mocked checks do not prove it.
+# Steam display routing
+
+Steam's existing singleton must belong to the dedicated streaming desktop. A
+client on the physical login desktop can accept Buddy's launch request while
+opening the game somewhere Sunshine cannot capture. The presenter now checks
+the existing Steam process from inside Sway and blocks a known display mismatch
+before the client or game starts. It does not stop or move Steam automatically.
+
+On the configured Bosgame host, `host_stream_env.py` is explicitly installed as
+a wrapper for the Sunshine and MoonDeck Buddy user services. It obtains the
+actual display environment by running a short probe through the dedicated Sway
+socket, validates the returned display names, and execs the original service.
+It does not change systemd's global user environment. Keep the original units
+and back up any drop-ins before installation. Steam already running on the
+physical desktop must be closed normally after any game is finished; the
+wrapper cannot relocate that existing process. Preserve Buddy pairing data.
+
+The wrapper is host setup code, not an automatically installed Windows service.
+Its path and original executables must be checked on each new host. Observe a
+real Steam/game window in the dedicated compositor before accepting routing;
+service activity alone is insufficient.
