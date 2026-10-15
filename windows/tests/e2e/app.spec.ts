@@ -1270,3 +1270,53 @@ test("GFN settings footer uses left and right for controller and keyboard", asyn
   await page.keyboard.press("ArrowRight"); await expect(cancel).toBeFocused();
   await page.keyboard.press("ArrowUp"); await expect(dialog.getByLabel("Bitrate")).toBeFocused();
 });
+
+
+test("post-stream refresh preserves Library selection and controller input without a blocking scan", async ({ page }) => {
+  await page.goto("/?crete&rich&holdRefresh");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  const selected = page.locator('.crete-library [data-selected="true"]').first();
+  await pad(page, 15);
+  const id = await selected.getAttribute("data-game-id");
+  await page.evaluate(() => window.dispatchEvent(new Event("crete-stream-ended")));
+  await expect.poll(() => page.evaluate(() => typeof (window as any).__releaseScan)).toBe("function");
+  await expect(page.locator('[data-modal="library-refresh"]')).toHaveCount(0);
+  await expect(selected).toHaveAttribute("data-game-id", id!);
+  await page.evaluate(() => (window as any).__releaseScan());
+  await frames(page, 8);
+  await expect(selected).toHaveAttribute("data-game-id", id!);
+  await pad(page, 15);
+  await expect(selected).not.toHaveAttribute("data-game-id", id!);
+});
+
+
+test("rapid controller taps and bumpers are sampled even when drawing pauses", async ({ page }) => {
+  await page.goto("/?crete&rich&played");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  const cards = page.locator('.crete-library [data-game-id]');
+  const target = await cards.nth(4).getAttribute("data-game-id");
+  await frames(page, 8);
+  await page.evaluate(async () => {
+    const original = window.requestAnimationFrame;
+    (window as any).__restoreDrawing = () => { window.requestAnimationFrame = original; };
+    window.requestAnimationFrame = () => 0;
+    await new Promise(resolve => setTimeout(resolve, 50));
+    (window as any).__quickPad = async (button: number) => {
+      (window as any).__setGamepadButton(button, true);
+      await new Promise(resolve => setTimeout(resolve, 35));
+      (window as any).__setGamepadButton(button, false);
+      await new Promise(resolve => setTimeout(resolve, 35));
+    };
+    for (let i = 0; i < 4; i++) await (window as any).__quickPad(15);
+  });
+  await expect(page.locator('.crete-library [data-selected="true"]')).toHaveAttribute("data-game-id", target!);
+  await page.evaluate(async () => {
+    await (window as any).__quickPad(5); // Library -> Settings
+    await (window as any).__quickPad(4); // Settings -> Library
+    await (window as any).__quickPad(4); // Library -> Home
+    (window as any).__restoreDrawing();
+  });
+  await expect(page.locator('.crete-home[aria-hidden="false"]')).toBeVisible();
+  await page.evaluate(async () => { await (window as any).__quickPad(13); });
+  await expect(page.locator('.crete-home [data-game-id][data-selected="true"]').first()).toBeVisible();
+});

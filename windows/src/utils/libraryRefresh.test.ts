@@ -2,6 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 import { refreshLibrarySources } from "./libraryRefresh";
 
 describe("refreshLibrarySources", () => {
+  it("does not finish until the local rescan has finished", async () => {
+    let complete!: () => void;
+    const finished = vi.fn();
+    const refresh = refreshLibrarySources({ steamConnected: false, refreshSteamOwned: vi.fn(), refreshSteamStatus: vi.fn(),
+      refreshLocalLibrary: () => new Promise<void>(resolve => { complete = resolve; }),
+    }).then(finished);
+    await Promise.resolve();
+    expect(finished).not.toHaveBeenCalled();
+    complete(); await refresh;
+    expect(finished).toHaveBeenCalledOnce();
+  });
   it("waits for the connected Steam cache refresh before rescanning", async () => {
     const calls: string[] = [];
     let finishSteam: (() => void) | undefined;

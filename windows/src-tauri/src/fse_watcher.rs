@@ -928,6 +928,7 @@ pub fn start_display_recovery_watch(app: AppHandle) {
             ensure_fullscreen_geometry(hwnd);
             if set_webview_visible(&app, true) {
                 nudge_webview_composition(&app, hwnd);
+                focus_foreground_webview(&app);
                 let _ = app.emit("fse:gpu-resumed", ());
                 fse_log(&format!("display topology repainted: {}", window_snapshot(&app, hwnd)));
                 pending = false;

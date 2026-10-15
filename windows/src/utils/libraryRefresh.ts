@@ -2,7 +2,7 @@ interface RefreshLibrarySourcesOptions {
   steamConnected: boolean;
   refreshSteamOwned: () => Promise<unknown>;
   refreshSteamStatus: () => void;
-  refreshLocalLibrary: () => void;
+  refreshLocalLibrary: () => Promise<void> | void;
 }
 
 export async function refreshLibrarySources({
@@ -19,5 +19,5 @@ export async function refreshLibrarySources({
       // A local rescan remains useful when Steam is offline or authentication expired.
     }
   }
-  refreshLocalLibrary();
+  await refreshLocalLibrary();
 }

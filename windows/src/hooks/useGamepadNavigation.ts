@@ -1732,14 +1732,12 @@ export function useGamepadNavigation(
 
   useEffect(() => {
     invoke("set_frontend_active", { active: true });
-    let rAF: number;
     const REPEATABLE = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 
     const poll = (now: number) => {
       // Skip all input processing when the window doesn't have focus.
       // navigator.getGamepads() is not focus-aware and would fire through games/overlays.
       if (!document.hasFocus()) {
-        rAF = requestAnimationFrame(poll);
         return;
       }
 
@@ -1748,6 +1746,13 @@ export function useGamepadNavigation(
         // When the active controller changes, re-run platform auto-detection
         if (gp.index !== lastPolledGpIndex.current) {
           lastPolledGpIndex.current = gp.index;
+          // Edges/repeat clocks belong to one controller. A dock disconnect
+          // must not leave the handheld inheriting the removed pad's held keys.
+          lastBtn.current = {};
+          btnPressTime.current = {};
+          btnRepeating.current = {};
+          suppressUntilRelease.current = {};
+          rsLatchRef.current = { up: false, down: false, left: false, right: false };
           if (settingsRef?.current?.gamepad_auto_detect) {
             const platform = detectPlatform(gp.id);
             if (platform) updateSetting("gamepad_platform", platform);
@@ -1858,12 +1863,14 @@ export function useGamepadNavigation(
           lastBtn.current[key] = pressed;
         });
       }
-      rAF = requestAnimationFrame(poll);
     };
 
-    rAF = requestAnimationFrame(poll);
+    // Input edges must not wait for the next painted frame. A slow animation
+    // can otherwise hide a complete quick press/release between two samples.
+    // Retain all foreground/modal guards and the separate hold-repeat policy.
+    const inputTimer = window.setInterval(() => poll(performance.now()), 8);
     return () => {
-      cancelAnimationFrame(rAF);
+      window.clearInterval(inputTimer);
       invoke("set_frontend_active", { active: false });
     };
   }, []);

@@ -5,6 +5,7 @@ import type { App } from "../types";
 export const LIBRARY_SCAN_TIMEOUT_MS = 60_000;
 
 type LibraryRefreshStatus = "scanning" | "done" | null;
+export interface LibraryRefreshOptions { background?: boolean }
 
 interface IconColor {
   r: number;
@@ -39,7 +40,7 @@ export interface LibraryData {
   libraryRefreshStatus: LibraryRefreshStatus;
   togglePin: (app: App) => void;
   toggleHidden: (appId: string) => void;
-  refreshLibrary: () => void;
+  refreshLibrary: (options?: LibraryRefreshOptions) => Promise<void>;
 }
 
 async function sampleIconColor(base64: string): Promise<IconColor | null> {
@@ -97,6 +98,7 @@ export function useLibraryData({ fetchGameArt, onLoaded, onLoadError }: UseLibra
   const pinsRef = useRef<string[]>([]);
   const hiddenRef = useRef<string[]>([]);
   const libraryRefreshStatusRef = useRef<LibraryRefreshStatus>(null);
+  const refreshPending = useRef<Promise<void> | null>(null);
 
   const sampleVisibleIconColors = (visible: App[]) => {
     visible.filter(a => a.app_type !== "game" && typeof a.icon_base64 === "string").forEach(a => {
@@ -128,11 +130,14 @@ export function useLibraryData({ fetchGameArt, onLoaded, onLoadError }: UseLibra
     }).catch(console.error);
   };
 
-  const refreshLibrary = () => {
-    if (libraryRefreshStatusRef.current === "scanning") return;
-    setLibraryRefreshStatus("scanning");
-    libraryRefreshStatusRef.current = "scanning";
-    Promise.all([invoke<App[]>("get_all_apps"), invoke<string[]>("get_hidden")]).then(([all, loadedHidden]) => {
+  const refreshLibrary = (options: LibraryRefreshOptions = {}) => {
+    if (refreshPending.current) return refreshPending.current;
+    const foreground = options.background !== true;
+    if (foreground) {
+      setLibraryRefreshStatus("scanning");
+      libraryRefreshStatusRef.current = "scanning";
+    }
+    const refresh = Promise.all([invoke<App[]>("get_all_apps"), invoke<string[]>("get_hidden")]).then(([all, loadedHidden]) => {
       allAppsRef.current = all;
       setHidden(loadedHidden);
       hiddenRef.current = loadedHidden;
@@ -141,16 +146,22 @@ export function useLibraryData({ fetchGameArt, onLoaded, onLoadError }: UseLibra
       appsRef.current = visible;
       sampleVisibleIconColors(visible);
       fetchGameArt(visible.filter(a => a.app_type === "game"));
-      setLibraryRefreshStatus("done");
-      libraryRefreshStatusRef.current = "done";
-      setTimeout(() => {
+      if (foreground) {
+        setLibraryRefreshStatus("done");
+        libraryRefreshStatusRef.current = "done";
+        setTimeout(() => {
+          setLibraryRefreshStatus(null);
+          libraryRefreshStatusRef.current = null;
+        }, 2500);
+      }
+    }).catch(() => {
+      if (foreground) {
         setLibraryRefreshStatus(null);
         libraryRefreshStatusRef.current = null;
-      }, 2500);
-    }).catch(() => {
-      setLibraryRefreshStatus(null);
-      libraryRefreshStatusRef.current = null;
-    });
+      }
+    }).finally(() => { refreshPending.current = null; });
+    refreshPending.current = refresh;
+    return refresh;
   };
 
   useEffect(() => {

@@ -629,13 +629,13 @@ export default function App() {
       .catch(() => setSteamStatus({ connected: false, owned_count: 0 }));
   }, []);
 
-  const refreshLibraryFromSources = useCallback(() => {
+  const refreshLibraryFromSources = useCallback((options = {}) => {
     if (librarySourceRefreshRef.current) return librarySourceRefreshRef.current;
     const refresh = refreshLibrarySources({
       steamConnected: steamConnectedRef.current,
       refreshSteamOwned: () => invoke("fetch_steam_owned_games"),
       refreshSteamStatus,
-      refreshLocalLibrary: refreshLibrary,
+      refreshLocalLibrary: () => refreshLibrary(options),
     }).finally(() => {
       librarySourceRefreshRef.current = null;
     });
@@ -649,10 +649,10 @@ export default function App() {
     let timer;
     const refresh = () => {
       if (!navigator.onLine) return;
-      void streamRefreshRef.current();
+      void streamRefreshRef.current({ background: true });
       clearTimeout(timer);
       // Store totals can settle after the stream itself has ended.
-      timer = window.setTimeout(() => { if (navigator.onLine) void streamRefreshRef.current(); }, 30_000);
+      timer = window.setTimeout(() => { if (navigator.onLine) void streamRefreshRef.current({ background: true }); }, 30_000);
     };
     window.addEventListener("crete-stream-ended", refresh);
     return () => { clearTimeout(timer); window.removeEventListener("crete-stream-ended", refresh); };
