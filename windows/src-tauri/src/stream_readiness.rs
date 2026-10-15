@@ -10,8 +10,11 @@ use std::sync::Mutex;
 pub enum Signal { Waiting, FirstFrame, NeedsAttention }
 fn signal(line: &str) -> Signal {
     if line.contains("got onStreamingFirstFrame event") { return Signal::FirstFrame; }
+    // NVIDIA's Streaming state precedes decoded video. Its fixed native video
+    // log emits frame statistics only after real video frames have arrived.
+    if line.contains("[GeronimoStatsHandler]") && line.split_once("FrameStats:: n:")
+        .and_then(|(_, tail)| tail.trim().split(',').next()).and_then(|count| count.parse::<u64>().ok()).is_some_and(|count| count > 0) { return Signal::FirstFrame; }
     let normalized = line.split_whitespace().collect::<Vec<_>>().join(" ");
-    if normalized.contains("NvCameraService streaming state change: Streaming") { return Signal::FirstFrame; }
     if ["Error", "TerminalError", "ResumableError"].iter().any(|state| normalized.contains(&format!("NvCameraService streaming state change: {state}"))) { return Signal::NeedsAttention; }
     Signal::Waiting
 }
@@ -55,10 +58,22 @@ impl LogCursor {
         result
     }
 }
-static CURSOR: Mutex<Option<LogCursor>> = Mutex::new(None);
-fn path() -> PathBuf { PathBuf::from(std::env::var_os("LOCALAPPDATA").unwrap_or_default()).join("NVIDIA Corporation/GeForceNOW/console.log") }
-pub fn begin() { if let Ok(mut saved) = CURSOR.lock() { *saved = Some(LogCursor::new(path())); } }
-pub fn take() -> LogCursor { CURSOR.lock().ok().and_then(|mut saved| saved.take()).unwrap_or_else(|| LogCursor::new(path())) }
+pub struct StreamCursor { console: LogCursor, video: LogCursor }
+impl StreamCursor {
+    fn new() -> Self {
+        let root = PathBuf::from(std::env::var_os("LOCALAPPDATA").unwrap_or_default()).join("NVIDIA Corporation/GeForceNOW");
+        Self { console: LogCursor::new(root.join("console.log")), video: LogCursor::new(root.join("geronimo.log")) }
+    }
+    pub fn poll(&mut self) -> Signal {
+        let console = self.console.poll(); let video = self.video.poll();
+        if console == Signal::NeedsAttention || video == Signal::NeedsAttention { Signal::NeedsAttention }
+        else if console == Signal::FirstFrame || video == Signal::FirstFrame { Signal::FirstFrame }
+        else { Signal::Waiting }
+    }
+}
+static CURSOR: Mutex<Option<StreamCursor>> = Mutex::new(None);
+pub fn begin() { if let Ok(mut saved) = CURSOR.lock() { *saved = Some(StreamCursor::new()); } }
+pub fn take() -> StreamCursor { CURSOR.lock().ok().and_then(|mut saved| saved.take()).unwrap_or_else(StreamCursor::new) }
 
 #[cfg(test)] mod tests {
     use super::*;
@@ -66,7 +81,9 @@ pub fn take() -> LogCursor { CURSOR.lock().ok().and_then(|mut saved| saved.take(
         assert_eq!(signal("INFO streamingService gfnStart returned: true"), Signal::Waiting);
         assert_eq!(signal("NvCameraService streaming state change: Loading"), Signal::Waiting);
         assert_eq!(signal("INFO got onStreamingFirstFrame event {}"), Signal::FirstFrame);
-        assert_eq!(signal("INFO NvCameraService  streaming state change:  Streaming"), Signal::FirstFrame);
+        assert_eq!(signal("INFO NvCameraService  streaming state change:  Streaming"), Signal::Waiting);
+        assert_eq!(signal("INFO [GeronimoStatsHandler] FrameStats:: n: 0, dropped: 0"), Signal::Waiting);
+        assert_eq!(signal("INFO [GeronimoStatsHandler] FrameStats:: n: 1, dropped: 0"), Signal::FirstFrame);
         assert_eq!(signal("INFO NvCameraService streaming state change: TerminalError"), Signal::NeedsAttention);
     }
     #[test] fn ignores_old_session_and_handles_split_lines_and_replaced_log() {
