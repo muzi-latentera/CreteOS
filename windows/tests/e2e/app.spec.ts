@@ -687,7 +687,8 @@ test("GFN has one green Play that applies Auto bitrate and keeps artwork until h
   const cover = page.locator("[data-stream-launch-cover]");
   await expect(cover).toBeVisible();
   await expect(cover.locator("h1,h2,button")).toHaveCount(0);
-  await expect(cover.locator("span")).toHaveCSS("animation-name", "creteLaunchSpinner");
+  await expect(cover.locator("[data-launch-message]")).toHaveText(/\S/);
+  await expect(cover.locator(".crete-launch-message")).toHaveCSS("animation-name", "creteLaunchMessage");
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.start_geforce_game)).toBe(1);
   expect(await page.evaluate(() => (window as any).__lastGeforce.profile)).toMatchObject({ resolution: "1920x1080", bitrate: 0 });
   expect(await page.evaluate(() => (window as any).__invokeCounts.launch_geforce_game ?? 0)).toBe(0);
