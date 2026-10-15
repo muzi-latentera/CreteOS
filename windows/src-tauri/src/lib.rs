@@ -9438,7 +9438,10 @@ async fn wait_stream_window(provider: String) -> Result<bool, String> {
 #[tauri::command]
 async fn focus_stream_window(window: tauri::Window, provider: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        if provider == "moonlight" && streaming::moonlight_game_closed() { return Ok(()); }
+        if provider == "moonlight" && streaming::moonlight_game_closed() {
+            launch_cover::set_launch_cover(window.clone(), false, None, None)?;
+            return Ok(());
+        }
         let target = stream_window(&provider).ok_or("The streaming window closed before handoff")?;
         let ours = window.hwnd().map_err(|e| e.to_string())?.0 as isize;
         // Keep the renderer alive for streaming clients. Suspending it directly
@@ -9449,6 +9452,15 @@ async fn focus_stream_window(window: tauri::Window, provider: String) -> Result<
         fse_watcher::keep_main_borderless(window.app_handle());
         launch_cover::set_launch_cover(window.clone(), false, None, None)?;
         fse_watcher::log_stream_transition(window.app_handle(), "handoff-start");
+        let foreground = unsafe { GetForegroundWindow() }.0 as isize;
+        if foreground != ours && foreground != 0 && !can_return_from_stream(&window, &provider) && !foreground_is_desktop() {
+            return Err("Streaming started; you switched to another app. Return to the stream when ready.".into());
+        }
+        // While our cover was topmost the stream could already own keyboard
+        // foreground without being visible. Always perform the complete
+        // show/restore/raise sequence once after releasing that cover.
+        focus_external_window(windows::Win32::Foundation::HWND(target.hwnd as _));
+        fse_watcher::log_stream_transition(window.app_handle(), "handoff-window-restored-raised");
         let start = Instant::now();
         let mut stable_since = None;
         while start.elapsed() < Duration::from_secs(3) {
