@@ -463,7 +463,7 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         if let Some(id) = &steam_id { super::moondeck::launch(&profile.host, id)?; }
         std::thread::spawn(move || {
             if let Some(id) = steam_id {
-                let ended = super::moondeck::watch_exit(&profile.host, &id, || session_current(generation), || begin_return(&window, "moonlight", generation));
+                let ended = super::moondeck::watch_exit(&profile.host, &id, || session_current(generation), || begin_return(&window, "moonlight", generation), |phase| super::fse_watcher::log_stream_transition(window.app_handle(), phase));
                 if !ended { end_return(&window, "moonlight", generation); }
             }
             // CLI Moonlight exits itself after the host ends its stream. Wait

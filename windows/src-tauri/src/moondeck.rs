@@ -175,7 +175,7 @@ fn exit_notification(value: &Value, id: &str) -> ExitNotification {
 
 // Follow MoonDeck's notifyOnChanges feed instead of waiting for two sequential
 // HTTP polls. Retain polling if this Buddy version/connection cannot subscribe.
-fn watch_exit_notifications(host: &str, id: &str, current: &impl Fn() -> bool, ending: &impl Fn()) -> Option<bool> {
+fn watch_exit_notifications(host: &str, id: &str, current: &impl Fn() -> bool, ending: &impl Fn(), note: &impl Fn(&str)) -> Option<bool> {
     use std::net::{TcpStream, ToSocketAddrs};
     use std::time::{Duration, Instant};
     use tungstenite::{client::IntoClientRequest, Connector, Message};
@@ -201,27 +201,32 @@ fn watch_exit_notifications(host: &str, id: &str, current: &impl Fn() -> bool, e
         tungstenite::stream::MaybeTlsStream::NativeTls(stream) => stream.get_mut().set_read_timeout(Some(Duration::from_millis(500))).ok()?,
         _ => return None, // This feed must always use pinned TLS.
     }
+    note("buddy-live-events");
     let mut last_ping = Instant::now();
+    let mut last_message = Instant::now();
     while current() {
         match socket.read() {
             Ok(Message::Text(text)) => {
+                last_message = Instant::now();
                 let value: Value = serde_json::from_str(&text).ok()?;
                 if !current() { return Some(false); }
                 match exit_notification(&value, id) {
                     ExitNotification::Exited => {
+                        note("buddy-game-exit-event");
                         ending();
                         return Some(request_end_stream(host));
                     }
-                    ExitNotification::StreamEnded => { ending(); return Some(true); }
+                    ExitNotification::StreamEnded => { note("buddy-stream-end-event"); ending(); return Some(true); }
                     ExitNotification::OtherApp => return Some(false),
                     ExitNotification::Running => {},
                     ExitNotification::Unknown => return None,
                 }
             }
-            Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => { socket.flush().ok()?; }
+            Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => { last_message = Instant::now(); socket.flush().ok()?; }
             Err(tungstenite::Error::Io(error)) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {},
             _ => return None,
         }
+        if last_message.elapsed() >= Duration::from_secs(30) { return None; }
         if last_ping.elapsed() >= Duration::from_secs(10) {
             socket.send(Message::Ping(Vec::new().into())).ok()?;
             last_ping = Instant::now();
@@ -234,8 +239,9 @@ fn request_end_stream(host: &str) -> bool {
     request(host, "endStream", Some(json!({}))).is_ok_and(|reply| reply["result"] == true)
 }
 
-pub fn watch_exit(host: &str, id: &str, current: impl Fn() -> bool, ending: impl Fn()) -> bool {
-        if let Some(ended) = watch_exit_notifications(host, id, &current, &ending) { return ended; }
+pub fn watch_exit(host: &str, id: &str, current: impl Fn() -> bool, ending: impl Fn(), note: impl Fn(&str)) -> bool {
+        if let Some(ended) = watch_exit_notifications(host, id, &current, &ending, &note) { return ended; }
+        note("buddy-poll-fallback");
         let Ok(buddy) = status(host) else { return false; };
         let Some(version) = buddy["version"].as_u64() else { return false; };
         let mut exited_samples = 0;
