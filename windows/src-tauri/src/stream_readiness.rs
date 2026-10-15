@@ -20,7 +20,7 @@ fn signal(line: &str) -> Signal {
 }
 pub struct LogCursor { path: PathBuf, offset: u64, anchor: Vec<u8>, carry: String }
 impl LogCursor {
-    fn new(path: PathBuf) -> Self {
+    pub(crate) fn new(path: PathBuf) -> Self {
         let mut cursor = Self { path, offset: 0, anchor: Vec::new(), carry: String::new() };
         if let Ok(mut file) = File::open(&cursor.path) {
             cursor.offset = file.metadata().map(|m| m.len()).unwrap_or(0);
@@ -34,27 +34,33 @@ impl LogCursor {
         if file.seek(SeekFrom::Start(offset - size as u64)).is_err() || file.read_exact(&mut bytes).is_err() { return Vec::new(); }
         bytes
     }
-    pub fn poll(&mut self) -> Signal {
-        let Ok(mut file) = File::open(&self.path) else { return Signal::Waiting; };
-        let Ok(metadata) = file.metadata() else { return Signal::Waiting; };
+    pub(crate) fn lines(&mut self) -> Vec<String> {
+        let Ok(mut file) = File::open(&self.path) else { return Vec::new(); };
+        let Ok(metadata) = file.metadata() else { return Vec::new(); };
         // NVIDIA can truncate/recreate this log when its client starts. Anchor
         // validation also detects a replacement that grew past the old length.
         if metadata.len() < self.offset || Self::anchor(&mut file, self.offset) != self.anchor {
             self.offset = 0; self.carry.clear();
         }
-        if file.seek(SeekFrom::Start(self.offset)).is_err() { return Signal::Waiting; }
+        if file.seek(SeekFrom::Start(self.offset)).is_err() { return Vec::new(); }
         let mut bytes = Vec::new();
-        if (&mut file).take(262_144).read_to_end(&mut bytes).is_err() { return Signal::Waiting; }
+        if (&mut file).take(262_144).read_to_end(&mut bytes).is_err() { return Vec::new(); }
         self.offset += bytes.len() as u64;
         self.anchor = Self::anchor(&mut file, self.offset);
         self.carry.push_str(&String::from_utf8_lossy(&bytes));
-        let mut result = Signal::Waiting;
+        let mut lines = Vec::new();
         while let Some(end) = self.carry.find('\n') {
-            let line = self.carry.drain(..=end).collect::<String>();
-            let event = signal(&line);
-            if event != Signal::Waiting { result = event; }
+            lines.push(self.carry.drain(..=end).collect::<String>());
         }
         if self.carry.len() > 4096 { self.carry.clear(); }
+        lines
+    }
+    pub fn poll(&mut self) -> Signal {
+        let mut result = Signal::Waiting;
+        for line in self.lines() {
+            let event = signal(&line);
+            if event == Signal::NeedsAttention || (event != Signal::Waiting && result != Signal::NeedsAttention) { result = event; }
+        }
         result
     }
 }

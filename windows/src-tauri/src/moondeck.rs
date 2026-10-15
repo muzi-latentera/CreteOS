@@ -133,23 +133,50 @@ pub fn launch(host: &str, steam_id: &str) -> Result<(), String> {
         if deadline.elapsed() > std::time::Duration::from_secs(40) { return Err("Game did not start on Bosgame. Check installation or Steam's launch dialog.".into()); }
         std::thread::sleep(std::time::Duration::from_millis(500));
     }
-    let host = host.to_owned(); let id = steam_id.to_owned();
-    std::thread::spawn(move || {
+    Ok(())
+}
+
+// Called only after launch observed this exact app Running. Post-game shader
+// processing is Updating, not Running, and must not strand the handheld in Steam.
+fn exit_state(data: &Value, steam_id: &str) -> Option<bool> {
+    if data["data"]["app_id"].as_str() != Some(steam_id) { return None; }
+    let state = &data["data"]["app_state"];
+    if state_is(state, 0, "Stopped") || state_is(state, 2, "Updating") { Some(true) }
+    else if state_is(state, 1, "Running") { Some(false) }
+    else { None }
+}
+
+pub fn watch_exit(host: &str, id: &str, current: impl Fn() -> bool) -> bool {
+        let Ok(buddy) = status(host) else { return false; };
+        let Some(version) = buddy["version"].as_u64() else { return false; };
+        let mut exited_samples = 0;
+        let mut failures = 0;
         // End only the session still tracking this exact game, after observing
         // it running. Never close another user's game or shut down the host.
-        loop {
+        while current() {
             std::thread::sleep(std::time::Duration::from_secs(2));
-            let Ok(state) = request(&host, "streamState", None) else { break; };
-            if !state_is(&state["state"], 1, "Streaming") { break; }
-            let Ok(data) = app_data(&host, version, None) else { break; };
-            if data["data"]["app_id"] != id { break; }
-            if state_is(&data["data"]["app_state"], 0, "Stopped") {
-                let _ = request(&host, "endStream", Some(json!({})));
-                break;
+            if !current() { return false; }
+            let result = request(host, "streamState", None).and_then(|state| {
+                if !state_is(&state["state"], 1, "Streaming") { return Ok(None); }
+                app_data(host, version, None).map(Some)
+            });
+            match result {
+                Ok(None) => return true,
+                Ok(Some(data)) => {
+                    failures = 0;
+                    match exit_state(&data, id) {
+                        Some(true) => exited_samples += 1,
+                        Some(false) => exited_samples = 0,
+                        None => return false, // Another/unknown app: never end its stream.
+                    }
+                    if exited_samples >= 2 && current() {
+                        return request(host, "endStream", Some(json!({}))).is_ok_and(|reply| reply["result"] == true);
+                    }
+                }
+                Err(_) => { failures += 1; if failures >= 5 { return false; } }
             }
         }
-    });
-    Ok(())
+        false
 }
 
 pub fn prepare(host: &str, steam_id: &str) -> Result<(), String> {
@@ -164,6 +191,13 @@ pub fn prepare(host: &str, steam_id: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn post_game_updating_is_exit_only_for_the_same_known_app() {
+        assert_eq!(super::exit_state(&serde_json::json!({"data":{"app_id":"883710","app_state":"Updating"}}), "883710"), Some(true));
+        assert_eq!(super::exit_state(&serde_json::json!({"data":{"app_id":"883710","app_state":1}}), "883710"), Some(false));
+        assert_eq!(super::exit_state(&serde_json::json!({"data":{"app_id":"other","app_state":"Stopped"}}), "883710"), None);
+        assert_eq!(super::exit_state(&serde_json::json!({"data":null}), "883710"), None);
+    }
     #[test]
     fn uses_api_8_tracked_app_route_and_api_9_optional_app_query() {
         assert_eq!(super::app_data_request(8, None), ("streamedAppData", None));

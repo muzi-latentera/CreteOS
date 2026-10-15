@@ -1,6 +1,61 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::io::{Read, Write};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static SESSION_GENERATION: AtomicU64 = AtomicU64::new(0);
+fn next_session() -> u64 { SESSION_GENERATION.fetch_add(1, Ordering::SeqCst) + 1 }
+fn session_current(generation: u64) -> bool { SESSION_GENERATION.load(Ordering::SeqCst) == generation }
+
+fn nvidia_console() -> PathBuf {
+    dirs::data_local_dir().unwrap_or_default().join("NVIDIA Corporation/GeForceNOW/console.log")
+}
+
+#[derive(Default)]
+struct NvidiaSession { started: bool, ended: bool }
+impl NvidiaSession {
+    fn observe(&mut self, line: &str) {
+        let line = line.split_whitespace().collect::<Vec<_>>().join(" ");
+        if line.contains("NvCameraService streaming state change: Streaming") || line.contains("got onStreamingFirstFrame event") {
+            self.started = true; self.ended = false;
+        } else if self.started && line.contains("NvCameraService streaming state change: Done") { self.ended = true; }
+    }
+}
+
+fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::LogCursor, generation: u64) {
+    std::thread::spawn(move || {
+        let mut session = NvidiaSession::default();
+        let start = std::time::Instant::now();
+        while session_current(generation) && start.elapsed() < std::time::Duration::from_secs(86400) {
+            for line in log.lines() { session.observe(&line); }
+            if session.ended {
+                if session_current(generation) { super::finish_stream_session(window, "geforceNow"); }
+                return;
+            }
+            if !session.started && start.elapsed() > std::time::Duration::from_secs(180) { return; }
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+    });
+}
+
+fn warm_geforce_client() -> Result<(), String> {
+    // External Streamer shortcuts can calculate Balanced before the initial
+    // SharedStorage update arrives. Initialize the main client first, then
+    // dispatch the shortcut only after native settings/capabilities are loaded.
+    let mut log = super::stream_readiness::LogCursor::new(nvidia_console());
+    std::process::Command::new(client_path("geforceNow")?).spawn().map_err(|e| e.to_string())?;
+    let start = std::time::Instant::now();
+    let mut capabilities = false; let mut storage = false;
+    while start.elapsed() < std::time::Duration::from_secs(25) {
+        for line in log.lines() {
+            capabilities |= line.contains("prefetchDeviceCapabilities response:") && line.contains("true");
+            storage |= line.contains("shared storage cache updated");
+        }
+        if capabilities && storage && start.elapsed() >= std::time::Duration::from_secs(5) { return Ok(()); }
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    Err("NVIDIA has not finished loading its settings. No game was started. Open its Settings screen, then retry.".into())
+}
 
 pub(crate) fn bounded_output(mut command: std::process::Command, input: Option<&[u8]>) -> Result<std::process::Output, String> {
     command.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
@@ -86,10 +141,13 @@ fn geforce_native_game_uri(game_url: &str) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn launch_geforce_game(game_url: String, source: Option<String>, play: Option<bool>) -> Result<(), String> {
+pub async fn launch_geforce_game(window: tauri::Window, game_url: String, source: Option<String>, play: Option<bool>) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let (client, argument) = geforce_launch(&game_url, source.as_deref(), play.unwrap_or(true))?;
-        spawn_geforce(&client, &argument)
+        let log = super::stream_readiness::LogCursor::new(nvidia_console());
+        spawn_geforce(&client, &argument)?;
+        if play.unwrap_or(true) { watch_geforce_exit(window, log, next_session()); }
+        Ok(())
     }).await.map_err(|e| e.to_string())?
 }
 
@@ -173,13 +231,18 @@ fn update_geforce_settings(settings: &mut serde_json::Value, profile: &Moonlight
     custom["height"] = serde_json::json!(height.parse::<u32>().map_err(|_| "Invalid height")?);
     custom["fps"] = serde_json::json!(profile.fps); custom["maxBitrate"] = serde_json::json!(profile.bitrate / 1000);
     custom["maxBitrateAuto"] = serde_json::json!(false);
+    // Match NVIDIA's actual Custom mode, including the native mode-selection
+    // enum. Retaining Balanced metadata can select its automatic video mode.
+    custom["name"] = serde_json::json!("custom");
+    custom["profile"] = serde_json::json!(0);
+    custom["description"] = serde_json::json!("settings.streamingProfiles.custom");
     custom["aspectRatio"] = serde_json::json!(if profile.resolution.ends_with("1200") || profile.resolution.ends_with("1600") { "(16:10)" } else { "(16:9)" });
     config["streamingProfiles"] = serde_json::json!("custom");
     Ok(())
 }
 
 #[tauri::command]
-pub async fn start_geforce_game(game_url: String, display_key: String, profile: MoonlightProfile, source: Option<String>) -> Result<(), String> {
+pub async fn start_geforce_game(window: tauri::Window, game_url: String, display_key: String, profile: MoonlightProfile, source: Option<String>) -> Result<(), String> {
     geforce_native_game_uri(&game_url)?;
     if display_key.is_empty() || display_key.len() > 256 { return Err("Invalid display identity".into()); }
     tauri::async_runtime::spawn_blocking(move || {
@@ -201,8 +264,18 @@ pub async fn start_geforce_game(game_url: String, display_key: String, profile: 
         let temporary = path.with_file_name("sharedstorage.creteos.tmp");
         std::fs::write(&temporary, serde_json::to_vec(&settings).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         std::fs::rename(&temporary, &path).map_err(|e| e.to_string())?;
+        let generation = next_session();
+        warm_geforce_client()?;
+        let readback: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        let expected = &settings["appSettingsConfig"];
+        let actual = &readback["appSettingsConfig"];
+        if actual["streamingProfiles"] != expected["streamingProfiles"] || ["width", "height", "fps", "maxBitrate", "name", "profile"].iter().any(|key| actual["customProfile"][*key] != expected["customProfile"][*key]) {
+            return Err("NVIDIA changed the selected profile during startup. No game was started; check its Custom quality settings.".into());
+        }
+        let log = super::stream_readiness::LogCursor::new(nvidia_console());
         let launch = spawn_geforce(&client, &argument);
         if let Err(error) = launch { let _ = std::fs::write(&path, original); return Err(error.to_string()); }
+        watch_geforce_exit(window, log, generation);
         let path = super::liftoff_dir().join("geforce_profiles.json");
         let mut profiles: serde_json::Value = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(serde_json::json!({}));
         profiles[display_key] = serde_json::to_value(profile).map_err(|e| e.to_string())?;
@@ -317,7 +390,7 @@ pub fn get_moonlight_profile(window: tauri::Window) -> Result<serde_json::Value,
 }
 
 #[tauri::command]
-pub async fn launch_moonlight(app_name: String, display_key: String, profile: MoonlightProfile, steam_id: Option<String>) -> Result<(), String> {
+pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_key: String, profile: MoonlightProfile, steam_id: Option<String>) -> Result<(), String> {
     validate(&profile)?;
     if display_key.len() > 512 { return Err("Invalid display".into()); }
     if app_name.starts_with('-') || app_name.chars().any(char::is_control) { return Err("Invalid host app name".into()); }
@@ -336,10 +409,24 @@ pub async fn launch_moonlight(app_name: String, display_key: String, profile: Mo
         profiles[display_key] = serde_json::to_value(&profile).map_err(|e| e.to_string())?;
         std::fs::create_dir_all(super::liftoff_dir()).map_err(|e| e.to_string())?;
         std::fs::write(path, serde_json::to_vec_pretty(&profiles).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-        std::process::Command::new(client_path("moonlight")?).args(["stream", &profile.host, &app_name,
+        let generation = next_session();
+        let mut client = std::process::Command::new(client_path("moonlight")?).args(["stream", &profile.host, &app_name,
             "--resolution", &profile.resolution, "--fps", &profile.fps.to_string(), "--bitrate", &profile.bitrate.to_string(),
-            "--video-codec", &profile.codec, "--display-mode", "borderless"]).spawn().map_err(|e| e.to_string())?;
-        if let Some(id) = steam_id { super::moondeck::launch(&profile.host, &id)?; }
+            "--video-codec", &profile.codec, "--display-mode", "borderless", "--quit-after"]).spawn().map_err(|e| e.to_string())?;
+        if let Some(id) = &steam_id { super::moondeck::launch(&profile.host, id)?; }
+        std::thread::spawn(move || {
+            if let Some(id) = steam_id { let _ = super::moondeck::watch_exit(&profile.host, &id, || session_current(generation)); }
+            // CLI Moonlight exits itself after the host ends its stream. Wait
+            // for this launched child only; never terminate a shared client.
+            let start = std::time::Instant::now();
+            while session_current(generation) && start.elapsed() < std::time::Duration::from_secs(86400) {
+                if client.try_wait().ok().flatten().is_some() {
+                    if session_current(generation) { super::finish_stream_session(window, "moonlight"); }
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(300));
+            }
+        });
         Ok(())
     }).await.map_err(|e| e.to_string())?
 }
@@ -376,7 +463,23 @@ mod tests {
         assert_eq!(settings["appSettingsConfig"]["customProfile"]["height"],1200);
         assert_eq!(settings["unrelated"]["kept"],true);
         assert_eq!(settings["appSettingsConfig"]["customProfile"]["codec"],0);
+        assert_eq!(settings["appSettingsConfig"]["streamingProfiles"],"custom");
+        assert_eq!(settings["appSettingsConfig"]["customProfile"]["profile"],0);
+        assert_eq!(settings["appSettingsConfig"]["customProfile"]["name"],"custom");
         assert!(super::update_geforce_settings(&mut serde_json::json!({}), &profile).is_err());
+    }
+    #[test]
+    fn session_exit_requires_this_launch_to_have_streamed_and_handles_same_batch_restart() {
+        let mut session = super::NvidiaSession::default();
+        session.observe("NvCameraService streaming state change: Done");
+        assert!(!session.ended);
+        session.observe("NvCameraService streaming state change: Streaming");
+        session.observe("NvCameraService streaming state change: PostStreaming");
+        assert!(!session.ended);
+        session.observe("NvCameraService streaming state change: Done");
+        assert!(session.ended);
+        session.observe("NvCameraService streaming state change: Streaming");
+        assert!(!session.ended);
     }
     #[test]
     fn rejects_unknown_clients() {

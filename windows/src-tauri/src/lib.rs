@@ -9313,6 +9313,41 @@ fn stream_window(provider: &str) -> Option<LaunchWindowCandidate> {
         })
 }
 
+pub(crate) fn finish_stream_session(window: tauri::Window, provider: &str) {
+    let Ok(ours) = window.hwnd() else { return; };
+    let foreground = unsafe { GetForegroundWindow() }.0 as isize;
+    let candidates = if provider == "geforceNow" {
+        let Some(root) = dirs::data_local_dir() else { return; };
+        let directory = root.join("NVIDIA Corporation/GeForceNOW/CEF");
+        collect_launch_windows().into_iter().filter(|target| target.exe_path.as_deref().is_some_and(|path| {
+            ["GeForceNOW.exe", "GeForceNOWStreamer.exe"].iter().any(|name| directory.join(name).to_string_lossy().eq_ignore_ascii_case(path))
+        })).collect::<Vec<_>>()
+    } else { Vec::new() };
+    let mut foreground_pid = 0;
+    unsafe { GetWindowThreadProcessId(GetForegroundWindow(), Some(&mut foreground_pid)); }
+    let foreground_path = process_exe_path(foreground_pid).unwrap_or_default().to_ascii_lowercase();
+    let return_focus = foreground == ours.0 as isize || candidates.iter().any(|target| target.hwnd == foreground)
+        || (provider == "moonlight" && (foreground == 0 || foreground_path.ends_with("\\moonlight.exe") || foreground_path.ends_with("\\explorer.exe")));
+    // Only after the fresh session's Done signal: close NVIDIA normally, never
+    // kill its processes or dismiss login/error dialogs during an active stream.
+    for target in &candidates {
+        unsafe { let _ = PostMessageW(Some(windows::Win32::Foundation::HWND(target.hwnd as _)), WM_CLOSE, WPARAM(0), LPARAM(0)); }
+    }
+    if !return_focus { return; } // Respect a deliberate Alt-Tab to another app.
+    std::thread::sleep(Duration::from_millis(350));
+    if provider == "geforceNow" && stream_window(provider).is_some() { return; }
+    // A client can finish while the user switches away; re-check before raising.
+    let now = unsafe { GetForegroundWindow() }.0 as isize;
+    if now != 0 && now != foreground && now != ours.0 as isize {
+        if let Some(path) = { let mut pid=0; unsafe { GetWindowThreadProcessId(GetForegroundWindow(), Some(&mut pid)); } process_exe_path(pid) } {
+            if !path.to_ascii_lowercase().ends_with("\\explorer.exe") { return; }
+        }
+    }
+    unsafe { let _ = ShowWindow(ours, SW_SHOW); }
+    focus_external_window(ours);
+    fse_watcher::force_webview_resume(window.app_handle().clone());
+}
+
 #[tauri::command]
 async fn wait_stream_window(provider: String) -> Result<bool, String> {
     if !matches!(provider.as_str(), "moonlight" | "geforceNow") { return Err("Unknown streaming client".into()); }
