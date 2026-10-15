@@ -913,7 +913,9 @@ export default function App() {
     };
   }, [settingsRef]);
   const creteMainNavigationRef = useRef(null);
-  const creteViewNavigationRef = useRef(null);
+  const creteHomeNavigationRef = useRef(null);
+  const creteGamesNavigationRef = useRef(null);
+  const creteAppsNavigationRef = useRef(null);
   const {
     tab,
     tabRef,
@@ -3143,14 +3145,16 @@ export default function App() {
   const themeValue = { isDark, resolvedTheme, theme, accent, materialTokens, glass, glassBar, settingsRowGlass, glassEnabled, surfaceStyle, appBg, bgGlow1, bgGlow2, focusGlow, surface };
   const settingsValue = { settings, settingsRef, updateSetting, updateSettingsBatch };
   creteMainNavigationRef.current = resolvedTheme === "crete" ? (key) => {
+    const currentTab = tabRef.current;
     if (key === "BumperLeft" || key === "BumperRight") {
       const tabs = ["Home", "Games", "Settings"];
-      const i = tab === "Apps" ? 1 : Math.max(0, tabs.indexOf(tab));
+      const i = currentTab === "Apps" ? 1 : Math.max(0, tabs.indexOf(currentTab));
       switchTab(tabs[(i + (key === "BumperRight" ? 1 : -1) + tabs.length) % tabs.length]);
       return true;
     }
-    if (tab !== "Settings" && creteViewNavigationRef.current?.(key)) return true;
-    if (key === "Escape" && tab !== "Home" && !(tab === "Settings" && appearanceGroupState !== null)) {
+    const view = currentTab === "Home" ? creteHomeNavigationRef : currentTab === "Games" ? creteGamesNavigationRef : currentTab === "Apps" ? creteAppsNavigationRef : null;
+    if (view?.current?.(key)) return true;
+    if (key === "Escape" && currentTab !== "Home" && !(currentTab === "Settings" && appearanceGroupState !== null)) {
       switchTab("Home"); return true;
     }
     return false;
@@ -3158,7 +3162,6 @@ export default function App() {
   const libraryViewProps = {
     togglePin,
     onManageLibrary: openLibraryActionsModal,
-    navigationRef: creteViewNavigationRef,
     onSourceSelect: headerOnSelect,
     switchTab,
     gameArt,
@@ -3234,6 +3237,7 @@ export default function App() {
   };
   const gamesLibraryViewProps = {
     ...libraryViewProps,
+    navigationRef: creteGamesNavigationRef,
     active: tab === "Games",
     scrollRef: tab === "Games" ? tabScrollRef : gamesScrollRef,
     focusedCardRef: tab === "Games" ? focusedCardRef : gamesHiddenCardRef,
@@ -3242,6 +3246,7 @@ export default function App() {
   };
   const appsLibraryViewProps = {
     ...libraryViewProps,
+    navigationRef: creteAppsNavigationRef,
     ...(resolvedTheme === "crete" ? { gameSourceTabs: _hdrAppCols, gameSourceTab: appCollectionTab } : {}),
     active: tab === "Apps",
     scrollRef: tab === "Apps" ? tabScrollRef : appsScrollRef,
@@ -4086,7 +4091,7 @@ export default function App() {
           <HomeView
             togglePin={togglePin}
             setContextMenu={setContextMenu}
-            navigationRef={creteViewNavigationRef}
+            navigationRef={creteHomeNavigationRef}
             onLibrary={() => switchTab("Games")}
             onSearch={openSearch}
             scrollRef={homeScrollRef}

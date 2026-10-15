@@ -3,7 +3,7 @@ import { IoLayersOutline, IoSearchOutline, IoFilterOutline, IoClose } from "reac
 import type { App, Settings } from "../types";
 import { CreteGameCard } from "./CreteGameCard";
 import { AVAILABILITY, AVAILABILITY_LABELS, matchesAvailability, matchesSearch, type Availability } from "./model";
-import { useViewNavigation, type NavigationRef } from "./navigation";
+import { useNavigationState, useViewNavigation, type NavigationRef } from "./navigation";
 import { useCreteText } from "./text";
 import { StoreBadge } from "../components/ui/StoreBadge";
 import { scrollPane } from "./smoothScroll";
@@ -38,11 +38,11 @@ export function CreteLibraryView(p: CreteLibraryProps) {
   const [availability, setAvailability] = useState<Availability>("all");
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
-  const [searching, setSearching] = useState(false);
-  const [popup, setPopup] = useState<"sources" | "sort" | null>(null);
-  const [popupIndex, setPopupIndex] = useState(0);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [toolbarIndex, setToolbarIndex] = useState<number | null>(null);
+  const [searching, setSearching, searchingRef] = useNavigationState(false);
+  const [popup, setPopup, popupRef] = useNavigationState<"sources" | "sort" | null>(null);
+  const [popupIndex, setPopupIndex, popupIndexRef] = useNavigationState(0);
+  const [selectedId, setSelectedId, selectedIdRef] = useNavigationState<string | null>(null);
+  const [toolbarIndex, setToolbarIndex, toolbarIndexRef] = useNavigationState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const [cols, setCols] = useState(5);
@@ -56,12 +56,12 @@ export function CreteLibraryView(p: CreteLibraryProps) {
   const filterCount = filters.length;
   const lastToolbarIndex = filterCount + (appsMode ? 2 : 3);
   const choose = (i: number) => {
-    if (popup === "sort") p.setGamesSort(["recent", "az", "store"][i]);
+    if (popupRef.current === "sort") p.setGamesSort(["recent", "az", "store"][i]);
     else if (i === p.gameSourceTabs.length) p.switchTab(appsMode ? "Games" : "Apps");
     else p.onSourceSelect(i);
     setPopup(null); setToolbarIndex(null); setSelectedId(null);
   };
-  const showPopup = (kind: "sources" | "sort") => { setPopup(popup === kind ? null : kind); setPopupIndex(0); };
+  const showPopup = (kind: "sources" | "sort") => { setPopup(popupRef.current === kind ? null : kind); setPopupIndex(0); };
   const activateToolbar = (i: number) => {
     if (i < filterCount) { if (!appsMode) setAvailability(AVAILABILITY[i]); setSelectedId(null); }
     else if (i === filterCount) showPopup("sources");
@@ -70,7 +70,14 @@ export function CreteLibraryView(p: CreteLibraryProps) {
     else p.onManageLibrary();
   };
 
-  useViewNavigation(!!p.active, p.navigationRef, key => {
+  useViewNavigation(p.navigationRef, key => {
+    const popup = popupRef.current;
+    const popupIndex = popupIndexRef.current;
+    const searching = searchingRef.current;
+    const toolbarIndex = toolbarIndexRef.current;
+    const index = Math.max(0, items.findIndex(app => app.id === selectedIdRef.current));
+    const selected = items[index];
+    const choices = popup === "sort" ? ["Recently played", "A–Z", "Store"] : [...p.gameSourceTabs, appsMode ? "Game Library" : "Applications"];
     if (popup) {
       if (key === "Escape") setPopup(null);
       else if (["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"].includes(key)) setPopupIndex(i => (i + (key === "ArrowDown" || key === "ArrowRight" ? 1 : -1) + choices.length) % choices.length);

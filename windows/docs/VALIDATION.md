@@ -1,5 +1,13 @@
 # Windows fork validation
 
+## 2026-10-16 rapid-input follow-up
+
+The GPD user rejected 8a44b8b: moving the browser sampler off animation frames did not improve physical rapid taps. An independent Windows XInput capture then recorded all ten Right and ten Left press/release cycles, plus nine presses of each bumper, with CreteOS in the foreground. This does not measure which edges WebView2 received.
+
+A separate regression reproduces a navigation-state bug: four commands before React commits advance only one card. Home/Library selection and picker state now advance synchronously, and each mounted view has its own navigation delegate selected from the current tab reference. The regression covers batched keyboard directions and actual mapped gamepad edges across multiple bumper changes followed immediately by directional input. Mocked checks do not establish physical responsiveness; repeat the rapid-tap sequence on the installed candidate before accepting this fix.
+
+## Initial verification
+
 Local verification on macOS, 2026-10-13, branch `codex/windows-liftoff`:
 
 - Production TypeScript check and Vite build passed. Vite reports large inherited JavaScript chunks; startup performance on hardware is unmeasured.

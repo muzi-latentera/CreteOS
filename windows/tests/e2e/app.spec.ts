@@ -1320,3 +1320,42 @@ test("rapid controller taps and bumpers are sampled even when drawing pauses", a
   await page.evaluate(async () => { await (window as any).__quickPad(13); });
   await expect(page.locator('.crete-home [data-game-id][data-selected="true"]').first()).toBeVisible();
 });
+
+test("navigation accumulates presses received before a render commits", async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = window.setInterval.bind(window);
+    window.setInterval = ((handler: TimerHandler, delay?: number, ...args: any[]) => {
+      if (delay === 8 && typeof handler === "function") (window as any).__pollInput = handler;
+      return original(handler, delay, ...args);
+    }) as typeof window.setInterval;
+  });
+  await page.goto("/?crete&rich&played");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  const cards = page.locator('.crete-library [data-game-id]');
+  const target = await cards.nth(4).getAttribute("data-game-id");
+  await page.evaluate(() => {
+    for (let i = 0; i < 4; i++) window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  });
+  await expect(page.locator('.crete-library [data-selected="true"]')).toHaveAttribute("data-game-id", target!);
+  await page.getByRole("button", { name: "Home", exact: true }).click();
+  await page.evaluate(() => {
+    for (const key of ["ArrowDown", "ArrowRight", "ArrowRight", "ArrowRight"])
+      window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+  });
+  const homeCards = page.locator('.crete-home [data-home-row="recent"] [data-game-id]');
+  await expect(homeCards.nth(3)).toHaveAttribute("data-selected", "true");
+  // Drive actual mapped gamepad edges with no React commit between them.
+  // Every pulse has a separate release; hold repeat must not gate fresh taps.
+  await page.evaluate(() => {
+    const tap = (button: number) => {
+      (window as any).__setGamepadButton(button, true); (window as any).__pollInput();
+      (window as any).__setGamepadButton(button, false); (window as any).__pollInput();
+    };
+    tap(5); // Home -> Library
+    tap(5); // Library -> Settings
+    tap(4); // Settings -> Library
+    tap(15); tap(15); // continue from Library's fourth card
+  });
+  const sixth = await cards.nth(6).getAttribute("data-game-id");
+  await expect(page.locator('.crete-library [data-selected="true"]')).toHaveAttribute("data-game-id", sixth!);
+});

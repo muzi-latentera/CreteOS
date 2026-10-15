@@ -11,7 +11,7 @@ import { useStreaming } from "./useStreaming";
 import { withStreamCover } from "../components/launch/StreamLaunchCover";
 import { LaunchLoading } from "./LaunchLoading";
 import { scrollPane } from "./smoothScroll";
-import { useViewNavigation, type NavigationRef } from "./navigation";
+import { useNavigationState, useViewNavigation, type NavigationRef } from "./navigation";
 import { playedGames, playtime, lastPlayed, steamId, sourceLabel } from "./model";
 import { isHeroVideoLayer, resolveHeroType } from "../utils/heroMedia";
 import { useCreteText } from "./text";
@@ -53,15 +53,13 @@ export function CreteHomeView(p: CreteHomeProps) {
     ...(p.settings.home_pinned_pos !== "top" && pinned.length ? [{ id: "pinned", name: text("Pinned"), items: pinned }] : []),
   ];
   const rowSignature = rows.map(row => `${row.id}:${row.items.map(app => app.id).join(",")}`).join(";");
-  const [selection, setSelection] = useState<{ row: string; id: string } | null>(null);
+  const [selection, setSelection, selectionRef] = useNavigationState<{ row: string; id: string } | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const news = useNews(p.active);
-  const [newsIndex, setNewsIndex] = useState(-1);
+  const [newsIndex, setNewsIndex, newsIndexRef] = useNavigationState(-1);
   const onNews = newsIndex >= 0 && news.length > 0;
   const rowIndex = selection ? rows.findIndex(row => row.id === selection.row) : -1;
   const selectedRow = rows[rowIndex];
-  const cardIndex = Math.max(0, selectedRow?.items.findIndex(app => app.id === selection?.id) ?? 0);
-  const selected = onNews ? undefined : selectedRow?.items[cardIndex] ?? hero;
   const heroSectionRef = useRef<HTMLElement>(null);
   const rowsRef = useRef<Record<string, HTMLDivElement | null>>({});
   const newsRef = useRef<HTMLDivElement>(null);
@@ -85,6 +83,9 @@ export function CreteHomeView(p: CreteHomeProps) {
   };
   const selectRow = (index: number) => {
     const row = rows[index];
+    const current = selectionRef.current;
+    const previousRow = rows.find(item => item.id === current?.row);
+    const cardIndex = Math.max(0, previousRow?.items.findIndex(app => app.id === current?.id) ?? 0);
     setNewsIndex(-1);
     setSelection(row ? { row: row.id, id: row.items[Math.min(cardIndex, row.items.length - 1)].id } : null);
   };
@@ -94,7 +95,14 @@ export function CreteHomeView(p: CreteHomeProps) {
     if (!row) setSelection(null);
     else if (!row.items.some(app => app.id === selection.id)) setSelection({ row: row.id, id: row.items[0].id });
   }, [rowSignature, selection?.row, selection?.id]);
-  useViewNavigation(p.active, p.navigationRef, key => {
+  useViewNavigation(p.navigationRef, key => {
+    const selection = selectionRef.current;
+    const newsIndex = newsIndexRef.current;
+    const onNews = newsIndex >= 0 && news.length > 0;
+    const rowIndex = selection ? rows.findIndex(row => row.id === selection.row) : -1;
+    const selectedRow = rows[rowIndex];
+    const cardIndex = Math.max(0, selectedRow?.items.findIndex(app => app.id === selection?.id) ?? 0);
+    const selected = onNews ? undefined : selectedRow?.items[cardIndex] ?? hero;
     if (key === "ButtonY") { p.onSearch(); return true; }
     if (key === "ButtonX" && selected) { p.togglePin(selected); return true; }
     if (onNews) {
