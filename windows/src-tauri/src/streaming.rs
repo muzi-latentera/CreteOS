@@ -610,7 +610,9 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         let monitor_active = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         if let Some(id) = &steam_id { watch_host_game_window(window.clone(), profile.host.clone(), id.clone(), presentation.clone(), generation, monitor_active.clone()); }
         let launch_result = if let Some(id) = &steam_id {
-            super::moondeck::launch(&profile.host, id, |phase| super::fse_watcher::log_stream_transition(window.app_handle(), phase))
+            super::moondeck::launch(&profile.host, id,
+                || session_current(generation) && client.lock().is_ok_and(|mut child| child.try_wait().ok().flatten().is_none()),
+                |phase| super::fse_watcher::log_stream_transition(window.app_handle(), phase))
         } else { Ok(()) };
         let started = launch_result.is_ok() || matches!(host_window_state(), 2 | 3);
         // Always attach the owned session lifecycle, including after a slow

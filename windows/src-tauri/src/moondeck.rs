@@ -114,34 +114,41 @@ pub async fn pair_moondeck(host: String, pin: u32) -> Result<(), String> {
     }).await.map_err(|e| e.to_string())?
 }
 
-pub fn launch(host: &str, steam_id: &str, note: impl Fn(&str)) -> Result<(), String> {
+pub fn launch(host: &str, steam_id: &str, current: impl Fn() -> bool, note: impl Fn(&str)) -> Result<(), String> {
     if steam_id.is_empty() || steam_id.len() > 10 || !steam_id.bytes().all(|c| c.is_ascii_digit()) {
         return Err("Invalid Steam app ID".into());
     }
+    let connected = || if current() { Ok(()) } else { Err("Moonlight closed or disconnected before the game started. Check the stream connection and try again.".to_string()) };
+    connected()?;
     let buddy = status(host)?;
     if buddy["paired"] != true { return Err("Pair CreteOS with MoonDeck Buddy first".into()); }
     let version = buddy["version"].as_u64().ok_or("Missing Buddy API version")?;
     let deadline = std::time::Instant::now();
     while !state_is(&request(host, "streamState", None)?["state"], 1, "Streaming") {
+        connected()?;
         if deadline.elapsed() > std::time::Duration::from_secs(20) { return Err("MoonDeckStream did not become ready".into()); }
         std::thread::sleep(std::time::Duration::from_millis(300));
     }
+    connected()?;
     if request(host, "launchSteam", Some(json!({"big_picture_mode":false,"username":null})))?["result"] != true {
         return Err("Buddy could not start Steam".into());
     }
     let deadline = std::time::Instant::now();
     loop {
+        connected()?;
         let mode = request(host, "steamUiMode", None)?;
         if state_is(&mode["mode"], 1, "Desktop") || state_is(&mode["mode"], 2, "BigPicture") { break; }
         if deadline.elapsed() > std::time::Duration::from_secs(20) { return Err("Steam did not become ready".into()); }
         std::thread::sleep(std::time::Duration::from_millis(300));
     }
+    connected()?;
     if request(host, "launchSteamApp", Some(json!({"app_id":steam_id})))?["result"] != true {
         return Err("Buddy could not launch this game".into());
     }
     note("buddy-game-launch-requested");
     let deadline = std::time::Instant::now();
     loop {
+        connected()?;
         let data = app_data(host, version, Some(steam_id))?;
         if requested_app_running(&data, steam_id) { note("buddy-game-running"); break; }
         if deadline.elapsed() > std::time::Duration::from_secs(120) {
@@ -337,6 +344,11 @@ pub fn prepare(host: &str, steam_id: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_closed_client_cancels_launch_before_any_host_request() {
+        let result = super::launch("invalid.invalid", "2638890", || false, |_| panic!("no launch phase expected"));
+        assert!(result.unwrap_err().contains("closed or disconnected"));
+    }
     use serde_json::Value;
     #[test]
     fn late_game_launch_keeps_exit_monitor_armed_without_closing_startup() {

@@ -10399,6 +10399,7 @@ pub fn run() {
             get_xcloud_games
         ])
         .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Focused(true)) { fse_watcher::focus_foreground_webview(window.app_handle()); }
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Focused(_)) { fse_watcher::keep_main_borderless(window.app_handle()); }
         })
         .setup(|app| {
