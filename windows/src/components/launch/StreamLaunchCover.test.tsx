@@ -26,7 +26,7 @@ describe("stream artwork handoff", () => {
     expect(invoke).not.toHaveBeenCalledWith("set_launch_cover", { active: false });
     focused(); await pending;
     expect(states[states.length - 1]).toBeNull();
-    expect(invoke).toHaveBeenLastCalledWith("set_launch_cover", { active: false });
+    expect(invoke).toHaveBeenLastCalledWith("focus_stream_window", { provider: "moonlight" });
     window.removeEventListener("crete-stream-cover", listener);
   });
   it("releases the cover after a failed launch and keeps the error", async () => {
@@ -36,6 +36,7 @@ describe("stream artwork handoff", () => {
     await result;
     expect(invoke).toHaveBeenLastCalledWith("set_launch_cover", { active: false });
     expect(invoke).not.toHaveBeenCalledWith("focus_stream_window", expect.anything());
+    expect(invoke).not.toHaveBeenCalledWith("record_stream_launch", expect.anything());
   });
   it("paints twice before opening the external client", async () => {
     invoke.mockResolvedValue(undefined);
@@ -50,10 +51,29 @@ describe("stream artwork handoff", () => {
       expect(launch).not.toHaveBeenCalled();
       frames.shift()!(16);
       await vi.advanceTimersByTimeAsync(10_000);
+      frames.shift()!(32); frames.shift()!(48);
+      await vi.advanceTimersByTimeAsync(10_000);
       await pending;
       expect(launch).toHaveBeenCalledOnce();
       expect(invoke).toHaveBeenCalledWith("set_launch_cover", { active: true, streamProvider: "geforceNow" });
     } finally { raf.mockRestore(); }
+  });
+  it("records accepted streamed launches and finishes dialog cleanup before foreground transfer", async () => {
+    const order: string[] = [];
+    const entry = { id: "oni", name: "Onimusha", launched_at: 1792079000 };
+    const history = vi.fn(); window.addEventListener("crete-play-history-changed", history);
+    invoke.mockImplementation(async command => {
+      if (command === "record_stream_launch") return entry;
+      if (command === "focus_stream_window") order.push("focus");
+      return true;
+    });
+    const pending = withStreamCover({ id: "oni", name: "Onimusha", launch_path: "steam://rungameid/2638890" }, "moonlight", async () => undefined, () => order.push("dialog-closed"));
+    await vi.advanceTimersByTimeAsync(10_100); await pending;
+    expect(invoke).toHaveBeenCalledWith("record_stream_launch", { id: "oni", name: "Onimusha", launchPath: "steam://rungameid/2638890" });
+    expect(history).toHaveBeenCalledOnce();
+    expect(order).toEqual(["dialog-closed", "focus"]);
+    expect(invoke).toHaveBeenLastCalledWith("focus_stream_window", { provider: "moonlight" });
+    window.removeEventListener("crete-play-history-changed", history);
   });
   it("launches immediately after paint but waits ten seconds before handoff", async () => {
     invoke.mockResolvedValue(true);
@@ -64,13 +84,14 @@ describe("stream artwork handoff", () => {
     await vi.advanceTimersByTimeAsync(9949);
     expect(invoke).not.toHaveBeenCalledWith("focus_stream_window", expect.anything());
     await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(50); // Paint dialog removal before native focus.
     await pending;
     expect(invoke).toHaveBeenCalledWith("focus_stream_window", { provider: "geforceNow" });
   });
   it("reveals a client needing attention without waiting for the minimum", async () => {
     invoke.mockImplementation(async command => command === "wait_stream_window" ? false : undefined);
     const pending = withStreamCover({ id: "re2", name: "Resident Evil 2" }, "geforceNow", async () => undefined);
-    await vi.advanceTimersByTimeAsync(50);
+    await vi.advanceTimersByTimeAsync(100);
     await pending;
     expect(performance.now()).toBeLessThan(10_000);
     expect(invoke).toHaveBeenCalledWith("focus_stream_window", { provider: "geforceNow" });

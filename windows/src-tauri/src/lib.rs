@@ -1101,6 +1101,21 @@ fn save_recent_games(recents: &Vec<RecentEntry>) {
     }
 }
 
+#[tauri::command]
+fn record_stream_launch(id: String, name: String, launch_path: String) -> Result<RecentEntry, String> {
+    if id.is_empty() || id.len() > 1024 || name.len() > 1024 || launch_path.len() > 8192 {
+        return Err("Invalid game history entry".into());
+    }
+    let entry = RecentEntry { id, name, launch_path, app_type: "game".into(), launched_at: unix_now_i64().max(0) as u64 };
+    let mut recents = load_recents();
+    recents.retain(|item| item.id != entry.id); recents.insert(0, entry.clone()); recents.truncate(RECENTS_MAX);
+    save_recents(&recents);
+    let mut games = load_recent_games();
+    games.retain(|item| item.id != entry.id); games.insert(0, entry.clone());
+    save_recent_games(&games);
+    Ok(entry)
+}
+
 fn load_art_cache() -> HashMap<String, String> {
     let path = art_cache_path();
     if !path.exists() {
@@ -9439,6 +9454,13 @@ async fn focus_stream_window(window: tauri::Window, provider: String) -> Result<
         while start.elapsed() < Duration::from_secs(3) {
             if provider == "moonlight" && streaming::moonlight_game_closed() { return Ok(()); }
             let foreground = unsafe { GetForegroundWindow() }.0 as isize;
+            // Foreground ownership alone does not prove our fullscreen surface
+            // is behind the stream. Place our own host behind the exact client
+            // after releasing artwork, without activating either window.
+            if foreground == target.hwnd {
+                unsafe { let _ = SetWindowPos(windows::Win32::Foundation::HWND(ours as _), Some(windows::Win32::Foundation::HWND(target.hwnd as _)), 0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | windows::Win32::UI::WindowsAndMessaging::SWP_NOACTIVATE); }
+            }
             if foreground == target.hwnd {
                 let stable = stable_since.get_or_insert_with(Instant::now);
                 if stable.elapsed() >= Duration::from_millis(500) {
@@ -10255,6 +10277,7 @@ pub fn run() {
             streaming::get_host_installed_games,
             streaming::get_moonlight_profile,
             streaming::launch_moonlight,
+            record_stream_launch,
             moondeck::get_moondeck_status,
             moondeck::pair_moondeck,
             get_cached_art_bulk,

@@ -641,6 +641,21 @@ export default function App() {
     return refresh;
   }, [refreshLibrary, refreshSteamStatus]);
 
+  const streamRefreshRef = useRef(refreshLibraryFromSources);
+  streamRefreshRef.current = refreshLibraryFromSources;
+  useEffect(() => {
+    let timer;
+    const refresh = () => {
+      if (!navigator.onLine) return;
+      void streamRefreshRef.current();
+      clearTimeout(timer);
+      // Store totals can settle after the stream itself has ended.
+      timer = window.setTimeout(() => { if (navigator.onLine) void streamRefreshRef.current(); }, 30_000);
+    };
+    window.addEventListener("crete-stream-ended", refresh);
+    return () => { clearTimeout(timer); window.removeEventListener("crete-stream-ended", refresh); };
+  }, []);
+
   const openSteamQr = () => {
     setSteamQrUrl("");
     setSteamQrError("");
@@ -780,6 +795,7 @@ export default function App() {
       unsubs.push(await listen("steam-owned-refresh", () => {
         if (!disposed) {
           refreshSteamStatus();
+          refreshLibrary();
         }
       }));
       unsubs.push(await listen("xbox-login-success", (event) => {
@@ -1473,6 +1489,29 @@ export default function App() {
       return next;
     });
   }, [allAppsRef, appsRef]);
+
+  useEffect(() => {
+    const update = (event) => {
+      const entry = event.detail;
+      if (!entry?.id || !entry.launched_at) return;
+      patchLibraryApp(entry.id, { last_played: entry.launched_at });
+      setRecent(previous => { const next = [entry, ...previous.filter(item => item.id !== entry.id)]; recentRef.current = next; return next; });
+      setRecentGames(previous => { const next = [entry, ...previous.filter(item => item.id !== entry.id)]; recentGamesRef.current = next; return next; });
+    };
+    window.addEventListener("crete-play-history-changed", update);
+    return () => window.removeEventListener("crete-play-history-changed", update);
+  }, [patchLibraryApp]);
+
+  useEffect(() => {
+    setDetailsApp(previous => {
+      if (!previous) return previous;
+      const latest = apps.find(app => app.id === previous.id);
+      if (!latest || latest.last_played === previous.last_played && latest.playtime_minutes === previous.playtime_minutes) return previous;
+      const next = { ...previous, last_played: latest.last_played, playtime_minutes: latest.playtime_minutes };
+      detailsAppRef.current = next;
+      return next;
+    });
+  }, [apps]);
 
   const setInstallProgressForApp = useCallback((id, progress) => {
     setInstallProgress((prev) => ({ ...prev, [id]: progress }));

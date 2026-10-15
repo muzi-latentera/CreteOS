@@ -12,10 +12,11 @@ type ReturnPhase = { provider: Provider; phase: "ending" | "ended"; session: num
 let lastStream: { app: App; provider: Provider } | null = null;
 let dismissed = false;
 let generation = 0;
-export async function withStreamCover(app: App, provider: "moonlight" | "geforceNow", launch: () => Promise<unknown>) {
+export async function withStreamCover(app: App, provider: "moonlight" | "geforceNow", launch: () => Promise<unknown>, beforeHandoff?: () => void) {
   const current = ++generation;
   const shownAt = performance.now();
   dismissed = false;
+  let handedOff = false;
   lastStream = { app, provider };
   window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: { app } }));
   try {
@@ -25,6 +26,9 @@ export async function withStreamCover(app: App, provider: "moonlight" | "geforce
     await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     if (dismissed || current !== generation) return;
     await launch();
+    // Streaming bypasses launch_app, so it must explicitly share its history.
+    const entry = await invoke<App>("record_stream_launch", { id: app.id, name: app.name, launchPath: app.launch_path ?? "" }).catch(() => null);
+    if (entry) window.dispatchEvent(new CustomEvent("crete-play-history-changed", { detail: entry }));
     const ready = await invoke<boolean>("wait_stream_window", { provider });
     // Do not delay the launch itself. Keep artwork visible for at least ten
     // seconds, except when the client reports an error/needs interaction.
@@ -33,11 +37,18 @@ export async function withStreamCover(app: App, provider: "moonlight" | "geforce
     }
     // Transfer the native foreground while the artwork is still opaque. Fading
     // a child overlay reveals our details page, not the external stream window.
-    if (!dismissed && current === generation) await invoke("focus_stream_window", { provider });
+    if (!dismissed && current === generation) {
+      beforeHandoff?.();
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      await invoke("focus_stream_window", { provider });
+      handedOff = true;
+    }
   } finally {
     if (current === generation) {
       window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: null }));
-      await invoke("set_launch_cover", { active: false }).catch(() => {});
+      // Native handoff has already released the cover. No window changes after
+      // it confirms foreground: late cleanup can disturb shell composition.
+      if (!handedOff) await invoke("set_launch_cover", { active: false }).catch(() => {});
     }
   }
 }
@@ -64,7 +75,7 @@ export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<
       if (disposed || !lastStream || lastStream.provider !== event.payload.provider) return;
       if (event.payload.phase === "ended" && returnSession.current !== event.payload.session) return;
       const ticket = ++returnTicket.current;
-      if (event.payload.phase === "ended") { returnSession.current = null; setCover(previous => previous?.returning ? null : previous); return; }
+      if (event.payload.phase === "ended") { returnSession.current = null; setCover(previous => previous?.returning ? null : previous); window.dispatchEvent(new Event("crete-stream-ended")); return; }
       returnSession.current = event.payload.session;
       const app = lastStream.app;
       setCover({ app, returning: true });

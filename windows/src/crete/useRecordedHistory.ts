@@ -21,7 +21,8 @@ export function useRecordedHistory(active: boolean, recent: App[]) {
     };
     refresh();
     window.addEventListener("focus", refresh);
-    return () => { disposed = true; window.removeEventListener("focus", refresh); };
+    window.addEventListener("crete-play-history-changed", refresh);
+    return () => { disposed = true; window.removeEventListener("focus", refresh); window.removeEventListener("crete-play-history-changed", refresh); };
   }, [active, recent]);
   return history;
 }

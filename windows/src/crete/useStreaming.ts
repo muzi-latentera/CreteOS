@@ -76,16 +76,14 @@ export function useStreaming(app: App, enabled: boolean) {
     if (!gameUrl) return;
     setError(null);
     try {
-      await withStreamCover(app, "geforceNow", () => invoke("start_geforce_game", { gameUrl, source: app.source, displayKey: geforceDisplay.displayKey, profile }));
-      setGeforceConfigure(false);
+      await withStreamCover(app, "geforceNow", () => invoke("start_geforce_game", { gameUrl, source: app.source, displayKey: geforceDisplay.displayKey, profile }), () => setGeforceConfigure(false));
     } catch (reason) { setError(String(reason)); }
   };
   const stream = async (appName: string, profile: MoonlightProfile) => {
     setError(null);
     try {
       const steamId = appName === "MoonDeckStream" && app.source === "steam" && app.steam_appid ? String(app.steam_appid) : null;
-      await withStreamCover(app, "moonlight", () => invoke("launch_moonlight", { appName, displayKey: display.displayKey, profile, steamId }));
-      setConfigure(false);
+      await withStreamCover(app, "moonlight", () => invoke("launch_moonlight", { appName, displayKey: display.displayKey, profile, steamId }), () => setConfigure(false));
     } catch (reason) { setError(`Could not start Moonlight on ${profile.host}. ${String(reason)}`); }
   };
   const pair = async (pin: number) => {
