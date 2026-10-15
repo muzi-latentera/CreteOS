@@ -189,7 +189,7 @@ pub async fn start_geforce_game(game_url: String, display_key: String, profile: 
         let output = bounded_output(command, None)?;
         if !output.status.success() { return Err("Could not check whether GeForce NOW is running".into()); }
         let processes = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
-        if processes.contains("geforcenow.exe") || processes.contains("geforcenowstreamer.exe") { return Err("Close GeForce NOW first, then retry Start game to apply these settings.".into()); }
+        if processes.contains("geforcenow.exe") || processes.contains("geforcenowstreamer.exe") { return Err("Close GeForce NOW first, then choose Play with selected settings. Play with NVIDIA app settings uses NVIDIA's existing configuration instead.".into()); }
         let root = dirs::data_local_dir().ok_or("No local data folder")?;
         let path = root.join("NVIDIA Corporation/GeForceNOW/sharedstorage.json");
         let original = std::fs::read(&path).map_err(|_| "Open GeForce NOW and configure Custom streaming quality once")?;

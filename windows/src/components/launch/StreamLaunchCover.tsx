@@ -6,19 +6,33 @@ import { getBestGamepad, readGpState } from "../../utils/gamepad";
 
 type Cover = { app: App } | null;
 let dismissed = false;
+let generation = 0;
 export async function withStreamCover(app: App, provider: "moonlight" | "geforceNow", launch: () => Promise<unknown>) {
+  const current = ++generation;
+  const shownAt = performance.now();
   dismissed = false;
   window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: { app } }));
   try {
-    await invoke("set_launch_cover", { active: true });
+    await invoke("set_launch_cover", { active: true, streamProvider: provider });
+    // Give the artwork two paint opportunities before another client can
+    // create a foreground/topmost connection window.
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    if (dismissed || current !== generation) return;
     await launch();
-    await invoke("wait_stream_window", { provider });
+    const ready = await invoke<boolean>("wait_stream_window", { provider });
+    // Do not delay the launch itself. Keep artwork visible for at least ten
+    // seconds, except when the client reports an error/needs interaction.
+    if (ready !== false && !dismissed && current === generation) {
+      await new Promise<void>(resolve => window.setTimeout(resolve, Math.max(0, 10_000 - (performance.now() - shownAt))));
+    }
     // Transfer the native foreground while the artwork is still opaque. Fading
     // a child overlay reveals our details page, not the external stream window.
-    if (!dismissed) await invoke("focus_stream_window", { provider });
+    if (!dismissed && current === generation) await invoke("focus_stream_window", { provider });
   } finally {
-    window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: null }));
-    await invoke("set_launch_cover", { active: false }).catch(() => {});
+    if (current === generation) {
+      window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: null }));
+      await invoke("set_launch_cover", { active: false }).catch(() => {});
+    }
   }
 }
 

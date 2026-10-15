@@ -677,15 +677,15 @@ test("GFN current settings start Play and keep an artwork-only spinner until han
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
   await page.locator('[data-crete-details="true"]').getByRole("button", { name: "Play", exact: true }).click();
-  await page.getByRole("button", { name: "Play with current settings", exact: true }).click();
+  await page.getByRole("button", { name: "Play with NVIDIA app settings", exact: true }).click();
   const cover = page.locator("[data-stream-launch-cover]");
   await expect(cover).toBeVisible();
   await expect(cover.locator("h1,h2,button")).toHaveCount(0);
   await expect(cover.locator("span")).toHaveCSS("animation-name", "creteLaunchSpinner");
-  expect(await page.evaluate(() => (window as any).__lastGeforce.play)).toBe(true);
+  await expect.poll(() => page.evaluate(() => (window as any).__lastGeforce?.play)).toBe(true);
   expect(await page.evaluate(() => (window as any).__invokeCounts.start_geforce_game ?? 0)).toBe(0);
   await page.evaluate(() => (window as any).__releaseStreamWindow());
-  await expect(cover).toHaveCount(0);
+  await expect(cover).toHaveCount(0, { timeout: 12_000 });
 });
 
 test("Uninstalled mapped games offer green GFN Play plus native install and streaming alternatives", async ({ page }) => {
@@ -702,9 +702,13 @@ test("Uninstalled mapped games offer green GFN Play plus native install and stre
   await details.getByRole("button", { name: "Play", exact: true }).click();
   const gfn = details.getByRole("dialog", { name: "GeForce NOW stream settings" });
   await expect(gfn).toBeVisible();
+  await gfn.getByLabel("Resolution", { exact: true }).selectOption("1920x1080");
+  await gfn.getByLabel("Frame rate", { exact: true }).selectOption("120");
   await gfn.getByLabel("Bitrate").selectOption("20000");
-  await gfn.getByRole("button", { name: "Apply settings and play", exact: true }).click();
+  await expect(gfn.getByText(/ignores these choices/)).toBeVisible();
+  await gfn.getByRole("button", { name: "Play with selected settings", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.start_geforce_game)).toBe(1);
+  expect(await page.evaluate(() => (window as any).__lastGeforce.profile)).toMatchObject({ resolution: "1920x1080", fps: 120, bitrate: 20000 });
   expect(await page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"] ?? 0)).toBe(0);
   expect(await page.evaluate(() => (window as any).__invokeCounts.launch_app ?? 0)).toBe(0);
   await details.getByRole("button", { name: "Launch options", exact: true }).click();
@@ -741,7 +745,7 @@ test("Live host game takes priority over GFN and preserves display-specific stre
   await expect(stream.getByLabel("Bitrate")).toHaveValue("80000");
   await stream.getByLabel("Codec").selectOption("AV1");
   await stream.getByRole("button", { name: "Start stream", exact: true }).click();
-  await expect(stream).not.toBeVisible();
+  await expect(stream).not.toBeVisible({ timeout: 12_000 });
   expect(await page.evaluate(() => (window as any).__lastStream)).toMatchObject({ appName: "Control Ultimate Edition", steamId: null, profile: { resolution: "1920x1200", fps: 90, bitrate: 80000, codec: "AV1" } });
   expect(await page.evaluate(() => (window as any).__invokeCounts.launch_app ?? 0)).toBe(0);
 });
