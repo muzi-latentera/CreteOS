@@ -139,6 +139,8 @@
 .crete-stream-settings select { max-width: 65%; padding: 8px; border: 1px solid #ffffff30; border-radius: 6px; background: #22272d; color: #eee8da; }
 .crete-stream-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
 .crete-stream-buttons button { border-radius: 8px; padding: 10px 14px; background: #293038; color: #eee8da; border: 1px solid #ffffff28; }
+.crete-stream-buttons .crete-gfn-play { background: #7cab00; color: #fff; border-color: #7cab00; font-weight: 700; }
+.crete-stream-buttons .crete-gfn-play:disabled { opacity: .55; }
 .crete-stream-settings :focus { outline: 2px solid #d6aa4f; outline-offset: 2px; }
 .crete-stream-choice-backdrop { position:fixed; inset:0; background:#0009; display:grid; place-items:center; z-index:100; padding:24px; }
 .crete-stream-choices { display:flex; flex-direction:column; gap:6px; max-height:70vh; overflow:auto; min-width:220px; padding:12px; background:#12161b; border:1px solid #ffffff30; border-radius:12px; }

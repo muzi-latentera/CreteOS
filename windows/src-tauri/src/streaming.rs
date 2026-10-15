@@ -222,7 +222,7 @@ pub fn get_geforce_profile(window: tauri::Window) -> Result<serde_json::Value, S
 
 fn update_geforce_settings(settings: &mut serde_json::Value, profile: &MoonlightProfile) -> Result<(), String> {
     let resolutions = ["1280x720", "1920x1080", "1920x1200", "2560x1440", "2560x1600", "3840x2160"];
-    if !resolutions.contains(&profile.resolution.as_str()) || ![30,60,120,240].contains(&profile.fps) || !(5000..=100000).contains(&profile.bitrate) { return Err("Unsupported GeForce NOW settings".into()); }
+    if !resolutions.contains(&profile.resolution.as_str()) || ![30,60,120,240].contains(&profile.fps) || (profile.bitrate != 0 && !(5000..=100000).contains(&profile.bitrate)) { return Err("Unsupported GeForce NOW settings".into()); }
     let config = settings.get_mut("appSettingsConfig").ok_or("GeForce NOW settings format is unsupported; use its Settings screen")?;
     let custom = config.get_mut("customProfile").filter(|v| v.is_object()).ok_or("Configure Custom quality in GeForce NOW once, then retry")?;
     if !["width", "height", "fps", "maxBitrate"].iter().all(|key| custom.get(key).is_some()) { return Err("GeForce NOW profile format is unsupported; use its Settings screen".into()); }
@@ -230,7 +230,8 @@ fn update_geforce_settings(settings: &mut serde_json::Value, profile: &Moonlight
     custom["width"] = serde_json::json!(width.parse::<u32>().map_err(|_| "Invalid width")?);
     custom["height"] = serde_json::json!(height.parse::<u32>().map_err(|_| "Invalid height")?);
     custom["fps"] = serde_json::json!(profile.fps); custom["maxBitrate"] = serde_json::json!(profile.bitrate / 1000);
-    custom["maxBitrateAuto"] = serde_json::json!(false);
+    // NVIDIA uses zero Mbps plus the Auto flag for an automatic bitrate.
+    custom["maxBitrateAuto"] = serde_json::json!(profile.bitrate == 0);
     // Match NVIDIA's actual Custom mode, including the native mode-selection
     // enum. Retaining Balanced metadata can select its automatic video mode.
     custom["name"] = serde_json::json!("custom");
@@ -252,7 +253,7 @@ pub async fn start_geforce_game(window: tauri::Window, game_url: String, display
         let output = bounded_output(command, None)?;
         if !output.status.success() { return Err("Could not check whether GeForce NOW is running".into()); }
         let processes = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
-        if processes.contains("geforcenow.exe") || processes.contains("geforcenowstreamer.exe") { return Err("Close GeForce NOW first, then choose Play with selected settings. Play with NVIDIA app settings uses NVIDIA's existing configuration instead.".into()); }
+        if processes.contains("geforcenow.exe") || processes.contains("geforcenowstreamer.exe") { return Err("Close GeForce NOW before pressing Play so your chosen settings can be applied.".into()); }
         let root = dirs::data_local_dir().ok_or("No local data folder")?;
         let path = root.join("NVIDIA Corporation/GeForceNOW/sharedstorage.json");
         let original = std::fs::read(&path).map_err(|_| "Open GeForce NOW and configure Custom streaming quality once")?;
@@ -269,7 +270,7 @@ pub async fn start_geforce_game(window: tauri::Window, game_url: String, display
         let readback: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         let expected = &settings["appSettingsConfig"];
         let actual = &readback["appSettingsConfig"];
-        if actual["streamingProfiles"] != expected["streamingProfiles"] || ["width", "height", "fps", "maxBitrate", "name", "profile"].iter().any(|key| actual["customProfile"][*key] != expected["customProfile"][*key]) {
+        if actual["streamingProfiles"] != expected["streamingProfiles"] || ["width", "height", "fps", "maxBitrate", "maxBitrateAuto", "name", "profile"].iter().any(|key| actual["customProfile"][*key] != expected["customProfile"][*key]) {
             return Err("NVIDIA changed the selected profile during startup. No game was started; check its Custom quality settings.".into());
         }
         let log = super::stream_readiness::LogCursor::new(nvidia_console());
@@ -485,6 +486,23 @@ mod tests {
     fn rejects_unknown_clients() {
         assert!(super::client_path("powershell").is_err());
         assert!(super::client_path("C:/anything.exe").is_err());
+    }
+    #[test]
+    fn geforce_auto_bitrate_preserves_resolution_and_manual_mode_can_replace_it() {
+        let mut settings = serde_json::json!({"appSettingsConfig":{"customProfile":{"width":3840,"height":2160,"fps":60,"maxBitrate":80,"maxBitrateAuto":false}}});
+        let mut profile = super::MoonlightProfile { host:"GeForce NOW".into(), resolution:"1920x1080".into(), fps:120, bitrate:0, codec:"auto".into() };
+        super::update_geforce_settings(&mut settings, &profile).unwrap();
+        assert_eq!(settings["appSettingsConfig"]["customProfile"]["maxBitrate"],0);
+        assert_eq!(settings["appSettingsConfig"]["customProfile"]["maxBitrateAuto"],true);
+        assert_eq!(settings["appSettingsConfig"]["customProfile"]["width"],1920);
+        let moonlight = super::MoonlightProfile { host:"Bosgame".into(), ..profile.clone() };
+        assert!(super::validate(&moonlight).is_err()); // Auto is GFN-only.
+        profile.bitrate=20000;
+        super::update_geforce_settings(&mut settings, &profile).unwrap();
+        assert_eq!(settings["appSettingsConfig"]["customProfile"]["maxBitrateAuto"],false);
+        assert_eq!(settings["appSettingsConfig"]["customProfile"]["maxBitrate"],20);
+        profile.bitrate=1000;
+        assert!(super::update_geforce_settings(&mut settings, &profile).is_err());
     }
     #[test]
     fn validates_stream_settings() {

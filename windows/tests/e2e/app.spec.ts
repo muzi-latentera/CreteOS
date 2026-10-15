@@ -671,19 +671,26 @@ for (const input of ["keyboard", "controller"]) {
   });
 }
 
-test("GFN current settings start Play and keep an artwork-only spinner until handoff", async ({ page }) => {
+test("GFN has one green Play that applies Auto bitrate and keeps artwork until handoff", async ({ page }) => {
   await richCrete(page);
   await page.goto("/?crete&rich&gfn&holdStreamWindow");
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
   await page.locator('[data-crete-details="true"]').getByRole("button", { name: "Play", exact: true }).click();
-  await page.getByRole("button", { name: "Play with NVIDIA app settings", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "GeForce NOW stream settings" });
+  await expect(dialog.getByRole("button")).toHaveCount(2); // Play and Cancel.
+  await dialog.getByLabel("Bitrate").selectOption("0");
+  await expect(dialog.getByLabel("Bitrate")).toHaveValue("0");
+  const play = dialog.getByRole("button", { name: "Play", exact: true });
+  await expect(play).toHaveCSS("background-color", "rgb(124, 171, 0)");
+  await play.click();
   const cover = page.locator("[data-stream-launch-cover]");
   await expect(cover).toBeVisible();
   await expect(cover.locator("h1,h2,button")).toHaveCount(0);
   await expect(cover.locator("span")).toHaveCSS("animation-name", "creteLaunchSpinner");
-  await expect.poll(() => page.evaluate(() => (window as any).__lastGeforce?.play)).toBe(true);
-  expect(await page.evaluate(() => (window as any).__invokeCounts.start_geforce_game ?? 0)).toBe(0);
+  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.start_geforce_game)).toBe(1);
+  expect(await page.evaluate(() => (window as any).__lastGeforce.profile)).toMatchObject({ resolution: "1920x1080", bitrate: 0 });
+  expect(await page.evaluate(() => (window as any).__invokeCounts.launch_geforce_game ?? 0)).toBe(0);
   await page.evaluate(() => (window as any).__releaseStreamWindow());
   await expect(cover).toHaveCount(0, { timeout: 12_000 });
 });
@@ -705,8 +712,8 @@ test("Uninstalled mapped games offer green GFN Play plus native install and stre
   await gfn.getByLabel("Resolution", { exact: true }).selectOption("1920x1080");
   await gfn.getByLabel("Frame rate", { exact: true }).selectOption("120");
   await gfn.getByLabel("Bitrate").selectOption("20000");
-  await expect(gfn.getByText(/ignores these choices/)).toBeVisible();
-  await gfn.getByRole("button", { name: "Play with selected settings", exact: true }).click();
+  await expect(gfn.getByText(/Play uses your settings above/)).toBeVisible();
+  await gfn.getByRole("button", { name: "Play", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.start_geforce_game)).toBe(1);
   expect(await page.evaluate(() => (window as any).__lastGeforce.profile)).toMatchObject({ resolution: "1920x1080", fps: 120, bitrate: 20000 });
   expect(await page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"] ?? 0)).toBe(0);

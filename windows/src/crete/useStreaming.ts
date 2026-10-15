@@ -72,11 +72,11 @@ export function useStreaming(app: App, enabled: boolean) {
       void invoke<DisplayProfile>("get_geforce_profile").then(current => { if (current?.profile) setGeforceDisplay(current); }).catch(reason => setError(String(reason)));
     } else void invoke("launch_streaming_client", { provider }).catch(reason => setError(String(reason)));
   };
-  const geforceStream = async (profile?: MoonlightProfile) => {
+  const geforceStream = async (profile: MoonlightProfile) => {
     if (!gameUrl) return;
     setError(null);
     try {
-      await withStreamCover(app, "geforceNow", () => profile ? invoke("start_geforce_game", { gameUrl, source: app.source, displayKey: geforceDisplay.displayKey, profile }) : invoke("launch_geforce_game", { gameUrl, source: app.source, play: true }));
+      await withStreamCover(app, "geforceNow", () => invoke("start_geforce_game", { gameUrl, source: app.source, displayKey: geforceDisplay.displayKey, profile }));
       setGeforceConfigure(false);
     } catch (reason) { setError(String(reason)); }
   };
