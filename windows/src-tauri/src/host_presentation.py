@@ -124,7 +124,10 @@ def stage(payload):
     if len(image) > 8 * 1024 * 1024:
         raise ValueError("Artwork too large")
     (folder / "art").write_bytes(image)
-    (folder / "config.json").write_text(json.dumps({"appId": app_id, "messages": payload["messages"]}))
+    resolution = payload.get("resolution", "1920x1080")
+    if resolution not in ("1280x720", "1920x1080", "1920x1200", "2560x1440", "2560x1600", "3840x2160"):
+        raise ValueError("Invalid output resolution")
+    (folder / "config.json").write_text(json.dumps({"appId": app_id, "messages": payload["messages"], "resolution": resolution}))
     (folder / "present.py").write_text(payload["source"])
     check.close()
     command = shlex.join([sys.executable, str(folder / "present.py"), token])
@@ -156,17 +159,19 @@ def present(token):
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     output = next(o for o in ipc(3) if o.get("name") == "HEADLESS-1" and o.get("active"))
     width, height = output["rect"]["width"], output["rect"]["height"]
+    art_size = tuple(map(int, config["resolution"].split("x")))
     # Match the handheld's centre/cover crop and 15%→40% black gradient.
     try:
         with Image.open(folder / "art") as original:
             if original.width * original.height > 25_000_000:
                 raise ValueError("Artwork dimensions too large")
-            image = ImageOps.fit(original.convert("RGB"), (width, height))
+            image = ImageOps.fit(original.convert("RGB"), art_size)
     except (OSError, ValueError):
-        image = Image.new("RGB", (width, height), (10, 13, 16))
-    gradient = Image.new("L", (1, height))
-    gradient.putdata([round(255 * (.15 + .25 * y / max(1, height - 1))) for y in range(height)])
-    image.paste((0, 0, 0), (0, 0, width, height), gradient.resize((width, height)))
+        image = Image.new("RGB", art_size, (10, 13, 16))
+    art_width, art_height = art_size
+    gradient = Image.new("L", (1, art_height))
+    gradient.putdata([round(255 * (.15 + .25 * y / max(1, art_height - 1))) for y in range(art_height)])
+    image.paste((0, 0, 0), (0, 0, art_width, art_height), gradient.resize(art_size))
     image.save(folder / "background.png")
     wallpaper = subprocess.Popen(["swaybg", "-o", "HEADLESS-1", "-i", str(folder / "background.png"), "-m", "fill"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     moved = {}
@@ -181,6 +186,7 @@ def present(token):
     waiting_at = None
     finished = False
     game_containers = set()
+    last_output_check = time.monotonic()
     GLib.set_prgname("creteos-host-messages")
     window = Gtk.Window()
     window.set_title("CreteOS stream artwork")
@@ -235,7 +241,7 @@ def present(token):
                 Gtk.main_quit()
 
     def tick():
-        nonlocal seen, positioned, attention, closed_at, log_offset, pending, waiting_at
+        nonlocal seen, positioned, attention, closed_at, log_offset, pending, waiting_at, last_output_check
         try:
             now = time.monotonic()
             if (folder / "finish").exists() or now - began > 86400:
@@ -260,6 +266,10 @@ def present(token):
                     elif "continues with user response" in line or "changed task" in line:
                         pending = waiting_at = None
             nodes = list(windows(ipc(4)))
+            if now - last_output_check >= 1 and not seen:
+                # Sunshine applies the selected client mode after staging.
+                ipc(0, f"[pid={os.getpid()}] move position center")
+                last_output_check = now
             # "waiting for user response" also covers asynchronous Steam UI
             # preparation. Reveal only a real dialog, or a genuinely stalled
             # launch, not a normal background app-details lookup.

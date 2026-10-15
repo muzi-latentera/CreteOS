@@ -418,7 +418,7 @@ fn host_games(host: &str) -> Result<Vec<HostGame>, String> {
     Ok(games)
 }
 
-fn stage_host_presentation(host: &str, id: &str, game_id: Option<&str>, game_name: Option<&str>, generation: u64) -> Result<String, String> {
+fn stage_host_presentation(host: &str, id: &str, resolution: &str, game_id: Option<&str>, game_name: Option<&str>, generation: u64) -> Result<String, String> {
     use base64::Engine;
     let custom = game_id.and_then(|id| super::load_custom_art_inner().get(&format!("hero:{id}")).cloned());
     let art = custom.or_else(|| game_name.and_then(|name| super::load_hero_cache().get(name).cloned()));
@@ -439,7 +439,7 @@ fn stage_host_presentation(host: &str, id: &str, game_id: Option<&str>, game_nam
     if bytes.len() > 8 * 1024 * 1024 { return Err("Host artwork is too large".into()); }
     let token = format!("{}-{}-{}", std::process::id(), generation, std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_micros());
     let source = include_str!("host_presentation.py");
-    let payload = serde_json::json!({"appId": id, "token": token, "art": base64::engine::general_purpose::STANDARD.encode(bytes),
+    let payload = serde_json::json!({"appId": id, "token": token, "resolution": resolution, "art": base64::engine::general_purpose::STANDARD.encode(bytes),
         "messages": serde_json::from_str::<serde_json::Value>(include_str!("../../src/components/launch/launchMessages.json")).map_err(|e| e.to_string())?, "source": source});
     let script = format!("import json\nPAYLOAD=json.loads({})\n{}", serde_json::to_string(&payload.to_string()).map_err(|e| e.to_string())?, source);
     let mut command = host_command(host)?;
@@ -590,7 +590,7 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         std::fs::create_dir_all(super::liftoff_dir()).map_err(|e| e.to_string())?;
         std::fs::write(path, serde_json::to_vec_pretty(&profiles).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         let generation = next_session();
-        let presentation = steam_id.as_ref().and_then(|id| match stage_host_presentation(&profile.host, id, game_id.as_deref(), game_name.as_deref(), generation) {
+        let presentation = steam_id.as_ref().and_then(|id| match stage_host_presentation(&profile.host, id, &profile.resolution, game_id.as_deref(), game_name.as_deref(), generation) {
             Ok(token) => { super::fse_watcher::log_stream_transition(window.app_handle(), "host-artwork-ready"); Some(token) },
             Err(_) => { super::fse_watcher::log_stream_transition(window.app_handle(), "host-artwork-unavailable"); None },
         });
