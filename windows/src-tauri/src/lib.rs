@@ -10415,6 +10415,7 @@ pub fn run() {
             // Only the managed main window may define our identity. The foreground
             // window at cold boot can belong to the FSE shell or another process.
             fse_watcher::log_main_window_identity(app.handle());
+            fse_watcher::start_display_recovery_watch(app.handle().clone());
             tauri::async_runtime::spawn(async {
                 let _ = load_xcloud_games(false).await;
             });

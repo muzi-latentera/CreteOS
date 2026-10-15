@@ -893,6 +893,61 @@ fn ensure_fullscreen_geometry(hwnd: HWND) -> bool {
     true
 }
 
+fn may_recover_display_change(pending: bool, stable: bool, ours: isize, foreground: isize) -> bool {
+    pending && stable && ours != 0 && ours == foreground
+}
+
+// Dock removal can leave a correctly running WebView on the old output surface.
+// Wait for settled geometry, then repaint only when CreteOS is already foreground.
+// Never change Windows display modes or activate over a game/another application.
+pub fn start_display_recovery_watch(app: AppHandle) {
+    #[cfg(not(windows))]
+    let _ = app;
+    #[cfg(windows)]
+    std::thread::spawn(move || {
+        use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CMONITORS};
+        let mut previous = None;
+        let mut pending = false;
+        loop {
+            std::thread::sleep(Duration::from_secs(1));
+            let Some(hwnd) = main_window_hwnd(&app) else { return; };
+            let Some(mon) = monitor_rect(hwnd) else { continue; };
+            let signature = (unsafe { GetSystemMetrics(SM_CMONITORS) }, mon.left, mon.top, mon.right, mon.bottom);
+            let stable = previous == Some(signature);
+            if previous.is_some() && !stable {
+                pending = true;
+                fse_log(&format!("display topology changed: {:?} -> {:?}", previous, signature));
+            }
+            previous = Some(signature);
+            if !may_recover_display_change(pending, stable, hwnd_value(hwnd), unsafe { hwnd_value(GetForegroundWindow()) }) { continue; }
+            let Ok(_guard) = RECOVERY_LOCK.try_lock() else { continue; };
+            // Recheck after acquiring the lock: an application launch may have won focus.
+            if !may_recover_display_change(pending, stable, hwnd_value(hwnd), unsafe { hwnd_value(GetForegroundWindow()) }) { continue; }
+            keep_main_borderless(&app);
+            ensure_fullscreen_geometry(hwnd);
+            if set_webview_visible(&app, true) {
+                nudge_webview_composition(&app, hwnd);
+                let _ = app.emit("fse:gpu-resumed", ());
+                fse_log(&format!("display topology repainted: {}", window_snapshot(&app, hwnd)));
+                pending = false;
+            }
+        }
+    });
+}
+
+#[cfg(test)]
+mod display_recovery_tests {
+    #[test]
+    fn dock_recovery_waits_for_stability_and_never_activates_over_another_app() {
+        use super::may_recover_display_change as allowed;
+        assert!(allowed(true, true, 100, 100));
+        assert!(!allowed(true, false, 100, 100));
+        assert!(!allowed(false, true, 100, 100));
+        assert!(!allowed(true, true, 100, 200));
+        assert!(!allowed(true, true, 0, 0));
+    }
+}
+
 #[cfg(windows)]
 fn shortcut_pair(shortcut: &str) -> (u16, u16) {
     match shortcut {
