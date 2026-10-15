@@ -6,12 +6,28 @@ use tauri::Manager;
 
 static SESSION_GENERATION: AtomicU64 = AtomicU64::new(0);
 static RETURN_COVER: AtomicU64 = AtomicU64::new(0);
-fn next_session() -> u64 { RETURN_COVER.store(0, Ordering::SeqCst); SESSION_GENERATION.fetch_add(1, Ordering::SeqCst) + 1 }
+// 0 unavailable/fallback, 1 waiting for the exact game, 2 visible, 3 closed.
+static HOST_GAME_WINDOW: AtomicU64 = AtomicU64::new(0);
+fn host_window_state() -> u64 {
+    let value = HOST_GAME_WINDOW.load(Ordering::SeqCst);
+    if value >> 3 == SESSION_GENERATION.load(Ordering::SeqCst) { value & 7 } else { 0 }
+}
+fn set_host_window_state(generation: u64, state: u64) {
+    let _ = HOST_GAME_WINDOW.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |value|
+        if value >> 3 == generation { Some((generation << 3) | state) } else { None });
+}
+pub(crate) fn moonlight_game_waiting() -> bool { host_window_state() == 1 }
+pub(crate) fn moonlight_game_closed() -> bool { host_window_state() == 3 }
+fn next_session() -> u64 {
+    let generation = SESSION_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    RETURN_COVER.store(0, Ordering::SeqCst); HOST_GAME_WINDOW.store(generation << 3, Ordering::SeqCst);
+    generation
+}
 fn session_current(generation: u64) -> bool { SESSION_GENERATION.load(Ordering::SeqCst) == generation }
 
 fn begin_return(window: &tauri::Window, provider: &str, generation: u64) {
     if !session_current(generation) || !super::can_return_from_stream(window, provider) { return; }
-    RETURN_COVER.store(generation, Ordering::SeqCst);
+    if RETURN_COVER.compare_exchange(0, generation, Ordering::SeqCst, Ordering::SeqCst).is_err() { return; }
     use tauri::Emitter;
     let _ = window.emit("stream-return-phase", serde_json::json!({"provider":provider,"phase":"ending","session":generation}));
     // Resume painting without activating the window. The frontend acknowledges
@@ -372,7 +388,7 @@ fn query_apps(host: &str) -> Result<Vec<String>, String> {
 #[serde(rename_all = "camelCase")]
 pub struct HostGame { pub steam_app_id: String, pub name: String }
 
-fn host_games(host: &str) -> Result<Vec<HostGame>, String> {
+fn host_command(host: &str) -> Result<std::process::Command, String> {
     validate_host(host)?;
     let folder = dirs::data_local_dir().ok_or("No local data directory")?.join("CreteOS-Bootstrap/ssh");
     let settings: serde_json::Value = std::fs::read(folder.join("bosgame.json")).ok()
@@ -386,7 +402,13 @@ fn host_games(host: &str) -> Result<Vec<HostGame>, String> {
     let ssh = PathBuf::from(std::env::var_os("SystemRoot").unwrap_or_else(|| "C:/Windows".into())).join("System32/OpenSSH/ssh.exe");
     let mut command = std::process::Command::new(ssh);
     command.arg("-i").arg(key).args(["-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=yes", "-o"])
-        .arg(format!("UserKnownHostsFile={}", known.display())).arg(format!("{username}@{host}")).arg("python3 -");
+        .arg(format!("UserKnownHostsFile={}", known.display())).arg(format!("{username}@{host}"));
+    Ok(command)
+}
+
+fn host_games(host: &str) -> Result<Vec<HostGame>, String> {
+    let mut command = host_command(host)?;
+    command.arg("python3 -");
     let output = bounded_output(command, Some(include_bytes!("steam_inventory.py")))?;
     if !output.status.success() { return Err("Could not read Bosgame's Steam library. Check SSH access and that Steam is installed for the host login.".into()); }
     let games: Vec<HostGame> = serde_json::from_slice(&output.stdout).map_err(|_| "Invalid host inventory response")?;
@@ -394,6 +416,70 @@ fn host_games(host: &str) -> Result<Vec<HostGame>, String> {
         return Err("Invalid host inventory".into());
     }
     Ok(games)
+}
+
+fn watch_host_game_window(window: tauri::Window, host: String, id: String, generation: u64, active: std::sync::Arc<std::sync::atomic::AtomicBool>) {
+    set_host_window_state(generation, 1);
+    std::thread::spawn(move || {
+        let result = (|| -> Result<(), ()> {
+            use std::io::BufRead;
+            if id.is_empty() || id.len() > 10 || !id.bytes().all(|c| c.is_ascii_digit()) { return Err(()); }
+            let mut command = host_command(&host).map_err(|_| ())?;
+            command.arg(format!("python3 - {id}"))
+                .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null());
+            #[cfg(windows)] { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
+            let mut child = command.spawn().map_err(|_| ())?;
+            let written = child.stdin.take().ok_or(()).and_then(|mut stdin| stdin.write_all(include_bytes!("host_window_watch.py")).map_err(|_| ()));
+            if written.is_err() { let _ = child.kill(); let _ = child.wait(); return Err(()); }
+            let Some(stdout) = child.stdout.take() else { let _ = child.kill(); let _ = child.wait(); return Err(()); };
+            let (sender, receiver) = std::sync::mpsc::sync_channel(8);
+            let reader = std::thread::spawn(move || {
+                for line in std::io::BufReader::new(stdout).lines().map_while(Result::ok) {
+                    if line.len() > 256 { break; }
+                    let event = serde_json::from_str::<serde_json::Value>(&line).ok()
+                        .and_then(|value| value["event"].as_str().map(str::to_owned));
+                    if let Some(event) = event { if sender.send(event).is_err() { break; } }
+                }
+            });
+            let mut last_message = std::time::Instant::now();
+            while session_current(generation) && active.load(Ordering::SeqCst) {
+                match receiver.recv_timeout(std::time::Duration::from_millis(250)) {
+                    Ok(event) => {
+                        last_message = std::time::Instant::now();
+                        if !session_current(generation) || !active.load(Ordering::SeqCst) { break; }
+                        match event.as_str() {
+                            "ready" => super::fse_watcher::log_stream_transition(window.app_handle(), "host-game-window-ready"),
+                            "visible" => {
+                                set_host_window_state(generation, 2);
+                                super::fse_watcher::log_stream_transition(window.app_handle(), "host-game-window-visible");
+                            }
+                            "closed" => {
+                                set_host_window_state(generation, 3);
+                                super::fse_watcher::log_stream_transition(window.app_handle(), "host-game-window-closed");
+                                // Only hide the remote cleanup. Buddy still owns
+                                // the safe process/stream shutdown later.
+                                begin_return(&window, "moonlight", generation);
+                                break;
+                            }
+                            "alive" => {},
+                            _ => break,
+                        }
+                    }
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => { if last_message.elapsed() > std::time::Duration::from_secs(20) { break; } }
+                    Err(_) => break,
+                }
+            }
+            // This is our diagnostic SSH child, never a host game/client.
+            let _ = child.kill(); let _ = child.wait(); drop(receiver); let _ = reader.join();
+            Ok(())
+        })();
+        if session_current(generation) && host_window_state() != 3 {
+            set_host_window_state(generation, 0);
+            if result.is_err() || active.load(Ordering::SeqCst) {
+                super::fse_watcher::log_stream_transition(window.app_handle(), "host-game-window-unavailable");
+            }
+        }
+    });
 }
 
 #[tauri::command]
@@ -460,14 +546,22 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         let mut client = std::process::Command::new(client_path("moonlight")?).args(["stream", &profile.host, &app_name,
             "--resolution", &profile.resolution, "--fps", &profile.fps.to_string(), "--bitrate", &profile.bitrate.to_string(),
             "--video-codec", &profile.codec, "--display-mode", "borderless", "--quit-after"]).spawn().map_err(|e| e.to_string())?;
-        if let Some(id) = &steam_id { super::moondeck::launch(&profile.host, id)?; }
+        let monitor_active = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        if let Some(id) = &steam_id { watch_host_game_window(window.clone(), profile.host.clone(), id.clone(), generation, monitor_active.clone()); }
+        let launch_result = if let Some(id) = &steam_id {
+            super::moondeck::launch(&profile.host, id, |phase| super::fse_watcher::log_stream_transition(window.app_handle(), phase))
+        } else { Ok(()) };
+        let started = launch_result.is_ok() || matches!(host_window_state(), 2 | 3);
+        // Always attach the owned session lifecycle, including after a slow
+        // startup error. A late-starting game must not become an orphan stream.
         std::thread::spawn(move || {
             if let Some(id) = steam_id {
                 let exit_confirmed = std::sync::atomic::AtomicBool::new(false);
-                let ended = super::moondeck::watch_exit(&profile.host, &id, || session_current(generation), || {
+                let ended = super::moondeck::watch_exit(&profile.host, &id, started, || session_current(generation), || {
                     exit_confirmed.store(true, Ordering::SeqCst);
                     begin_return(&window, "moonlight", generation);
                 }, |phase| super::fse_watcher::log_stream_transition(window.app_handle(), phase));
+                monitor_active.store(false, Ordering::SeqCst);
                 // A lost host end request must not strand an owned Moonlight
                 // window after the exact game has exited. Use normal WM_CLOSE;
                 // --quit-after performs Moonlight's own session cleanup.
@@ -489,7 +583,7 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
                 std::thread::sleep(std::time::Duration::from_millis(300));
             }
         });
-        Ok(())
+        launch_result
     }).await.map_err(|e| e.to_string())?
 }
 

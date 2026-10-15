@@ -9394,7 +9394,9 @@ async fn wait_stream_window(provider: String) -> Result<bool, String> {
         let start = Instant::now(); let mut candidate: Option<(isize, Instant)> = None;
         let mut log = stream_readiness::take();
         let mut stream_ready = false;
-        while start.elapsed() < Duration::from_secs(45) {
+        let budget = if provider == "moonlight" { 180 } else { 45 };
+        while start.elapsed() < Duration::from_secs(budget) {
+            if provider == "moonlight" && streaming::moonlight_game_closed() { return Ok(false); }
             if !launch_cover::active() { return Ok(false); }
             if provider == "geforceNow" {
                 match log.poll() {
@@ -9406,7 +9408,8 @@ async fn wait_stream_window(provider: String) -> Result<bool, String> {
             if let Some(window) = stream_window(&provider) {
                 let ready = candidate.get_or_insert((window.hwnd, Instant::now()));
                 if ready.0 != window.hwnd { *ready = (window.hwnd, Instant::now()); }
-                if ready.1.elapsed() >= Duration::from_secs(2) && (provider != "geforceNow" || stream_ready) { return Ok(true); }
+                if ready.1.elapsed() >= Duration::from_secs(2) && (provider != "geforceNow" || stream_ready)
+                    && (provider != "moonlight" || !streaming::moonlight_game_waiting()) { return Ok(true); }
             } else { candidate = None; }
             std::thread::sleep(Duration::from_millis(250));
         }
@@ -9420,6 +9423,7 @@ async fn wait_stream_window(provider: String) -> Result<bool, String> {
 #[tauri::command]
 async fn focus_stream_window(window: tauri::Window, provider: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
+        if provider == "moonlight" && streaming::moonlight_game_closed() { return Ok(()); }
         let target = stream_window(&provider).ok_or("The streaming window closed before handoff")?;
         let ours = window.hwnd().map_err(|e| e.to_string())?.0 as isize;
         // Keep the renderer alive for streaming clients. Suspending it directly
@@ -9433,6 +9437,7 @@ async fn focus_stream_window(window: tauri::Window, provider: String) -> Result<
         let start = Instant::now();
         let mut stable_since = None;
         while start.elapsed() < Duration::from_secs(3) {
+            if provider == "moonlight" && streaming::moonlight_game_closed() { return Ok(()); }
             let foreground = unsafe { GetForegroundWindow() }.0 as isize;
             if foreground == target.hwnd {
                 let stable = stable_since.get_or_insert_with(Instant::now);

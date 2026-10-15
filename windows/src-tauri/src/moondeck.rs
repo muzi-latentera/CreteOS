@@ -114,7 +114,7 @@ pub async fn pair_moondeck(host: String, pin: u32) -> Result<(), String> {
     }).await.map_err(|e| e.to_string())?
 }
 
-pub fn launch(host: &str, steam_id: &str) -> Result<(), String> {
+pub fn launch(host: &str, steam_id: &str, note: impl Fn(&str)) -> Result<(), String> {
     if steam_id.is_empty() || steam_id.len() > 10 || !steam_id.bytes().all(|c| c.is_ascii_digit()) {
         return Err("Invalid Steam app ID".into());
     }
@@ -139,11 +139,15 @@ pub fn launch(host: &str, steam_id: &str) -> Result<(), String> {
     if request(host, "launchSteamApp", Some(json!({"app_id":steam_id})))?["result"] != true {
         return Err("Buddy could not launch this game".into());
     }
+    note("buddy-game-launch-requested");
     let deadline = std::time::Instant::now();
     loop {
         let data = app_data(host, version, Some(steam_id))?;
-        if requested_app_running(&data, steam_id) { break; }
-        if deadline.elapsed() > std::time::Duration::from_secs(40) { return Err("Game did not start on Bosgame. Check installation or Steam's launch dialog.".into()); }
+        if requested_app_running(&data, steam_id) { note("buddy-game-running"); break; }
+        if deadline.elapsed() > std::time::Duration::from_secs(120) {
+            note("buddy-game-launch-timeout");
+            return Err("Game startup is taking longer than expected on Bosgame. Its stream is still monitored; check the host's launch dialog.".into());
+        }
         std::thread::sleep(std::time::Duration::from_millis(500));
     }
     Ok(())
@@ -159,8 +163,19 @@ fn exit_state(data: &Value, steam_id: &str) -> Option<bool> {
     else { None }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum ExitNotification { Running, Exited, StreamEnded, OtherApp, Unknown }
+
+struct ExitGate { started: bool }
+impl ExitGate {
+    fn observe(&mut self, event: ExitNotification) -> ExitNotification {
+        match event {
+            ExitNotification::Running => { self.started = true; event }
+            ExitNotification::Exited | ExitNotification::StreamEnded if !self.started => ExitNotification::Running,
+            _ => event,
+        }
+    }
+}
 
 // The notification contains all subscribed topics, in subscription order.
 // As in MoonDeck, clearing the previously tracked app also means it ended.
@@ -183,7 +198,7 @@ fn exit_notification(value: &Value, id: &str) -> ExitNotification {
 
 // Follow MoonDeck's notifyOnChanges feed instead of waiting for two sequential
 // HTTP polls. Retain polling if this Buddy version/connection cannot subscribe.
-fn watch_exit_notifications(host: &str, id: &str, current: &impl Fn() -> bool, ending: &impl Fn(), note: &impl Fn(&str)) -> Option<bool> {
+fn watch_exit_notifications(host: &str, id: &str, gate: &mut ExitGate, deadline: std::time::Instant, current: &impl Fn() -> bool, ending: &impl Fn(), note: &impl Fn(&str)) -> Option<bool> {
     use std::net::{TcpStream, ToSocketAddrs};
     use std::time::{Duration, Instant};
     use tungstenite::{client::IntoClientRequest, Connector, Message};
@@ -214,12 +229,13 @@ fn watch_exit_notifications(host: &str, id: &str, current: &impl Fn() -> bool, e
     let mut last_ping = Instant::now();
     let mut last_message = Instant::now();
     while current() {
+        if !gate.started && Instant::now() > deadline { return None; }
         match socket.read() {
             Ok(Message::Text(text)) => {
                 last_message = Instant::now();
                 let value: Value = serde_json::from_str(&text).ok()?;
                 if !current() { return Some(false); }
-                match exit_notification(&value, id) {
+                match gate.observe(exit_notification(&value, id)) {
                     ExitNotification::Exited => {
                         note("buddy-game-exit-event");
                         ending();
@@ -269,8 +285,10 @@ fn request_end_stream(host: &str, peer: Option<std::net::SocketAddr>, note: &imp
     }
 }
 
-pub fn watch_exit(host: &str, id: &str, current: impl Fn() -> bool, ending: impl Fn(), note: impl Fn(&str)) -> bool {
-        if let Some(ended) = watch_exit_notifications(host, id, &current, &ending, &note) { return ended; }
+pub fn watch_exit(host: &str, id: &str, already_running: bool, current: impl Fn() -> bool, ending: impl Fn(), note: impl Fn(&str)) -> bool {
+        let mut gate = ExitGate { started: already_running };
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
+        if let Some(ended) = watch_exit_notifications(host, id, &mut gate, deadline, &current, &ending, &note) { return ended; }
         note("buddy-poll-fallback");
         let Ok(buddy) = status(host) else { return false; };
         let Some(version) = buddy["version"].as_u64() else { return false; };
@@ -279,6 +297,7 @@ pub fn watch_exit(host: &str, id: &str, current: impl Fn() -> bool, ending: impl
         // End only the session still tracking this exact game, after observing
         // it running. Never close another user's game or shut down the host.
         while current() {
+            if !gate.started && std::time::Instant::now() > deadline { return false; }
             std::thread::sleep(std::time::Duration::from_millis(500));
             if !current() { return false; }
             let result = request(host, "streamState", None).and_then(|state| {
@@ -286,12 +305,13 @@ pub fn watch_exit(host: &str, id: &str, current: impl Fn() -> bool, ending: impl
                 app_data(host, version, None).map(Some)
             });
             match result {
-                Ok(None) => return true,
+                Ok(None) => { if gate.started { ending(); return true; } }
                 Ok(Some(data)) => {
                     failures = 0;
                     match exit_state(&data, id) {
-                        Some(true) => exited_samples += 1,
-                        Some(false) => exited_samples = 0,
+                        Some(true) => { if gate.started { exited_samples += 1; } }
+                        Some(false) => { gate.started = true; exited_samples = 0; }
+                        None if data.get("data").is_some_and(Value::is_null) => { if gate.started { exited_samples += 1; } }
                         None => return false, // Another/unknown app: never end its stream.
                     }
                     if exited_samples >= 2 && current() {
@@ -318,6 +338,19 @@ pub fn prepare(host: &str, steam_id: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use serde_json::Value;
+    #[test]
+    fn late_game_launch_keeps_exit_monitor_armed_without_closing_startup() {
+        use super::ExitNotification::*;
+        let mut gate = super::ExitGate { started: false };
+        assert_eq!(gate.observe(Exited), Running);
+        assert!(!gate.started);
+        assert_eq!(gate.observe(StreamEnded), Running);
+        assert!(!gate.started);
+        assert_eq!(gate.observe(Running), Running);
+        assert!(gate.started);
+        assert_eq!(gate.observe(Exited), Exited);
+        assert_eq!(gate.observe(OtherApp), OtherApp);
+    }
     #[test]
     fn live_exit_notification_reacts_without_a_second_poll() {
         use super::ExitNotification::*;
