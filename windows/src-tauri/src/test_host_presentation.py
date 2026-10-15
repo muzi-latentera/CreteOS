@@ -3,7 +3,7 @@ from unittest.mock import patch
 import tempfile
 from pathlib import Path
 import json
-from host_presentation import game_window, needs_attention, restore_saved, steam_library, windows
+from host_presentation import conceal_library, game_window, needs_attention, restore_saved, steam_library, windows
 
 
 class PresentationIsolationTests(unittest.TestCase):
@@ -39,6 +39,47 @@ class PresentationIsolationTests(unittest.TestCase):
                 restore_saved(folder)
                 ipc.assert_called_once_with(4)
             self.assertEqual(json.loads((folder / "moved.json").read_text()), {})
+
+    def test_transparency_keeps_library_mapped_and_journals_before_command(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            saved = {}
+            def command(kind, text):
+                self.assertEqual(kind, 0)
+                self.assertNotIn("scratchpad", text)
+                self.assertNotIn("move", text)
+                self.assertEqual(json.loads((folder / "moved.json").read_text())["65"]["mode"], "transparent")
+                return [{"success": True}]
+            with patch("host_presentation.ipc", side_effect=command) as ipc:
+                conceal_library(folder, {"id": 65, "fullscreen_mode": 1}, saved)
+                conceal_library(folder, {"id": 65, "fullscreen_mode": 0}, saved)
+                ipc.assert_called_once_with(0, "[con_id=65] opacity set 0, fullscreen disable")
+            self.assertEqual(saved[65]["fullscreen"], 1)
+
+    def test_transparency_restore_preserves_geometry_and_legacy_recovery_still_works(self):
+        library = {"id": 65, "pid": 1, "window_properties": {"class": "steam", "title": "Steam", "window_type": "normal"}}
+        for original, expected in [
+            ({"mode": "transparent", "fullscreen": 1}, "[con_id=65] opacity set 1, fullscreen enable"),
+            (["1", False, {}, 0], '[con_id=65] move container to workspace "1", floating disable'),
+        ]:
+            with self.subTest(original=original), tempfile.TemporaryDirectory() as directory:
+                folder = Path(directory)
+                (folder / "moved.json").write_text(json.dumps({"65": original}))
+                with patch("host_presentation.ipc", side_effect=[{"nodes": [library]}, [{"success": True}]]) as ipc:
+                    restore_saved(folder)
+                    self.assertEqual(ipc.call_args.args, (0, expected))
+                self.assertEqual(json.loads((folder / "moved.json").read_text()), {})
+
+    def test_failed_restoration_retains_journal_for_recovery(self):
+        library = {"id": 65, "pid": 1, "window_properties": {"class": "steam", "title": "Steam", "window_type": "normal"}}
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            original = {"65": {"mode": "transparent", "fullscreen": 0}}
+            (folder / "moved.json").write_text(json.dumps(original))
+            with patch("host_presentation.ipc", side_effect=[{"nodes": [library]}, [{"success": False}]]):
+                with self.assertRaises(OSError):
+                    restore_saved(folder)
+            self.assertEqual(json.loads((folder / "moved.json").read_text()), original)
 
 
 if __name__ == "__main__":

@@ -1041,6 +1041,17 @@ test("A failed cached Moonlight launch offers explicit local play", async ({ pag
   const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
   await stream.getByRole("button", { name: "Start stream", exact: true }).click();
   await expect(stream.getByRole("alert")).toContainText("Host unavailable");
+  const error = details.locator(".crete-launch-error");
+  await expect(error).toContainText("Host unavailable");
+  const [play, arrow, message] = await Promise.all([
+    details.locator("[data-launch-btn]").boundingBox(),
+    details.getByRole("button", { name: "Launch options", exact: true }).boundingBox(),
+    error.boundingBox(),
+  ]);
+  expect(Math.abs(arrow!.y - play!.y)).toBeLessThan(1);
+  expect(Math.abs(arrow!.x - (play!.x + play!.width))).toBeLessThan(1);
+  expect(message!.y).toBeGreaterThanOrEqual(play!.y + play!.height);
+  await expect(error).toHaveCSS("font-style", "italic");
   await stream.getByRole("button", { name: "Play locally", exact: true }).click();
   await expect(stream).not.toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);

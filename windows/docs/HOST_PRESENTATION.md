@@ -20,9 +20,18 @@ messages. The exact game's container becomes fullscreen and the messages hide
 once its window exists. This is window readiness, not proof of an interactive
 game menu or received video frame.
 
-Only Steam's main library container is temporarily moved to Sway's scratchpad.
-Its workspace, floating geometry and fullscreen state are journaled before the
-move and restored on completion. Game windows and Steam dialogs are not hidden.
+Only Steam's main library container is temporarily made transparent. It remains
+mapped on the dedicated display, allowing its launch interface to process work
+without a minimized/unmapped-window throttle. The ordinary opaque library is
+restored to opacity one and its prior fullscreen state on completion. Sway does
+not expose a readable opacity, so this capability assumes the dedicated host's
+ordinary opaque Steam library, not a custom user transparency configuration.
+Game windows and Steam dialogs are not hidden. State is journaled before each
+change; recovery also supports older scratchpad journals. A slow observed launch
+delayed Steam UI callbacks by97 and21 seconds; a transparent-library comparison
+handled both immediately and reached its game window in12.8 seconds. This is a
+mitigation for a suspected background-UI trigger, not proof the intermittent
+Steam delay is eliminated; a repeat using scratchpad also took only11 seconds.
 If Steam logs a launch waiting for interaction and a real dialog appears, the
 host restores the library and asks the handheld cover to reveal Moonlight.
 Thirty seconds without progress also fails open. Steam's `ShowInterstitials`

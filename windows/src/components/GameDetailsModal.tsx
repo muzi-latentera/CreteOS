@@ -1216,7 +1216,6 @@ export function GameDetailsModal({
               {resolvedTheme === "crete" && <IoGameControllerOutline size={20} aria-hidden="true" />}
               {primaryLabel}
               </button>}
-              {streaming.error && <span role="alert">{streaming.error}</span>}
               {resolvedTheme === "crete" && <LaunchMenu streaming={streaming} open={launchMenuOpen} setOpen={setLaunchMenuOpen} loading={launchLoading}
                 block={blockLaunchPopup} local={handleLocalAction} localLabel={installed ? "Local" : installing ? "Cancel installation" : "Install locally"}
                 manageLabel={activeTab === "manage" ? "Game information" : "Manage game"}
@@ -1296,6 +1295,7 @@ export function GameDetailsModal({
                 </div>
               )}
             </div>
+            {streaming.error && <p role="alert" className={resolvedTheme === "crete" ? "crete-launch-error" : undefined}>{streaming.error}</p>}
             {installing && (
               <div style={{ width: controlsRevealed ? 170 : 220, display: "flex", flexDirection: "column", gap: 5 }}>
                 <div style={{

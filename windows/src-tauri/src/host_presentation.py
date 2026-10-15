@@ -1,8 +1,9 @@
 """Per-stream artwork on the dedicated Sunshine Sway compositor only.
 
 No game/Steam process is stopped. Only the main Steam library container is
-temporarily moved; dialogs remain accessible. A lease and explicit finish
-restore moved containers and stop only our own wallpaper/message processes.
+temporarily transparent; it stays mapped so Steam's launch UI can run. Dialogs
+remain accessible. A lease and explicit finish restore the library and stop
+only our own wallpaper/message processes.
 """
 import base64
 import json
@@ -99,14 +100,40 @@ def restore_saved(folder):
             saved.pop(ident)
             path.write_text(json.dumps(saved))
             continue
-        workspace, floating, rect, full = original
-        commands = ["move container to workspace " + json.dumps(workspace)]
-        commands += ["floating enable", f"resize set {int(rect['width'])} px {int(rect['height'])} px", f"move position {int(rect['x'])} px {int(rect['y'])} px"] if floating else ["floating disable"]
-        if full:
-            commands.append("fullscreen enable")
-        ipc(0, f"[con_id={int(ident)}] " + ", ".join(commands))
+        if isinstance(original, dict) and original.get("mode") == "transparent":
+            commands = ["opacity set 1"]
+            if original["fullscreen"]:
+                commands.append("fullscreen enable")
+        else:
+            # Recover sessions created by the older scratchpad presenter too.
+            workspace, floating, rect, full = original
+            commands = ["move container to workspace " + json.dumps(workspace)]
+            commands += ["floating enable", f"resize set {int(rect['width'])} px {int(rect['height'])} px", f"move position {int(rect['x'])} px {int(rect['y'])} px"] if floating else ["floating disable"]
+            if full:
+                commands.append("fullscreen enable")
+        result = ipc(0, f"[con_id={int(ident)}] " + ", ".join(commands))
+        if not all(reply.get("success") for reply in result):
+            raise OSError("Steam library restoration was rejected")
         saved.pop(ident)
         path.write_text(json.dumps(saved))
+
+
+def conceal_library(folder, node, saved):
+    """Keep the dedicated compositor's ordinary opaque Steam library mapped.
+
+    Sway does not expose a readable per-container opacity. This dedicated
+    presentation uses its normal opaque library and restores opacity to one;
+    it never alters the user's physical desktop or a dialog/game container.
+    Journal first so interrupted helpers can restore transparency as well as
+    old scratchpad sessions. Do not unmap/minimize Steam during UI callbacks.
+    """
+    if node["id"] in saved:
+        return
+    saved[node["id"]] = {"mode": "transparent", "fullscreen": node.get("fullscreen_mode", 0)}
+    (folder / "moved.json").write_text(json.dumps(saved))
+    result = ipc(0, f"[con_id={node['id']}] opacity set 0, fullscreen disable")
+    if not all(reply.get("success") for reply in result):
+        raise OSError("Steam library transparency was rejected")
 
 
 def stage(payload):
@@ -306,10 +333,7 @@ def present(token):
             else:
                 for node, workspace in nodes:
                     if steam_library(node) and workspace != "__i3_scratch":
-                        if node["id"] not in moved:
-                            moved[node["id"]] = (workspace, node.get("floating") in ("user_on", "auto_on"), node["rect"], node.get("fullscreen_mode", 0))
-                            (folder / "moved.json").write_text(json.dumps(moved))
-                        ipc(0, f"[con_id={node['id']}] fullscreen disable, move scratchpad")
+                        conceal_library(folder, node, moved)
             if not positioned:
                 own = [n for n, _ in nodes if n.get("pid") == os.getpid()]
                 if own:

@@ -112,6 +112,7 @@
 .crete-details-info dd { color:#f2eadb; font-family:ui-monospace,monospace; text-align:right; overflow-wrap:anywhere; }
 .crete-details-back { position:absolute; top:12px; left:4.3%; z-index:5; color:#f2eadb88; background:#080a0d44; border:0; padding:6px; border-radius:6px; }
 [data-crete-details="true"] [data-crete-detail-slot="primary-actions"] { gap:0!important; }
+.crete-launch-error { margin:0; padding:12px 16px; border:1px solid #ef64644d; border-radius:10px; background:#661d23e6; color:#ffe4df; font-style:italic; font-size:clamp(13px,1.1vw,18px); line-height:1.5; overflow-wrap:anywhere; }
 [data-crete-details="true"] [data-launch-btn] { border-radius:10px 0 0 10px!important; box-shadow:none!important; min-width:132px!important; height:48px!important; display:inline-flex; align-items:center; justify-content:center; gap:10px; }
 [data-crete-details="true"] [data-launch-btn][data-cloud="true"] { background:var(--crete-play-colour,#c9482a)!important; }
 .crete-details-manage { border:0; border-left:1px solid #ffffff40; background:var(--crete-launch, #c44524); color:white; border-radius:0 10px 10px 0; height:48px; width:48px; display:grid; place-items:center; }
