@@ -9313,34 +9313,65 @@ fn stream_window(provider: &str) -> Option<LaunchWindowCandidate> {
         })
 }
 
-pub(crate) fn finish_stream_session(window: tauri::Window, provider: &str) {
+pub(crate) fn can_return_from_stream(window: &tauri::Window, provider: &str) -> bool {
+    let Ok(ours) = window.hwnd() else { return false; };
+    let foreground = unsafe { GetForegroundWindow() };
+    if foreground.0 == ours.0 { return true; }
+    let mut pid = 0;
+    unsafe { GetWindowThreadProcessId(foreground, Some(&mut pid)); }
+    process_exe_path(pid).is_some_and(|path| launch_cover::stream_process(provider, &path))
+}
+
+pub(crate) fn foreground_is_desktop() -> bool {
+    let foreground = unsafe { GetForegroundWindow() };
+    if foreground.0.is_null() { return true; }
+    let mut pid = 0;
+    unsafe { GetWindowThreadProcessId(foreground, Some(&mut pid)); }
+    process_exe_path(pid).is_some_and(|path| path.to_ascii_lowercase().ends_with("\\explorer.exe"))
+}
+
+pub(crate) fn finish_stream_session(window: tauri::Window, provider: &str, mut current: impl FnMut() -> bool) {
     let Ok(ours) = window.hwnd() else { return; };
     let foreground = unsafe { GetForegroundWindow() }.0 as isize;
-    let candidates = if provider == "geforceNow" {
-        let Some(root) = dirs::data_local_dir() else { return; };
+    let nvidia_windows = || -> Vec<LaunchWindowCandidate> {
+        let Some(root) = dirs::data_local_dir() else { return Vec::new(); };
         let directory = root.join("NVIDIA Corporation/GeForceNOW/CEF");
         collect_launch_windows().into_iter().filter(|target| target.exe_path.as_deref().is_some_and(|path| {
             ["GeForceNOW.exe", "GeForceNOWStreamer.exe"].iter().any(|name| directory.join(name).to_string_lossy().eq_ignore_ascii_case(path))
         })).collect::<Vec<_>>()
-    } else { Vec::new() };
+    };
     let mut foreground_pid = 0;
     unsafe { GetWindowThreadProcessId(GetForegroundWindow(), Some(&mut foreground_pid)); }
     let foreground_path = process_exe_path(foreground_pid).unwrap_or_default().to_ascii_lowercase();
-    let return_focus = foreground == ours.0 as isize || candidates.iter().any(|target| target.hwnd == foreground)
-        || (provider == "moonlight" && (foreground == 0 || foreground_path.ends_with("\\moonlight.exe") || foreground_path.ends_with("\\explorer.exe")));
+    let return_focus = can_return_from_stream(&window, provider) || foreground == 0 || foreground_path.ends_with("\\explorer.exe");
     // Only after the fresh session's Done signal: close NVIDIA normally, never
     // kill its processes or dismiss login/error dialogs during an active stream.
-    for target in &candidates {
-        unsafe { let _ = PostMessageW(Some(windows::Win32::Foundation::HWND(target.hwnd as _)), WM_CLOSE, WPARAM(0), LPARAM(0)); }
+    if provider == "geforceNow" {
+        let start = Instant::now();
+        let mut closed = HashSet::new();
+        let mut quiet_since = Instant::now();
+        // Done can precede NVIDIA's idle window. Keep looking for late windows
+        // instead of abandoning return after one 350ms check. Never act on a
+        // replacement session, and post a normal close once per window/PID.
+        while current() && start.elapsed() < Duration::from_secs(8) {
+            let candidates = nvidia_windows();
+            if !candidates.is_empty() { quiet_since = Instant::now(); }
+            for target in candidates {
+                if !current() { return; }
+                if closed.insert((target.hwnd, target.pid)) {
+                    unsafe { let _ = PostMessageW(Some(windows::Win32::Foundation::HWND(target.hwnd as _)), WM_CLOSE, WPARAM(0), LPARAM(0)); }
+                }
+            }
+            if start.elapsed() >= Duration::from_secs(2) && quiet_since.elapsed() >= Duration::from_millis(1200) { break; }
+            std::thread::sleep(Duration::from_millis(100));
+        }
     }
-    if !return_focus { return; } // Respect a deliberate Alt-Tab to another app.
-    std::thread::sleep(Duration::from_millis(350));
-    if provider == "geforceNow" && stream_window(provider).is_some() { return; }
+    if !current() || !return_focus { return; } // Respect a deliberate Alt-Tab/new session.
     // A client can finish while the user switches away; re-check before raising.
     let now = unsafe { GetForegroundWindow() }.0 as isize;
     if now != 0 && now != foreground && now != ours.0 as isize {
         if let Some(path) = { let mut pid=0; unsafe { GetWindowThreadProcessId(GetForegroundWindow(), Some(&mut pid)); } process_exe_path(pid) } {
-            if !path.to_ascii_lowercase().ends_with("\\explorer.exe") { return; }
+            if !path.to_ascii_lowercase().ends_with("\\explorer.exe") && !launch_cover::stream_process(provider, &path) { return; }
         }
     }
     unsafe { let _ = ShowWindow(ours, SW_SHOW); }
@@ -10159,6 +10190,7 @@ pub fn run() {
             fetch_game_art,
             streaming::get_streaming_clients,
             streaming::launch_streaming_client,
+            streaming::present_stream_return_cover,
             streaming::launch_geforce_game,
             streaming::get_geforce_profile,
             gfn_catalog::get_geforce_catalog,

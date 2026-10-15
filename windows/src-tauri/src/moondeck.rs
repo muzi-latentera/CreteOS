@@ -26,10 +26,15 @@ fn client() -> Result<reqwest::blocking::Client, String> {
     // Buddy uses a shared service certificate without a DNS hostname, as in
     // the official client. Trust only its bundled certificate; never disable
     // certificate verification or change Windows' system certificate store.
-    let cert = reqwest::Certificate::from_pem(include_bytes!("moondeck_cert.pem")).map_err(|e| e.to_string())?;
-    reqwest::blocking::Client::builder().tls_built_in_root_certs(false).add_root_certificate(cert)
-        .danger_accept_invalid_hostnames(true).timeout(std::time::Duration::from_secs(5))
-        .redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())
+    // Reuse the connection pool for lifecycle polling instead of doing a fresh
+    // TCP/TLS handshake for every status request. Authorization remains per request.
+    static CLIENT: std::sync::OnceLock<Result<reqwest::blocking::Client, String>> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(|| {
+        let cert = reqwest::Certificate::from_pem(include_bytes!("moondeck_cert.pem")).map_err(|e| e.to_string())?;
+        reqwest::blocking::Client::builder().tls_built_in_root_certs(false).add_root_certificate(cert)
+            .danger_accept_invalid_hostnames(true).timeout(std::time::Duration::from_secs(5))
+            .redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())
+    }).clone()
 }
 
 fn request(host: &str, endpoint: &str, body: Option<Value>) -> Result<Value, String> {
@@ -146,7 +151,7 @@ fn exit_state(data: &Value, steam_id: &str) -> Option<bool> {
     else { None }
 }
 
-pub fn watch_exit(host: &str, id: &str, current: impl Fn() -> bool) -> bool {
+pub fn watch_exit(host: &str, id: &str, current: impl Fn() -> bool, ending: impl Fn()) -> bool {
         let Ok(buddy) = status(host) else { return false; };
         let Some(version) = buddy["version"].as_u64() else { return false; };
         let mut exited_samples = 0;
@@ -154,7 +159,7 @@ pub fn watch_exit(host: &str, id: &str, current: impl Fn() -> bool) -> bool {
         // End only the session still tracking this exact game, after observing
         // it running. Never close another user's game or shut down the host.
         while current() {
-            std::thread::sleep(std::time::Duration::from_secs(2));
+            std::thread::sleep(std::time::Duration::from_millis(500));
             if !current() { return false; }
             let result = request(host, "streamState", None).and_then(|state| {
                 if !state_is(&state["state"], 1, "Streaming") { return Ok(None); }
@@ -170,10 +175,11 @@ pub fn watch_exit(host: &str, id: &str, current: impl Fn() -> bool) -> bool {
                         None => return false, // Another/unknown app: never end its stream.
                     }
                     if exited_samples >= 2 && current() {
+                        ending();
                         return request(host, "endStream", Some(json!({}))).is_ok_and(|reply| reply["result"] == true);
                     }
                 }
-                Err(_) => { failures += 1; if failures >= 5 { return false; } }
+                Err(_) => { exited_samples = 0; failures += 1; if failures >= 5 { return false; } }
             }
         }
         false

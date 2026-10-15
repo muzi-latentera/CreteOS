@@ -1,16 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type { App } from "../../types";
 import { useTranslation } from "react-i18next";
 import { getBestGamepad, readGpState } from "../../utils/gamepad";
 
-type Cover = { app: App } | null;
+type Provider = "moonlight" | "geforceNow";
+type Cover = { app: App; returning?: boolean } | null;
+type ReturnPhase = { provider: Provider; phase: "ending" | "ended"; session: number };
+let lastStream: { app: App; provider: Provider } | null = null;
 let dismissed = false;
 let generation = 0;
 export async function withStreamCover(app: App, provider: "moonlight" | "geforceNow", launch: () => Promise<unknown>) {
   const current = ++generation;
   const shownAt = performance.now();
   dismissed = false;
+  lastStream = { app, provider };
   window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: { app } }));
   try {
     await invoke("set_launch_cover", { active: true, streamProvider: provider });
@@ -39,12 +44,46 @@ export async function withStreamCover(app: App, provider: "moonlight" | "geforce
 export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<string, string>; customHeroArt: Record<string, string> }) {
   const { t } = useTranslation();
   const [cover, setCover] = useState<Cover>(null);
-  const dismiss = () => { dismissed = true; setCover(null); void invoke("set_launch_cover", { active: false }); };
+  const returnTicket = useRef(0);
+  const returnSession = useRef<number | null>(null);
+  const dismiss = () => { dismissed = true; ++returnTicket.current; setCover(null); void invoke("set_launch_cover", { active: false }); };
   useEffect(() => {
-    const change = (event: Event) => setCover((event as CustomEvent<Cover>).detail);
+    const change = (event: Event) => {
+      const detail = (event as CustomEvent<Cover>).detail;
+      if (detail) { ++returnTicket.current; returnSession.current = null; setCover(detail); }
+      else setCover(previous => previous?.returning ? previous : null);
+    };
     window.addEventListener("crete-stream-cover", change);
     return () => { window.removeEventListener("crete-stream-cover", change); };
   }, []);
+  useEffect(() => {
+    let disposed = false;
+    let release: (() => void) | undefined;
+    const listener = listen<ReturnPhase>("stream-return-phase", event => {
+      if (disposed || !lastStream || lastStream.provider !== event.payload.provider) return;
+      if (event.payload.phase === "ended" && returnSession.current !== event.payload.session) return;
+      const ticket = ++returnTicket.current;
+      if (event.payload.phase === "ended") { returnSession.current = null; setCover(previous => previous?.returning ? null : previous); return; }
+      returnSession.current = event.payload.session;
+      const app = lastStream.app;
+      setCover({ app, returning: true });
+      // Let the renderer paint the artwork before the native window is shown.
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (disposed || ticket !== returnTicket.current) return;
+        void invoke<boolean>("present_stream_return_cover", { provider: event.payload.provider, session: event.payload.session })
+          .then(shown => { if (!shown && ticket === returnTicket.current) setCover(previous => previous?.returning ? null : previous); })
+          .catch(() => { if (ticket === returnTicket.current) setCover(previous => previous?.returning ? null : previous); });
+      }));
+    });
+    void listener.then(unlisten => { if (disposed) unlisten(); else release = unlisten; }).catch(() => {});
+    return () => { disposed = true; ++returnTicket.current; release?.(); };
+  }, []);
+  useEffect(() => {
+    if (!cover?.returning) return;
+    // A lost event or broken client must not leave the handheld behind artwork.
+    const timer = window.setTimeout(dismiss, 12_000);
+    return () => window.clearTimeout(timer);
+  }, [cover?.returning]);
   useEffect(() => {
     if (!cover) return;
     const key = (event: KeyboardEvent) => { event.preventDefault(); event.stopImmediatePropagation(); if (event.key === "Escape") dismiss(); };

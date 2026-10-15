@@ -66,7 +66,7 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
     Ok(())
 }
 
-fn stream_process(provider: &str, path: &str) -> bool {
+pub(crate) fn stream_process(provider: &str, path: &str) -> bool {
     let name = path.rsplit(['\\', '/']).next().unwrap_or_default();
     match provider {
         "moonlight" => name.eq_ignore_ascii_case("Moonlight.exe"),

@@ -2,10 +2,41 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
+use tauri::Manager;
 
 static SESSION_GENERATION: AtomicU64 = AtomicU64::new(0);
-fn next_session() -> u64 { SESSION_GENERATION.fetch_add(1, Ordering::SeqCst) + 1 }
+static RETURN_COVER: AtomicU64 = AtomicU64::new(0);
+fn next_session() -> u64 { RETURN_COVER.store(0, Ordering::SeqCst); SESSION_GENERATION.fetch_add(1, Ordering::SeqCst) + 1 }
 fn session_current(generation: u64) -> bool { SESSION_GENERATION.load(Ordering::SeqCst) == generation }
+
+fn begin_return(window: &tauri::Window, provider: &str, generation: u64) {
+    if !session_current(generation) || !super::can_return_from_stream(window, provider) { return; }
+    RETURN_COVER.store(generation, Ordering::SeqCst);
+    use tauri::Emitter;
+    let _ = window.emit("stream-return-phase", serde_json::json!({"provider":provider,"phase":"ending","session":generation}));
+    // Resume painting without activating the window. The frontend acknowledges
+    // two painted frames before presenting the return artwork.
+    super::fse_watcher::force_webview_resume(window.app_handle().clone());
+}
+
+pub(crate) fn end_return(window: &tauri::Window, provider: &str, generation: u64) {
+    if RETURN_COVER.compare_exchange(generation, 0, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+        use tauri::Emitter;
+        let _ = super::launch_cover::set_launch_cover(window.clone(), false, None, None);
+        let _ = window.emit("stream-return-phase", serde_json::json!({"provider":provider,"phase":"ended","session":generation}));
+    }
+}
+
+#[tauri::command]
+pub fn present_stream_return_cover(window: tauri::Window, provider: String, session: u64) -> Result<bool, String> {
+    if !matches!(provider.as_str(), "moonlight" | "geforceNow") { return Err("Unknown streaming client".into()); }
+    if !session_current(session) || RETURN_COVER.load(Ordering::SeqCst) != session { return Ok(false); }
+    // The client may close between the ending event and the paint ack. Only a
+    // request originating from our own foreground stream can reach this point.
+    if !super::can_return_from_stream(&window, &provider) && !super::foreground_is_desktop() { return Ok(false); }
+    super::launch_cover::set_launch_cover(window.clone(), true, None, Some(provider))?;
+    Ok(true)
+}
 
 fn nvidia_console() -> PathBuf {
     dirs::data_local_dir().unwrap_or_default().join("NVIDIA Corporation/GeForceNOW/console.log")
@@ -19,6 +50,11 @@ impl NvidiaSession {
         if line.contains("NvCameraService streaming state change: Streaming") || line.contains("got onStreamingFirstFrame event") {
             self.started = true; self.ended = false;
         } else if self.started && line.contains("NvCameraService streaming state change: Done") { self.ended = true; }
+        else if self.ended && line.contains("NvCameraService streaming state change:") {
+            // A new native session can start without CreteOS. Stop cleanup as
+            // soon as NVIDIA leaves Done, before it reaches Streaming again.
+            self.ended = false;
+        }
     }
 }
 
@@ -29,7 +65,12 @@ fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::L
         while session_current(generation) && start.elapsed() < std::time::Duration::from_secs(86400) {
             for line in log.lines() { session.observe(&line); }
             if session.ended {
-                if session_current(generation) { super::finish_stream_session(window, "geforceNow"); }
+                begin_return(&window, "geforceNow", generation);
+                super::finish_stream_session(window.clone(), "geforceNow", || {
+                    for line in log.lines() { session.observe(&line); }
+                    session_current(generation) && session.ended
+                });
+                end_return(&window, "geforceNow", generation);
                 return;
             }
             if !session.started && start.elapsed() > std::time::Duration::from_secs(180) { return; }
@@ -416,13 +457,17 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
             "--video-codec", &profile.codec, "--display-mode", "borderless", "--quit-after"]).spawn().map_err(|e| e.to_string())?;
         if let Some(id) = &steam_id { super::moondeck::launch(&profile.host, id)?; }
         std::thread::spawn(move || {
-            if let Some(id) = steam_id { let _ = super::moondeck::watch_exit(&profile.host, &id, || session_current(generation)); }
+            if let Some(id) = steam_id {
+                let ended = super::moondeck::watch_exit(&profile.host, &id, || session_current(generation), || begin_return(&window, "moonlight", generation));
+                if !ended { end_return(&window, "moonlight", generation); }
+            }
             // CLI Moonlight exits itself after the host ends its stream. Wait
             // for this launched child only; never terminate a shared client.
             let start = std::time::Instant::now();
             while session_current(generation) && start.elapsed() < std::time::Duration::from_secs(86400) {
                 if client.try_wait().ok().flatten().is_some() {
-                    if session_current(generation) { super::finish_stream_session(window, "moonlight"); }
+                    if session_current(generation) { super::finish_stream_session(window.clone(), "moonlight", || session_current(generation)); }
+                    end_return(&window, "moonlight", generation);
                     return;
                 }
                 std::thread::sleep(std::time::Duration::from_millis(300));
@@ -481,6 +526,9 @@ mod tests {
         assert!(session.ended);
         session.observe("NvCameraService streaming state change: Streaming");
         assert!(!session.ended);
+        session.observe("NvCameraService streaming state change: Done");
+        session.observe("NvCameraService streaming state change: Loading");
+        assert!(!session.ended); // Native restart cancels late-window cleanup too.
     }
     #[test]
     fn rejects_unknown_clients() {
