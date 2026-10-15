@@ -91,7 +91,14 @@ def restore_saved(folder):
     if not path.exists():
         return
     saved = json.loads(path.read_text())
+    libraries = {n["id"] for n, _ in windows(ipc(4)) if steam_library(n)}
     for ident, original in list(saved.items()):
+        if int(ident) not in libraries:
+            # Sway container IDs can be reused after a compositor restart.
+            # Never apply stale geometry/workspace to a game or another app.
+            saved.pop(ident)
+            path.write_text(json.dumps(saved))
+            continue
         workspace, floating, rect, full = original
         commands = ["move container to workspace " + json.dumps(workspace)]
         commands += ["floating enable", f"resize set {int(rect['width'])} px {int(rect['height'])} px", f"move position {int(rect['x'])} px {int(rect['y'])} px"] if floating else ["floating disable"]

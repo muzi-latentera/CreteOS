@@ -1,5 +1,9 @@
 import unittest
-from host_presentation import game_window, needs_attention, steam_library, windows
+from unittest.mock import patch
+import tempfile
+from pathlib import Path
+import json
+from host_presentation import game_window, needs_attention, restore_saved, steam_library, windows
 
 
 class PresentationIsolationTests(unittest.TestCase):
@@ -26,6 +30,15 @@ class PresentationIsolationTests(unittest.TestCase):
         self.assertTrue(needs_attention("ShowInterstitials", 0, 2, [dialog]))
         self.assertFalse(needs_attention(None, None, 99, [dialog]))
         self.assertTrue(needs_attention("ShowInterstitials", 0, 31, []))
+
+    def test_recovery_never_moves_a_game_reusing_an_old_steam_container_id(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            (folder / "moved.json").write_text(json.dumps({"65": ["1", False, {}, 0]}))
+            with patch("host_presentation.ipc", return_value={"nodes": [{"pid": 1, "id": 65, "window_properties": {"class": "steam_app_2638890"}}]}) as ipc:
+                restore_saved(folder)
+                ipc.assert_called_once_with(4)
+            self.assertEqual(json.loads((folder / "moved.json").read_text()), {})
 
 
 if __name__ == "__main__":
