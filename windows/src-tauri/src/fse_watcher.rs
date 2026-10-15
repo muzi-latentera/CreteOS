@@ -912,7 +912,8 @@ pub fn start_display_recovery_watch(app: AppHandle) {
             std::thread::sleep(Duration::from_secs(1));
             let Some(hwnd) = main_window_hwnd(&app) else { return; };
             let Some(mon) = monitor_rect(hwnd) else { continue; };
-            let signature = (unsafe { GetSystemMetrics(SM_CMONITORS) }, mon.left, mon.top, mon.right, mon.bottom);
+            let monitor = unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) }.0 as isize;
+            let signature = (unsafe { GetSystemMetrics(SM_CMONITORS) }, monitor, mon.left, mon.top, mon.right, mon.bottom);
             let stable = previous == Some(signature);
             if previous.is_some() && !stable {
                 pending = true;
