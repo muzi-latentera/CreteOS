@@ -1593,6 +1593,16 @@ pub fn show_liftoff(app: AppHandle) {
     let _ = app.emit("fse:restored", ());
 }
 
+// An owned stream is ending, but is still foreground. Resume only the renderer
+// so it can paint/acknowledge return artwork; do not run the foreground recovery
+// ladder or restore the HWND before that artwork has actually painted.
+pub(crate) fn prepare_stream_return(app: &AppHandle) {
+    app.state::<FseWatch>().cancel();
+    #[cfg(windows)]
+    let _ = resume_webview_verified(app);
+    let _ = app.emit("fse:gpu-resumed", ());
+}
+
 // Frontend watchdog escape hatch. requestAnimationFrame staying silent is a
 // weak signal, but when the frontend does report it we run the same
 // screen-probed ladder as the game-exit path instead of one blind resume.

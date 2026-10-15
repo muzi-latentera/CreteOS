@@ -16,7 +16,7 @@ fn begin_return(window: &tauri::Window, provider: &str, generation: u64) {
     let _ = window.emit("stream-return-phase", serde_json::json!({"provider":provider,"phase":"ending","session":generation}));
     // Resume painting without activating the window. The frontend acknowledges
     // two painted frames before presenting the return artwork.
-    super::fse_watcher::force_webview_resume(window.app_handle().clone());
+    super::fse_watcher::prepare_stream_return(window.app_handle());
 }
 
 pub(crate) fn end_return(window: &tauri::Window, provider: &str, generation: u64) {
