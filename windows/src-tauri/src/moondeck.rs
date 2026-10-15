@@ -151,7 +151,91 @@ fn exit_state(data: &Value, steam_id: &str) -> Option<bool> {
     else { None }
 }
 
+#[derive(Debug, PartialEq)]
+enum ExitNotification { Running, Exited, StreamEnded, OtherApp, Unknown }
+
+// The notification contains all subscribed topics, in subscription order.
+// As in MoonDeck, clearing the previously tracked app also means it ended.
+fn exit_notification(value: &Value, id: &str) -> ExitNotification {
+    let Some(items) = value.as_array().filter(|items| items.len() == 2) else { return ExitNotification::Unknown; };
+    let app = &items[0];
+    if let Some(other) = app["data"]["app_id"].as_str() {
+        if other != id { return ExitNotification::OtherApp; }
+    }
+    let stream = &items[1]["state"];
+    if state_is(stream, 0, "NotStreaming") || state_is(stream, 2, "StreamEnding") { return ExitNotification::StreamEnded; }
+    if !state_is(stream, 1, "Streaming") { return ExitNotification::Unknown; }
+    if app.get("data").is_some_and(Value::is_null) { return ExitNotification::Exited; }
+    match exit_state(app, id) {
+        Some(true) => ExitNotification::Exited,
+        Some(false) => ExitNotification::Running,
+        None => ExitNotification::Unknown,
+    }
+}
+
+// Follow MoonDeck's notifyOnChanges feed instead of waiting for two sequential
+// HTTP polls. Retain polling if this Buddy version/connection cannot subscribe.
+fn watch_exit_notifications(host: &str, id: &str, current: &impl Fn() -> bool, ending: &impl Fn()) -> Option<bool> {
+    use std::net::{TcpStream, ToSocketAddrs};
+    use std::time::{Duration, Instant};
+    use tungstenite::{client::IntoClientRequest, Connector, Message};
+    let cert = native_tls::Certificate::from_pem(include_bytes!("moondeck_cert.pem")).ok()?;
+    let tls = native_tls::TlsConnector::builder().disable_built_in_roots(true)
+        .add_root_certificate(cert).danger_accept_invalid_hostnames(true).build().ok()?;
+    let address = (host, 59999).to_socket_addrs().ok()?.take(4)
+        .find_map(|address| TcpStream::connect_timeout(&address, Duration::from_secs(2)).ok())?;
+    address.set_read_timeout(Some(Duration::from_secs(3))).ok()?;
+    address.set_write_timeout(Some(Duration::from_secs(3))).ok()?;
+    let mut request = format!("wss://{host}:59999/notifyOnChanges").into_client_request().ok()?;
+    let auth = base64::engine::general_purpose::STANDARD.encode(identity(host).ok()?.as_bytes());
+    request.headers_mut().insert("Authorization", format!("basic {auth}").parse().ok()?);
+    let config = tungstenite::protocol::WebSocketConfig::default()
+        .max_message_size(Some(16 * 1024)).max_frame_size(Some(16 * 1024));
+    // Never expose handshake errors: they can contain the private auth header.
+    let (mut socket, _) = tungstenite::client_tls_with_config(request, address, Some(config), Some(Connector::NativeTls(tls))).ok()?;
+    socket.send(Message::Text(json!(["StreamedAppData", "StreamState"]).to_string().into())).ok()?;
+    let ack = socket.read().ok()?;
+    let ack: Value = serde_json::from_str(ack.to_text().ok()?).ok()?;
+    if ack["result"] != true { return None; }
+    match socket.get_mut() {
+        tungstenite::stream::MaybeTlsStream::NativeTls(stream) => stream.get_mut().set_read_timeout(Some(Duration::from_millis(500))).ok()?,
+        _ => return None, // This feed must always use pinned TLS.
+    }
+    let mut last_ping = Instant::now();
+    while current() {
+        match socket.read() {
+            Ok(Message::Text(text)) => {
+                let value: Value = serde_json::from_str(&text).ok()?;
+                if !current() { return Some(false); }
+                match exit_notification(&value, id) {
+                    ExitNotification::Exited => {
+                        ending();
+                        return Some(request_end_stream(host));
+                    }
+                    ExitNotification::StreamEnded => { ending(); return Some(true); }
+                    ExitNotification::OtherApp => return Some(false),
+                    ExitNotification::Running => {},
+                    ExitNotification::Unknown => return None,
+                }
+            }
+            Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => { socket.flush().ok()?; }
+            Err(tungstenite::Error::Io(error)) if matches!(error.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {},
+            _ => return None,
+        }
+        if last_ping.elapsed() >= Duration::from_secs(10) {
+            socket.send(Message::Ping(Vec::new().into())).ok()?;
+            last_ping = Instant::now();
+        }
+    }
+    Some(false)
+}
+
+fn request_end_stream(host: &str) -> bool {
+    request(host, "endStream", Some(json!({}))).is_ok_and(|reply| reply["result"] == true)
+}
+
 pub fn watch_exit(host: &str, id: &str, current: impl Fn() -> bool, ending: impl Fn()) -> bool {
+        if let Some(ended) = watch_exit_notifications(host, id, &current, &ending) { return ended; }
         let Ok(buddy) = status(host) else { return false; };
         let Some(version) = buddy["version"].as_u64() else { return false; };
         let mut exited_samples = 0;
@@ -176,7 +260,7 @@ pub fn watch_exit(host: &str, id: &str, current: impl Fn() -> bool, ending: impl
                     }
                     if exited_samples >= 2 && current() {
                         ending();
-                        return request(host, "endStream", Some(json!({}))).is_ok_and(|reply| reply["result"] == true);
+                        return request_end_stream(host);
                     }
                 }
                 Err(_) => { exited_samples = 0; failures += 1; if failures >= 5 { return false; } }
@@ -197,6 +281,20 @@ pub fn prepare(host: &str, steam_id: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::Value;
+    #[test]
+    fn live_exit_notification_reacts_without_a_second_poll() {
+        use super::ExitNotification::*;
+        let message = |data: Value, state: Value| serde_json::json!([{"data":data},{"state":state}]);
+        assert_eq!(super::exit_notification(&message(serde_json::json!({"app_id":"883710","app_state":1}), serde_json::json!(1)), "883710"), Running);
+        assert_eq!(super::exit_notification(&message(serde_json::json!({"app_id":"883710","app_state":0}), serde_json::json!(1)), "883710"), Exited);
+        assert_eq!(super::exit_notification(&message(serde_json::json!({"app_id":"883710","app_state":"Updating"}), serde_json::json!("Streaming")), "883710"), Exited);
+        assert_eq!(super::exit_notification(&message(Value::Null, serde_json::json!(1)), "883710"), Exited);
+        assert_eq!(super::exit_notification(&message(Value::Null, serde_json::json!(2)), "883710"), StreamEnded);
+        assert_eq!(super::exit_notification(&message(serde_json::json!({"app_id":"other","app_state":0}), serde_json::json!(0)), "883710"), OtherApp);
+        assert_eq!(super::exit_notification(&serde_json::json!([{}, {"state":1}]), "883710"), Unknown);
+        assert_eq!(super::exit_notification(&serde_json::json!({"result":false}), "883710"), Unknown);
+    }
     #[test]
     fn post_game_updating_is_exit_only_for_the_same_known_app() {
         assert_eq!(super::exit_state(&serde_json::json!({"data":{"app_id":"883710","app_state":"Updating"}}), "883710"), Some(true));
