@@ -29,6 +29,7 @@ it("paints artwork before returning, then unlocks CreteOS while the client close
   await phase("ending");
   expect(container.querySelector("[data-stream-launch-cover]")).not.toBeNull();
   expect(container.textContent).not.toContain("Resident Evil");
+  expect(container.querySelector("[data-launch-message]")).toBeNull();
   expect(invoke).not.toHaveBeenCalledWith("present_stream_return_cover", expect.anything());
   await act(async () => { await vi.advanceTimersByTimeAsync(50); });
   expect(invoke).toHaveBeenCalledWith("present_stream_return_cover", { provider: "moonlight", session: 1 });

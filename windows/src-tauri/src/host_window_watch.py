@@ -73,7 +73,7 @@ def emit(event):
 
 
 def main():
-    if sys.platform != "linux" or len(sys.argv) != 2:
+    if sys.platform != "linux" or len(sys.argv) not in (2, 3):
         emit("unavailable")
         return
     app_id = sys.argv[1]
@@ -96,12 +96,26 @@ def main():
             return False
 
     tracker = WindowPresence()
+    presentation = None
+    if len(sys.argv) == 3 and sys.argv[2] != "none":
+        token = sys.argv[2]
+        if len(token) <= 80 and all(c in "0123456789abcdef-" for c in token):
+            presentation = pathlib.Path.home() / ".local/share/creteos-host" / token
+    attention_sent = False
     started = time.monotonic()
     heartbeat = started
     get_tree(paths[0])  # Establish capability before delaying client handoff.
     emit("ready")
     while time.monotonic() - started < 86400:
         now = time.monotonic()
+        if presentation and presentation.is_dir():
+            (presentation / "lease").touch()
+            try:
+                if not attention_sent and json.loads((presentation / "state.json").read_text())["phase"] == "attention":
+                    emit("attention")
+                    attention_sent = True
+            except (OSError, ValueError, KeyError):
+                pass
         event = tracker.sample(has_game_window(get_tree(paths[0]), app_id, pid_matches), now)
         if event:
             emit(event)

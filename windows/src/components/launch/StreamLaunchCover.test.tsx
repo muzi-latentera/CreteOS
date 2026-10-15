@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { withStreamCover } from "./StreamLaunchCover";
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn(async () => undefined) }));
+const { invoke, callbacks } = vi.hoisted(() => ({ invoke: vi.fn(async () => undefined), callbacks: new Map<string, () => void>() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
+vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async (name, callback) => { callbacks.set(name, callback); return () => callbacks.delete(name); }) }));
 
 describe("stream artwork handoff", () => {
   beforeEach(() => { vi.useFakeTimers(); });
@@ -95,5 +96,18 @@ describe("stream artwork handoff", () => {
     await pending;
     expect(performance.now()).toBeLessThan(10_000);
     expect(invoke).toHaveBeenCalledWith("focus_stream_window", { provider: "geforceNow" });
+  });
+  it("reveals a host prompt while the game launch is still waiting", async () => {
+    let finish!: () => void;
+    invoke.mockResolvedValue(true);
+    const closeDialog = vi.fn();
+    const pending = withStreamCover({ id: "oni", name: "Onimusha" }, "moonlight", () => new Promise<void>(resolve => { finish = resolve; }), closeDialog);
+    await vi.advanceTimersByTimeAsync(100);
+    callbacks.get("host-launch-attention")?.();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(closeDialog).toHaveBeenCalledOnce();
+    expect(invoke).toHaveBeenCalledWith("focus_stream_window", { provider: "moonlight" });
+    finish(); await pending;
+    expect(callbacks.has("host-launch-attention")).toBe(false);
   });
 });

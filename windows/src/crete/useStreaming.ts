@@ -83,7 +83,7 @@ export function useStreaming(app: App, enabled: boolean) {
     setError(null);
     try {
       const steamId = appName === "MoonDeckStream" && app.source === "steam" && app.steam_appid ? String(app.steam_appid) : null;
-      await withStreamCover(app, "moonlight", () => invoke("launch_moonlight", { appName, displayKey: display.displayKey, profile, steamId }), () => setConfigure(false));
+      await withStreamCover(app, "moonlight", () => invoke("launch_moonlight", { appName, displayKey: display.displayKey, profile, steamId, gameId: app.id, gameName: app.name }), () => setConfigure(false));
     } catch (reason) { setError(`Could not start Moonlight on ${profile.host}. ${String(reason)}`); }
   };
   const pair = async (pin: number) => {

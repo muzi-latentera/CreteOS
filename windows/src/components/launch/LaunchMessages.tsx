@@ -1,23 +1,8 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-export const launchMessages = [
-  "Contacting the mainframe…",
-  "Asking the servers nicely…",
-  "Waking the pixel gremlins…",
-  "Untangling imaginary cables…",
-  "Giving the pixels a pep talk…",
-  "Checking behind the secret door…",
-  "Polishing the virtual buttons…",
-  "Borrowing a little moonlight…",
-  "Making room for one more adventure…",
-  "Negotiating with the loading bar…",
-  "Rolling for a smooth landing…",
-  "Summoning the good graphics…",
-  "Shaking the digital snow globe…",
-  "Sending a strongly worded packet…",
-  "Fingers crossed. Controller ready.",
-] as const;
+import messages from "./launchMessages.json";
+export const launchMessages = messages;
 
 export function LaunchMessages() {
   const { t } = useTranslation();

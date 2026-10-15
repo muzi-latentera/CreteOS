@@ -1,0 +1,325 @@
+"""Per-stream artwork on the dedicated Sunshine Sway compositor only.
+
+No game/Steam process is stopped. Only the main Steam library container is
+temporarily moved; dialogs remain accessible. A lease and explicit finish
+restore moved containers and stop only our own wallpaper/message processes.
+"""
+import base64
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import signal
+import socket
+import struct
+import subprocess
+import sys
+import time
+
+ROOT = Path.home() / ".local/share/creteos-host"
+SOCKET = Path("/run/user") / str(getattr(os, "getuid", lambda: -1)()) / "sway-sunshine.sock"
+
+
+def ipc(kind, body=""):
+    data = body.encode()
+    with socket.socket(socket.AF_UNIX) as stream:
+        stream.settimeout(2)
+        stream.connect(str(SOCKET))
+        stream.sendall(b"i3-ipc" + struct.pack("<II", len(data), kind) + data)
+        def read(size):
+            result = b""
+            while len(result) < size:
+                part = stream.recv(size - len(result))
+                if not part:
+                    raise OSError("Sway disconnected")
+                result += part
+            return result
+        header = read(14)
+        size, _ = struct.unpack("<II", header[6:])
+        if header[:6] != b"i3-ipc" or size > 2 * 1024 * 1024:
+            raise ValueError("Invalid Sway response")
+        return json.loads(read(size))
+
+
+def windows(node, workspace=None):
+    if node.get("type") == "workspace":
+        workspace = node.get("name")
+    if node.get("pid"):
+        yield node, workspace
+    for child in node.get("nodes", []) + node.get("floating_nodes", []):
+        yield from windows(child, workspace)
+
+
+def game_window(node, app_id):
+    props = node.get("window_properties") or {}
+    if str(props.get("class", "")).lower() == "steam_app_" + app_id or node.get("app_id") == "steam_app_" + app_id:
+        return True
+    try:
+        values = (Path("/proc") / str(int(node["pid"])) / "environ").read_bytes().split(b"\0")
+        return any((key + app_id).encode() in values for key in ("SteamAppId=", "SteamGameId="))
+    except (OSError, ValueError, KeyError):
+        return False
+
+
+def steam_library(node):
+    props = node.get("window_properties") or {}
+    return (str(props.get("class", "")).lower() == "steam"
+            and props.get("title") in ("Steam", "Steam Big Picture Mode")
+            and not props.get("transient_for")
+            and props.get("window_type") == "normal")
+
+
+def needs_attention(pending, waiting_at, now, nodes):
+    if not pending or waiting_at is None:
+        return False
+    dialogs = [n for n, _ in nodes if n.get("visible") and
+               str((n.get("window_properties") or {}).get("class", "")).lower() == "steam" and
+               ((n.get("window_properties") or {}).get("transient_for") or
+                (n.get("window_properties") or {}).get("window_type") == "dialog")]
+    return now - waiting_at > 30 or bool(dialogs and now - waiting_at > 1)
+
+
+def write_state(folder, phase):
+    temporary = folder / "state.tmp"
+    temporary.write_text(json.dumps({"phase": phase, "pid": os.getpid()}))
+    temporary.replace(folder / "state.json")
+
+
+def restore_saved(folder):
+    path = folder / "moved.json"
+    if not path.exists():
+        return
+    saved = json.loads(path.read_text())
+    for ident, original in list(saved.items()):
+        workspace, floating, rect, full = original
+        commands = ["move container to workspace " + json.dumps(workspace)]
+        commands += ["floating enable", f"resize set {int(rect['width'])} px {int(rect['height'])} px", f"move position {int(rect['x'])} px {int(rect['y'])} px"] if floating else ["floating disable"]
+        if full:
+            commands.append("fullscreen enable")
+        ipc(0, f"[con_id={int(ident)}] " + ", ".join(commands))
+        saved.pop(ident)
+        path.write_text(json.dumps(saved))
+
+
+def stage(payload):
+    import fcntl
+    app_id, token = payload["appId"], payload["token"]
+    if not re.fullmatch(r"[0-9]{1,10}", app_id) or not re.fullmatch(r"[0-9a-f-]{1,80}", token):
+        raise ValueError("Invalid stream identity")
+    if not SOCKET.is_socket() or not any(o.get("name") == "HEADLESS-1" and o.get("active") for o in ipc(3)):
+        raise RuntimeError("Dedicated Sunshine display unavailable")
+    ROOT.mkdir(parents=True, exist_ok=True, mode=0o700)
+    # Never replace a presentation belonging to an ongoing stream.
+    check = (ROOT / "active.lock").open("a")
+    fcntl.flock(check, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    # Recover our exact containers if a previous helper was interrupted. The
+    # exclusive lock proves no live helper still owns these presentations.
+    for previous in ROOT.iterdir():
+        if previous.is_dir() and re.fullmatch(r"[0-9a-f-]{1,80}", previous.name):
+            restore_saved(previous)
+    folder = ROOT / token
+    folder.mkdir(mode=0o700)
+    image = base64.b64decode(payload.get("art", ""), validate=True)
+    if len(image) > 8 * 1024 * 1024:
+        raise ValueError("Artwork too large")
+    (folder / "art").write_bytes(image)
+    (folder / "config.json").write_text(json.dumps({"appId": app_id, "messages": payload["messages"]}))
+    (folder / "present.py").write_text(payload["source"])
+    check.close()
+    command = shlex.join([sys.executable, str(folder / "present.py"), token])
+    reply = ipc(0, "exec " + command)
+    if not all(item.get("success") for item in reply):
+        raise RuntimeError("Could not start host artwork")
+    for _ in range(60):
+        path = folder / "state.json"
+        if path.exists():
+            state = json.loads(path.read_text())
+            if state["phase"] == "ready":
+                return {"token": token}
+            if state["phase"] == "failed":
+                break
+        time.sleep(.05)
+    (folder / "finish").touch()
+    raise RuntimeError("Host artwork did not become ready")
+
+
+def present(token):
+    import fcntl
+    import gi
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import Gtk, Gdk, GLib, Pango, PangoCairo
+    from PIL import Image, ImageOps
+    folder = ROOT / token
+    config = json.loads((folder / "config.json").read_text())
+    lock = (ROOT / "active.lock").open("a")
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    output = next(o for o in ipc(3) if o.get("name") == "HEADLESS-1" and o.get("active"))
+    width, height = output["rect"]["width"], output["rect"]["height"]
+    # Match the handheld's centre/cover crop and 15%→40% black gradient.
+    try:
+        with Image.open(folder / "art") as original:
+            if original.width * original.height > 25_000_000:
+                raise ValueError("Artwork dimensions too large")
+            image = ImageOps.fit(original.convert("RGB"), (width, height))
+    except (OSError, ValueError):
+        image = Image.new("RGB", (width, height), (10, 13, 16))
+    gradient = Image.new("L", (1, height))
+    gradient.putdata([round(255 * (.15 + .25 * y / max(1, height - 1))) for y in range(height)])
+    image.paste((0, 0, 0), (0, 0, width, height), gradient.resize((width, height)))
+    image.save(folder / "background.png")
+    wallpaper = subprocess.Popen(["swaybg", "-o", "HEADLESS-1", "-i", str(folder / "background.png"), "-m", "fill"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    moved = {}
+    seen = False
+    positioned = False
+    attention = False
+    closed_at = None
+    began = time.monotonic()
+    log = Path.home() / ".local/share/Steam/logs/console_log.txt"
+    log_offset = log.stat().st_size if log.exists() else 0
+    pending = None
+    waiting_at = None
+    finished = False
+    game_containers = set()
+    GLib.set_prgname("creteos-host-messages")
+    window = Gtk.Window()
+    window.set_title("CreteOS stream artwork")
+    window.set_decorated(False)
+    window.set_resizable(False)
+    window.set_accept_focus(False)
+    window.set_app_paintable(True)
+    window.set_visual(window.get_screen().get_rgba_visual())
+    window.set_default_size(min(900, width), 130)
+    started = time.monotonic()
+    messages = config["messages"]
+
+    def draw(widget, cr):
+        import cairo
+        cr.set_operator(cairo.OPERATOR_SOURCE)
+        cr.set_source_rgba(0, 0, 0, 0)
+        cr.paint()
+        cr.set_operator(cairo.OPERATOR_OVER)
+        layout = widget.create_pango_layout(messages[int((time.monotonic() - started) / 3.5) % len(messages)])
+        layout.set_font_description(Pango.FontDescription("Sans " + str(max(13, round(height * .015)))))
+        tw, th = layout.get_pixel_size()
+        cr.move_to((widget.get_allocated_width() - tw) / 2, (widget.get_allocated_height() - th) / 2)
+        cr.set_source_rgba(.95, .92, .86, .88)
+        PangoCairo.show_layout(cr, layout)
+        return False
+    window.connect("draw", draw)
+
+    def restore():
+        restore_saved(folder)
+        moved.clear()
+
+    def cleanup(*_):
+        nonlocal finished
+        if finished:
+            return
+        finished = True
+        try:
+            restore()
+        finally:
+            try:
+                wallpaper.terminate()
+                try:
+                    wallpaper.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    wallpaper.kill()  # Only our own swaybg child.
+                    wallpaper.wait(timeout=3)
+                write_state(folder, "finished")
+                # Retain state/source, not full-size art for every launch.
+                for name in ("art", "background.png"):
+                    (folder / name).unlink(missing_ok=True)
+            finally:
+                Gtk.main_quit()
+
+    def tick():
+        nonlocal seen, positioned, attention, closed_at, log_offset, pending, waiting_at
+        try:
+            now = time.monotonic()
+            if (folder / "finish").exists() or now - began > 86400:
+                cleanup()
+                return False
+            lease = folder / "lease"
+            last = lease.stat().st_mtime if lease.exists() else (folder / "config.json").stat().st_mtime
+            if time.time() - last > (60 if closed_at else 30):
+                cleanup()
+                return False
+            if log.exists() and not seen:
+                with log.open() as stream:
+                    stream.seek(log_offset)
+                    lines = stream.read(65536)
+                    log_offset = stream.tell()
+                for line in lines.splitlines():
+                    if f"AppID {config['appId']}," not in line:
+                        continue
+                    if "waiting for user response" in line:
+                        pending = line.split("response to ")[-1].split()[0]
+                        waiting_at = now
+                    elif "continues with user response" in line or "changed task" in line:
+                        pending = waiting_at = None
+            nodes = list(windows(ipc(4)))
+            # "waiting for user response" also covers asynchronous Steam UI
+            # preparation. Reveal only a real dialog, or a genuinely stalled
+            # launch, not a normal background app-details lookup.
+            if needs_attention(pending, waiting_at, now, nodes):
+                attention = True
+            games = [node for node, _ in nodes if game_window(node, config["appId"])]
+            if games:
+                if not seen:
+                    seen = True
+                    attention = False
+                    window.hide()
+                    write_state(folder, "playing")
+                closed_at = None
+                for game in games:
+                    if game['id'] not in game_containers:
+                        ipc(0, f"[con_id={game['id']}] border none, fullscreen enable, focus")
+                        game_containers.add(game['id'])
+            elif seen:
+                if closed_at is None:
+                    closed_at = now
+                    window.hide()
+                    write_state(folder, "returning")
+            if attention and not seen:
+                window.hide()
+                restore()
+                write_state(folder, "attention")
+            else:
+                for node, workspace in nodes:
+                    if steam_library(node) and workspace != "__i3_scratch":
+                        if node["id"] not in moved:
+                            moved[node["id"]] = (workspace, node.get("floating") in ("user_on", "auto_on"), node["rect"], node.get("fullscreen_mode", 0))
+                            (folder / "moved.json").write_text(json.dumps(moved))
+                        ipc(0, f"[con_id={node['id']}] fullscreen disable, move scratchpad")
+            if not positioned:
+                own = [n for n, _ in nodes if n.get("pid") == os.getpid()]
+                if own:
+                    ipc(0, f"[con_id={own[0]['id']}] floating enable, border none, resize set {min(900,width)} px 130 px, move position center")
+                    positioned = True
+                    write_state(folder, "ready")
+            window.queue_draw()
+            return True
+        except Exception:
+            cleanup()
+            return False
+
+    window.show_all()
+    GLib.timeout_add(100, tick)
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, sig, lambda: (cleanup(), False)[1])
+    Gtk.main()
+
+
+if __name__ == "__main__":
+    if "PAYLOAD" in globals():
+        try:
+            print(json.dumps(stage(PAYLOAD)))
+        except Exception:
+            print(json.dumps({"unavailable": True}))
+    else:
+        try:
+            present(sys.argv[1])
+        except Exception:
+            write_state(ROOT / sys.argv[1], "failed")

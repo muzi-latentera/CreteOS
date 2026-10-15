@@ -17,9 +17,22 @@ export async function withStreamCover(app: App, provider: "moonlight" | "geforce
   const shownAt = performance.now();
   dismissed = false;
   let handedOff = false;
+  let releaseAttention: (() => void) | undefined;
   lastStream = { app, provider };
   window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: { app } }));
   try {
+    if (provider === "moonlight") releaseAttention = await listen("host-launch-attention", () => {
+      if (current !== generation || dismissed) return;
+      // A real Steam launch dialog must be accessible rather than concealed
+      // indefinitely by either device's artwork. Do not approve it ourselves.
+      dismissed = true;
+      beforeHandoff?.();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (current !== generation) return;
+        void invoke("focus_stream_window", { provider }).catch(() => {});
+        window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: null }));
+      }));
+    });
     await invoke("set_launch_cover", { active: true, streamProvider: provider });
     // Give the artwork two paint opportunities before another client can
     // create a foreground/topmost connection window.
@@ -44,6 +57,7 @@ export async function withStreamCover(app: App, provider: "moonlight" | "geforce
       handedOff = true;
     }
   } finally {
+    releaseAttention?.();
     if (current === generation) {
       window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: null }));
       // Native handoff has already released the cover. No window changes after
@@ -108,6 +122,6 @@ export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<
   if (!cover) return null;
   const art = customHeroArt[cover.app.id] || heroArt[cover.app.id];
   return <div data-stream-launch-cover="" role="status" aria-label={t("launch.launching")} style={{ position: "fixed", inset: 0, zIndex: 10000, display: "grid", placeContent: "center", background: art ? `linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.4)),url(${JSON.stringify(art)}) center/cover` : "rgba(10,13,16,.92)" }}>
-    <LaunchMessages />
+    {!cover.returning && <LaunchMessages />}
   </div>;
 }

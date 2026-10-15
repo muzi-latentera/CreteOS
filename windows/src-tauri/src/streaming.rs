@@ -418,14 +418,55 @@ fn host_games(host: &str) -> Result<Vec<HostGame>, String> {
     Ok(games)
 }
 
-fn watch_host_game_window(window: tauri::Window, host: String, id: String, generation: u64, active: std::sync::Arc<std::sync::atomic::AtomicBool>) {
+fn stage_host_presentation(host: &str, id: &str, game_id: Option<&str>, game_name: Option<&str>, generation: u64) -> Result<String, String> {
+    use base64::Engine;
+    let custom = game_id.and_then(|id| super::load_custom_art_inner().get(&format!("hero:{id}")).cloned());
+    let art = custom.or_else(|| game_name.and_then(|name| super::load_hero_cache().get(name).cloned()));
+    let bytes = art.and_then(|art| {
+        if art.starts_with("data:image/") {
+            return art.split_once(";base64,").and_then(|(_, data)| {
+                if data.len() > 12 * 1024 * 1024 { return None; }
+                base64::engine::general_purpose::STANDARD.decode(data).ok()
+            });
+        }
+        // Only cached artwork files are transferred; never an arbitrary path
+        // supplied by a frontend or a fresh internet request during launching.
+        let path = std::fs::canonicalize(art).ok()?;
+        let root = std::fs::canonicalize(super::liftoff_dir()).ok()?;
+        if !path.starts_with(root) || std::fs::metadata(&path).ok()?.len() > 8 * 1024 * 1024 { return None; }
+        std::fs::read(path).ok()
+    }).unwrap_or_default();
+    if bytes.len() > 8 * 1024 * 1024 { return Err("Host artwork is too large".into()); }
+    let token = format!("{}-{}-{}", std::process::id(), generation, std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_micros());
+    let source = include_str!("host_presentation.py");
+    let payload = serde_json::json!({"appId": id, "token": token, "art": base64::engine::general_purpose::STANDARD.encode(bytes),
+        "messages": serde_json::from_str::<serde_json::Value>(include_str!("../../src/components/launch/launchMessages.json")).map_err(|e| e.to_string())?, "source": source});
+    let script = format!("import json\nPAYLOAD=json.loads({})\n{}", serde_json::to_string(&payload.to_string()).map_err(|e| e.to_string())?, source);
+    let mut command = host_command(host)?;
+    command.arg("python3 -");
+    let output = bounded_output(command, Some(script.as_bytes()))?;
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).map_err(|_| "Host artwork is unavailable")?;
+    if output.status.success() && result["token"].as_str() == Some(token.as_str()) { Ok(token) }
+    else { Err("Host artwork is unavailable".into()) }
+}
+
+fn finish_host_presentation(host: &str, token: &str) {
+    if token.len() > 80 || !token.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-') { return; }
+    if let Ok(mut command) = host_command(host) {
+        command.arg("python3 -");
+        let script = format!("from pathlib import Path\np=Path.home()/'.local/share/creteos-host'/'{token}'\nif p.is_dir(): (p/'finish').touch()\n");
+        let _ = bounded_output(command, Some(script.as_bytes()));
+    }
+}
+
+fn watch_host_game_window(window: tauri::Window, host: String, id: String, presentation: Option<String>, generation: u64, active: std::sync::Arc<std::sync::atomic::AtomicBool>) {
     set_host_window_state(generation, 1);
     std::thread::spawn(move || {
         let result = (|| -> Result<(), ()> {
             use std::io::BufRead;
             if id.is_empty() || id.len() > 10 || !id.bytes().all(|c| c.is_ascii_digit()) { return Err(()); }
             let mut command = host_command(&host).map_err(|_| ())?;
-            command.arg(format!("python3 - {id}"))
+            command.arg(format!("python3 - {id} {}", presentation.as_deref().unwrap_or("none")))
                 .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null());
             #[cfg(windows)] { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
             let mut child = command.spawn().map_err(|_| ())?;
@@ -462,6 +503,12 @@ fn watch_host_game_window(window: tauri::Window, host: String, id: String, gener
                                 break;
                             }
                             "alive" => {},
+                            "attention" => {
+                                set_host_window_state(generation, 0);
+                                super::fse_watcher::log_stream_transition(window.app_handle(), "host-launch-attention");
+                                use tauri::Emitter;
+                                let _ = window.emit("host-launch-attention", serde_json::json!({"session":generation}));
+                            },
                             _ => break,
                         }
                     }
@@ -523,7 +570,7 @@ pub fn get_moonlight_profile(window: tauri::Window) -> Result<serde_json::Value,
 }
 
 #[tauri::command]
-pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_key: String, profile: MoonlightProfile, steam_id: Option<String>) -> Result<(), String> {
+pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_key: String, profile: MoonlightProfile, steam_id: Option<String>, game_id: Option<String>, game_name: Option<String>) -> Result<(), String> {
     validate(&profile)?;
     if display_key.len() > 512 { return Err("Invalid display".into()); }
     if app_name.starts_with('-') || app_name.chars().any(char::is_control) { return Err("Invalid host app name".into()); }
@@ -543,11 +590,18 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         std::fs::create_dir_all(super::liftoff_dir()).map_err(|e| e.to_string())?;
         std::fs::write(path, serde_json::to_vec_pretty(&profiles).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         let generation = next_session();
+        let presentation = steam_id.as_ref().and_then(|id| match stage_host_presentation(&profile.host, id, game_id.as_deref(), game_name.as_deref(), generation) {
+            Ok(token) => { super::fse_watcher::log_stream_transition(window.app_handle(), "host-artwork-ready"); Some(token) },
+            Err(_) => { super::fse_watcher::log_stream_transition(window.app_handle(), "host-artwork-unavailable"); None },
+        });
         let mut client = std::process::Command::new(client_path("moonlight")?).args(["stream", &profile.host, &app_name,
             "--resolution", &profile.resolution, "--fps", &profile.fps.to_string(), "--bitrate", &profile.bitrate.to_string(),
-            "--video-codec", &profile.codec, "--display-mode", "borderless", "--quit-after"]).spawn().map_err(|e| e.to_string())?;
+            "--video-codec", &profile.codec, "--display-mode", "borderless", "--quit-after"]).spawn().map_err(|e| {
+                if let Some(token) = &presentation { finish_host_presentation(&profile.host, token); }
+                e.to_string()
+            })?;
         let monitor_active = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-        if let Some(id) = &steam_id { watch_host_game_window(window.clone(), profile.host.clone(), id.clone(), generation, monitor_active.clone()); }
+        if let Some(id) = &steam_id { watch_host_game_window(window.clone(), profile.host.clone(), id.clone(), presentation.clone(), generation, monitor_active.clone()); }
         let launch_result = if let Some(id) = &steam_id {
             super::moondeck::launch(&profile.host, id, |phase| super::fse_watcher::log_stream_transition(window.app_handle(), phase))
         } else { Ok(()) };
@@ -576,6 +630,7 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
             let start = std::time::Instant::now();
             while session_current(generation) && start.elapsed() < std::time::Duration::from_secs(86400) {
                 if client.try_wait().ok().flatten().is_some() {
+                    if let Some(token) = &presentation { finish_host_presentation(&profile.host, token); }
                     if session_current(generation) { super::finish_stream_session(window.clone(), "moonlight", || session_current(generation)); }
                     end_return(&window, "moonlight", generation);
                     return;
