@@ -29,12 +29,14 @@ fn client() -> Result<reqwest::blocking::Client, String> {
     // Reuse the connection pool for lifecycle polling instead of doing a fresh
     // TCP/TLS handshake for every status request. Authorization remains per request.
     static CLIENT: std::sync::OnceLock<Result<reqwest::blocking::Client, String>> = std::sync::OnceLock::new();
-    CLIENT.get_or_init(|| {
-        let cert = reqwest::Certificate::from_pem(include_bytes!("moondeck_cert.pem")).map_err(|e| e.to_string())?;
-        reqwest::blocking::Client::builder().tls_built_in_root_certs(false).add_root_certificate(cert)
-            .danger_accept_invalid_hostnames(true).timeout(std::time::Duration::from_secs(5))
-            .redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())
-    }).clone()
+    CLIENT.get_or_init(fresh_client).clone()
+}
+
+fn fresh_client() -> Result<reqwest::blocking::Client, String> {
+    let cert = reqwest::Certificate::from_pem(include_bytes!("moondeck_cert.pem")).map_err(|e| e.to_string())?;
+    reqwest::blocking::Client::builder().tls_built_in_root_certs(false).add_root_certificate(cert)
+        .danger_accept_invalid_hostnames(true).timeout(std::time::Duration::from_secs(5))
+        .redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())
 }
 
 fn request(host: &str, endpoint: &str, body: Option<Value>) -> Result<Value, String> {
@@ -214,7 +216,7 @@ fn watch_exit_notifications(host: &str, id: &str, current: &impl Fn() -> bool, e
                     ExitNotification::Exited => {
                         note("buddy-game-exit-event");
                         ending();
-                        return Some(request_end_stream(host));
+                        return Some(request_end_stream(host, note, current));
                     }
                     ExitNotification::StreamEnded => { note("buddy-stream-end-event"); ending(); return Some(true); }
                     ExitNotification::OtherApp => return Some(false),
@@ -235,8 +237,26 @@ fn watch_exit_notifications(host: &str, id: &str, current: &impl Fn() -> bool, e
     Some(false)
 }
 
-fn request_end_stream(host: &str) -> bool {
-    request(host, "endStream", Some(json!({}))).is_ok_and(|reply| reply["result"] == true)
+fn request_end_stream(host: &str, note: &impl Fn(&str), current: &impl Fn() -> bool) -> bool {
+    // End-of-session control must not reuse an idle connection/address from a
+    // host that changed between Ethernet and Wi-Fi during the session.
+    let Ok(client) = fresh_client() else { note("buddy-end-client-unavailable"); return false; };
+    let Ok(id) = identity(host) else { note("buddy-end-identity-unavailable"); return false; };
+    if !current() { return false; }
+    let auth = base64::engine::general_purpose::STANDARD.encode(id.as_bytes());
+    note("buddy-end-request");
+    let result = client.post(format!("https://{host}:59999/endStream"))
+        .header("Authorization", format!("basic {auth}")).json(&json!({}))
+        .timeout(std::time::Duration::from_secs(2)).send();
+    match result {
+        Ok(response) if response.status().is_success() => {
+            let accepted = response.json::<Value>().is_ok_and(|reply| reply["result"] == true);
+            note(if accepted { "buddy-end-accepted" } else { "buddy-end-not-accepted" });
+            accepted
+        }
+        Ok(_) => { note("buddy-end-http-error"); false }
+        Err(error) => { note(if error.is_timeout() { "buddy-end-timeout" } else { "buddy-end-connection-error" }); false }
+    }
 }
 
 pub fn watch_exit(host: &str, id: &str, current: impl Fn() -> bool, ending: impl Fn(), note: impl Fn(&str)) -> bool {
@@ -266,7 +286,7 @@ pub fn watch_exit(host: &str, id: &str, current: impl Fn() -> bool, ending: impl
                     }
                     if exited_samples >= 2 && current() {
                         ending();
-                        return request_end_stream(host);
+                        return request_end_stream(host, &note, &current);
                     }
                 }
                 Err(_) => { exited_samples = 0; failures += 1; if failures >= 5 { return false; } }

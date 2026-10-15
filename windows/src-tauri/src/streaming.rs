@@ -463,7 +463,18 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         if let Some(id) = &steam_id { super::moondeck::launch(&profile.host, id)?; }
         std::thread::spawn(move || {
             if let Some(id) = steam_id {
-                let ended = super::moondeck::watch_exit(&profile.host, &id, || session_current(generation), || begin_return(&window, "moonlight", generation), |phase| super::fse_watcher::log_stream_transition(window.app_handle(), phase));
+                let exit_confirmed = std::sync::atomic::AtomicBool::new(false);
+                let ended = super::moondeck::watch_exit(&profile.host, &id, || session_current(generation), || {
+                    exit_confirmed.store(true, Ordering::SeqCst);
+                    begin_return(&window, "moonlight", generation);
+                }, |phase| super::fse_watcher::log_stream_transition(window.app_handle(), phase));
+                // A lost host end request must not strand an owned Moonlight
+                // window after the exact game has exited. Use normal WM_CLOSE;
+                // --quit-after performs Moonlight's own session cleanup.
+                if exit_confirmed.load(Ordering::SeqCst) && session_current(generation) && client.try_wait().ok().flatten().is_none() {
+                    super::close_owned_moonlight_client(client.id(), || session_current(generation));
+                    super::fse_watcher::log_stream_transition(window.app_handle(), "moonlight-owned-close-requested");
+                }
                 if !ended { end_return(&window, "moonlight", generation); }
             }
             // CLI Moonlight exits itself after the host ends its stream. Wait

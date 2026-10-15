@@ -9330,6 +9330,14 @@ pub(crate) fn foreground_is_desktop() -> bool {
     process_exe_path(pid).is_some_and(|path| path.to_ascii_lowercase().ends_with("\\explorer.exe"))
 }
 
+pub(crate) fn close_owned_moonlight_client(pid: u32, current: impl Fn() -> bool) {
+    for target in collect_launch_windows().into_iter().filter(|target| target.pid == pid && target.exe_path.as_deref()
+        .and_then(|path| std::path::Path::new(path).file_name()).is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("Moonlight.exe"))) {
+        if !current() { return; }
+        unsafe { let _ = PostMessageW(Some(windows::Win32::Foundation::HWND(target.hwnd as _)), WM_CLOSE, WPARAM(0), LPARAM(0)); }
+    }
+}
+
 pub(crate) fn finish_stream_session(window: tauri::Window, provider: &str, mut current: impl FnMut() -> bool) {
     let Ok(ours) = window.hwnd() else { return; };
     let foreground = unsafe { GetForegroundWindow() }.0 as isize;
