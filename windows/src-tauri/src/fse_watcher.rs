@@ -8,7 +8,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use std::io::Write;
 #[cfg(windows)]
 use webview2_com::Microsoft::Web::WebView2::Win32::{
-    ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL,
+    ICoreWebView2_19, COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL,
     COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
 };
 #[cfg(windows)]
@@ -1710,6 +1710,25 @@ pub fn force_webview_resume(app: AppHandle) {
     {
         let _ = app;
     }
+}
+
+// Raising the native parent is insufficient after a streaming error dialog:
+// WebView2 must own input too. Recheck on its UI thread, so an intervening
+// deliberate Alt-Tab is never undone by this asynchronous callback.
+pub(crate) fn focus_foreground_webview(app: &AppHandle) {
+    #[cfg(windows)]
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        if let Ok(hwnd) = window.hwnd() {
+            let ours = hwnd.0 as isize;
+            let _ = window.with_webview(move |webview| unsafe {
+                if watchdog_may_recover(ours, hwnd_value(GetForegroundWindow())) {
+                    let _ = webview.controller().MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
+                }
+            });
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = app;
 }
 
 // Paint the native window background in the app's own base colour so any

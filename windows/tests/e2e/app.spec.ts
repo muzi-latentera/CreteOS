@@ -1098,13 +1098,20 @@ test("Moonlight controller opens dropdown choices and reaches the bottom actions
   await pad(page, 13);
   await expect(stream.getByRole("button", { name: "Start stream", exact: true })).toBeFocused();
   await pad(page, 13);
+  await expect(stream.getByRole("button", { name: "Start stream", exact: true })).toBeFocused();
+  await pad(page, 15);
   await expect(stream.getByRole("button", { name: "Refresh host", exact: true })).toBeFocused();
-  await pad(page, 13);
+  await pad(page, 14);
+  await expect(stream.getByRole("button", { name: "Start stream", exact: true })).toBeFocused();
+  await pad(page, 12);
+  await expect(stream.getByLabel("Codec", { exact: true })).toBeFocused();
+  await pad(page, 13); await pad(page, 15);
+  await pad(page, 15);
   const open = stream.getByRole("button", { name: "Open Moonlight", exact: true });
   await expect(open).toBeFocused();
   const bounds = await open.boundingBox(); const dialog = await stream.boundingBox();
   expect(bounds!.y).toBeGreaterThanOrEqual(dialog!.y); expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(dialog!.y + dialog!.height);
-  await pad(page, 13); await pad(page, 0);
+  await pad(page, 15); await pad(page, 0);
   await expect(stream).not.toBeVisible();
 });
 
@@ -1242,4 +1249,24 @@ test("Games article images render from the native scoped cache", async ({ page }
  await expect(image).toHaveAttribute("src",/asset.localhost.*media.*news/);
  await card.scrollIntoViewIfNeeded();
  await expect.poll(() => image.evaluate(node => (node as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+});
+
+
+test("GFN settings footer uses left and right for controller and keyboard", async ({ page }) => {
+  await richCrete(page);
+  await page.goto("/?crete&rich&gfn");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  await page.getByRole("button", { name: "Launch options", exact: true }).click();
+  await page.getByRole("menuitem", { name: "GeForce NOW", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "GeForce NOW stream settings" });
+  const play = dialog.getByRole("button", { name: "Play", exact: true });
+  const cancel = dialog.getByRole("button", { name: "Cancel", exact: true });
+  await dialog.getByLabel("Bitrate").focus();
+  await pad(page, 13); await expect(play).toBeFocused();
+  await pad(page, 15); await expect(cancel).toBeFocused();
+  await pad(page, 13); await expect(cancel).toBeFocused();
+  await pad(page, 14); await expect(play).toBeFocused();
+  await page.keyboard.press("ArrowRight"); await expect(cancel).toBeFocused();
+  await page.keyboard.press("ArrowUp"); await expect(dialog.getByLabel("Bitrate")).toBeFocused();
 });

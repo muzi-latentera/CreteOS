@@ -46,13 +46,34 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       const next = list[(index + direction + list.length) % list.length];
       next?.focus(); next?.scrollIntoView({ block: "nearest", inline: "nearest" });
     };
+    const navigate = (direction: "up" | "down" | "left" | "right") => {
+      const list = controls();
+      const focused = document.activeElement as HTMLButtonElement | HTMLSelectElement;
+      // Choice lists and the provider menu are vertical. Footer actions form
+      // a horizontal row; Down must not silently mean Right in that row.
+      const footer = focused?.closest(".crete-stream-buttons");
+      if (footer) {
+        if (direction === "down") return;
+        if (direction === "up") {
+          const fields = list.filter(el => !el.closest(".crete-stream-buttons"));
+          fields[fields.length - 1]?.focus();
+          return;
+        }
+        const row = list.filter(el => el.closest(".crete-stream-buttons") === footer);
+        const index = row.indexOf(focused);
+        row[Math.max(0, Math.min(row.length - 1, index + (direction === "right" ? 1 : -1)))]?.focus();
+        return;
+      }
+      if (direction === "up" || direction === "down") move(direction === "up" ? -1 : 1);
+    };
     const key = (event: KeyboardEvent) => {
       if (document.querySelector("[data-stream-launch-cover]")) return;
       if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); if (choicesRef.current) closeChoices(); else close(); }
       else if (event.key === "Enter" && event.target instanceof HTMLSelectElement) { event.preventDefault(); event.stopImmediatePropagation(); openChoices(event.target); }
       else if (["ArrowUp", "ArrowDown"].includes(event.key)) {
-        event.preventDefault(); event.stopImmediatePropagation(); move(event.key === "ArrowUp" ? -1 : 1);
+        event.preventDefault(); event.stopImmediatePropagation(); navigate(event.key === "ArrowUp" ? "up" : "down");
       }
+      else if (["ArrowLeft", "ArrowRight"].includes(event.key) && (event.target as HTMLElement)?.closest(".crete-stream-buttons")) { event.preventDefault(); event.stopImmediatePropagation(); navigate(event.key === "ArrowLeft" ? "left" : "right"); }
       else if (event.key === "Tab") { event.preventDefault(); event.stopImmediatePropagation(); move(event.shiftKey ? -1 : 1); }
     };
     const outside = (event: PointerEvent) => { if (!document.querySelector("[data-stream-launch-cover]") && !root.current?.contains(event.target as Node)) close(); };
@@ -65,8 +86,8 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
         const state = readGpState(gp);
         if (last) {
           if (state.Escape && !last.Escape) { if (choicesRef.current) closeChoices(); else close(); }
-          else if (state.ArrowDown && !last.ArrowDown) move(1);
-          else if (state.ArrowUp && !last.ArrowUp) move(-1);
+          else if (state.ArrowDown && !last.ArrowDown) navigate("down");
+          else if (state.ArrowUp && !last.ArrowUp) navigate("up");
           else if (state.Enter && !last.Enter && document.activeElement instanceof HTMLButtonElement) document.activeElement.click();
           else if (state.Enter && !last.Enter && document.activeElement instanceof HTMLSelectElement) openChoices(document.activeElement);
           else if ((state.ArrowRight && !last.ArrowRight || state.ArrowLeft && !last.ArrowLeft) && document.activeElement instanceof HTMLSelectElement) {
@@ -74,6 +95,8 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
             select.selectedIndex = Math.max(0, Math.min(select.options.length - 1, select.selectedIndex + (state.ArrowRight ? 1 : -1)));
             select.dispatchEvent(new Event("change", { bubbles: true }));
           }
+          else if (state.ArrowRight && !last.ArrowRight) navigate("right");
+          else if (state.ArrowLeft && !last.ArrowLeft) navigate("left");
         }
         last = state;
       }

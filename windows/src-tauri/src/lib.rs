@@ -9399,6 +9399,7 @@ pub(crate) fn finish_stream_session(window: tauri::Window, provider: &str, mut c
     }
     unsafe { let _ = ShowWindow(ours, SW_SHOW); }
     focus_external_window(ours);
+    fse_watcher::focus_foreground_webview(window.app_handle());
     fse_watcher::force_webview_resume(window.app_handle().clone());
 }
 

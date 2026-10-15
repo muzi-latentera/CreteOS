@@ -600,12 +600,13 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
                 Err(_) => { super::fse_watcher::log_stream_transition(window.app_handle(), "host-artwork-unavailable"); None },
             }
         } else { None };
-        let mut client = std::process::Command::new(client_path("moonlight")?).args(["stream", &profile.host, &app_name,
+        let client = std::process::Command::new(client_path("moonlight")?).args(["stream", &profile.host, &app_name,
             "--resolution", &profile.resolution, "--fps", &profile.fps.to_string(), "--bitrate", &profile.bitrate.to_string(),
             "--video-codec", &profile.codec, "--display-mode", "borderless", "--quit-after"]).spawn().map_err(|e| {
                 if let Some(token) = &presentation { finish_host_presentation(&profile.host, token); }
                 e.to_string()
             })?;
+        let client = std::sync::Arc::new(std::sync::Mutex::new(client));
         let monitor_active = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         if let Some(id) = &steam_id { watch_host_game_window(window.clone(), profile.host.clone(), id.clone(), presentation.clone(), generation, monitor_active.clone()); }
         let launch_result = if let Some(id) = &steam_id {
@@ -617,7 +618,10 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         std::thread::spawn(move || {
             if let Some(id) = steam_id {
                 let exit_confirmed = std::sync::atomic::AtomicBool::new(false);
-                let ended = super::moondeck::watch_exit(&profile.host, &id, started, || session_current(generation), || {
+                // A failed/disconnected client can exit before Buddy ever
+                // observes Running. Stop watching it too, rather than waiting
+                // for a remote game event while the handheld has lost focus.
+                let ended = super::moondeck::watch_exit(&profile.host, &id, started, || session_current(generation) && client.lock().is_ok_and(|mut child| child.try_wait().ok().flatten().is_none()), || {
                     exit_confirmed.store(true, Ordering::SeqCst);
                     begin_return(&window, "moonlight", generation);
                 }, |phase| super::fse_watcher::log_stream_transition(window.app_handle(), phase));
@@ -625,8 +629,8 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
                 // A lost host end request must not strand an owned Moonlight
                 // window after the exact game has exited. Use normal WM_CLOSE;
                 // --quit-after performs Moonlight's own session cleanup.
-                if exit_confirmed.load(Ordering::SeqCst) && session_current(generation) && client.try_wait().ok().flatten().is_none() {
-                    super::close_owned_moonlight_client(client.id(), || session_current(generation));
+                if exit_confirmed.load(Ordering::SeqCst) && session_current(generation) && client.lock().is_ok_and(|mut child| child.try_wait().ok().flatten().is_none()) {
+                    if let Ok(child) = client.lock() { super::close_owned_moonlight_client(child.id(), || session_current(generation)); }
                     super::fse_watcher::log_stream_transition(window.app_handle(), "moonlight-owned-close-requested");
                 }
                 if !ended { end_return(&window, "moonlight", generation); }
@@ -635,7 +639,7 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
             // for this launched child only; never terminate a shared client.
             let start = std::time::Instant::now();
             while session_current(generation) && start.elapsed() < std::time::Duration::from_secs(86400) {
-                if client.try_wait().ok().flatten().is_some() {
+                if client.lock().is_ok_and(|mut child| child.try_wait().ok().flatten().is_some()) {
                     if let Some(token) = &presentation { finish_host_presentation(&profile.host, token); }
                     if session_current(generation) { super::finish_stream_session(window.clone(), "moonlight", || session_current(generation)); }
                     end_return(&window, "moonlight", generation);
