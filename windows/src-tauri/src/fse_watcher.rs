@@ -1603,6 +1603,13 @@ pub(crate) fn prepare_stream_return(app: &AppHandle) {
     let _ = app.emit("fse:gpu-resumed", ());
 }
 
+pub(crate) fn log_stream_transition(app: &AppHandle, phase: &str) {
+    #[cfg(windows)]
+    if let Some(hwnd) = main_window_hwnd(app) {
+        fse_log(&format!("stream[{phase}]: {}", window_snapshot(app, hwnd)));
+    }
+}
+
 // Frontend watchdog escape hatch. requestAnimationFrame staying silent is a
 // weak signal, but when the frontend does report it we run the same
 // screen-probed ladder as the game-exit path instead of one blind resume.

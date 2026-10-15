@@ -28,7 +28,22 @@
     "failed": "Error al iniciar",
     "gotIt": "Entendido / B",
     "tryFocusAgain": "Intentar enfocar de nuevo",
-    "dismiss": "Cerrar  ·  B"
+    "dismiss": "Cerrar  ·  B",
+    "fun0": "Contactando con el ordenador central…",
+    "fun1": "Pidiéndoselo amablemente a los servidores…",
+    "fun2": "Despertando a los duendes de los píxeles…",
+    "fun3": "Desenredando cables imaginarios…",
+    "fun4": "Dando ánimos a los píxeles…",
+    "fun5": "Mirando detrás de la puerta secreta…",
+    "fun6": "Puliendo los botones virtuales…",
+    "fun7": "Pidiendo prestada un poco de luz de luna…",
+    "fun8": "Haciendo sitio para otra aventura…",
+    "fun9": "Negociando con la barra de carga…",
+    "fun10": "Tirando los dados para un aterrizaje suave…",
+    "fun11": "Invocando los buenos gráficos…",
+    "fun12": "Agitando la bola de nieve digital…",
+    "fun13": "Enviando un paquete con palabras muy serias…",
+    "fun14": "Dedos cruzados. Mando listo."
   },
   "splash": {
     "status": {

@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import type { App } from "../../types";
 import { useTranslation } from "react-i18next";
 import { getBestGamepad, readGpState } from "../../utils/gamepad";
+import { LaunchMessages } from "./LaunchMessages";
 
 type Provider = "moonlight" | "geforceNow";
 type Cover = { app: App; returning?: boolean } | null;
@@ -71,7 +72,7 @@ export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (disposed || ticket !== returnTicket.current) return;
         void invoke<boolean>("present_stream_return_cover", { provider: event.payload.provider, session: event.payload.session })
-          .then(shown => { if (!shown && ticket === returnTicket.current) setCover(previous => previous?.returning ? null : previous); })
+          .then(() => { if (ticket === returnTicket.current) setCover(previous => previous?.returning ? null : previous); })
           .catch(() => { if (ticket === returnTicket.current) setCover(previous => previous?.returning ? null : previous); });
       }));
     });
@@ -96,7 +97,6 @@ export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<
   if (!cover) return null;
   const art = customHeroArt[cover.app.id] || heroArt[cover.app.id];
   return <div data-stream-launch-cover="" role="status" aria-label={t("launch.launching")} style={{ position: "fixed", inset: 0, zIndex: 10000, display: "grid", placeContent: "center", background: art ? `linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.4)),url(${JSON.stringify(art)}) center/cover` : "rgba(10,13,16,.92)" }}>
-    <style>{"@keyframes creteLaunchSpinner { to { transform:rotate(360deg) } }"}</style>
-    <span aria-hidden="true" style={{ width: 42, height: 42, borderRadius: "50%", border: "3px solid rgba(242,234,219,.18)", borderTopColor: "rgba(242,234,219,.7)", animation: "creteLaunchSpinner 1s linear infinite" }} />
+    <LaunchMessages />
   </div>;
 }

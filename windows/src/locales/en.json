@@ -28,7 +28,22 @@
     "failed": "Failed to launch",
     "gotIt": "Got it / B",
     "tryFocusAgain": "Try to focus again",
-    "dismiss": "Dismiss  ·  B"
+    "dismiss": "Dismiss  ·  B",
+    "fun0": "Contacting the mainframe…",
+    "fun1": "Asking the servers nicely…",
+    "fun2": "Waking the pixel gremlins…",
+    "fun3": "Untangling imaginary cables…",
+    "fun4": "Giving the pixels a pep talk…",
+    "fun5": "Checking behind the secret door…",
+    "fun6": "Polishing the virtual buttons…",
+    "fun7": "Borrowing a little moonlight…",
+    "fun8": "Making room for one more adventure…",
+    "fun9": "Negotiating with the loading bar…",
+    "fun10": "Rolling for a smooth landing…",
+    "fun11": "Summoning the good graphics…",
+    "fun12": "Shaking the digital snow globe…",
+    "fun13": "Sending a strongly worded packet…",
+    "fun14": "Fingers crossed. Controller ready."
   },
   "splash": {
     "status": {

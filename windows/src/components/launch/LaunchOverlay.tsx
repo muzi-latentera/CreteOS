@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { LaunchMessages } from "./LaunchMessages";
 import type { AccentColors, App } from "../../types";
 import { isHttpLaunchPath } from "../../utils/appDetails";
 import { getBestGamepad, readGpState, shouldHandleDirectionRepeat, rumble, type GpState } from "../../utils/gamepad";
@@ -302,8 +303,7 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
   };
 
   if (minimal && (isBusy || status === "focused")) return <div data-game-launch-cover="" role="status" aria-label={t("launch.launching")} style={{ position: "fixed", inset: 0, zIndex: 9000, display: "grid", placeContent: "center", background: heroArt ? `linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.4)),url(${JSON.stringify(heroArt)}) center/cover` : "rgba(10,13,16,.92)" }}>
-    <style>{"@keyframes creteGameLaunchSpinner { to { transform:rotate(360deg) } }"}</style>
-    <span aria-hidden="true" style={{ width: 42, height: 42, borderRadius: "50%", border: "3px solid rgba(242,234,219,.18)", borderTopColor: "rgba(242,234,219,.7)", animation: "creteGameLaunchSpinner 1s linear infinite" }} />
+    <LaunchMessages />
   </div>;
   return (
     <div className="launch-overlay" style={{ position: "fixed", inset: 0, zIndex: 9000, background: heroArt ? `linear-gradient(rgba(0,0,0,.35),rgba(0,0,0,.8)),url(${JSON.stringify(heroArt)}) center/cover` : "rgba(0,0,0,0.88)", opacity: status === "focused" ? 0 : 1, transition: "opacity 650ms ease", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20 }}>

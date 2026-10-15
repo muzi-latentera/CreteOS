@@ -25,17 +25,19 @@ beforeEach(async () => {
   invoke.mockClear();
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.useRealTimers(); vi.unstubAllGlobals(); });
-it("paints the game's artwork before presenting the return window, then clears it after exit", async () => {
+it("paints artwork before returning, then unlocks CreteOS while the client closes behind it", async () => {
   await phase("ending");
   expect(container.querySelector("[data-stream-launch-cover]")).not.toBeNull();
   expect(container.textContent).not.toContain("Resident Evil");
   expect(invoke).not.toHaveBeenCalledWith("present_stream_return_cover", expect.anything());
   await act(async () => { await vi.advanceTimersByTimeAsync(50); });
   expect(invoke).toHaveBeenCalledWith("present_stream_return_cover", { provider: "moonlight", session: 1 });
+  expect(container.querySelector("[data-stream-launch-cover]")).toBeNull();
   await phase("ended");
   expect(container.querySelector("[data-stream-launch-cover]")).toBeNull();
 });
 it("ignores a stale end event and fails open if the client never completes", async () => {
+  invoke.mockImplementation(async command => { if (command === "present_stream_return_cover") await new Promise(() => {}); return true; });
   await phase("ending", 2);
   await phase("ended", 1);
   expect(container.querySelector("[data-stream-launch-cover]")).not.toBeNull();

@@ -9410,14 +9410,54 @@ async fn wait_stream_window(provider: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
-fn focus_stream_window(app_handle: tauri::AppHandle, window: tauri::Window, provider: String) -> Result<(), String> {
-    let target = stream_window(&provider).ok_or("The streaming window closed before handoff")?;
-    // The web cover remains opaque until this command returns. Release our
-    // topmost flag and put the destination in front before clearing that cover.
-    launch_cover::set_launch_cover(window, false, None, None)?;
-    focus_external_window(windows::Win32::Foundation::HWND(target.hwnd as _));
-    if unsafe { GetForegroundWindow().0 as isize } != target.hwnd { return Err("Could not bring the streaming app forward. Open it from the taskbar.".into()); }
-    if load_settings_inner().hide_on_launch { fse_watcher::start_gpu_release_watch(app_handle, OUR_HWND.load(Ordering::Relaxed), Some(target.hwnd)); }
+async fn focus_stream_window(window: tauri::Window, provider: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let target = stream_window(&provider).ok_or("The streaming window closed before handoff")?;
+        let ours = window.hwnd().map_err(|e| e.to_string())?.0 as isize;
+        // Keep the renderer alive for streaming clients. Suspending it directly
+        // after SetForegroundWindow left a black CreteOS surface if FSE bounced
+        // the foreground back. Native games retain their existing GPU policy.
+        fse_watcher::prepare_stream_return(window.app_handle());
+        window.set_decorations(false).map_err(|e| e.to_string())?;
+        fse_watcher::keep_main_borderless(window.app_handle());
+        launch_cover::set_launch_cover(window.clone(), false, None, None)?;
+        fse_watcher::log_stream_transition(window.app_handle(), "handoff-start");
+        let start = Instant::now();
+        let mut stable_since = None;
+        while start.elapsed() < Duration::from_secs(3) {
+            let foreground = unsafe { GetForegroundWindow() }.0 as isize;
+            if foreground == target.hwnd {
+                let stable = stable_since.get_or_insert_with(Instant::now);
+                if stable.elapsed() >= Duration::from_millis(500) {
+                    fse_watcher::log_stream_transition(window.app_handle(), "handoff-stable");
+                    return Ok(());
+                }
+            } else {
+                stable_since = None;
+                // Retry only while our own surface/client owns the transition.
+                // Deliberate Alt-Tab must not start a foreground tug-of-war.
+                if foreground != ours && foreground != 0 && !can_return_from_stream(&window, &provider) && !foreground_is_desktop() {
+                    return Err("Streaming started; you switched to another app. Return to the stream when ready.".into());
+                }
+                focus_external_window(windows::Win32::Foundation::HWND(target.hwnd as _));
+            }
+            fse_watcher::keep_main_borderless(window.app_handle());
+            std::thread::sleep(Duration::from_millis(75));
+        }
+        fse_watcher::log_stream_transition(window.app_handle(), "handoff-not-stable");
+        Err("The stream is running, but Windows did not keep it in front. Open Moonlight or GeForce NOW from the task switcher.".into())
+    }).await.map_err(|e| e.to_string())?
+}
+
+pub(crate) fn show_stream_return(window: &tauri::Window) -> Result<(), String> {
+    window.set_decorations(false).map_err(|e| e.to_string())?;
+    fse_watcher::keep_main_borderless(window.app_handle());
+    let ours = window.hwnd().map_err(|e| e.to_string())?;
+    focus_external_window(ours);
+    fse_watcher::log_stream_transition(window.app_handle(), "return-to-crete");
+    if unsafe { GetForegroundWindow() } != ours {
+        return Err("Windows did not bring CreteOS forward. Return using the task switcher.".into());
+    }
     Ok(())
 }
 

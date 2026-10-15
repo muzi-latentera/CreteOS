@@ -35,6 +35,11 @@ pub fn present_stream_return_cover(window: tauri::Window, provider: String, sess
     // request originating from our own foreground stream can reach this point.
     if !super::can_return_from_stream(&window, &provider) && !super::foreground_is_desktop() { return Ok(false); }
     super::launch_cover::set_launch_cover(window.clone(), true, None, Some(provider))?;
+    let foreground_result = super::show_stream_return(&window);
+    // The game has exited. Return to the usable launcher now; the tracked
+    // client can finish its normal shutdown behind it without a modal wait.
+    super::launch_cover::set_launch_cover(window.clone(), false, None, None)?;
+    foreground_result?;
     Ok(true)
 }
 

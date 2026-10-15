@@ -28,7 +28,22 @@
     "gotIt": "Compris / B",
     "tryFocusAgain": "Essayer de focaliser",
     "failed": "Échec du lancement",
-    "dismiss": "Ignorer  ·  B"
+    "dismiss": "Ignorer  ·  B",
+    "fun0": "Connexion au grand ordinateur…",
+    "fun1": "On demande gentiment aux serveurs…",
+    "fun2": "Réveil des lutins des pixels…",
+    "fun3": "Démêlage des câbles imaginaires…",
+    "fun4": "Petit discours de motivation aux pixels…",
+    "fun5": "On regarde derrière la porte secrète…",
+    "fun6": "On fait briller les boutons virtuels…",
+    "fun7": "Emprunt d’un peu de clair de lune…",
+    "fun8": "On fait de la place pour une aventure…",
+    "fun9": "Négociation avec la barre de chargement…",
+    "fun10": "Un jet de dés pour un atterrissage en douceur…",
+    "fun11": "Invocation des beaux graphismes…",
+    "fun12": "On secoue la boule à neige numérique…",
+    "fun13": "Envoi d’un paquet au ton ferme…",
+    "fun14": "On croise les doigts. Manette prête."
   },
   "splash": {
     "status": {
