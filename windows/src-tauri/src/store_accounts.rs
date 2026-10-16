@@ -164,15 +164,38 @@ fn epic_records(assets: &Value, library: Vec<Value>) -> Result<Vec<Value>, Strin
     records.retain(|v| v["appName"].as_str().is_some_and(|id| id != "1" && seen.insert(id.to_ascii_lowercase())));
     Ok(records)
 }
-fn fetch_library(store: Store, session: &Session) -> Result<Vec<OwnedGame>, String> {
+fn check_generation(store: Store, generation: u64) -> Result<(), String> {
+    if store.generation().load(Ordering::SeqCst) != generation { Err("Account operation cancelled".into()) } else { Ok(()) }
+}
+fn epic_metadata(c: &reqwest::blocking::Client, access: &str, namespace: &str, items: &[Value], generation: u64) -> Result<Vec<OwnedGame>, String> {
+    let mut games = Vec::new();
+    for chunk in items.chunks(50) {
+        check_generation(Store::Epic, generation)?;
+        let ids = chunk.iter().filter_map(|v| v["catalogItemId"].as_str().map(|id| ("id", id))).collect::<Vec<_>>();
+        let data = response(c.get(format!("https://catalog-public-service-prod06.ol.epicgames.com/catalog/api/shared/namespace/{namespace}/bulk/items")).bearer_auth(access)
+            .query(&ids).query(&[("includeDLCDetails", "true"), ("includeMainGameDetails", "true"), ("locale", "en"), ("country", "GB")]))?;
+        for item in chunk {
+            let id = item["catalogItemId"].as_str().unwrap_or_default();
+            let meta = data.get(id).filter(|m| m.is_object()).ok_or("Epic game metadata is temporarily unavailable. Your saved library was kept.")?;
+            if let Some(game) = epic_game(item, meta) { games.push(game); }
+        }
+    }
+    Ok(games)
+}
+fn fetch_library(store: Store, session: &Session, generation: u64) -> Result<Vec<OwnedGame>, String> {
     let c = client()?; let mut games = Vec::new();
+    check_generation(store, generation)?;
     if store == Store::Gog {
-        games = gog_pages(|page| response(c.get("https://embed.gog.com/account/getFilteredProducts").bearer_auth(&session.access).query(&[("mediaType", "1".to_string()), ("page", page.to_string())])))?;
+        games = gog_pages(|page| {
+            check_generation(store, generation)?;
+            response(c.get("https://embed.gog.com/account/getFilteredProducts").bearer_auth(&session.access).query(&[("mediaType", "1".to_string()), ("page", page.to_string())]))
+        })?;
     } else {
         // Assets contain ordinary owned Windows games; the paginated library adds
         // titles without downloadable assets. Neither feed alone is complete.
         let assets = response(c.get("https://launcher-public-service-prod06.ol.epicgames.com/launcher/api/public/assets/Windows").bearer_auth(&session.access).query(&[("label", "Live")]))?;
         let library = epic_pages(|cursor| {
+            check_generation(store, generation)?;
             let mut request = c.get("https://library-service.live.use1a.on.epicgames.com/library/api/public/items").bearer_auth(&session.access).query(&[("includeMetadata", "true")]);
             if !cursor.is_empty() { request = request.query(&[("cursor", cursor)]); }
             response(request)
@@ -187,17 +210,17 @@ fn fetch_library(store: Store, session: &Session) -> Result<Vec<OwnedGame>, Stri
                 if safe_id(ns) && safe_id(id) && safe_id(app) { groups.entry(ns.to_string()).or_default().push(item); }
             }
         }
-        for (namespace, items) in groups {
-            for chunk in items.chunks(50) {
-                let ids = chunk.iter().filter_map(|v| v["catalogItemId"].as_str().map(|id| ("id", id))).collect::<Vec<_>>();
-                let data = response(c.get(format!("https://catalog-public-service-prod06.ol.epicgames.com/catalog/api/shared/namespace/{namespace}/bulk/items")).bearer_auth(&session.access)
-                    .query(&ids).query(&[("includeDLCDetails", "true"), ("includeMainGameDetails", "true"), ("locale", "en"), ("country", "GB")]))?;
-                for item in chunk {
-                    let id = item["catalogItemId"].as_str().unwrap_or_default();
-                    let meta = data.get(id).filter(|m| m.is_object()).ok_or("Epic game metadata is temporarily unavailable. Your saved library was kept.")?;
-                    if let Some(game) = epic_game(item, meta) { games.push(game); }
-                }
-            }
+        let groups = groups.into_iter().collect::<Vec<_>>();
+        // A large claimed/free-game library can span hundreds of namespaces.
+        // Bound concurrency without serializing one round trip per owned game.
+        for batch in groups.chunks(8) {
+            check_generation(store, generation)?;
+            let client = &c;
+            let results = std::thread::scope(|scope| {
+                let tasks = batch.iter().map(|(namespace, items)| scope.spawn(move || epic_metadata(client, &session.access, namespace, items, generation))).collect::<Vec<_>>();
+                tasks.into_iter().map(|task| task.join().map_err(|_| "Epic metadata request could not finish".to_string())?).collect::<Result<Vec<_>, String>>()
+            })?;
+            for result in results { games.extend(result); }
         }
     }
     let mut seen = HashSet::new(); games.retain(|g| seen.insert(g.id.to_ascii_lowercase()));
@@ -304,7 +327,7 @@ pub async fn store_account_connect(app: tauri::AppHandle, source: String) -> Res
             let code = authorize(&app, store)?;
             let _guard = store.lock().lock().map_err(|_| "Account is busy")?;
             let session = exchange(store, "authorization_code", &code)?;
-            let games = fetch_library(store, &session)?;
+            let games = fetch_library(store, &session, generation)?;
             if store.generation().load(Ordering::SeqCst) != generation { return Err("Sign-in cancelled".into()); }
             store.key()?.set_password(&session.refresh).map_err(|_| "Could not securely save the store session")?;
             persist(store, &Library { account_id: session.account_id, account_name: session.account_name, updated_at: now(), games })?;
@@ -327,7 +350,7 @@ pub async fn store_account_refresh(app: tauri::AppHandle, source: String, force:
         // Save token rotation even if a later library page fails, keeping the old catalogue.
         if store.generation().load(Ordering::SeqCst) != generation { return Err("Account disconnected".into()); }
         store.key()?.set_password(&session.refresh).map_err(|_| "Could not securely renew the store session")?;
-        let games = fetch_library(store, &session)?;
+        let games = fetch_library(store, &session, generation)?;
         if store.generation().load(Ordering::SeqCst) != generation { return Err("Account disconnected".into()); }
         persist(store, &Library { account_id: session.account_id, account_name: session.account_name, updated_at: now(), games })?;
         notify(&app); Ok(status(store))
