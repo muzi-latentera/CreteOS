@@ -11,7 +11,7 @@ export function gameEdition(name: string) {
     [/[\s:–—-]+(?:the\s+)?(?:remastered|remaster)(?:\s+edition)?$/i, 4],
     [/[\s:–—-]+(?:the\s+)?definitive edition$/i, 5],
     [/[\s:–—-]+(?:the\s+)?(?:complete|ultimate|game of the year|goty|gold) edition$/i, 3],
-    [/[\s:–—-]+(?:the\s+)?(?:deluxe|enhanced|enchanted) edition$/i, 2],
+    [/[\s:–—-]+(?:the\s+)?(?:deluxe|enhanced|enchanted|special|voidheart) edition$/i, 2],
     [/[\s:–—-]+(?:the\s+)?(?:director's cut|final cut|complete story|20 year celebration)$/i, 2],
   ];
   let changed = true;

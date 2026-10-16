@@ -4,7 +4,7 @@ The Library presents one preferred copy within the selected source/availability
 filter. Recognized better editions win before store preference; Steam wins ties.
 For example, Steam BioShock 2 Remastered replaces original BioShock 2 and the
 Epic remaster, while Epic BioShock Infinite Complete Edition beats Steam standard.
-Definitive/remastered and complete/ultimate/GOTY/gold/deluxe/enhanced suffixes are
+Definitive/remastered and complete/ultimate/GOTY/gold/deluxe/enhanced/special/voidheart suffixes are
 recognized conservatively. Sequel numbers, years, remakes, demos and DLC stay
 distinct. Ambiguous same-store releases are retained rather than silently merged.
 

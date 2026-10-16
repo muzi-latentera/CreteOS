@@ -9,6 +9,8 @@ it("prefers remastered over original and Steam for the same edition", () => {
 it("prefers Complete on Epic over standard Steam and Steam over Xbox on ties", () => {
  expect(preferGameEditions([game("a","BioShock Infinite","steam"),game("b","BioShock Infinite: Complete Edition","epic")])[0].id).toBe("b");
  expect(preferGameEditions([game("a","BioShock Infinite","xbox"),game("b","BioShock Infinite","steam")])[0].id).toBe("b");
+ expect(preferGameEditions([game("a","The Elder Scrolls V: Skyrim","steam"),game("b","The Elder Scrolls V: Skyrim Special Edition","steam")])[0].id).toBe("b");
+ expect(preferGameEditions([game("a","Hollow Knight","steam"),game("b","Hollow Knight: Voidheart Edition","xbox"),game("c","Hollow Knight","xbox")])[0].id).toBe("b");
 });
 it("keeps sequels, years, remakes and ambiguous same-store releases separate", () => {
  const names=["BioShock","BioShock 2","Resident Evil 4 (2005)","Resident Evil 4","Final Fantasy VII","Final Fantasy VII Remake","Prey","PREY"];
