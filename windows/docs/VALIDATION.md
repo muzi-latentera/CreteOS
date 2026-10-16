@@ -12,13 +12,17 @@ The GPD user rejected 8a44b8b: moving the browser sampler off animation frames d
 
 A separate regression reproduces a navigation-state bug: four commands before React commits advance only one card. Home/Library selection and picker state now advance synchronously, and each mounted view has its own navigation delegate selected from the current tab reference. The regression covers batched keyboard directions and actual mapped gamepad edges across multiple bumper changes followed immediately by directional input. Mocked checks do not establish physical responsiveness; repeat the rapid-tap sequence on the installed candidate before accepting this fix.
 
-## Initial verification
-
 ## 2026-10-16 physical focus-loop investigation
 
 Paired capture on diagnostic build be6b4de recorded 88 native directional/bumper presses with CreteOS foreground, but only 55 browser press edges. All 55 reached dispatch and the main handler; none were suppressed or blocked. Native child focus changed 2,083 times during the input window between the WebView renderer and its host, accompanied by document-focus changes. Several entirely unread presses lasted 65–114 ms. This establishes an input loss before navigation, rather than merely a delayed CSS highlight.
 
 Remove the unconditional WebView2 MoveFocus call from the main window's Focused(true) event. Ordinary activation belongs to Tauri/WebView2; repeating that transfer in response to focus notifications can create a feedback loop. Explicit stream-return and display-topology recovery still repair embedded focus, with the existing foreground check protecting deliberate Alt-Tab. No sampling interval, repeat timing, CSS or selection behavior changes in this candidate. The callback's causal role and physical responsiveness require the same paired hardware capture after installation; automated checks cannot establish success.
+
+Follow-up physical acceptance on e5c65e8: all54native presses reached browser samples, mapped edges, dispatch and main routing; all33directional presses changed selection. Zero child-focus changes occurred during the sequence. Muzi confirms it felt much better. This accepts the built-in-controller sequence, not every future stream-return, dock or external-controller case.
+
+The independent maintenance follow-up separates the data refresh from foreground return artwork, updates the display-scale recommendation after resize without changing a saved scale, and refreshes visible Microsoft progress after return while preserving offline reads. Hook tests cover quiet refresh without an artwork event, offline deferral, session deduplication, delayed refresh cleanup, display-change recommendations preserving a chosen scale, and late Xbox responses not replacing another game's progress. A targeted browser check sends the native session-ended event and verifies Library selection/input survive the quiet scan. Native compilation and actual provider/display checks are recorded separately from these mocks.
+
+## Initial verification
 
 Local verification on macOS, 2026-10-13, branch `codex/windows-liftoff`:
 

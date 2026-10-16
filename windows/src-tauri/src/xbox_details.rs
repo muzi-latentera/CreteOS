@@ -8,13 +8,16 @@ pub fn title(game_name: &str) -> Result<Value, String> {
     title_with_policy(game_name, false)
 }
 fn title_with_policy(game_name: &str, offline: bool) -> Result<Value, String> {
+    title_with_freshness(game_name, offline, 86400)
+}
+fn title_with_freshness(game_name: &str, offline: bool, max_age: u64) -> Result<Value, String> {
     let _lock = FETCH.lock().map_err(|_| "Xbox details cache unavailable")?;
     let account = crate::load_xbox_account_meta().ok_or("Connect your Microsoft account first")?;
     if account.xuid.is_empty() || !account.xuid.bytes().all(|b| b.is_ascii_digit()) { return Err("Connect your Microsoft account first".into()); }
     let path = crate::liftoff_dir().join("xbox_title_details").join(format!("{}.json", account.xuid));
     let cached = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok());
     let find = |body: &Value| body["titles"].as_array().and_then(|titles| titles.iter().find(|t| t["name"].as_str().map(normalized) == Some(normalized(game_name)))).cloned();
-    if let Some(ref cache) = cached { if offline || now().saturating_sub(cache["fetchedAt"].as_u64().unwrap_or(0)) < 86400 { return find(cache).ok_or("This title is not in your Xbox history".into()); } }
+    if let Some(ref cache) = cached { if offline || now().saturating_sub(cache["fetchedAt"].as_u64().unwrap_or(0)) < max_age { return find(cache).ok_or("This title is not in your Xbox history".into()); } }
     if offline { return Err("Xbox details have not been saved for offline use yet".into()); }
     let fresh = (|| {
         let (token, userhash, _, xuid) = crate::xbox_xsts_from_refresh()?;
@@ -54,11 +57,14 @@ fn played_minutes(value: &Value) -> Option<f64> {
     }
 }
 #[tauri::command]
-pub async fn get_xbox_game_progress(game_name: String, offline: Option<bool>) -> Result<XboxProgress, String> {
+pub async fn get_xbox_game_progress(game_name: String, offline: Option<bool>, refresh: Option<bool>) -> Result<XboxProgress, String> {
     if game_name.is_empty() || game_name.len() > 240 { return Err("Invalid game title".into()); }
     tauri::async_runtime::spawn_blocking(move || {
         let offline = offline.unwrap_or(false);
-        let title = title_with_policy(&game_name, offline)?;
+        // Keep daily caching for ordinary browsing. A return from gameplay can
+        // refresh totals, with a small cache window to coalesce visible panels.
+        let max_age = if refresh.unwrap_or(false) { 10 } else { 86400 };
+        let title = title_with_freshness(&game_name, offline, max_age)?;
         let achievement = &title["achievement"];
         let minutes = title.pointer("/stats/minutesPlayed").and_then(Value::as_f64);
         let mut progress = XboxProgress { minutes, earned: achievement["currentAchievements"].as_u64(), total: achievement["totalAchievements"].as_u64().filter(|v| *v > 0),
@@ -68,7 +74,7 @@ pub async fn get_xbox_game_progress(game_name: String, offline: Option<bool>) ->
         if !id.bytes().all(|b| b.is_ascii_digit()) || id.len() > 12 { return Err("Invalid Xbox title ID".into()); }
         let path = crate::liftoff_dir().join("xbox_progress").join(&account.xuid).join(format!("{id}.json"));
         let cached = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok());
-        if let Some(ref cache) = cached { if offline || now().saturating_sub(cache["fetchedAt"].as_u64().unwrap_or(0)) < 86400 { return serde_json::from_value(cache["progress"].clone()).map_err(|_| "Invalid cached Xbox progress".into()); } }
+        if let Some(ref cache) = cached { if offline || now().saturating_sub(cache["fetchedAt"].as_u64().unwrap_or(0)) < max_age { return serde_json::from_value(cache["progress"].clone()).map_err(|_| "Invalid cached Xbox progress".into()); } }
         if offline { return Ok(progress); }
         // MinutesPlayed belongs to the game's statistics service configuration,
         // not its Microsoft Store product ID. Obtain that SCID from achievements.
