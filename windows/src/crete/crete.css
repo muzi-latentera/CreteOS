@@ -126,7 +126,7 @@
 .crete-launch-spinner { width:26px; height:26px; border:3px solid #b8bec326; border-top-color:#b8bec3a6; border-radius:50%; animation:crete-launch-spin .8s linear infinite; }
 @keyframes crete-launch-spin { to { transform:rotate(360deg); } }
 @media(prefers-reduced-motion:reduce) { .crete-launch-spinner { animation:none; } }
-.crete-launch-popover { position: absolute; z-index: 60; top: calc(100% + 8px); left: 0; width: 290px; max-width:calc(100vw - 32px); box-sizing:border-box; padding: 8px; border: 1px solid #ffffff28; border-radius: 12px; background: #12161b; box-shadow: 0 16px 40px #0008; }
+.crete-launch-popover { position: absolute; z-index: 60; top: calc(100% + 8px); left: 0; width: 290px; max-width:calc(100vw - 32px); max-height:min(50vh,360px); overflow-y:auto; box-sizing:border-box; padding: 8px; border: 1px solid #ffffff28; border-radius: 12px; background: #12161b; box-shadow: 0 16px 40px #0008; }
 .crete-launch-popover button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; padding: 10px 14px; border: 0; border-radius: 6px; background: transparent; color: #eee8da; text-align: left; font-size: 16px; }
 .crete-launch-popover button:is(:hover,:focus) { background: #ffffff12; outline: 2px solid #d6aa4f; }
 .crete-launch-popover button:disabled { opacity: .45; }
