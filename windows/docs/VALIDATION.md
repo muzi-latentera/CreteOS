@@ -1,5 +1,11 @@
 # Windows fork validation
 
+## Opt-in physical input diagnostics
+
+Both 8a44b8b and 9bd237d failed the user's physical rapid-input acceptance. The latter corrected a reproducible batched-state bug, but did not resolve the reported experience. Do not claim the cause is established.
+
+An expiring `CreteOS-Bootstrap/diagnostics/input-request.json` under LOCALAPPDATA enables a bounded recording (at most ten minutes / 8 MiB). It records browser samples, mapped press/release edges and suppression, dispatch, handler/view routing, selection state, DOM-selected elements, geometry/CSS animations, frame opportunities and long tasks. An independent native XInput capture must run concurrently with wall-clock timestamps to find the first disagreement. No navigation, repeat, focus, scrolling or animation behavior is changed. Trace output is disabled without a valid request. Writes happen in batches, outside the polling path. Geometry reads and instrumentation add some overhead; compare event counts first and treat frame timings as instrumented observations. A paint opportunity is not proof that pixels reached the physical display.
+
 ## 2026-10-16 rapid-input follow-up
 
 The GPD user rejected 8a44b8b: moving the browser sampler off animation frames did not improve physical rapid taps. An independent Windows XInput capture then recorded all ten Right and ten Left press/release cycles, plus nine presses of each bumper, with CreteOS in the foreground. This does not measure which edges WebView2 received.

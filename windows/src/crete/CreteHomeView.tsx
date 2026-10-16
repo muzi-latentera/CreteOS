@@ -53,10 +53,10 @@ export function CreteHomeView(p: CreteHomeProps) {
     ...(p.settings.home_pinned_pos !== "top" && pinned.length ? [{ id: "pinned", name: text("Pinned"), items: pinned }] : []),
   ];
   const rowSignature = rows.map(row => `${row.id}:${row.items.map(app => app.id).join(",")}`).join(";");
-  const [selection, setSelection, selectionRef] = useNavigationState<{ row: string; id: string } | null>(null);
+  const [selection, setSelection, selectionRef] = useNavigationState<{ row: string; id: string } | null>(null, "Home.selection");
   const [launchError, setLaunchError] = useState<string | null>(null);
   const news = useNews(p.active);
-  const [newsIndex, setNewsIndex, newsIndexRef] = useNavigationState(-1);
+  const [newsIndex, setNewsIndex, newsIndexRef] = useNavigationState(-1, "Home.newsIndex");
   const onNews = newsIndex >= 0 && news.length > 0;
   const rowIndex = selection ? rows.findIndex(row => row.id === selection.row) : -1;
   const selectedRow = rows[rowIndex];
@@ -124,7 +124,7 @@ export function CreteHomeView(p: CreteHomeProps) {
     }
     if (key === "Enter") { if (selected) open(selected); else p.onLibrary(); return true; }
     return ["ArrowLeft", "ArrowRight"].includes(key);
-  });
+  }, "Home");
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;

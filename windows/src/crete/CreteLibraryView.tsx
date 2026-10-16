@@ -38,11 +38,11 @@ export function CreteLibraryView(p: CreteLibraryProps) {
   const [availability, setAvailability] = useState<Availability>("all");
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
-  const [searching, setSearching, searchingRef] = useNavigationState(false);
-  const [popup, setPopup, popupRef] = useNavigationState<"sources" | "sort" | null>(null);
-  const [popupIndex, setPopupIndex, popupIndexRef] = useNavigationState(0);
-  const [selectedId, setSelectedId, selectedIdRef] = useNavigationState<string | null>(null);
-  const [toolbarIndex, setToolbarIndex, toolbarIndexRef] = useNavigationState<number | null>(null);
+  const [searching, setSearching, searchingRef] = useNavigationState(false, `${p.tab}.searching`);
+  const [popup, setPopup, popupRef] = useNavigationState<"sources" | "sort" | null>(null, `${p.tab}.popup`);
+  const [popupIndex, setPopupIndex, popupIndexRef] = useNavigationState(0, `${p.tab}.popupIndex`);
+  const [selectedId, setSelectedId, selectedIdRef] = useNavigationState<string | null>(null, `${p.tab}.selectedId`);
+  const [toolbarIndex, setToolbarIndex, toolbarIndexRef] = useNavigationState<number | null>(null, `${p.tab}.toolbarIndex`);
   const inputRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const [cols, setCols] = useState(5);
@@ -105,7 +105,7 @@ export function CreteLibraryView(p: CreteLibraryProps) {
     const delta = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols } as Record<string, number>)[key];
     if (delta != null) { const next = items[Math.max(0, Math.min(items.length - 1, index + delta))]; if (next) setSelectedId(next.id); return true; }
     return false;
-  });
+  }, p.tab);
 
   useEffect(() => {
     const grid = gridRef.current;

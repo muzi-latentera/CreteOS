@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
 import { useControllerCursor } from "./hooks/useControllerCursor";
+import { inputTrace } from "./utils/inputDiagnostics";
 import { useTranslation } from "react-i18next";
 import i18n from "./i18n";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
@@ -3146,6 +3147,7 @@ export default function App() {
   const settingsValue = { settings, settingsRef, updateSetting, updateSettingsBatch };
   creteMainNavigationRef.current = resolvedTheme === "crete" ? (key) => {
     const currentTab = tabRef.current;
+    inputTrace("route", { key, tab: currentTab });
     if (key === "BumperLeft" || key === "BumperRight") {
       const tabs = ["Home", "Games", "Settings"];
       const i = currentTab === "Apps" ? 1 : Math.max(0, tabs.indexOf(currentTab));

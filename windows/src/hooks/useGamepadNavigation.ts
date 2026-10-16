@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { TFunction } from "i18next";
 import { invoke } from "@tauri-apps/api/core";
+import { inputTrace, inputTracePad, inputTracePoll, startInputDiagnostics } from "../utils/inputDiagnostics";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { App, Settings } from "../types";
@@ -801,6 +802,7 @@ export function useGamepadNavigation(
 
   // ── handleNav ─────────────────────────────────────────────────
   const handleNav = (key) => {
+    inputTrace("handler", { key, tab: tabRef.current, modalOwnsInput: modalOwnsInput(), contextMenu: !!contextMenuRef.current });
     // Onboarding owns its own poll and must never fall through to main nav.
     if (showOnboardingRef.current) return;
     if (showThemePickerRef.current) {
@@ -1732,9 +1734,13 @@ export function useGamepadNavigation(
 
   useEffect(() => {
     invoke("set_frontend_active", { active: true });
+    let disposed = false;
+    let stopDiagnostic = () => {};
+    void startInputDiagnostics().then(stop => { if (disposed) stop(); else stopDiagnostic = stop; });
     const REPEATABLE = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 
     const poll = (now: number) => {
+      inputTracePoll(now, document.hasFocus(), options.isReadyRef.current);
       // Skip all input processing when the window doesn't have focus.
       // navigator.getGamepads() is not focus-aware and would fire through games/overlays.
       if (!document.hasFocus()) {
@@ -1742,6 +1748,7 @@ export function useGamepadNavigation(
       }
 
       const gp = getActiveGamepad();
+      if (!gp || !options.isReadyRef.current) inputTracePad(gp);
       if (gp && options.isReadyRef.current) {
         // When the active controller changes, re-run platform auto-detection
         if (gp.index !== lastPolledGpIndex.current) {
@@ -1809,9 +1816,11 @@ export function useGamepadNavigation(
           // B edge closes the picker while the keyboard is consuming it.
           && !artPickerAppRef?.current;
 
+        inputTracePad(gp, state, canNavigate);
         Object.keys(state).forEach(key => {
           const pressed = state[key];
           const wasPressed = lastBtn.current[key];
+          if (pressed !== !!wasPressed) inputTrace("edge", { key, pressed, canNavigate, suppressed: !!suppressUntilRelease.current[key], tab: tabRef.current });
 
           if (suppressUntilRelease.current[key]) {
             if (!pressed) suppressUntilRelease.current[key] = false;
@@ -1833,7 +1842,7 @@ export function useGamepadNavigation(
 
           if (pressed && !wasPressed) {
             onAnyInputRef.current();
-            if (canNavigate) handleNavRef?.current?.(key);
+            if (canNavigate) { inputTrace("dispatch", { key, repeat: false }); handleNavRef?.current?.(key); }
             btnPressTime.current[key] = now;
             btnRepeating.current[key] = false;
           } else if (pressed && wasPressed && REPEATABLE.has(key)) {
@@ -1844,6 +1853,7 @@ export function useGamepadNavigation(
               navRepeatingRef.current = true;
               if (canNavigate) {
                 onAnyInputRef.current();
+                inputTrace("dispatch", { key, repeat: true });
                 handleNavRef?.current?.(key);
               }
             } else if (btnRepeating.current[key] && heldMs >= repeatDelay) {
@@ -1851,6 +1861,7 @@ export function useGamepadNavigation(
               navRepeatingRef.current = true;
               if (canNavigate) {
                 onAnyInputRef.current();
+                inputTrace("dispatch", { key, repeat: true });
                 handleNavRef?.current?.(key);
               }
             }
@@ -1870,6 +1881,7 @@ export function useGamepadNavigation(
     // Retain all foreground/modal guards and the separate hold-repeat policy.
     const inputTimer = window.setInterval(() => poll(performance.now()), 8);
     return () => {
+      disposed = true; stopDiagnostic();
       window.clearInterval(inputTimer);
       invoke("set_frontend_active", { active: false });
     };

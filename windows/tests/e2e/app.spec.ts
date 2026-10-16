@@ -92,6 +92,8 @@ test.beforeEach(async ({ page }) => {
         if (command === "plugin:event|unlisten" || command === "plugin:event|emit") return null;
         if (command === "save_settings") { (window as any).__savedSettings = args.settings; return null; }
         if (command === "get_build_identity") return {version:"0.1.0",sourceCommit:"fixturecommit"};
+        if (command === "input_diagnostic_config") return params.has("inputTrace") ? { sessionId: "browser-test", durationMs: 60_000 } : null;
+        if (command === "append_input_diagnostic") { (window as any).__inputTrace = [...((window as any).__inputTrace ?? []), ...args.events]; return null; }
         if (command === "launch_streaming_client") { (window as any).__lastStreamingClient = args; return null; }
         if (params.has("newsAsset") && command === "get_crete_news_rss") return '<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Cached Games article</title><link href="https://www.reddit.com/r/Games/comments/cached"/><content type="html">&lt;a href="https://www.eurogamer.net/test"&gt;[link]&lt;/a&gt;</content></entry></feed>';
         if (params.has("newsAsset") && command === "get_crete_article_thumbnail") return "C:/Users/Muzi/AppData/Local/CreteOS/media/news/fixture.jpg";
@@ -1358,4 +1360,23 @@ test("navigation accumulates presses received before a render commits", async ({
   });
   const sixth = await cards.nth(6).getAttribute("data-game-id");
   await expect(page.locator('.crete-library [data-selected="true"]')).toHaveAttribute("data-game-id", sixth!);
+});
+
+test("opt-in input diagnostics follows samples through selection and paint opportunities", async ({ page }) => {
+  await page.goto("/?crete&rich&played&inputTrace");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await pad(page, 15);
+  await page.evaluate(() => { const end = performance.now() + 85; while (performance.now() < end) { /* simulate a stalled UI thread */ } });
+  await frames(page, 4);
+  await page.evaluate(() => window.dispatchEvent(new Event("crete-input-trace-flush")));
+  await expect.poll(() => page.evaluate(() => ((window as any).__inputTrace ?? []).map((row: any) => row.kind))).toEqual(expect.arrayContaining([
+    "start", "sample", "edge", "dispatch", "handler", "route", "view-handler", "state", "dom-selection", "paint-opportunity", "poll-gap",
+  ]));
+  const rows = await page.evaluate(() => (window as any).__inputTrace);
+  expect(rows.some((row: any) => row.kind === "edge" && row.key === "ArrowRight" && row.pressed)).toBe(true);
+  expect(rows.some((row: any) => row.kind === "state" && row.label === "Games.selectedId" && row.before !== row.after)).toBe(true);
+  expect(rows.some((row: any) => row.kind === "poll-gap" && row.gapMs > 60)).toBe(true);
+  await page.goto("/?crete&rich");
+  await pad(page, 15);
+  expect(await page.evaluate(() => (window as any).__invokeCounts.append_input_diagnostic ?? 0)).toBe(0);
 });

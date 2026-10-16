@@ -62,6 +62,7 @@ mod moondeck;
 mod crete_news;
 mod crete_videos;
 mod xbox_details;
+mod input_diagnostics;
 
 const SGDB_KEY: &str = env!("SGDB_API_KEY");
 const RECENTS_MAX: usize = 10;
@@ -10320,6 +10321,8 @@ pub fn run() {
             fse_watcher::set_window_background_color,
             clear_art_cache,
             set_frontend_active,
+            input_diagnostics::input_diagnostic_config,
+            input_diagnostics::append_input_diagnostic,
             open_osk,
             spotify_begin_auth,
             spotify_access_token,
