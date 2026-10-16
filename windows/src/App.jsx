@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
 import { useControllerCursor } from "./hooks/useControllerCursor";
+import { useStreamLibraryRefresh } from "./hooks/useStreamLibraryRefresh";
 import { inputTrace } from "./utils/inputDiagnostics";
 import { useTranslation } from "react-i18next";
 import i18n from "./i18n";
@@ -476,6 +477,7 @@ export default function App() {
     previewSettings,
     settingsLoaded,
     defaultTab,
+    autoScale,
   } = useAppSettings({
     onScanKeyChange: refreshLibrary,
     autoScaleRef,
@@ -644,20 +646,7 @@ export default function App() {
     return refresh;
   }, [refreshLibrary, refreshSteamStatus]);
 
-  const streamRefreshRef = useRef(refreshLibraryFromSources);
-  streamRefreshRef.current = refreshLibraryFromSources;
-  useEffect(() => {
-    let timer;
-    const refresh = () => {
-      if (!navigator.onLine) return;
-      void streamRefreshRef.current({ background: true });
-      clearTimeout(timer);
-      // Store totals can settle after the stream itself has ended.
-      timer = window.setTimeout(() => { if (navigator.onLine) void streamRefreshRef.current({ background: true }); }, 30_000);
-    };
-    window.addEventListener("crete-stream-ended", refresh);
-    return () => { clearTimeout(timer); window.removeEventListener("crete-stream-ended", refresh); };
-  }, []);
+  useStreamLibraryRefresh(refreshLibraryFromSources);
 
   const openSteamQr = () => {
     setSteamQrUrl("");
@@ -2989,7 +2978,7 @@ export default function App() {
       checkForUpdates={checkForUpdates}
       onClearRecents={handleClearRecents}
       handleClearCache={handleClearCache}
-      autoScale={autoScaleRef.current}
+      autoScale={autoScale}
       sliderDraft={sliderDraft}
       sliderDraftRef={sliderDraftRef}
       setSliderDraft={setSliderDraft}

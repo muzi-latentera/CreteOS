@@ -15,16 +15,18 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 let root: Root;
 let host: HTMLDivElement;
 let settingsApi: ReturnType<typeof useAppSettings>;
+const autoScaleRef = { current: 1 };
 
 function Harness() {
   settingsApi = useAppSettings({
     onScanKeyChange: vi.fn(),
-    autoScaleRef: { current: 1 },
+    autoScaleRef,
   });
   return null;
 }
 
 beforeEach(() => {
+  autoScaleRef.current = 1;
   vi.clearAllMocks();
   saveCalls.length = 0;
   saveResolvers.length = 0;
@@ -47,6 +49,31 @@ beforeEach(() => {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
+});
+
+it("updates the reset recommendation after docking without overwriting a chosen scale", async () => {
+  vi.useFakeTimers();
+  try {
+    await act(async () => root.render(<Harness />));
+    act(() => settingsApi.previewSettings({ ui_scale: 1.25 }));
+    invoke.mockImplementation((command: string) => command === "get_screen_resolution"
+      ? Promise.resolve({ width: 3840, height: 2160 }) : Promise.resolve(null));
+    await act(async () => {
+      window.dispatchEvent(new Event("resize"));
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    expect(autoScaleRef.current).toBe(2);
+    expect(settingsApi.autoScale).toBe(2);
+    expect(settingsApi.settings.ui_scale).toBe(1.25);
+    expect(saveCalls).toHaveLength(0);
+    invoke.mockResolvedValue({ width: 1920, height: 1080 });
+    await act(async () => {
+      window.dispatchEvent(new Event("resize"));
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    expect(settingsApi.autoScale).toBe(1);
+    expect(settingsApi.settings.ui_scale).toBe(1.25);
+  } finally { vi.useRealTimers(); }
 });
 
 afterEach(() => {

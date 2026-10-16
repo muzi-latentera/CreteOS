@@ -89,7 +89,7 @@ export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<
       if (disposed || !lastStream || lastStream.provider !== event.payload.provider) return;
       if (event.payload.phase === "ended" && returnSession.current !== event.payload.session) return;
       const ticket = ++returnTicket.current;
-      if (event.payload.phase === "ended") { returnSession.current = null; setCover(previous => previous?.returning ? null : previous); window.dispatchEvent(new Event("crete-stream-ended")); return; }
+      if (event.payload.phase === "ended") { returnSession.current = null; setCover(previous => previous?.returning ? null : previous); return; }
       returnSession.current = event.payload.session;
       const app = lastStream.app;
       setCover({ app, returning: true });

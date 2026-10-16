@@ -6,6 +6,7 @@ use tauri::Manager;
 
 static SESSION_GENERATION: AtomicU64 = AtomicU64::new(0);
 static RETURN_COVER: AtomicU64 = AtomicU64::new(0);
+static ENDED_SESSION_GENERATION: AtomicU64 = AtomicU64::new(0);
 // 0 unavailable/fallback, 1 waiting for the exact game, 2 visible, 3 closed.
 static HOST_GAME_WINDOW: AtomicU64 = AtomicU64::new(0);
 fn host_window_state() -> u64 {
@@ -40,6 +41,12 @@ pub(crate) fn end_return(window: &tauri::Window, provider: &str, generation: u64
         use tauri::Emitter;
         let _ = super::launch_cover::set_launch_cover(window.clone(), false, None, None);
         let _ = window.emit("stream-return-phase", serde_json::json!({"provider":provider,"phase":"ended","session":generation}));
+    }
+    // Session completion is data, not a foreground/presentation operation.
+    // Alt-Tab may legitimately prevent begin_return from displaying artwork.
+    if session_current(generation) && ENDED_SESSION_GENERATION.fetch_max(generation, Ordering::SeqCst) < generation {
+        use tauri::Emitter;
+        let _ = window.emit("stream-session-ended", serde_json::json!({"provider":provider,"session":generation}));
     }
 }
 

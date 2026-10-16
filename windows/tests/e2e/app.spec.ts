@@ -4,6 +4,12 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     let callbackId = 0;
     let listenerId = 0;
+    const eventListeners = new Map<number, { event: string; handler: number }>();
+    (window as any).__emitNative = (event: string, payload: unknown) => {
+      for (const [id, listener] of eventListeners) {
+        if (listener.event === event) (window as any)[`_${listener.handler}`]?.({ event, id, payload });
+      }
+    };
     const params = new URLSearchParams(window.location.search);
     const counts: Record<string, number> = {};
     let pinnedIds: string[] = params.has("parity") ? ["steam://rungameid/621"] : [];
@@ -87,9 +93,11 @@ test.beforeEach(async ({ page }) => {
         counts[command] = (counts[command] || 0) + 1;
         if (command === "plugin:event|listen") {
           listenerId += 1;
+          eventListeners.set(listenerId, { event: args.event, handler: args.handler });
           return listenerId;
         }
-        if (command === "plugin:event|unlisten" || command === "plugin:event|emit") return null;
+        if (command === "plugin:event|unlisten") { eventListeners.delete(args.eventId); return null; }
+        if (command === "plugin:event|emit") return null;
         if (command === "save_settings") { (window as any).__savedSettings = args.settings; return null; }
         if (command === "get_build_identity") return {version:"0.1.0",sourceCommit:"fixturecommit"};
         if (command === "input_diagnostic_config") return params.has("inputTrace") ? { sessionId: "browser-test", durationMs: 60_000 } : null;
@@ -1280,7 +1288,7 @@ test("post-stream refresh preserves Library selection and controller input witho
   const selected = page.locator('.crete-library [data-selected="true"]').first();
   await pad(page, 15);
   const id = await selected.getAttribute("data-game-id");
-  await page.evaluate(() => window.dispatchEvent(new Event("crete-stream-ended")));
+  await page.evaluate(() => (window as any).__emitNative("stream-session-ended", { provider: "moonlight", session: 1 }));
   await expect.poll(() => page.evaluate(() => typeof (window as any).__releaseScan)).toBe("function");
   await expect(page.locator('[data-modal="library-refresh"]')).toHaveCount(0);
   await expect(selected).toHaveAttribute("data-game-id", id!);

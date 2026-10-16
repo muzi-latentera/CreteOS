@@ -43,6 +43,7 @@ export function useAppSettings({
   const [settingsState, setSettingsState] = useState<Settings>({ ...DEFAULT_SETTINGS });
   const [defaultTab, setDefaultTab] = useState<string | null>(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [autoScale, setAutoScale] = useState(autoScaleRef.current);
   const settingsRef = useRef<Settings>({ ...DEFAULT_SETTINGS });
   const settingsSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
@@ -72,6 +73,7 @@ export function useAppSettings({
     Promise.all([invoke<ScreenResolution>("get_screen_resolution"), invoke<Partial<Settings>>("get_settings")]).then(([res, s]) => {
       const auto = Math.min(2.0, Math.max(0.75, Math.min(res.width / 1920, res.height / 1080)));
       autoScaleRef.current = auto;
+      setAutoScale(auto);
       // ui_scale is null when never saved; substitute the auto-detected value.
       const updated = { ...settingsRef.current, ...s, ui_scale: s.ui_scale ?? auto };
       let needsSave = false;
@@ -130,6 +132,29 @@ export function useAppSettings({
     });
   }, []);
 
+  // Docking changes the recommended size, not the user's chosen size. Both
+  // controller and pointer Reset scale actions must use the current display.
+  useEffect(() => {
+    if (!settingsLoaded) return;
+    let disposed = false;
+    let request = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const resized = () => {
+      clearTimeout(timer);
+      const ticket = ++request;
+      timer = setTimeout(() => {
+        void invoke<ScreenResolution>("get_screen_resolution").then(res => {
+          if (disposed || request !== ticket || !(res.width > 0 && res.height > 0)) return;
+          const scale = Math.min(2.0, Math.max(0.75, Math.min(res.width / 1920, res.height / 1080)));
+          autoScaleRef.current = scale;
+          setAutoScale(scale);
+        }).catch(() => {});
+      }, 250);
+    };
+    window.addEventListener("resize", resized);
+    return () => { disposed = true; clearTimeout(timer); window.removeEventListener("resize", resized); };
+  }, [settingsLoaded]);
+
   const updateSetting = (key: keyof Settings, value: Settings[keyof Settings]) => {
     setSettings(prev => {
       const updated = { ...prev, [key]: value };
@@ -187,5 +212,6 @@ export function useAppSettings({
     previewSettings,
     settingsLoaded,
     defaultTab,
+    autoScale,
   };
 }
