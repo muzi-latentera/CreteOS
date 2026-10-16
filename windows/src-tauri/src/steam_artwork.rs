@@ -80,9 +80,20 @@ fn title_key(name: &str) -> String {
     name.replace(['™','®'],"").chars().filter(|c|c.is_alphanumeric()).flat_map(char::to_lowercase).collect()
 }
 fn art_base_title(name: &str) -> String {
-    static SUFFIX: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    let suffix=SUFFIX.get_or_init(||regex::Regex::new(r"(?i)[\s:–—-]+(?:the\s+)?(?:(?:complete|definitive|ultimate|game of the year|goty|gold|deluxe|enhanced) edition|director's cut|final cut|20 year celebration)$").unwrap());
-    suffix.replace(&name.replace(['™','®'],""), "").trim().to_string()
+    let clean=name.replace(['™','®'],"").split_whitespace().collect::<Vec<_>>().join(" ");
+    let boundary=|c:char|c.is_whitespace() || matches!(c,':'|'–'|'—'|'-');
+    for suffix in ["complete edition","definitive edition","ultimate edition","game of the year edition","goty edition","gold edition","deluxe edition","enhanced edition","director's cut","final cut","20 year celebration"] {
+        for variant in [format!("the {suffix}"),suffix.to_string()] {
+            let Some(start)=clean.len().checked_sub(variant.len()) else {continue;};
+            let Some(tail)=clean.get(start..) else {continue;};
+            if !tail.eq_ignore_ascii_case(&variant) {continue;}
+            let prefix=&clean[..start];
+            if !prefix.chars().last().is_some_and(boundary) {continue;}
+            let base=prefix.trim_end_matches(boundary);
+            if !base.is_empty() {return base.to_string();}
+        }
+    }
+    clean
 }
 pub fn title_artwork_match(value: &Value, name: &str) -> Option<u32> {
     let items=value["items"].as_array()?;
