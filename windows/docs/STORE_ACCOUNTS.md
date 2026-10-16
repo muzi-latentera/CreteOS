@@ -11,6 +11,11 @@ catalogue metadata. GOG reads every product page. DLC, mods and non-game product
 are excluded where the provider identifies them. No purchase or installation is
 performed by connecting an account.
 
+Epic's `applications` category also appears on ordinary games. It must not be
+used to exclude games; DLC/addon/mod categories and parent-game relationships
+remain the relevant exclusions. A live import exposed this distinction after
+successful authentication initially saved an empty library.
+
 Installed scans still work without account sign-in. GOG registry product IDs and
 Epic app IDs join installed copies to ownership records; existing installed IDs,
 executables, pins and history are retained. Different stores remain separate

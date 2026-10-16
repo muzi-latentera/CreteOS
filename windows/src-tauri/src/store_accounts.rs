@@ -125,7 +125,9 @@ fn gog_products(page: &Value) -> Result<Vec<OwnedGame>, String> {
 }
 fn epic_game(item: &Value, meta: &Value) -> Option<OwnedGame> {
     if item["namespace"] == "ue" || item["sandboxType"] == "PRIVATE" || meta["mainGameItem"]["id"].as_str().is_some() { return None; }
-    if meta["categories"].as_array().is_some_and(|a| a.iter().any(|c| matches!(c["path"].as_str(), Some("mods" | "dlc" | "addons" | "applications")))) { return None; }
+    // "applications" is Epic's umbrella category for games too. It is not a
+    // non-game flag: ordinary owned games include ["games", "applications"].
+    if meta["categories"].as_array().is_some_and(|a| a.iter().any(|c| matches!(c["path"].as_str(), Some("mods" | "dlc" | "addons")))) { return None; }
     let id = item["appName"].as_str()?;
     let namespace = item["namespace"].as_str()?;
     let catalog_id = item["catalogItemId"].as_str()?;
@@ -501,6 +503,16 @@ mod tests {
         let game=epic_game(&item,&json!({"title":"Owned Epic game","categories":[{"path":"games"}]})).unwrap();
         let mut apps=vec![];merge_games(&mut apps,Store::Epic,vec![game],&mut HashMap::new());assert_eq!(apps[0].id,"epic:app-a");assert!(!apps[0].installed);assert_eq!(apps[0].source,"epic");assert!(apps[0].launch_path.contains("sandbox%3Acatalog-a%3Aapp-a"));
         assert!(epic_game(&item,&json!({"title":"DLC","mainGameItem":{"id":"parent"}})).is_none());
+    }
+    #[test] fn epic_application_umbrella_does_not_exclude_owned_games() {
+        let item=json!({"appName":"owned-game","namespace":"sandbox","catalogItemId":"base-game","sandboxType":"PUBLIC"});
+        let meta=json!({"title":"Owned game","categories":[{"path":"public"},{"path":"games"},{"path":"applications"}]});
+        assert_eq!(epic_game(&item,&meta).unwrap().name,"Owned game");
+        for category in ["addons","dlc","mods"] {
+            assert!(epic_game(&item,&json!({"title":"Extra","categories":[{"path":category},{"path":"applications"}]})).is_none());
+        }
+        let mut private=item.clone(); private["sandboxType"]=json!("PRIVATE");
+        assert!(epic_game(&private,&meta).is_none());
     }
     #[test] fn callback_rejects_other_sites_and_mismatched_state() {
         assert!(gog_callback(&tauri::Url::parse("https://evil.test/on_login_success?code=bad").unwrap(),"expected").is_none());
