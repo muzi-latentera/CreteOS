@@ -216,6 +216,10 @@ pub struct Settings {
     pub show_uninstalled_games: bool,
     #[serde(default)]
     pub steam_owned_library_seen: bool,
+    #[serde(default)]
+    pub epic_owned_library_seen: bool,
+    #[serde(default)]
+    pub gog_owned_library_seen: bool,
     // False on a genuinely fresh install so first-run onboarding shows.
     // Existing settings files are migrated to true on load; see load-time migration.
     #[serde(default)]
@@ -464,6 +468,8 @@ impl Default for Settings {
             fetch_store_metadata: true,
             show_uninstalled_games: true,
             steam_owned_library_seen: false,
+            epic_owned_library_seen: false,
+            gog_owned_library_seen: false,
             onboarding_complete: false,
             repeat_speed: "normal".to_string(),
             launch_at_startup: false,
@@ -540,6 +546,19 @@ impl Default for Settings {
 #[cfg(test)]
 mod settings_compat_tests {
     use super::Settings;
+
+    #[test]
+    fn owned_store_visibility_markers_preserve_legacy_settings() {
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        let fields = value.as_object_mut().unwrap();
+        fields.remove("epic_owned_library_seen");
+        fields.remove("gog_owned_library_seen");
+        fields.insert("scan_gog".into(), serde_json::json!(false));
+        fields.insert("onboarding_complete".into(), serde_json::json!(true));
+        let loaded: Settings = serde_json::from_value(value).unwrap();
+        assert!(!loaded.epic_owned_library_seen && !loaded.gog_owned_library_seen);
+        assert!(!loaded.scan_gog && loaded.onboarding_complete);
+    }
 
     #[test]
     fn legacy_bottom_bar_setting_keeps_wire_value_and_defaults_helper_fields() {

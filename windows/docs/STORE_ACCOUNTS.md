@@ -4,6 +4,10 @@ Connect each account in **Settings → Library & accounts**, or during onboardin
 The sign-in window belongs to the store; CreteOS receives an authorization code,
 not a password. Complete any two-factor authentication there. Closing the dialog
 cancels sign-in. A successful import enables that source and not-installed games.
+Existing connected libraries are also revealed once after upgrading, including
+imports completed after their dialog was dismissed. Later source switches stay
+under the user's control. The concise **Install** action hands installation to
+Epic's library or the game's GOG Galaxy page; it is not a CreteOS downloader.
 
 Both accounts import owned games, including uninstalled games. Epic combines the
 Windows asset feed with every cursor page of the library service, then requests

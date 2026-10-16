@@ -167,6 +167,8 @@ export interface Settings {
   fetch_store_metadata: boolean;
   show_uninstalled_games: boolean;
   steam_owned_library_seen: boolean;
+  epic_owned_library_seen: boolean;
+  gog_owned_library_seen: boolean;
   onboarding_complete: boolean;
   repeat_speed: RepeatSpeed;
   launch_at_startup: boolean;

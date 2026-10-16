@@ -140,12 +140,13 @@ test.beforeEach(async ({ page }) => {
             onboarding_complete: params.get("fresh") !== "true", theme: params.get("theme") || (params.has("crete") ? "crete" : "space"),
             accent: "crete", surface_style: params.get("surface") || "glass", ui_motion: params.has("motion"), ui_scale: 1, language: params.get("lang") || "en", app_list_view: params.has("listApps"), app_list_cols: 2,
             show_home_collections: params.has("parity"), show_home_collection_names: true, home_pinned_pos: params.has("parity") ? "top" : "none", home_mode: params.get("homeMode") || "semi", animated_heroes: params.has("animated") ? "animated" : "static",
-            home_launch_games_directly: params.has("direct"), ...(params.has("ownedStores") || params.has("storeSignIn") ? { show_uninstalled_games: true } : {}) };
+            home_launch_games_directly: params.has("direct"), ...(params.has("ownedStores") || params.has("storeSignIn") ? { show_uninstalled_games: true } : {}),
+            ...(params.has("disabledStores") ? { scan_epic: false, scan_gog: false } : {}) };
         }
         if (command === "get_all_apps") {
           if (params.has("ownedStores") || params.has("storeSignIn")) return [
-            ...(storeAccounts.epic ? [{ id: "epic:owned", name: "007 First Light", source: "epic", store_id: "owned", app_type: "game", installed: false }] : []),
-            ...(storeAccounts.gog ? [{ id: "gog:123", name: "Baldur's Gate 3", source: "gog", store_id: "123", app_type: "game", installed: false }] : []),
+            ...(storeAccounts.epic && ((window as any).__savedSettings?.scan_epic ?? !params.has("disabledStores")) ? [{ id: "epic:owned", name: "007 First Light", source: "epic", store_id: "owned", app_type: "game", installed: false }] : []),
+            ...(storeAccounts.gog && ((window as any).__savedSettings?.scan_gog ?? !params.has("disabledStores")) ? [{ id: "gog:123", name: "Baldur's Gate 3", source: "gog", store_id: "123", app_type: "game", installed: false }] : []),
           ];
           if (params.has("lunaDetails")) return [{ id: "cloud:luna:dispatch", name: "Dispatch", last_played: params.has("played") ? 1725000000 : undefined, source: "cloud", app_type: "game", installed: true, steam_appid: 2592160, launch_path: "https://luna.amazon.co.uk/play?asin=B0H6GQJMBN" }, { id: "cloud:luna:galactic", name: "STAR WARS: Galactic Racer", source: "cloud", app_type: "game", installed: true, steam_appid: 4078430, launch_path: "https://luna.amazon.co.uk/play?asin=B0HLN4GG5K" }];
           if (params.has("xboxDetails")) return [{ id: "xbox-owned:2089483628", name: "A Plague Tale: Requiem", source: "xbox", app_type: "game", xbox_product_id: "2089483628", installed: false }];
@@ -1452,7 +1453,7 @@ test("Epic and GOG owned libraries connect, refresh and disconnect from Settings
 test("Uninstalled Epic and GOG games retain direct GFN settings and truthful store actions", async ({ page }) => {
   await page.goto("/?crete&ownedStores");
   await page.getByRole("button", { name: "Library", exact: true }).click();
-  for (const [name, label, source, id] of [["007 First Light", "Open Epic library", "epic", "owned"], ["Baldur's Gate 3", "Open in GOG Galaxy", "gog", "123"]]) {
+  for (const [name, label, source, id] of [["007 First Light", "Install", "epic", "owned"], ["Baldur's Gate 3", "Install", "gog", "123"]]) {
     await page.getByRole("button", { name, exact: true }).click();
     const details = page.locator('[data-crete-details="true"]');
     await expect.poll(() => page.evaluate(() => (window as any).__lastTitleMeta?.gameName)).toBe(name);
@@ -1467,4 +1468,34 @@ test("Uninstalled Epic and GOG games retain direct GFN settings and truthful sto
     expect(await page.evaluate(() => (window as any).__invokeCounts.launch_app || 0)).toBe(0);
     await page.keyboard.press("Escape");
   }
+});
+
+test("Existing connected owned libraries reveal disabled sources once", async ({ page }) => {
+  await page.goto("/?crete&ownedStores&disabledStores");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Baldur's Gate 3", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "007 First Light", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (window as any).__savedSettings)).toMatchObject({ scan_gog: true, scan_epic: true, gog_owned_library_seen: true, epic_owned_library_seen: true });
+});
+
+test("Touch dragging the library keeps selection stable and interrupts controller scrolling", async ({ page }) => {
+  await page.goto("/?crete&rich&motion");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  const pane = page.locator('.crete-library').first();
+  await expect(pane.locator('.crete-game-card')).toHaveCount(24);
+  await page.mouse.move(600, 400); await page.mouse.wheel(0, 520);
+  await page.waitForTimeout(300);
+  const selected = await pane.locator('[data-selected="true"]').getAttribute('data-game-id');
+  const client = await page.context().newCDPSession(page);
+  await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 500, y: 520 }] });
+  for (let i = 1; i <= 8; i++) {
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 500, y: 520 - i * 24 }] });
+    await page.waitForTimeout(20);
+  }
+  await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(300);
+  expect(await pane.locator('[data-selected="true"]').getAttribute('data-game-id')).toBe(selected);
+  expect(await pane.evaluate(el => el.scrollTop)).toBeGreaterThan(520);
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(() => pane.evaluate(el => el.scrollTop)).toBe(0);
 });

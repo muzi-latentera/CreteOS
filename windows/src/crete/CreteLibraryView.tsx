@@ -6,7 +6,7 @@ import { AVAILABILITY, AVAILABILITY_LABELS, matchesAvailability, matchesSearch, 
 import { useNavigationState, useViewNavigation, type NavigationRef } from "./navigation";
 import { useCreteText } from "./text";
 import { StoreBadge } from "../components/ui/StoreBadge";
-import { scrollPane } from "./smoothScroll";
+import { cancelPaneScroll, scrollPane } from "./smoothScroll";
 
 export interface CreteLibraryProps {
   tab: "Games" | "Apps";
@@ -45,6 +45,8 @@ export function CreteLibraryView(p: CreteLibraryProps) {
   const [toolbarIndex, setToolbarIndex, toolbarIndexRef] = useNavigationState<number | null>(null, `${p.tab}.toolbarIndex`);
   const inputRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const directScrollRef = useRef(false);
+  const takeScroll = () => { directScrollRef.current = true; if (p.scrollRef.current) cancelPaneScroll(p.scrollRef.current); };
   const [cols, setCols] = useState(5);
   const [gridWidth, setGridWidth] = useState(0);
   const appsMode = p.tab === "Apps";
@@ -71,6 +73,7 @@ export function CreteLibraryView(p: CreteLibraryProps) {
   };
 
   useViewNavigation(p.navigationRef, key => {
+    directScrollRef.current = false;
     const popup = popupRef.current;
     const popupIndex = popupIndexRef.current;
     const searching = searchingRef.current;
@@ -116,7 +119,7 @@ export function CreteLibraryView(p: CreteLibraryProps) {
   }, []);
   useEffect(() => { if (searching && p.active) inputRef.current?.focus(); }, [searching, p.active]);
   useEffect(() => {
-    if (!p.active) return;
+    if (!p.active || directScrollRef.current) return;
     const pane = p.scrollRef.current;
     if (!pane) return;
     if (toolbarIndex !== null) { scrollPane(pane, { top: 0 }); return; }
@@ -135,7 +138,9 @@ export function CreteLibraryView(p: CreteLibraryProps) {
   const wide = p.settings.wide_layout && (appsMode ? p.settings.wide_apps : p.settings.wide_games);
   const baseColumns = gridWidth >= 1500 ? 7 : gridWidth > 0 && gridWidth < 920 ? 4 : 5;
   const columns = Math.max(1, Math.round((baseColumns + (wide ? 2 : 0)) / (scale ?? 1)));
-  return <div className="crete-library crete-scroller" ref={p.scrollRef}>
+  return <div className="crete-library crete-scroller" ref={p.scrollRef}
+    onPointerDownCapture={event => { if (event.pointerType === "touch") takeScroll(); else directScrollRef.current = false; }}
+    onWheelCapture={takeScroll}>
     <div className="crete-library-toolbar" aria-label="Library filters">
       <div className="crete-filters">{filters.map((label, i) => <button key={label} type="button"
         className="crete-filter" data-nav-focused={toolbarIndex === i} aria-pressed={appsMode || AVAILABILITY[i] === availability}

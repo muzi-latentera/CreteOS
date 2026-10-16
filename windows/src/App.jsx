@@ -456,7 +456,7 @@ export default function App() {
     onLoaded,
     onLoadError,
   });
-  const storeAccounts = useStoreAccounts(refreshLibrary, source => updateSettingsBatch({ show_uninstalled_games: true, [`scan_${source}`]: true }));
+  const storeAccounts = useStoreAccounts(refreshLibrary, source => updateSettingsBatch({ show_uninstalled_games: true, [`scan_${source}`]: true, [`${source}_owned_library_seen`]: true }));
   const refreshLibraryRef = useRef(refreshLibrary);
   useEffect(() => {
     refreshLibraryRef.current = refreshLibrary;
@@ -600,6 +600,18 @@ export default function App() {
       show_uninstalled_games: true,
     });
   }, [steamStatus.connected, settings.steam_owned_library_seen, updateSettingsBatch]);
+  useEffect(() => {
+    if (!settingsLoaded) return;
+    const updates = {};
+    for (const source of ["epic", "gog"]) {
+      if (storeAccounts.statuses[source].connected && !settings[`${source}_owned_library_seen`]) {
+        Object.assign(updates, { [`scan_${source}`]: true, [`${source}_owned_library_seen`]: true, show_uninstalled_games: true });
+      }
+    }
+    // Recover accounts imported by an earlier build or a dismissed connect
+    // dialog. Reveal each library once; later explicit source toggles remain.
+    if (Object.keys(updates).length) void updateSettingsBatch(updates).then(() => refreshLibrary({ background: true }));
+  }, [settingsLoaded, storeAccounts.statuses.epic.connected, storeAccounts.statuses.gog.connected, settings.epic_owned_library_seen, settings.gog_owned_library_seen]);
   useEffect(() => {
     if (!showUninstalledGames && installFilterRef.current !== "all") {
       setInstallFilter("all");

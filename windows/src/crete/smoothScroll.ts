@@ -1,5 +1,12 @@
 const animations = new WeakMap<HTMLElement, { frame: number }>();
 
+/** A finger drag or wheel owns the pane immediately, including its momentum. */
+export function cancelPaneScroll(element: HTMLElement) {
+  const animation = animations.get(element);
+  if (animation) cancelAnimationFrame(animation.frame);
+  animations.delete(element);
+}
+
 /** Short, interruptible scrolling confined to one pane; never scroll ancestors. */
 export function scrollPane(element: HTMLElement, destination: { top?: number; left?: number }) {
   const previous = animations.get(element);

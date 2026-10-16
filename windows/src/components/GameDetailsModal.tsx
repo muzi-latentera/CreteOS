@@ -253,7 +253,7 @@ export function GameDetailsModal({
   const isXbox = source === "xbox";
   const storeAccountGame = source === "epic" || source === "gog";
   const [storeClientError, setStoreClientError] = useState("");
-  const storeClientLabel = source === "epic" ? "Open Epic library" : "Open in GOG Galaxy";
+  const storeClientLabel = t("install.install");
   const steamAppId = app.steam_appid != null ? String(app.steam_appid) : undefined;
   const numericSteamAppId = steamAppId && /^\d+$/.test(steamAppId)
     ? Number(steamAppId)
