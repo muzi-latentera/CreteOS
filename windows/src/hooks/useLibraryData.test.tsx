@@ -43,6 +43,17 @@ it("updates in the background without a blocking scan and joins concurrent refre
   expect(host.textContent).toBe("Updated game");
   expect(library.libraryRefreshStatus).toBeNull();
 });
+
+it("unpins retained copies through the preferred tile without changing ownership", async () => {
+  act(() => { library.pinsRef.current = ["other-copy"]; });
+  invoke.mockImplementation(async (command: string, args?: {appId?: string}) => {
+    if(command === "toggle_pin") { expect(args?.appId).toBe("other-copy"); return []; }
+    return [];
+  });
+  await act(async () => { library.togglePin({...original,library_variants:[{...original,id:"other-copy"}]}); await Promise.resolve(); await Promise.resolve(); });
+  expect(library.pinsRef.current).toEqual([]);
+  expect(library.allAppsRef.current).toEqual([original]);
+});
 it("retains progress for an explicit manual refresh", async () => {
   let pending!: Promise<void>;
   act(() => { pending = library.refreshLibrary(); });

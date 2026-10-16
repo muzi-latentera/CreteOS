@@ -3438,7 +3438,7 @@ export default function App() {
               : undefined}
           onVerify={String(detailsApp.source ?? "").toLowerCase() === "steam" ? () => verifySteamInstall(detailsApp) : undefined}
           onTogglePin={() => togglePin(detailsApp)}
-          isPinned={pins.includes(detailsApp.id)}
+          isPinned={gameCopies(detailsApp).some(copy => pins.includes(copy.id))}
           onToggleHidden={() => toggleHidden(detailsApp.id)}
           isHidden={hidden.includes(detailsApp.id)}
           onRunAsAdminToggle={() => {
