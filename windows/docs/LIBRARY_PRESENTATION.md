@@ -22,6 +22,8 @@ blank attempts retry once per background session/reconnection; failures do not
 loop continuously. Concurrent cache writes merge atomically so stale snapshots or
 blank failures cannot erase other successful downloads. Explicit clear remains
 an actual clear. Custom artwork remains separate.
+Network and disk artwork work runs on a blocking worker, outside the UI event
+thread and the async executor; a slow publisher must not block navigation.
 
 Reddit's r/Games feed often supplies no thumbnail, unlike r/pcgaming. CreteOS uses
 YouTube thumbnails or the linked publisher's metadata image, downloaded to its

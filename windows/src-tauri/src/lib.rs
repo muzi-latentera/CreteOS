@@ -5867,7 +5867,19 @@ fn get_cached_art_bulk(game_names: Vec<String>) -> HashMap<String, GameArtBundle
 }
 
 #[tauri::command]
-fn fetch_game_art(
+async fn fetch_game_art(
+    game_name: String,
+    source: Option<String>,
+    appid: Option<u32>,
+    force_refresh: Option<bool>,
+    product_id: Option<String>,
+    store_cover_url: Option<String>,
+) -> GameArtBundle {
+    tauri::async_runtime::spawn_blocking(move || fetch_game_art_blocking(game_name,source,appid,force_refresh,product_id,store_cover_url))
+        .await.unwrap_or(GameArtBundle {grid:None,hero_static:None,hero_animated:None})
+}
+
+fn fetch_game_art_blocking(
     game_name: String,
     source: Option<String>,
     appid: Option<u32>,
