@@ -57,6 +57,16 @@ fn thumbnails(html: &str, base: Option<&reqwest::Url>) -> Vec<String> {
 }
 fn thumbnail(html: &str) -> Option<String> { thumbnails(html, None).into_iter().next() }
 
+// Metadata is in the page head. A large body must not discard a usable head;
+// stop at </head> (including split chunks) or parse the bounded prefix.
+fn append_article_chunk(bytes: &mut Vec<u8>, chunk: &[u8]) -> bool {
+    const LIMIT: usize = 2_000_000;
+    let start = bytes.len().saturating_sub(6);
+    let count = chunk.len().min(LIMIT.saturating_sub(bytes.len()));
+    bytes.extend_from_slice(&chunk[..count]);
+    bytes.len() == LIMIT || bytes[start..].windows(7).any(|word| word.eq_ignore_ascii_case(b"</head>"))
+}
+
 // Only host names/outcomes are recorded: feed URLs can contain public gift tokens.
 fn record_news_result(publisher: &str, outcome: &str) {
     use std::io::Write;
@@ -85,7 +95,9 @@ pub async fn get_crete_article_thumbnail(article_url: String) -> Result<Option<S
     };
     let base = response.url().clone();
     let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? { if bytes.len() + chunk.len() > 2_000_000 { return Ok(None); } bytes.extend_from_slice(&chunk); }
+    while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+        if append_article_chunk(&mut bytes, &chunk) { break; }
+    }
     let html = String::from_utf8_lossy(&bytes);
     let candidates = thumbnails(&html, Some(&base));
     if candidates.is_empty() { record_news_result(&publisher, "no-supported-image"); }
@@ -137,6 +149,16 @@ async fn cache_news_image(image_url: &str) -> Result<String, String> {
 }
 
 #[cfg(test)] mod tests {
+    #[test] fn oversized_article_body_keeps_usable_head_and_split_head_ending() {
+        let mut bytes = b"<head><meta property='og:image' content='https://www.gamesradar.com/image.jpg'>".to_vec();
+        assert!(!super::append_article_chunk(&mut bytes, b"</He"));
+        assert!(super::append_article_chunk(&mut bytes, b"Ad><body>"));
+        assert!(super::thumbnail(&String::from_utf8_lossy(&bytes)).is_some());
+        let mut bytes = b"<meta property='og:image' content='https://www.gamesradar.com/image.jpg'>".to_vec();
+        assert!(super::append_article_chunk(&mut bytes, &vec![b' '; 2_100_000]));
+        assert_eq!(bytes.len(), 2_000_000);
+        assert!(super::thumbnail(&String::from_utf8_lossy(&bytes)).is_some());
+    }
     #[test] fn keeps_alternate_images_and_resolves_relative_publisher_paths() {
         let base = reqwest::Url::parse("https://www.gamesradar.com/news/example/").unwrap();
         let images = super::thumbnails("<meta property='og:image' content='/broken.jpg'><meta name='twitter:image' content='https://cdn.mos.cms.futurecdn.net/working.jpg'><meta property='og:image' content='/broken.jpg'><meta property='og:image:secure_url' content='https://127.0.0.1/no.jpg'>", Some(&base));
