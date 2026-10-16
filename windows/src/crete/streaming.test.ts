@@ -3,6 +3,18 @@ import { defaultProvider, geforceNowUrl, isPcGame, moonlightMatch, moonlightTarg
 import type { App } from "../types";
 
 describe("streaming targets", () => {
+  it("keeps owned Epic and GOG games streamable without borrowing a Steam entitlement", () => {
+    for (const source of ["epic", "gog"]) {
+      const game = { id: `${source}:123`, source, name: "Baldur's Gate 3", app_type: "game", installed: false } as App;
+      expect(isPcGame(game)).toBe(true);
+      expect(moonlightTarget(game, ["MoonDeckStream"], ["123"])).toBeUndefined();
+      expect(moonlightTarget(game, ["Baldur's Gate 3"], [])).toBe("Baldur's Gate 3");
+      expect(defaultProvider(game, "Baldur's Gate 3", geforceNowUrl(game))).toBe("moonlight");
+    }
+    expect(geforceNowUrl({ id: "gog:123", source: "gog", name: "Baldur's Gate 3" })).toContain("game-id=095ad0c3");
+    expect(geforceNowUrl({ id: "epic:123", source: "epic", name: "007 First Light" })).toContain("game-id=ce2eca28");
+    expect(geforceNowUrl({ id: "gog:123", source: "gog", name: "007 First Light" })).toBeUndefined();
+  });
   it("identifies Luna from its exact launch host even for a saved installed entry", () => {
     expect(defaultProvider({ source: "cloud", installed: true, launch_path: "https://luna.amazon.co.uk/play?asin=test" } as App)).toBe("luna");
     expect(defaultProvider({ source: "cloud", launch_path: "https://luna.amazon.co.uk.example.com/play" } as App)).toBe("cloud");

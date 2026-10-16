@@ -63,6 +63,7 @@ mod crete_news;
 mod crete_videos;
 mod xbox_details;
 mod input_diagnostics;
+mod store_accounts;
 
 const SGDB_KEY: &str = env!("SGDB_API_KEY");
 const RECENTS_MAX: usize = 10;
@@ -147,6 +148,10 @@ pub struct AppEntry {
     pub steam_icon_hash: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub xbox_product_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub store_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub store_cover_url: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -1972,6 +1977,7 @@ fn merge_owned_steam_game(apps: &mut Vec<AppEntry>, owned: SteamOwnedGameCache) 
         steam_appid: Some(owned.appid),
         steam_icon_hash: owned.icon_hash,
         xbox_product_id: None,
+        ..Default::default()
     });
 }
 
@@ -5429,6 +5435,7 @@ fn apply_pending_factory_reset() {
 }
 
 fn clear_factory_reset_credentials() {
+    store_accounts::clear_credentials();
     if let Some(meta) = load_steam_account_meta() {
         if !meta.account_name.is_empty() {
             clear_steam_refresh_token(&meta.account_name);
@@ -7529,7 +7536,7 @@ fn scan_gog_games(
                     $exe     = $p.exe
                     $depends = $p.dependsOn
                     if (-not $name -or -not $path) { return }
-                    Write-Output ("{0}`t{1}`t{2}`t{3}" -f $name, $path, $exe, $depends)
+                    Write-Output ("{0}`t{1}`t{2}`t{3}`t{4}" -f $name, $path, $exe, $depends, $_.PSChildName)
                 }
             }
         "#,
@@ -7545,7 +7552,7 @@ fn scan_gog_games(
     let mut seen_exe = std::collections::HashSet::new();
 
     for line in stdout.lines() {
-        let parts: Vec<&str> = line.splitn(4, '\t').collect();
+        let parts: Vec<&str> = line.splitn(5, '\t').collect();
         if parts.len() < 2 {
             continue;
         }
@@ -7598,6 +7605,7 @@ fn scan_gog_games(
             launch_path,
             app_type: "game".to_string(),
             source: "gog".to_string(),
+            store_id: parts.get(4).map(|id| id.trim().to_string()).filter(|id| !id.is_empty()),
             install_dir: Some(install_dir.to_string()),
             installed: true,
             ..Default::default()
@@ -8265,9 +8273,11 @@ fn get_apps_inner(app: tauri::AppHandle) -> Vec<AppEntry> {
     }
     if settings.scan_gog {
         apps.extend(scan_gog_games(&mut icon_cache, &mut icon_stats));
+        store_accounts::merge_cached(&mut apps, "gog");
     }
     if settings.scan_epic {
         apps.extend(scan_epic_games(&mut icon_cache, &mut icon_stats));
+        store_accounts::merge_cached(&mut apps, "epic");
     }
     push_scan_timing(&mut scan_timing, "other_launchers", other_phase_started);
 
@@ -8419,9 +8429,11 @@ fn get_all_apps_inner(app: tauri::AppHandle) -> Vec<AppEntry> {
     }
     if settings.scan_gog {
         apps.extend(scan_gog_games(&mut icon_cache, &mut icon_stats));
+        store_accounts::merge_cached(&mut apps, "gog");
     }
     if settings.scan_epic {
         apps.extend(scan_epic_games(&mut icon_cache, &mut icon_stats));
+        store_accounts::merge_cached(&mut apps, "epic");
     }
     push_scan_timing(&mut scan_timing, "other_launchers", other_phase_started);
 
@@ -10350,6 +10362,12 @@ pub fn run() {
             spotify_transfer,
             steam_qr_begin,
             steam_account_status,
+            store_accounts::store_account_status,
+            store_accounts::store_account_connect,
+            store_accounts::store_account_refresh,
+            store_accounts::store_account_disconnect,
+            store_accounts::store_account_cancel,
+            store_accounts::store_open_library,
             steam_logout,
             fetch_steam_owned_games,
             xbox_account_status,

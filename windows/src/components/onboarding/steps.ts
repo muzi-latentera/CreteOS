@@ -54,11 +54,13 @@ export const SOURCE_ROWS = [
   { key: "scan_desktop", labelKey: "settings.scanDesktop" },
 ] as const;
 
-export type AccountKey = "steam" | "microsoft" | "spotify";
+export type AccountKey = "steam" | "microsoft" | "spotify" | "epic" | "gog";
 
 export const ACCOUNT_ROWS: Array<{ key: AccountKey; labelKey: string; hintKey: string }> = [
   { key: "steam", labelKey: "steam.title", hintKey: "steam.connectHint" },
   { key: "microsoft", labelKey: "xbox.title", hintKey: "xbox.connectHint" },
+  { key: "epic", labelKey: "storeAccounts.epic", hintKey: "storeAccounts.onboardingHint" },
+  { key: "gog", labelKey: "storeAccounts.gog", hintKey: "storeAccounts.onboardingHint" },
   { key: "spotify", labelKey: "spotify.title", hintKey: "onboarding.accounts.spotifyHint" },
 ];
 export type HomeModeOption = "semi" | "immersive" | "normal";

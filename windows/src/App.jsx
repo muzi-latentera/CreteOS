@@ -1,3 +1,5 @@
+import { useStoreAccounts } from "./hooks/useStoreAccounts";
+import { StoreAccountModal } from "./components/modals/StoreAccountModal";
 //Copyright (C) 2025 Taylor Denby
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
@@ -454,6 +456,7 @@ export default function App() {
     onLoaded,
     onLoadError,
   });
+  const storeAccounts = useStoreAccounts(refreshLibrary, source => updateSettingsBatch({ show_uninstalled_games: true, [`scan_${source}`]: true }));
   const refreshLibraryRef = useRef(refreshLibrary);
   useEffect(() => {
     refreshLibraryRef.current = refreshLibrary;
@@ -526,6 +529,7 @@ export default function App() {
       || showHelperTrayRef.current
       || showControlsModalRef.current
       || showControllerToolsModalRef.current
+      || storeAccounts.openRef.current
       || showSteamQrRef.current
       || showXboxGuideRef.current
       || showCloudPickerRef.current
@@ -638,13 +642,13 @@ export default function App() {
       steamConnected: steamConnectedRef.current,
       refreshSteamOwned: () => invoke("fetch_steam_owned_games"),
       refreshSteamStatus,
-      refreshLocalLibrary: () => refreshLibrary(options),
+      refreshLocalLibrary: async () => { await storeAccounts.refreshAll(!options.background); await refreshLibrary(options); },
     }).finally(() => {
       librarySourceRefreshRef.current = null;
     });
     librarySourceRefreshRef.current = refresh;
     return refresh;
-  }, [refreshLibrary, refreshSteamStatus]);
+  }, [refreshLibrary, refreshSteamStatus, storeAccounts.refreshAll]);
 
   useStreamLibraryRefresh(refreshLibraryFromSources);
 
@@ -698,6 +702,8 @@ export default function App() {
   };
 
   const onboardingAccounts = useMemo(() => ({
+    epic: { connected: storeAccounts.statuses.epic.connected, label: storeAccounts.statuses.epic.account_name },
+    gog: { connected: storeAccounts.statuses.gog.connected, label: storeAccounts.statuses.gog.account_name },
     steam: {
       connected: !!steamStatus?.connected,
       label: steamStatus?.account_name ?? null,
@@ -710,13 +716,14 @@ export default function App() {
       connected: !!spotify?.status?.connected,
       label: spotify?.status?.product ?? null,
     },
-  }), [steamStatus, xboxStatus, spotify?.status]);
+  }), [steamStatus, xboxStatus, spotify?.status, storeAccounts.statuses]);
 
   const openAccountFromOnboarding = useCallback((key) => {
+    if (key === "epic" || key === "gog") { storeAccounts.open(key); return; }
     if (key === "steam") { openSteamQr(); return; }
     if (key === "microsoft") { openXboxGuide(); return; }
     if (key === "spotify") setShowSpotifyGuide(true);
-  }, [openSteamQr, openXboxGuide, setShowSpotifyGuide]);
+  }, [openSteamQr, openXboxGuide, setShowSpotifyGuide, storeAccounts.open]);
 
   const beginXboxAuth = () => {
     setXboxAuthError("");
@@ -1040,6 +1047,8 @@ export default function App() {
     onAnyInput: () => pokeBarIdleRef.current(),
     onSpotifyDisconnect: () => spotify.disconnect(),
     spotifyConnectedRef,
+    onOpenStoreAccount: storeAccounts.open,
+    showStoreAccountRef: storeAccounts.openRef,
     onOpenSteamQr: openSteamQr,
     onSteamDisconnect: disconnectSteam,
     steamConnectedRef,
@@ -2992,6 +3001,8 @@ export default function App() {
       spotifyStatus={spotify.status}
       onOpenSpotifyGuide={() => setShowSpotifyGuide(true)}
       onSpotifyDisconnect={spotify.disconnect}
+      storeAccounts={storeAccounts.statuses}
+      onOpenStoreAccount={storeAccounts.open}
       steamStatus={steamStatus}
       onOpenSteamQr={openSteamQr}
       onSteamDisconnect={disconnectSteam}
@@ -4046,7 +4057,7 @@ export default function App() {
       )}
       </AppOverlays>
 
-      <div data-helper-underlay style={{ color: theme.text, fontFamily: "'Segoe UI', sans-serif", display: "flex", flexDirection: "column", minHeight: "100%", userSelect: "none", position: "relative", zIndex: 1, filter: helperTrayUnderlayFilter ?? "none", transition: settings.ui_motion === false ? "none" : "filter 180ms var(--ease-standard)", pointerEvents: (showOnboarding || showHideModal || showLibraryActions || showPowerModal || updateRelease || showSpotifyGuide || showSpotifyOverlay || showHelperTray || showControlsModal || controllerToolsModal || showSteamQr || showXboxGuide || showCloudPicker || detailsApp) ? "none" : "auto" }}>
+      <div data-helper-underlay style={{ color: theme.text, fontFamily: "'Segoe UI', sans-serif", display: "flex", flexDirection: "column", minHeight: "100%", userSelect: "none", position: "relative", zIndex: 1, filter: helperTrayUnderlayFilter ?? "none", transition: settings.ui_motion === false ? "none" : "filter 180ms var(--ease-standard)", pointerEvents: (showOnboarding || showHideModal || showLibraryActions || showPowerModal || updateRelease || showSpotifyGuide || showSpotifyOverlay || showHelperTray || showControlsModal || controllerToolsModal || showSteamQr || showXboxGuide || !!storeAccounts.selected || showCloudPicker || detailsApp) ? "none" : "auto" }}>
 
         {/* Topbar */}
         <AppHeader
@@ -4271,6 +4282,7 @@ export default function App() {
 
       </AppOverlays>
     </div>
+    <StoreAccountModal accounts={storeAccounts} />
     {showThemePicker && (
       <ThemePickerModal
         onClose={() => setShowThemePicker(false)}
@@ -4301,7 +4313,7 @@ export default function App() {
         playSoundAlt={playSoundAlt}
         accounts={onboardingAccounts}
         onOpenAccount={openAccountFromOnboarding}
-        childModalOpen={showSteamQr || showXboxGuide || showSpotifyGuide}
+        childModalOpen={showSteamQr || showXboxGuide || showSpotifyGuide || !!storeAccounts.selected}
         onFinish={({ sourcesChanged, accountTouched }) => {
           setShowOnboarding(false);
           showOnboardingRef.current = false;

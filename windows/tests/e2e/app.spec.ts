@@ -12,6 +12,8 @@ test.beforeEach(async ({ page }) => {
     };
     const params = new URLSearchParams(window.location.search);
     const counts: Record<string, number> = {};
+    const storeAccounts: Record<string, boolean> = { epic: params.has("ownedStores"), gog: params.has("ownedStores") };
+    const storeStatus = (source: string) => ({ connected: !!storeAccounts[source], account_name: `${source} Tester`, owned_count: storeAccounts[source] ? 1 : 0, updated_at: 1 });
     let pinnedIds: string[] = params.has("parity") ? ["steam://rungameid/621"] : [];
     (window as any).__invokeCounts = counts;
 
@@ -91,6 +93,10 @@ test.beforeEach(async ({ page }) => {
       },
       invoke: async (command: string, args?: any) => {
         counts[command] = (counts[command] || 0) + 1;
+        if (command === "store_account_status" || command === "store_account_refresh") return storeStatus(args.source);
+        if (command === "store_account_connect") { storeAccounts[args.source] = true; return storeStatus(args.source); }
+        if (command === "store_account_disconnect") { storeAccounts[args.source] = false; return null; }
+        if (command === "store_open_library") { (window as any).__lastStoreLibrary = args; return null; }
         if (command === "plugin:event|listen") {
           listenerId += 1;
           eventListeners.set(listenerId, { event: args.event, handler: args.handler });
@@ -134,9 +140,13 @@ test.beforeEach(async ({ page }) => {
             onboarding_complete: params.get("fresh") !== "true", theme: params.get("theme") || (params.has("crete") ? "crete" : "space"),
             accent: "crete", surface_style: params.get("surface") || "glass", ui_motion: params.has("motion"), ui_scale: 1, language: params.get("lang") || "en", app_list_view: params.has("listApps"), app_list_cols: 2,
             show_home_collections: params.has("parity"), show_home_collection_names: true, home_pinned_pos: params.has("parity") ? "top" : "none", home_mode: params.get("homeMode") || "semi", animated_heroes: params.has("animated") ? "animated" : "static",
-            home_launch_games_directly: params.has("direct") };
+            home_launch_games_directly: params.has("direct"), ...(params.has("ownedStores") || params.has("storeSignIn") ? { show_uninstalled_games: true } : {}) };
         }
         if (command === "get_all_apps") {
+          if (params.has("ownedStores") || params.has("storeSignIn")) return [
+            ...(storeAccounts.epic ? [{ id: "epic:owned", name: "007 First Light", source: "epic", store_id: "owned", app_type: "game", installed: false }] : []),
+            ...(storeAccounts.gog ? [{ id: "gog:123", name: "Baldur's Gate 3", source: "gog", store_id: "123", app_type: "game", installed: false }] : []),
+          ];
           if (params.has("lunaDetails")) return [{ id: "cloud:luna:dispatch", name: "Dispatch", last_played: params.has("played") ? 1725000000 : undefined, source: "cloud", app_type: "game", installed: true, steam_appid: 2592160, launch_path: "https://luna.amazon.co.uk/play?asin=B0H6GQJMBN" }, { id: "cloud:luna:galactic", name: "STAR WARS: Galactic Racer", source: "cloud", app_type: "game", installed: true, steam_appid: 4078430, launch_path: "https://luna.amazon.co.uk/play?asin=B0HLN4GG5K" }];
           if (params.has("xboxDetails")) return [{ id: "xbox-owned:2089483628", name: "A Plague Tale: Requiem", source: "xbox", app_type: "game", xbox_product_id: "2089483628", installed: false }];
           if (params.has("applications")) return [
@@ -315,7 +325,7 @@ test("onboarding exposes every footer to a pad and keeps it visible at 1280x800"
   await pad(page, 5);
   await expect(panel).toHaveAttribute("data-onboarding-step", "sources");
   await expect(panel.getByText("Scan Store Apps", { exact: true })).toBeVisible();
-  for (const [step, rows, next] of [["sources", 7, "accounts"], ["accounts", 3, "essentials"], ["essentials", 4, "done"]] as const) {
+  for (const [step, rows, next] of [["sources", 7, "accounts"], ["accounts", 5, "essentials"], ["essentials", 4, "done"]] as const) {
     await expect(panel).toHaveAttribute("data-onboarding-step", step);
     if (step === "essentials") await expect(panel.getByText("Hide CreteOS when a game launches")).toBeVisible();
     for (let index = 0; index < rows; index++) await pad(page, 13);
@@ -1410,4 +1420,50 @@ test("opt-in input diagnostics follows samples through selection and paint oppor
   await page.goto("/?crete&rich");
   await pad(page, 15);
   expect(await page.evaluate(() => (window as any).__invokeCounts.append_input_diagnostic ?? 0)).toBe(0);
+});
+
+
+test("Epic and GOG owned libraries connect, refresh and disconnect from Settings", async ({ page }) => {
+  await page.goto("/?crete&storeSignIn");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByText("Library & accounts", { exact: true }).click();
+  for (const store of ["Epic Games", "GOG"]) {
+    const row = page.locator("[data-settings-row]").filter({ has: page.locator("strong", { hasText: new RegExp(`^${store}$`) }) });
+    await row.getByRole("button", { name: "Connect", exact: true }).click();
+    const modal = page.getByRole("dialog", { name: `Connect ${store}`, exact: true });
+    await modal.getByRole("button", { name: "Connect", exact: true }).click();
+    await expect(modal).toContainText("1 owned games");
+    await expect(modal.getByRole("button", { name: "Refresh library" })).toBeEnabled();
+    await modal.getByRole("button", { name: "Refresh library" }).click();
+    await expect(modal.getByRole("button", { name: "Refresh library" })).toBeEnabled();
+    await modal.getByRole("button", { name: "Disconnect", exact: true }).focus();
+    await pad(page, 0);
+    await expect(modal.getByRole("button", { name: "Connect", exact: true })).toBeEnabled();
+    await modal.getByRole("button", { name: "Connect", exact: true }).click();
+    await expect(modal).toContainText("1 owned games");
+    await pad(page, 1);
+    await expect(modal).not.toBeVisible();
+  }
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await expect(page.getByRole("button", { name: "007 First Light", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Baldur's Gate 3", exact: true })).toBeVisible();
+});
+
+test("Uninstalled Epic and GOG games retain direct GFN settings and truthful store actions", async ({ page }) => {
+  await page.goto("/?crete&ownedStores");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  for (const [name, label, source, id] of [["007 First Light", "Open Epic library", "epic", "owned"], ["Baldur's Gate 3", "Open in GOG Galaxy", "gog", "123"]]) {
+    await page.getByRole("button", { name, exact: true }).click();
+    const details = page.locator('[data-crete-details="true"]');
+    await expect(details.locator("[data-launch-btn]")).toHaveAttribute("data-provider", "geforceNow");
+    await details.locator("[data-launch-btn]").click();
+    const dialog = page.getByRole("dialog", { name: "GeForce NOW stream settings" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await details.getByRole("button", { name: "Launch options", exact: true }).click();
+    await page.getByRole("menuitem", { name: new RegExp(label) }).click();
+    await expect.poll(() => page.evaluate(() => (window as any).__lastStoreLibrary)).toEqual({ source, storeId: id });
+    expect(await page.evaluate(() => (window as any).__invokeCounts.launch_app || 0)).toBe(0);
+    await page.keyboard.press("Escape");
+  }
 });

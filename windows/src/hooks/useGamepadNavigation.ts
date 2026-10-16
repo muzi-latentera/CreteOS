@@ -115,6 +115,7 @@ export interface UseGamepadNavigationOptions {
   showHelperTrayRef?: AnyRef<boolean>;
   showControlsModalRef?: AnyRef<boolean>;
   showControllerToolsModalRef?: AnyRef<boolean>;
+  showStoreAccountRef?: AnyRef<boolean>;
   showSteamQrRef?: AnyRef<boolean>;
   showXboxGuideRef?: AnyRef<boolean>;
   showCloudPickerRef?: AnyRef<boolean>;
@@ -134,6 +135,7 @@ export interface UseGamepadNavigationOptions {
   onAnyInput?: () => void;
   onSpotifyDisconnect?: () => void;
   spotifyConnectedRef?: AnyRef<boolean>;
+  onOpenStoreAccount?: (source: "epic" | "gog") => void;
   onOpenSteamQr?: () => void;
   onSteamDisconnect?: () => void;
   steamConnectedRef?: AnyRef<boolean>;
@@ -387,6 +389,7 @@ export function useGamepadNavigation(
     showHelperTrayRef = { current: false } as AnyRef<boolean>,
     showControlsModalRef = { current: false } as AnyRef<boolean>,
     showControllerToolsModalRef = { current: false } as AnyRef<boolean>,
+    showStoreAccountRef = { current: false } as AnyRef<boolean>,
     showSteamQrRef = { current: false } as AnyRef<boolean>,
     showXboxGuideRef = { current: false } as AnyRef<boolean>,
     showCloudPickerRef = { current: false } as AnyRef<boolean>,
@@ -405,6 +408,7 @@ export function useGamepadNavigation(
     onAnyInput = noop,
     onSpotifyDisconnect = noop,
     spotifyConnectedRef = { current: false } as AnyRef<boolean>,
+    onOpenStoreAccount = noop,
     onOpenSteamQr = noop,
     onSteamDisconnect = noop,
     steamConnectedRef = { current: false } as AnyRef<boolean>,
@@ -768,6 +772,7 @@ export function useGamepadNavigation(
     || !!showHelperTrayRef.current
     || !!showControlsModalRef.current
     || !!showControllerToolsModalRef.current
+    || !!showStoreAccountRef.current
     || !!showSteamQrRef.current
     || !!showXboxGuideRef.current
     || !!showCloudPickerRef.current
@@ -883,7 +888,7 @@ export function useGamepadNavigation(
       return;
     }
     // Modal intercepts all input via its own poll — main nav must not run
-    if (showOnboardingRef.current || launchingAppRef.current || showHideModalRef.current || showLibraryActionsRef.current || showFileBrowserRef.current || pendingFileRef.current || showFolderManagerRef.current || confirmDeleteRef.current || factoryResetConfirmRef?.current || showColModalRef.current || colPickerAppRef.current || editNameAppRef.current || showPowerModalRef?.current || updateReleaseRef?.current || showSpotifyGuideRef.current || showSpotifyOverlayRef.current || showHelperTrayRef.current || showControlsModalRef.current || showControllerToolsModalRef.current || showSteamQrRef.current || showXboxGuideRef.current || showCloudPickerRef.current || detailsAppRef.current) return;
+    if (showOnboardingRef.current || launchingAppRef.current || showHideModalRef.current || showLibraryActionsRef.current || showFileBrowserRef.current || pendingFileRef.current || showFolderManagerRef.current || confirmDeleteRef.current || factoryResetConfirmRef?.current || showColModalRef.current || colPickerAppRef.current || editNameAppRef.current || showPowerModalRef?.current || updateReleaseRef?.current || showSpotifyGuideRef.current || showSpotifyOverlayRef.current || showHelperTrayRef.current || showControlsModalRef.current || showControllerToolsModalRef.current || showStoreAccountRef.current || showSteamQrRef.current || showXboxGuideRef.current || showCloudPickerRef.current || detailsAppRef.current) return;
 
     // Art picker open — only Escape closes it (user interacts via touch/mouse)
     if (artPickerAppRef.current) {
@@ -1278,6 +1283,7 @@ export function useGamepadNavigation(
       }
       const sfIndex = settingsFocusIndexRef.current;
       const item    = navigableSettings[sfIndex];
+      if (key === "Enter" && item?.type === "store_account") { onOpenStoreAccount(item.store); haptic("confirm"); return; }
       const isAccountItem = item?.type === "spotify" || item?.type === "steam" || item?.type === "xbox";
       const accountConnected =
         item?.type === "spotify" ? spotifyConnectedRef.current
@@ -1807,6 +1813,7 @@ export function useGamepadNavigation(
           && !showHelperTrayRef.current
           && !showControlsModalRef.current
           && !showControllerToolsModalRef.current
+          && !showStoreAccountRef.current
           && !showSteamQrRef.current
           && !showXboxGuideRef.current
           && !showCloudPickerRef.current

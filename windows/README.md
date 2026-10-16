@@ -20,6 +20,11 @@ Previews from the running frontend with mocked native commands and clearly label
 
 ## Play using streaming services
 
+Epic Games and GOG account connections in **Settings → Library & accounts** import
+owned games, including uninstalled ones, alongside existing installed discovery.
+They retain cached libraries offline and keep store-specific GeForce NOW and
+named Moonlight host-app options. See [account setup and limits](docs/STORE_ACCOUNTS.md).
+
 The main **Play** action prefers an installed game on the configured Moonlight host, then an installed local copy, then an exact game link from the GeForce NOW catalogue. Moonlight is grey, Luna purple, GeForce NOW green, and native play red. The compact arrow menu retains local play/install and the streaming alternatives. Host Steam IDs come from read-only SSH inventory; generic Desktop/Steam host apps do not prove a game is installed. MoonDeckStream uses the exact Steam ID and requires separate MoonDeck Buddy pairing.
 
 Host apps, installed Steam IDs and Buddy status are saved per host in the WebView’s local storage (`crete.host-snapshots.v1`). A shared background refresh runs at most once every 24 hours, including across app restarts; failed attempts also throttle automatic retries. Opening game details reads saved availability immediately after local client/display detection, without waiting for the network. Failed refreshes retain the last known data. **Refresh host** forces a retry. The stream launch still validates the host, app and game live, so a saved entry is not a guarantee that the host is reachable.

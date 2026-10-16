@@ -13,6 +13,8 @@ export interface App {
   steam_appid?: number;
   steam_icon_hash?: string;
   xbox_product_id?: string;
+  store_id?: string;
+  store_cover_url?: string;
   installing?: boolean;
   installProgress?: number;
   runAsAdmin?: boolean;
@@ -338,6 +340,11 @@ export interface SettingsSteamItem extends SettingsItemBase {
   type: "steam";
 }
 
+export interface SettingsStoreAccountItem extends SettingsItemBase {
+  type: "store_account";
+  store: "epic" | "gog";
+}
+
 export interface SettingsXboxItem extends SettingsItemBase {
   type: "xbox";
 }
@@ -406,6 +413,7 @@ export type SettingsItem =
   | SettingsSpotifyItem
   | SettingsSteamItem
   | SettingsXboxItem
+  | SettingsStoreAccountItem
   | SettingsRefreshItem
   | SettingsUpdateItem
   | SettingsLinkItem

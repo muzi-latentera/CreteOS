@@ -2,6 +2,16 @@
 
 This Windows fork inherits LiftOff's integrations. Account connections are optional. Local settings, discovered libraries, collections and cached art/media are stored under `%LOCALAPPDATA%\CreteOS`. WebView data uses the `io.latent.creteos.windows` application identity. Supported account tokens use the Windows credential store through the inherited keyring integration, with separate CreteOS namespaces.
 
+Optional Epic Games/GOG sign-ins use separate incognito store windows. Native
+account requests contact Epic's account, launcher, library and catalogue services,
+or GOG's auth and embedded account services. Refresh tokens stay in separate
+Windows Credential Manager entries; access tokens stay in native memory. Local
+ownership caches contain account IDs/names, timestamps and game metadata, without
+tokens/passwords. Failed refreshes preserve the previous cache. Disconnect removes
+the token and ownership cache; factory reset also clears these credentials. G1
+portable exports exclude these account caches and credentials. See
+[account integration details](docs/STORE_ACCOUNTS.md).
+
 Depending on enabled features, the launcher contacts Steam, Microsoft/Xbox, Spotify, SteamGridDB, cloud gaming/catalog services and media sources. Those services receive the requests needed for their features and have their own privacy policies. Microsoft/Steam sign-in, Spotify playback and artwork/download functions retain upstream behavior; this fork has not independently audited every integration.
 
 Home’s optional-content ‘What’s new’ rail requests the public Reddit r/Games + r/pcgaming RSS feed, without account authentication. Thumbnails use Reddit image hosts, embedded YouTube previews and article Open Graph images from a fixed gaming-publication allowlist. Article preview requests have bounded sizes/timeouts and follow at most three redirects within the same fixed public publisher allowlist. Articles open in your default browser. Feed results, including failures, are cached in memory for 30 minutes; the rail is hidden when no entries are available.

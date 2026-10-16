@@ -1017,5 +1017,21 @@
     "Close_GeForce_NOW_before_applying_settings_NVIDIA_may_limit_quality_according_to_your_membership_and_device_Codec_is_managed_in_the_NVIDIA_app": "Close GeForce NOW before applying settings. NVIDIA may limit quality according to your membership and device. Codec is managed in the NVIDIA app.",
     "Achievements": "Achievements",
     "Unlocked_achievements": "{{count}} unlocked"
+  },
+  "storeAccounts": {
+    "epic": "Epic Games",
+    "gog": "GOG",
+    "title": "Connect {{store}}",
+    "hint": "Show all your {{store}} games, including those not installed.",
+    "onboardingHint": "Import your owned games, including uninstalled games.",
+    "security": "Sign in with the store in its secure window. CreteOS keeps the session in Windows Credential Manager, not in your library files.",
+    "connected": "{{account}} · {{count}} owned games",
+    "working": "Complete sign-in in the store window, then wait while your library syncs.",
+    "connect": "Connect",
+    "manage": "Manage account",
+    "refresh": "Refresh library",
+    "disconnect": "Disconnect",
+    "reconnect": "Sign in again",
+    "close": "Close"
   }
 }

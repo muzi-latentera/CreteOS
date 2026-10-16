@@ -216,6 +216,8 @@ export function buildSettingsItems(t: TFunction, activeTheme: string): SettingsI
     { key: "scan_uwp",       section: 1, label: t("settings.scanStoreApps"), type: "toggle" },
     { key: "scan_desktop",   section: 1, label: t("settings.scanDesktop"),   type: "toggle" },
     { key: "scan_battlenet", section: 1, label: t("settings.scanBattlenet"), type: "toggle" },
+    { key: "gog_account", section: 1, label: "GOG", type: "store_account", store: "gog" },
+    { key: "epic_account", section: 1, label: "Epic Games", type: "store_account", store: "epic" },
     { key: "scan_gog",       section: 1, label: t("settings.scanGog"),       type: "toggle" },
     { key: "scan_epic",      section: 1, label: t("settings.scanEpic"),      type: "toggle" },
 
@@ -394,6 +396,8 @@ export interface SettingsScreenProps {
   spotifyStatus?: SpotifyStatus;
   onOpenSpotifyGuide?: () => void;
   onSpotifyDisconnect?: () => void;
+  storeAccounts?: Record<string, { connected: boolean; account_name?: string; owned_count: number }>;
+  onOpenStoreAccount?: (source: "epic" | "gog") => void;
   steamStatus?: SteamStatus;
   onOpenSteamQr?: () => void;
   onSteamDisconnect?: () => void;
@@ -469,6 +473,8 @@ export function SettingsScreen({
   spotifyStatus,
   onOpenSpotifyGuide,
   onSpotifyDisconnect,
+  storeAccounts,
+  onOpenStoreAccount,
   steamStatus,
   onOpenSteamQr,
   onSteamDisconnect,
@@ -1192,6 +1198,19 @@ export function SettingsScreen({
       );
     }
 
+    if (item.type === "store_account") {
+      const status = storeAccounts?.[item.store];
+      return <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef}
+        style={{ ...rowStyle, gap: 18, cursor: "pointer" }} onClick={() => onOpenStoreAccount?.(item.store)}>
+        <div style={{ flex: 1 }}><strong>{item.label}</strong><div style={{ fontSize: 12, color: theme.textDim, marginTop: 5 }}>
+          {status?.connected ? t("storeAccounts.connected", { account: status.account_name || item.label, count: status.owned_count }) : t("storeAccounts.hint", { store: item.label })}
+        </div></div>
+        <button type="button" onClick={event => { event.stopPropagation(); onOpenStoreAccount?.(item.store); }}
+          style={{ padding: "8px 12px", borderRadius: 10, border: `1px solid ${accent.primary}`, background: "transparent", color: theme.text }}>
+          {t(status?.connected ? "storeAccounts.manage" : "storeAccounts.connect")}
+        </button>{onyxRing}
+      </div>;
+    }
     if (item.type === "steam") {
       const connected = !!steamStatus?.connected;
       const ownedCount = steamStatus?.owned_count ?? 0;

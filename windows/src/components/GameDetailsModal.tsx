@@ -6,6 +6,7 @@ import { LaunchLoading } from "../crete/LaunchLoading";
 import { useStreaming } from "../crete/useStreaming";
 import { useReviewVideos, reviewChoices } from "../crete/useReviewVideos";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { IoChevronBackOutline, IoChevronDownOutline, IoChevronForwardOutline, IoCloseOutline, IoGameControllerOutline, IoPlay } from "react-icons/io5";
 import { StoreBadge } from "./ui/StoreBadge";
@@ -250,6 +251,9 @@ export function GameDetailsModal({
   const blockLaunchPopup = useCallback((blocked: boolean) => { launchPopupBlockedRef.current = blocked; }, []);
   const isSteam = source === "steam";
   const isXbox = source === "xbox";
+  const storeAccountGame = source === "epic" || source === "gog";
+  const [storeClientError, setStoreClientError] = useState("");
+  const storeClientLabel = source === "epic" ? "Open Epic library" : "Open in GOG Galaxy";
   const steamAppId = app.steam_appid != null ? String(app.steam_appid) : undefined;
   const numericSteamAppId = steamAppId && /^\d+$/.test(steamAppId)
     ? Number(steamAppId)
@@ -259,7 +263,7 @@ export function GameDetailsModal({
     app.source,
     steamAppId,
     xboxProductId,
-    storeMetaEnabled && (isSteam || isXbox || isCloud),
+    storeMetaEnabled && (isSteam || isXbox || isCloud || storeAccountGame),
     app.name,
   );
   const deckCompat = useDeckCompat(
@@ -440,6 +444,11 @@ export function GameDetailsModal({
       else onCancelInstall?.();
       return;
     }
+    if (storeAccountGame) {
+      setStoreClientError("");
+      void invoke("store_open_library", { source, storeId: app.store_id ?? null }).catch(error => setStoreClientError(String(error)));
+      return;
+    }
     if (canInstall) {
       onInstall?.();
       return;
@@ -453,14 +462,14 @@ export function GameDetailsModal({
       }
       else onXboxInstallFallback?.();
     }
-  }, [canInstall, canXboxInstall, installed, installing, onCancelInstall, onInstall, onPlay, onXboxCancelInstall, onXboxInstallFallback, uninstalling, xboxInstalling, xboxProductId]);
+  }, [storeAccountGame, source, app.store_id, canInstall, canXboxInstall, installed, installing, onCancelInstall, onInstall, onPlay, onXboxCancelInstall, onXboxInstallFallback, uninstalling, xboxInstalling, xboxProductId]);
   const handlePrimaryAction = () => {
     if (cloudDefault) streaming.launch(streaming.provider === "moonlight" ? "moonlight" : "geforceNow", true);
     else handleLocalAction();
   };
 
   const actions = useMemo<DetailAction[]>(() => [
-    ...(cloudDefault && !installed && (canInstall || canXboxInstall) ? [{ key: "install-local", label: "Install locally", onClick: handleLocalAction }] : []),
+    ...(cloudDefault && !installed && (canInstall || canXboxInstall || storeAccountGame) ? [{ key: "install-local", label: storeAccountGame ? storeClientLabel : "Install locally", onClick: handleLocalAction }] : []),
     ...(running && onCloseGame ? [{ key: "close-game", label: t("home.close"), onClick: onCloseGame, danger: true }] : []),
     ...(installed && onVerify && isSteam ? [{ key: "verify", label: t("install.verify"), onClick: onVerify }] : []),
     ...(installed && onUninstall ? [{ key: "uninstall", label: t("install.uninstall"), onClick: onUninstall, danger: true }] : []),
@@ -809,10 +818,11 @@ export function GameDetailsModal({
       ? t("details.play")
       : installing
         ? (uninstalling ? t("install.uninstalling") : t("install.cancel"))
+        : storeAccountGame ? storeClientLabel
         : canXboxInstall
           ? xboxInstallLabel
         : installLabel;
-  const primaryDisabled = (!running && !installing && streaming.checking) || (!cloudDefault && !installed && (uninstalling || (!installing && !canInstall && !canXboxInstall)));
+  const primaryDisabled = (!running && !installing && streaming.checking) || (!cloudDefault && !installed && (uninstalling || (!installing && !canInstall && !canXboxInstall && !storeAccountGame)));
   const overlayItem = overlay ? overlay.item ?? mediaItems[overlay.index] : null;
   useEffect(() => { if (overlayItem?.type === "youtube") { void openUrl(overlayItem.url).catch(() => {}); setOverlay(null); } }, [overlayItem]);
   const overlayMovieSrc = overlayItem?.type === "trailer" ? movieSource(overlayItem.movie) : undefined;
@@ -1217,9 +1227,9 @@ export function GameDetailsModal({
               {primaryLabel}
               </button>}
               {resolvedTheme === "crete" && <LaunchMenu streaming={streaming} open={launchMenuOpen} setOpen={setLaunchMenuOpen} loading={launchLoading}
-                block={blockLaunchPopup} local={handleLocalAction} localLabel={installed ? "Local" : installing ? "Cancel installation" : "Install locally"}
+                block={blockLaunchPopup} local={handleLocalAction} localLabel={installed ? "Local" : installing ? "Cancel installation" : storeAccountGame ? storeClientLabel : "Install locally"}
                 manageLabel={activeTab === "manage" ? "Game information" : "Manage game"}
-                localEnabled={installed || canInstall || canXboxInstall || installing} manage={() => {
+                localEnabled={installed || canInstall || canXboxInstall || storeAccountGame || installing} manage={() => {
                   revealControls(); const next = activeTab === "manage" ? "details" : "manage";
                   activeTabRef.current = next; setActiveTab(next); setFocusedIndex(next === "details" ? 0 : 1);
                 }} />}
@@ -1295,6 +1305,7 @@ export function GameDetailsModal({
                 </div>
               )}
             </div>
+            {storeClientError && <p role="alert" className="crete-launch-error">{storeClientError}</p>}
             {streaming.error && <p role="alert" className={resolvedTheme === "crete" ? "crete-launch-error" : undefined}>{streaming.error}</p>}
             {installing && (
               <div style={{ width: controlsRevealed ? 170 : 220, display: "flex", flexDirection: "column", gap: 5 }}>
