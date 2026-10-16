@@ -21,6 +21,7 @@ static EPIC_LOCK: Mutex<()> = Mutex::new(());
 static GOG_LOCK: Mutex<()> = Mutex::new(());
 static EPIC_LOGIN: AtomicBool = AtomicBool::new(false);
 static GOG_LOGIN: AtomicBool = AtomicBool::new(false);
+static GOG_IDS_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Store { Epic, Gog }
@@ -232,7 +233,16 @@ fn launch_path(store: Store, game: &OwnedGame) -> String {
     if store == Store::Epic { format!("com.epicgames.launcher://apps/{}?action=launch&silent=true", urlencoding::encode(&format!("{}:{}:{}", game.namespace, game.catalog_id, game.id))) }
     else { format!("goggalaxy://openGameView/{}", game.id) }
 }
-fn merge_games(apps: &mut Vec<AppEntry>, store: Store, games: Vec<OwnedGame>) {
+fn merge_games(apps: &mut Vec<AppEntry>, store: Store, games: Vec<OwnedGame>, ids: &mut HashMap<String, String>) {
+    if store == Store::Gog {
+        for app in apps.iter_mut().filter(|a| a.source == "gog") {
+            if let Some(id) = &app.store_id {
+                // Keep legacy installed identities, but also retain a new owned
+                // entry's identity when that game is installed later.
+                app.id = ids.entry(id.clone()).or_insert_with(|| app.id.clone()).clone();
+            }
+        }
+    }
     for game in games {
         let found = apps.iter_mut().find(|a| a.source == store.name() && (a.store_id.as_deref() == Some(&game.id) || (store == Store::Epic && a.id.eq_ignore_ascii_case(&format!("epic:{}", game.id)))));
         if let Some(installed) = found {
@@ -240,12 +250,32 @@ fn merge_games(apps: &mut Vec<AppEntry>, store: Store, games: Vec<OwnedGame>) {
             // Keep the installed executable/URI and stable history/pin identity.
             continue;
         }
-        apps.push(AppEntry { id: format!("{}:{}", store.name(), game.id.to_lowercase()), name: game.name.clone(), source: store.name().into(), app_type: "game".into(), installed: false,
+        let id = if store == Store::Gog { ids.entry(game.id.clone()).or_insert_with(|| format!("gog:{}", game.id)).clone() }
+            else { format!("epic:{}", game.id.to_lowercase()) };
+        apps.push(AppEntry { id, name: game.name.clone(), source: store.name().into(), app_type: "game".into(), installed: false,
             launch_path: launch_path(store, &game), store_id: Some(game.id), store_cover_url: game.cover, ..Default::default() });
     }
 }
 pub fn merge_cached(apps: &mut Vec<AppEntry>, source: &str) {
-    if let Ok(store) = Store::parse(source) { if let Some(library) = load(store) { merge_games(apps, store, library.games); } }
+    if let Ok(store) = Store::parse(source) {
+        let games = load(store).map(|library| library.games).unwrap_or_default();
+        if store == Store::Gog {
+            // This tiny token-free identity map has its own lock: library scans
+            // must never wait for an account's network sync mutex.
+            let Ok(_guard) = GOG_IDS_LOCK.lock() else { return; };
+            let path = super::liftoff_dir().join("gog_library_ids.json");
+            let mut ids: HashMap<String, String> = std::fs::read(&path).ok().and_then(|data| serde_json::from_slice(&data).ok()).unwrap_or_default();
+            ids.retain(|key, value| safe_id(key) && value.starts_with("gog:") && value.len() <= 1024 && !value.chars().any(char::is_control));
+            let before = ids.clone();
+            merge_games(apps, store, games, &mut ids);
+            if ids != before {
+                if let Ok(data) = serde_json::to_vec(&ids) {
+                    let tmp = path.with_extension("json.tmp");
+                    if std::fs::write(&tmp, data).is_err() || std::fs::rename(tmp, path).is_err() { eprintln!("Could not save GOG library identities"); }
+                }
+            }
+        } else { merge_games(apps, store, games, &mut HashMap::new()); }
+    }
 }
 pub fn clear_credentials() {
     for store in [Store::Epic, Store::Gog] {
@@ -397,19 +427,37 @@ mod tests {
     }
     #[test] fn gog_imports_uninstalled_games_and_filters_addons() {
         let games = gog_products(&json!({"products":[{"id":123,"title":"Owned game","image":"//images.gog-statics.com/cover.jpg"},{"id":124,"title":"DLC","isDlc":true}]})).unwrap();
-        let mut apps = vec![]; merge_games(&mut apps, Store::Gog, games);
+        let mut apps = vec![]; merge_games(&mut apps, Store::Gog, games, &mut HashMap::new());
         assert_eq!(apps.len(),1); assert!(!apps[0].installed); assert_eq!(apps[0].store_id.as_deref(),Some("123"));
         assert_eq!(apps[0].launch_path,"goggalaxy://openGameView/123");
     }
     #[test] fn installed_gog_keeps_its_identity_and_executable_without_cross_store_merges() {
         let game = OwnedGame{id:"123".into(),name:"Same game".into(),namespace:String::new(),catalog_id:String::new(),cover:None};
         let mut apps=vec![AppEntry{id:"legacy-gog-id".into(),source:"gog".into(),store_id:Some("123".into()),name:game.name.clone(),launch_path:"C:\\Games\\game.exe".into(),installed:true,..Default::default()},AppEntry{id:"steam/1".into(),source:"steam".into(),name:game.name.clone(),..Default::default()}];
-        merge_games(&mut apps,Store::Gog,vec![game]);assert_eq!(apps.len(),2);assert_eq!(apps[0].id,"legacy-gog-id");assert!(apps[0].installed);assert_eq!(apps[0].launch_path,"C:\\Games\\game.exe");
+        merge_games(&mut apps,Store::Gog,vec![game],&mut HashMap::new());assert_eq!(apps.len(),2);assert_eq!(apps[0].id,"legacy-gog-id");assert!(apps[0].installed);assert_eq!(apps[0].launch_path,"C:\\Games\\game.exe");
+    }
+    #[test] fn gog_identity_survives_install_uninstall_and_account_disconnect() {
+        let game=OwnedGame{id:"123".into(),name:"Same game".into(),namespace:String::new(),catalog_id:String::new(),cover:None};
+        let mut ids=HashMap::new(); let mut apps=vec![];
+        merge_games(&mut apps,Store::Gog,vec![game.clone()],&mut ids);
+        let pinned_id=apps[0].id.clone();
+        let mut installed=vec![AppEntry{id:"gog:same_game".into(),source:"gog".into(),store_id:Some("123".into()),installed:true,launch_path:"C:\\Games\\game.exe".into(),..Default::default()}];
+        merge_games(&mut installed,Store::Gog,vec![game.clone()],&mut ids);
+        assert_eq!(installed.len(),1); assert_eq!(installed[0].id,pinned_id); assert!(installed[0].installed);
+        merge_games(&mut installed,Store::Gog,vec![],&mut ids);
+        assert_eq!(installed[0].id,pinned_id);
+        let mut uninstalled=vec![]; merge_games(&mut uninstalled,Store::Gog,vec![game.clone()],&mut ids);
+        assert_eq!(uninstalled[0].id,pinned_id); assert!(!uninstalled[0].installed);
+        let mut legacy_ids=HashMap::new();
+        installed[0].id="gog:legacy_name".into();
+        merge_games(&mut installed,Store::Gog,vec![game.clone()],&mut legacy_ids);
+        let mut uninstalled=vec![]; merge_games(&mut uninstalled,Store::Gog,vec![game],&mut legacy_ids);
+        assert_eq!(uninstalled[0].id,"gog:legacy_name");
     }
     #[test] fn epic_ids_and_store_edition_survive_import() {
         let item=json!({"appName":"app-a","namespace":"sandbox","catalogItemId":"catalog-a","sandboxType":"PUBLIC"});
         let game=epic_game(&item,&json!({"title":"Owned Epic game","categories":[{"path":"games"}]})).unwrap();
-        let mut apps=vec![];merge_games(&mut apps,Store::Epic,vec![game]);assert_eq!(apps[0].id,"epic:app-a");assert!(!apps[0].installed);assert_eq!(apps[0].source,"epic");assert!(apps[0].launch_path.contains("sandbox%3Acatalog-a%3Aapp-a"));
+        let mut apps=vec![];merge_games(&mut apps,Store::Epic,vec![game],&mut HashMap::new());assert_eq!(apps[0].id,"epic:app-a");assert!(!apps[0].installed);assert_eq!(apps[0].source,"epic");assert!(apps[0].launch_path.contains("sandbox%3Acatalog-a%3Aapp-a"));
         assert!(epic_game(&item,&json!({"title":"DLC","mainGameItem":{"id":"parent"}})).is_none());
     }
     #[test] fn callback_rejects_other_sites_and_mismatched_state() {

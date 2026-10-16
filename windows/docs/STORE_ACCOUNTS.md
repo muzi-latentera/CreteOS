@@ -14,7 +14,9 @@ performed by connecting an account.
 Installed scans still work without account sign-in. GOG registry product IDs and
 Epic app IDs join installed copies to ownership records; existing installed IDs,
 executables, pins and history are retained. Different stores remain separate
-entitlements. Uninstalled entries open the Epic library or their GOG Galaxy page
+entitlements. A token-free `gog_library_ids.json` mapping keeps GOG entries stable
+through installation, uninstall and account disconnect; it can travel with the
+portable preferences, unlike the account library caches. Uninstalled entries open the Epic library or their GOG Galaxy page
 for installation; CreteOS does not report them as playable native installs.
 
 Refresh runs in the background on startup/reconnection, at most once per day for
