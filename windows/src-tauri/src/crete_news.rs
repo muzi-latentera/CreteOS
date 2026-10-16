@@ -73,7 +73,8 @@ fn record_news_result(publisher: &str, outcome: &str) {
     let path = crate::liftoff_dir().join("news-image-diagnostics.jsonl");
     if path.metadata().is_ok_and(|meta| meta.len() > 64_000) { let _ = std::fs::remove_file(&path); }
     if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-        let row = serde_json::json!({"publisher": publisher, "outcome": outcome, "at": chrono::Utc::now().timestamp()});
+        let at = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+        let row = serde_json::json!({"publisher": publisher, "outcome": outcome, "at": at});
         let _ = writeln!(file, "{row}");
     }
 }
