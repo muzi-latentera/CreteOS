@@ -1089,6 +1089,29 @@ test("docked external controller operates details with an idle built-in controll
   await expect(page.getByRole("dialog", { name: "Moonlight stream settings" })).not.toBeVisible();
 });
 
+test("docked idle trigger axes do not multiply a built-in D-pad press", async ({ page }) => {
+  await page.goto("/?crete&rich&played");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  const cards = page.locator('.crete-library [data-game-id]');
+  const nextId = await cards.nth(1).getAttribute("data-game-id");
+  await page.evaluate(() => {
+    const buttons = () => Array.from({ length: 16 }, () => ({ pressed: false, touched: false, value: 0 }));
+    const builtIn = { index: 0, id: "Built-in", mapping: "standard", axes: [0, 0, 0, 0], buttons: buttons() };
+    const docked = { index: 1, id: "Docked", mapping: "standard", axes: [0, 0, 0, 0, -1, -1], buttons: buttons() };
+    (window as any).__dockBuiltIn = builtIn;
+    Object.defineProperty(navigator, "getGamepads", { configurable: true, value: () => [builtIn, docked] });
+  });
+  await frames(page, 12);
+  await page.evaluate(async () => {
+    const button = (window as any).__dockBuiltIn.buttons[15];
+    button.pressed = true; button.value = 1;
+    await new Promise(resolve => setTimeout(resolve, 150));
+    button.pressed = false; button.value = 0;
+  });
+  await frames(page, 10);
+  await expect(page.locator('.crete-library [data-selected="true"]').first()).toHaveAttribute("data-game-id", nextId!);
+});
+
 test("Moonlight controller opens dropdown choices and reaches the bottom actions", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 600 });
   await page.goto("/?crete&rich&gfn&hostInstalled");

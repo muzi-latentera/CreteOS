@@ -1,4 +1,5 @@
 import { noteControllerInput } from "./inputMode";
+import { inputTraceGamepads } from "./inputDiagnostics";
 
 export interface GpState {
   ArrowUp: boolean;
@@ -82,23 +83,57 @@ export function getBestGamepad(): Gamepad | null {
 }
 
 let _lastActiveIdx: number | null = null;
+const _previousControllerActivity = new Map<number, { identity: string; held: Set<string> }>();
+
+function controllerActivity(gp: Gamepad): Set<string> {
+  const held = new Set<string>();
+  gp.buttons.forEach((button, index) => { if (button.pressed) held.add(`button:${index}`); });
+  // Standard mapping exposes triggers as buttons. Additional resting trigger
+  // axes (often -1) must not make an idle docked controller look active.
+  gp.axes.slice(0, 4).forEach((axis, index) => {
+    if (Math.abs(axis) > 0.5) held.add(`axis:${index}:${Math.sign(axis)}`);
+  });
+  if (gp.mapping !== "standard") {
+    for (const index of [6, 7]) {
+      const axis = gp.axes[index] ?? 0;
+      if (Math.abs(axis) > 0.5) held.add(`hat:${index}:${Math.sign(axis)}`);
+    }
+  }
+  return held;
+}
 
 /**
  * Returns the last actively used gamepad.
- * When multiple controllers are connected, switches to whichever one has any input.
+ * When multiple controllers are connected, switches on a fresh action, not a
+ * repeatedly observed held state on another controller.
  * This ensures the controller being physically used always drives the UI.
  */
 export function getActiveGamepad(): Gamepad | null {
   if (_gamepadInputSuspended) return null;
 
   const all = Array.from(navigator.getGamepads());
+  inputTraceGamepads(all);
   const valid = all
     .map((g, i) => ({ g, i }))
     .filter((x): x is { g: Gamepad; i: number } =>
       x.g !== null && x.g.buttons.length >= 4 && x.g.axes.length >= 4
     );
 
-  if (valid.length === 0) return null;
+  const connected = new Set(valid.map(({ i }) => i));
+  for (const index of _previousControllerActivity.keys()) {
+    if (!connected.has(index)) _previousControllerActivity.delete(index);
+  }
+  const sampled = valid.map(({ g, i }) => {
+    const identity = `${g.id}|${g.mapping}|${g.buttons.length}|${g.axes.length}`;
+    const held = controllerActivity(g);
+    const previous = _previousControllerActivity.get(i);
+    const fresh = previous?.identity === identity
+      ? [...held].some(action => !previous.held.has(action)) : held.size > 0;
+    _previousControllerActivity.set(i, { identity, held });
+    return { g, i, held, fresh };
+  });
+
+  if (valid.length === 0) { _lastActiveIdx = null; return null; }
 
   // Single controller — no switching needed
   if (valid.length === 1) {
@@ -106,33 +141,33 @@ export function getActiveGamepad(): Gamepad | null {
     return valid[0].g;
   }
 
-  // Multiple controllers — switch to whichever has current input
-  for (const { g, i } of valid) {
-    if (i === _lastActiveIdx) continue;
-    if (g.buttons.some(b => b.pressed) || g.axes.some(a => Math.abs(a) > 0.5)) {
-      _lastActiveIdx = i;
-      return g;
-    }
+  // Switching back merely because the previous controller is still held
+  // resets the navigation edge history every poll and repeats one physical tap.
+  const takeover = sampled.find(pad => pad.i !== _lastActiveIdx && pad.fresh);
+  if (takeover) {
+    _lastActiveIdx = takeover.i;
+    return takeover.g;
   }
 
   // Stay on the last active controller if it's still connected
   if (_lastActiveIdx !== null) {
-    const current = all[_lastActiveIdx];
+    const current = valid.find(pad => pad.i === _lastActiveIdx)?.g;
     if (current) return current;
   }
 
   // Fallback: prefer standard mapping, then first valid
-  const best = valid.find(x => x.g.mapping === "standard") ?? valid[0];
+  const best = sampled.find(pad => pad.held.size > 0) ?? valid.find(x => x.g.mapping === "standard") ?? valid[0];
   _lastActiveIdx = best.i;
   return best.g;
 }
 
 export function readGpState(gp: Gamepad): GpState {
   const btn = (i: number) => !!gp.buttons[i]?.pressed;
-  const hatLeft  = (gp.axes[6] ?? 0) < -0.5;
-  const hatRight = (gp.axes[6] ?? 0) >  0.5;
-  const hatUp    = (gp.axes[7] ?? 0) < -0.5;
-  const hatDown  = (gp.axes[7] ?? 0) >  0.5;
+  const legacyHat = gp.mapping !== "standard";
+  const hatLeft  = legacyHat && (gp.axes[6] ?? 0) < -0.5;
+  const hatRight = legacyHat && (gp.axes[6] ?? 0) >  0.5;
+  const hatUp    = legacyHat && (gp.axes[7] ?? 0) < -0.5;
+  const hatDown  = legacyHat && (gp.axes[7] ?? 0) >  0.5;
   const state = {
     ArrowUp:      btn(12) || hatUp    || gp.axes[1] < -0.5,
     ArrowDown:    btn(13) || hatDown  || gp.axes[1] >  0.5,

@@ -22,6 +22,12 @@ Follow-up physical acceptance on e5c65e8: all54native presses reached browser sa
 
 The independent maintenance follow-up separates the data refresh from foreground return artwork, updates the display-scale recommendation after resize without changing a saved scale, and refreshes visible Microsoft progress after return while preserving offline reads. Hook tests cover quiet refresh without an artwork event, offline deferral, session deduplication, delayed refresh cleanup, display-change recommendations preserving a chosen scale, and late Xbox responses not replacing another game's progress. A targeted browser check sends the native session-ended event and verifies Library selection/input survive the quiet scan. Native compilation and actual provider/display checks are recorded separately from these mocks.
 
+## 2026-10-16 dock acceptance failure
+
+Muzi reports built-in controls repeat a single press while docked, followed by a black internal screen after undocking. This FAILS dock acceptance on2e338eb, despite the separately accepted undocked rapid-input and Moonlight lifecycle tests. The same CreteOS PID384/executable remained running. Logs include a Button/Lid-triggered S4 cycle during recovery; they do not establish the cause of the initial blackout. No driver or power policy change is justified by this trace alone.
+
+A regression reproduces controller ownership alternating0/1 on every sample when a built-in button is held and another pad exposes a resting trigger axis. Ownership must change on fresh actions, not an older held state. A second regression covers deliberate takeover, simultaneous held inputs and disconnect. Legacy JavaScript imports now re-export the TypeScript implementation so all consumers share one ownership state. Opt-in traces include all connected pads, not only the selected one, for the next physical comparison. This candidate addresses a reproduced input fault; it does not claim the black-screen issue is fixed. Record native display paths/foreground alongside browser input before another coordinated unplug test.
+
 ## Initial verification
 
 Local verification on macOS, 2026-10-13, branch `codex/windows-liftoff`:

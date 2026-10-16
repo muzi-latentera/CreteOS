@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   detectPlatform,
   readGpState,
@@ -21,6 +21,36 @@ function gamepad({
     })),
   } as Gamepad;
 }
+
+it("does not alternate controllers while a built-in press and an idle trigger axis coexist", async () => {
+  vi.resetModules();
+  const { getActiveGamepad } = await import("./gamepad");
+  const builtIn = { ...gamepad({ pressed: [15] }), index: 0, id: "Built-in", mapping: "standard" } as Gamepad;
+  const docked = { ...gamepad({ axes: [0, 0, 0, 0, -1, -1] }), index: 1, id: "Docked", mapping: "standard" } as Gamepad;
+  const sample = vi.spyOn(navigator, "getGamepads").mockReturnValue([builtIn, docked]);
+  try {
+    expect(Array.from({ length: 12 }, () => getActiveGamepad()?.index)).toEqual(Array(12).fill(0));
+  } finally { sample.mockRestore(); }
+});
+
+it("allows a fresh action to take over without bouncing back to an older held button", async () => {
+  vi.resetModules();
+  const { getActiveGamepad } = await import("./gamepad");
+  const builtIn = { ...gamepad(), index: 0, id: "Built-in", mapping: "standard" } as Gamepad;
+  const docked = { ...gamepad(), index: 1, id: "Docked", mapping: "standard" } as Gamepad;
+  const sample = vi.spyOn(navigator, "getGamepads").mockReturnValue([builtIn, docked]);
+  try {
+    expect(getActiveGamepad()?.index).toBe(0);
+    builtIn.buttons[15].pressed = true;
+    expect(getActiveGamepad()?.index).toBe(0);
+    docked.buttons[0].pressed = true;
+    expect(Array.from({ length: 12 }, () => getActiveGamepad()?.index)).toEqual(Array(12).fill(1));
+    builtIn.buttons[12].pressed = true;
+    expect(Array.from({ length: 12 }, () => getActiveGamepad()?.index)).toEqual(Array(12).fill(0));
+    sample.mockReturnValue([null, docked]);
+    expect(getActiveGamepad()?.index).toBe(1);
+  } finally { sample.mockRestore(); }
+});
 
 describe("readGpState", () => {
   it("maps standard face and d-pad buttons", () => {

@@ -10,6 +10,7 @@ let pollCount = 0;
 let maxPollGap = 0;
 let previousContext = "";
 let previousPad = "";
+let previousControllers = "";
 let writing: Promise<void> | null = null;
 
 /** No IPC, DOM inspection or serialization on the disabled input path. */
@@ -17,6 +18,17 @@ export function inputTrace(kind: string, data: Row = {}) {
   if (!session) return;
   if (rows.length >= 20_000) { dropped++; return; }
   rows.push({ sequence: ++sequence, kind, wallMs: Date.now(), nowMs: performance.now(), ...data });
+}
+
+export function inputTraceGamepads(pads: readonly (Gamepad | null)[]) {
+  if (!session) return;
+  const controllers = Array.from(pads).flatMap((pad, slot) => pad ? [{ slot, index: pad.index, mapping: pad.mapping,
+    buttons: Array.from(pad.buttons).flatMap((button, index) => button.pressed ? [index] : []),
+    axes: Array.from(pad.axes).map(value => Math.round(value * 100) / 100) }] : []);
+  const signature = JSON.stringify(controllers);
+  if (signature === previousControllers) return;
+  previousControllers = signature;
+  inputTrace("controllers", { controllers });
 }
 
 export function inputTracePoll(now: number, focused: boolean, ready: boolean) {
