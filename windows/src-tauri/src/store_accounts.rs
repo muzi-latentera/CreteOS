@@ -416,6 +416,7 @@ pub async fn store_account_connect(app: tauri::AppHandle, source: String) -> Res
             if store.generation().load(Ordering::SeqCst) != generation { return Err("Sign-in cancelled".into()); }
             store.key()?.set_password(&session.refresh).map_err(|_| "Could not securely save the store session")?;
             progress::refresh_times(store,&session,&games);
+            check_generation(store,generation)?;
             persist(store, &Library { format_version: 1, account_id: session.account_id, account_name: session.account_name, updated_at: now(), games })?;
             notify(&app); Ok(status(store))
         })();

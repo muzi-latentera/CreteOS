@@ -123,6 +123,10 @@ pub async fn store_game_progress(app: tauri::AppHandle, source: String, game_id:
         let generation=store.generation().load(Ordering::SeqCst);
         let current=load(store).ok_or("Account disconnected")?;
         if current.account_id!=library.account_id{return Err("Account changed".into());}
+        // Home and details can request the same title together. The worker that
+        // waited for the account lock should reuse the first worker's result.
+        let latest=cached(store,&game.id,&library.account_id);
+        if latest.details_at>0&&now().saturating_sub(latest.details_at)<if refresh.unwrap_or(false){10}else{86400}{return Ok(latest.value);}
         let refresh=store.key()?.get_password().map_err(|_|"Reconnect this account to refresh activity")?;
         let session=match exchange(store,"refresh_token",&refresh){Ok(session)=>session,Err(_)=>return Ok(old.value)};
         if session.account_id!=library.account_id{return Err("Account changed".into());}
