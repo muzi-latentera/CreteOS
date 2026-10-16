@@ -1,5 +1,6 @@
 import { useRecordedHistory } from "./useRecordedHistory";
 import { useNews } from "./useNews";
+import { NewsArtwork } from "./NewsArtwork";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useMemo, useRef, useState, type RefObject, type ReactNode, type CSSProperties } from "react";
 import { IoGameControllerOutline, IoPlay } from "react-icons/io5";
@@ -59,7 +60,7 @@ export function CreteHomeView(p: CreteHomeProps) {
   const rowSignature = rows.map(row => `${row.id}:${row.items.map(app => app.id).join(",")}`).join(";");
   const [selection, setSelection, selectionRef] = useNavigationState<{ row: string; id: string } | null>(null, "Home.selection");
   const [launchError, setLaunchError] = useState<string | null>(null);
-  const news = useNews(p.active);
+  const { posts: news, onImageError: onNewsImageError } = useNews(p.active);
   const [newsIndex, setNewsIndex, newsIndexRef] = useNavigationState(-1, "Home.newsIndex");
   const onNews = newsIndex >= 0 && news.length > 0;
   const rowIndex = selection ? rows.findIndex(row => row.id === selection.row) : -1;
@@ -182,6 +183,6 @@ export function CreteHomeView(p: CreteHomeProps) {
       <div className="crete-rail-cards" ref={node => { rowsRef.current[row.id] = node; }}>{row.items.map(app => <CreteGameCard key={app.id} app={app} art={p.customArt[app.id] || p.gameArt[app.id]} pinned={gameCopies(app).some(copy => p.pins.includes(copy.id))} running={p.isRunning(app.id)} selected={!onNews && selection?.row === row.id && selection.id === app.id} showStoreBadge={p.settings.show_store_badges}
         onSelect={() => { setSelection({ row: row.id, id: app.id }); setNewsIndex(-1); }} onContextMenu={event => context(event, app)} onOpen={() => open(app)} />)}</div>
     </section>)}
-    {news.length > 0 && <section className="crete-rail crete-news"><h2>{text("What's new")}<span /><small>{news.length}</small></h2><div ref={newsRef} className="crete-rail-cards">{news.map((post, i) => <button key={post.id} type="button" className="crete-news-card" data-selected={onNews && newsIndex === i} onFocus={() => { setSelection(null); setNewsIndex(i); }} onClick={() => void openUrl(post.url).catch(() => {})}>{post.thumbnail && <img src={post.thumbnail} alt="" referrerPolicy="no-referrer" loading="lazy" onError={event => { event.currentTarget.style.display = "none"; }} />}<div><small>{post.subreddit}</small><strong>{post.title}</strong></div></button>)}</div></section>}
+    {news.length > 0 && <section className="crete-rail crete-news"><h2>{text("What's new")}<span /><small>{news.length}</small></h2><div ref={newsRef} className="crete-rail-cards">{news.map((post, i) => <button key={post.id} type="button" className="crete-news-card" data-selected={onNews && newsIndex === i} onFocus={() => { setSelection(null); setNewsIndex(i); }} onClick={() => void openUrl(post.url).catch(() => {})}><NewsArtwork post={post} onImageError={onNewsImageError} /><div><small>{post.subreddit}</small><strong>{post.title}</strong></div></button>)}</div></section>}
   </div>;
 }

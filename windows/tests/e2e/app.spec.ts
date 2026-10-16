@@ -109,6 +109,8 @@ test.beforeEach(async ({ page }) => {
         if (command === "input_diagnostic_config") return params.has("inputTrace") ? { sessionId: "browser-test", durationMs: 60_000 } : null;
         if (command === "append_input_diagnostic") { (window as any).__inputTrace = [...((window as any).__inputTrace ?? []), ...args.events]; return null; }
         if (command === "launch_streaming_client") { (window as any).__lastStreamingClient = args; return null; }
+        if (params.has("newsBroken") && command === "get_crete_news_rss") return '<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/"><entry><title>Recovered Games picture</title><link href="https://www.reddit.com/r/Games/comments/recovered"/><media:thumbnail url="https://preview.redd.it/broken.jpg"/><content type="html">&lt;a href="https://www.eurogamer.net/test"&gt;[link]&lt;/a&gt;</content></entry><entry><title>Unavailable publisher picture</title><link href="https://www.reddit.com/r/Games/comments/unavailable"/><content type="html">&lt;a href="https://www.eurogamer.net/unavailable"&gt;[link]&lt;/a&gt;</content></entry></feed>';
+        if (params.has("newsBroken") && command === "get_crete_article_thumbnail") return args.articleUrl.endsWith("unavailable") ? null : "C:/Users/Muzi/AppData/Local/CreteOS/media/news/fixture.jpg";
         if (params.has("newsAsset") && command === "get_crete_news_rss") return '<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Cached Games article</title><link href="https://www.reddit.com/r/Games/comments/cached"/><content type="html">&lt;a href="https://www.eurogamer.net/test"&gt;[link]&lt;/a&gt;</content></entry></feed>';
         if (params.has("newsAsset") && command === "get_crete_article_thumbnail") return "C:/Users/Muzi/AppData/Local/CreteOS/media/news/fixture.jpg";
         if (command === "get_pins") return pinnedIds;
@@ -1521,4 +1523,20 @@ test("Preferred editions show one tile while other store copies stay accessible"
   await page.getByRole('menuitem',{name:/Steam · BioShock Infinite/}).click();
   await expect(details.getByRole('heading',{name:'BioShock Infinite',exact:true})).toBeVisible();
   expect(await page.evaluate(()=>(window as any).__invokeCounts.launch_app||0)).toBe(0);
+});
+
+test("Broken Reddit hotlinks recover through the publisher and unavailable articles retain illustrated cards", async ({ page }, testInfo) => {
+  await page.route("https://preview.redd.it/broken.jpg", route => route.abort());
+  await page.route("http://asset.localhost/**", route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"><rect width="120" height="60" fill="orange"/></svg>' }));
+  await page.goto("/?crete&rich&played&newsBroken");
+  const recovered = page.getByRole("button", { name: /Recovered Games picture/ });
+  await recovered.scrollIntoViewIfNeeded();
+  await expect(recovered.locator("img")).toHaveAttribute("src", /asset.localhost.*media.*news/);
+  await expect.poll(() => recovered.locator("img").evaluate(node => (node as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  const unavailable = page.getByRole("button", { name: /Unavailable publisher picture/ });
+  await expect(unavailable.locator("svg[data-news-fallback=true]")).toBeVisible();
+  await expect(unavailable.locator("img")).toHaveCount(0);
+  await unavailable.click();
+  await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"])).toBe(1);
+  await page.locator(".crete-news").screenshot({ path: testInfo.outputPath("news-recovery.png") });
 });

@@ -5,9 +5,25 @@ import { parseNews, type NewsPost } from "./news";
 let cached: { posts: NewsPost[]; at: number } | undefined;
 let pending: Promise<NewsPost[]> | undefined;
 const listeners = new Set<(posts: NewsPost[]) => void>();
+const failedImages = new Set<string>();
+const recovering = new Set<string>();
 function publish(posts: NewsPost[]) { cached = { posts: [...posts], at: Date.now() }; listeners.forEach(listener => listener(cached!.posts)); }
+function onImageError(post: NewsPost) {
+  if (!post.thumbnail || failedImages.has(post.thumbnail)) return;
+  failedImages.add(post.thumbnail);
+  if (!post.articleUrl || recovering.has(post.id)) return;
+  recovering.add(post.id);
+  // RSS hotlinks can fail even when the article has a working picture. Ask the
+  // native downloader for that picture instead of permanently hiding the image.
+  void invoke<string | null>("get_crete_article_thumbnail", { articleUrl: post.articleUrl }).catch(() => null).then(path => {
+    if (!path || !cached) return;
+    const thumbnail = /^https:\/\//.test(path) ? path : convertFileSrc(path);
+    if (!failedImages.has(thumbnail)) publish(cached.posts.map(item => item.id === post.id ? { ...item, thumbnail } : item));
+  }).finally(() => recovering.delete(post.id));
+}
 function load() {
-  if (cached && Date.now() - cached.at < 30 * 60_000) return Promise.resolve(cached.posts);
+  const incomplete = cached?.posts.some(post => !post.thumbnail || failedImages.has(post.thumbnail));
+  if (cached && Date.now() - cached.at < (incomplete ? 60_000 : 30 * 60_000)) return Promise.resolve(cached.posts);
   if (!pending) pending = invoke<string>("get_crete_news_rss").then(parseNews).then(async posts => {
     const enriched = [...posts]; let next = 0;
     publish(enriched);
@@ -34,5 +50,5 @@ export function useNews(active: boolean) {
     refresh(); window.addEventListener("focus", refresh);
     return () => { disposed = true; listeners.delete(update); window.removeEventListener("focus", refresh); };
   }, [active]);
-  return posts;
+  return { posts, onImageError };
 }

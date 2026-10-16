@@ -18,7 +18,7 @@ pub async fn get_crete_news_rss() -> Result<String, String> {
 }
 
 fn article_host(host: &str) -> bool {
-    ["pcgamer.com", "ign.com", "gamespot.com", "eurogamer.net", "vg247.com", "polygon.com", "rockpapershotgun.com", "videogameschronicle.com", "gematsu.com", "gamingbolt.com", "nintendolife.com", "pushsquare.com", "store.steampowered.com", "steamcommunity.com", "blog.playstation.com", "xbox.com", "gamesindustry.biz", "gamesbeat.com", "opencritic.com", "aftermath.site", "digitalfoundry.net", "techpowerup.com", "bsky.app", "gamesradar.com", "gamedeveloper.com", "automaton-media.com", "insider-gaming.com", "worldofwarcraft.blizzard.com", "ritchietorres.house.gov"].iter().any(|allowed| host == *allowed || host.ends_with(&format!(".{allowed}")))
+    ["pcgamer.com", "ign.com", "gamespot.com", "eurogamer.net", "vg247.com", "polygon.com", "rockpapershotgun.com", "videogameschronicle.com", "gematsu.com", "gamingbolt.com", "nintendolife.com", "pushsquare.com", "store.steampowered.com", "steamcommunity.com", "blog.playstation.com", "xbox.com", "gamesindustry.biz", "gamesbeat.com", "opencritic.com", "aftermath.site", "digitalfoundry.net", "techpowerup.com", "bsky.app", "gamesradar.com", "gamedeveloper.com", "automaton-media.com", "insider-gaming.com", "worldofwarcraft.blizzard.com", "ritchietorres.house.gov", "bloomberg.com", "verticalslice.news"].iter().any(|allowed| host == *allowed || host.ends_with(&format!(".{allowed}")))
 }
 fn attribute<'a>(tag: &'a str, key: &str) -> Option<&'a str> {
     let bytes = tag.as_bytes(); let mut i = 4;
@@ -40,23 +40,38 @@ fn attribute<'a>(tag: &'a str, key: &str) -> Option<&'a str> {
     }
     None
 }
-fn thumbnail(html: &str) -> Option<String> {
+fn thumbnails(html: &str, base: Option<&reqwest::Url>) -> Vec<String> {
+    let mut images = Vec::new();
     for tag in html.split('<').filter_map(|part| part.split('>').next()).filter(|tag| tag.get(..4).is_some_and(|text| text.eq_ignore_ascii_case("meta")) && tag.as_bytes().get(4).is_some_and(u8::is_ascii_whitespace)) {
         let name = attribute(tag, "property").or_else(|| attribute(tag, "name")).unwrap_or_default();
-        if !["og:image", "twitter:image", "twitter:image:src"].iter().any(|key| name.eq_ignore_ascii_case(key)) { continue; }
+        if !["og:image", "og:image:secure_url", "twitter:image", "twitter:image:src"].iter().any(|key| name.eq_ignore_ascii_case(key)) { continue; }
         let Some(value) = attribute(tag, "content") else { continue; };
         let value = value.replace("&amp;", "&").replace("&#38;", "&");
-        let Ok(image) = reqwest::Url::parse(&value) else { continue; };
+        let image = reqwest::Url::parse(&value).ok().or_else(|| base.and_then(|base| base.join(&value).ok()));
+        let Some(image) = image else { continue; };
         let host = image.host_str().unwrap_or_default();
-        let cdn = ["futurecdn.net", "ignimgs.com", "gamespot.com", "vox-cdn.com", "gamer-network.net", "gnwcdn.com", "vgc.news", "gematsu.com", "gamingbolt.com", "pushsquare.com", "nintendolife.com", "steamstatic.com", "playstation.com", "xbox.com", "akamaized.net", "xboxwire.thesourcemediaassets.com", "bnetcmsus-a.akamaihd.net", "d12t4t5x3vyizu.cloudfront.net"];
-        if image.scheme() == "https" && image.username().is_empty() && image.password().is_none() && image.port().is_none() && (article_host(host) || cdn.iter().any(|h| host == *h || host.ends_with(&format!(".{h}")))) { return Some(image.to_string()); }
+        let cdn = ["futurecdn.net", "ignimgs.com", "gamespot.com", "vox-cdn.com", "gamer-network.net", "gnwcdn.com", "vgc.news", "gematsu.com", "gamingbolt.com", "pushsquare.com", "nintendolife.com", "steamstatic.com", "playstation.com", "xbox.com", "akamaized.net", "xboxwire.thesourcemediaassets.com", "bnetcmsus-a.akamaihd.net", "d12t4t5x3vyizu.cloudfront.net", "assets.bwbx.io"];
+        if image.scheme() == "https" && image.username().is_empty() && image.password().is_none() && image.port().is_none() && (article_host(host) || cdn.iter().any(|h| host == *h || host.ends_with(&format!(".{h}")))) { let image = image.to_string(); if !images.contains(&image) { images.push(image); } }
     }
-    None
+    images
+}
+fn thumbnail(html: &str) -> Option<String> { thumbnails(html, None).into_iter().next() }
+
+// Only host names/outcomes are recorded: feed URLs can contain public gift tokens.
+fn record_news_result(publisher: &str, outcome: &str) {
+    use std::io::Write;
+    let path = crate::liftoff_dir().join("news-image-diagnostics.jsonl");
+    if path.metadata().is_ok_and(|meta| meta.len() > 64_000) { let _ = std::fs::remove_file(&path); }
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        let row = serde_json::json!({"publisher": publisher, "outcome": outcome, "at": chrono::Utc::now().timestamp()});
+        let _ = writeln!(file, "{row}");
+    }
 }
 #[tauri::command]
 pub async fn get_crete_article_thumbnail(article_url: String) -> Result<Option<String>, String> {
     let url = reqwest::Url::parse(&article_url).map_err(|_| "Invalid news link")?;
-    if url.scheme() != "https" || !url.username().is_empty() || url.password().is_some() || url.port().is_some() || !url.host_str().is_some_and(article_host) { return Ok(None); }
+    if url.scheme() != "https" || !url.username().is_empty() || url.password().is_some() || url.port().is_some() || !url.host_str().is_some_and(article_host) { record_news_result(url.host_str().unwrap_or("invalid"), "unsupported-publisher"); return Ok(None); }
+    let publisher = url.host_str().unwrap_or_default().to_string();
     // Follow bounded canonical publisher redirects, retaining the fixed public
     // domain allowlist at every hop.
     let redirects = reqwest::redirect::Policy::custom(|attempt| {
@@ -64,12 +79,23 @@ pub async fn get_crete_article_thumbnail(article_url: String) -> Result<Option<S
         if attempt.previous().len() < 3 && url.scheme() == "https" && url.username().is_empty() && url.password().is_none() && url.port().is_none() && url.host_str().is_some_and(article_host) { attempt.follow() } else { attempt.stop() }
     });
     let client = reqwest::Client::builder().redirect(redirects).user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/143.0.0.0 Safari/537.36").timeout(std::time::Duration::from_secs(8)).build().map_err(|e| e.to_string())?;
-    let mut response = client.get(url).send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?;
+    let response = client.get(url).send().await;
+    let mut response = match response.and_then(|response| response.error_for_status()) {
+        Ok(response) => response, Err(_) => { record_news_result(&publisher, "article-request-failed"); return Ok(None); }
+    };
+    let base = response.url().clone();
     let mut bytes = Vec::new();
     while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? { if bytes.len() + chunk.len() > 2_000_000 { return Ok(None); } bytes.extend_from_slice(&chunk); }
     let html = String::from_utf8_lossy(&bytes);
-    let Some(image_url) = thumbnail(&html) else { return Ok(None); };
-    cache_news_image(&image_url).await.map(Some)
+    let candidates = thumbnails(&html, Some(&base));
+    if candidates.is_empty() { record_news_result(&publisher, "no-supported-image"); }
+    for image_url in candidates.into_iter().take(4) {
+        match cache_news_image(&image_url).await {
+            Ok(path) => { record_news_result(&publisher, "image-ready"); return Ok(Some(path)); }
+            Err(_) => record_news_result(&publisher, "image-download-failed"),
+        }
+    }
+    Ok(None)
 
 }
 
@@ -81,6 +107,8 @@ fn image_extension(bytes: &[u8]) -> Option<&'static str> {
     else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") { Some("webp") }
     else { None }
 }
+// Blizzard currently supplies a PNG larger than 5 MB; keep a bounded 16 MB budget.
+const NEWS_IMAGE_LIMIT: usize = 16_000_000;
 async fn cache_news_image(image_url: &str) -> Result<String, String> {
     use sha2::{Digest, Sha256};
     let folder = crate::liftoff_dir().join("media").join("news");
@@ -88,17 +116,18 @@ async fn cache_news_image(image_url: &str) -> Result<String, String> {
     let key = format!("{:x}", Sha256::digest(image_url.as_bytes()));
     for ext in ["jpg", "png", "webp"] {
         let path = folder.join(format!("{key}.{ext}"));
-        if path.metadata().is_ok_and(|meta| meta.len() > 0 && meta.len() <= 5_000_000) { return Ok(path.to_string_lossy().into_owned()); }
+        if path.metadata().is_ok_and(|meta| meta.len() > 0 && meta.len() <= NEWS_IMAGE_LIMIT as u64)
+            && std::fs::read(&path).is_ok_and(|bytes| image_extension(&bytes).is_some()) { return Ok(path.to_string_lossy().into_owned()); }
     }
     let redirects = reqwest::redirect::Policy::custom(|attempt| {
         let image = format!("<meta property='og:image' content='{}'>", attempt.url());
         if attempt.previous().len() < 3 && thumbnail(&image).is_some() { attempt.follow() } else { attempt.stop() }
     });
-    let client = reqwest::Client::builder().redirect(redirects).timeout(std::time::Duration::from_secs(8)).user_agent("Mozilla/5.0 CreteOS/0.1").build().map_err(|e| e.to_string())?;
+    let client = reqwest::Client::builder().redirect(redirects).timeout(std::time::Duration::from_secs(8)).user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/143.0.0.0 Safari/537.36").build().map_err(|e| e.to_string())?;
     let mut response = client.get(image_url).send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?;
     let mut bytes = Vec::new();
     while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
-        if bytes.len() + chunk.len() > 5_000_000 { return Err("News image exceeds size limit".into()); }
+        if bytes.len() + chunk.len() > NEWS_IMAGE_LIMIT { return Err("News image exceeds size limit".into()); }
         bytes.extend_from_slice(&chunk);
     }
     let ext = image_extension(&bytes).ok_or("Unsupported news image format")?;
@@ -108,6 +137,13 @@ async fn cache_news_image(image_url: &str) -> Result<String, String> {
 }
 
 #[cfg(test)] mod tests {
+    #[test] fn keeps_alternate_images_and_resolves_relative_publisher_paths() {
+        let base = reqwest::Url::parse("https://www.gamesradar.com/news/example/").unwrap();
+        let images = super::thumbnails("<meta property='og:image' content='/broken.jpg'><meta name='twitter:image' content='https://cdn.mos.cms.futurecdn.net/working.jpg'><meta property='og:image' content='/broken.jpg'><meta property='og:image:secure_url' content='https://127.0.0.1/no.jpg'>", Some(&base));
+        assert_eq!(images, vec!["https://www.gamesradar.com/broken.jpg", "https://cdn.mos.cms.futurecdn.net/working.jpg"]);
+        assert!(super::NEWS_IMAGE_LIMIT >= 12_000_000);
+    }
+
     #[test] fn caches_only_browser_image_formats_not_error_pages() {
         assert_eq!(super::image_extension(b"\x89PNG\r\n\x1a\nrest"), Some("png"));
         assert_eq!(super::image_extension(&[0xff, 0xd8, 0xff, 0]), Some("jpg"));

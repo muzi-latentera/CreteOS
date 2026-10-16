@@ -78,7 +78,7 @@
 .crete-rail-cards .crete-game-card { flex:0 0 152px; }
 .crete-news-card { position:relative; flex:0 0 300px; height:180px; overflow:hidden; border:1px solid var(--crete-border); border-radius:12px; padding:0; text-align:left; background:#14191f; color:var(--crete-text); }
 .crete-news-card[data-selected="true"] { border-color:var(--crete-accent); }
-.crete-news-card img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.crete-news-card img, .crete-news-illustration { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 .crete-news-card > div { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:flex-end; gap:10px; padding:16px; background:linear-gradient(transparent,#08090be6); }
 .crete-news-card small { color:var(--crete-accent); font:11px ui-monospace,monospace; }
 .crete-news-card strong { font-size:14px; line-height:1.35; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
