@@ -4733,7 +4733,15 @@ struct ScreenResolution {
 }
 
 #[tauri::command]
-fn get_screen_resolution() -> ScreenResolution {
+fn get_screen_resolution(window: tauri::Window) -> ScreenResolution {
+    // In extended-desktop mode the TV may not be Windows' primary monitor.
+    // Recommend a size for the display actually containing the launcher.
+    if let Ok(Some(monitor)) = window.current_monitor() {
+        return ScreenResolution {
+            width: monitor.size().width as i32,
+            height: monitor.size().height as i32,
+        };
+    }
     unsafe {
         ScreenResolution {
             width: GetSystemMetrics(SM_CXSCREEN),
