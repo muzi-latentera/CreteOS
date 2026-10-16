@@ -1,16 +1,74 @@
 {
-  "Hollow Knight: Voidheart Edition": { "productId": "9MW9469V91LM" },
-  "Fallout 4 (PC)": { "productId": "9P71MB9QCF77" },
-  "Dishonored® Definitive Edition (PC)": { "productId": "9P1N07XDL1D4" },
-  "Marvel's Avengers Definitive Edition": { "productId": "BRX6HS1G5CDK" },
-  "Forza Horizon 4": { "productId": "9PNJXVCVWD4K" },
-  "Valorant": { "productId": "9N1NLJK9SKRN" },
-  "Dark Souls III": { "artSteamId": 374320 },
-  "Ghostbusters Remastered": { "artSteamId": 1449280 },
-  "Shadowrun Hong Kong": { "artSteamId": 346940 },
-  "GRIP": { "artSteamId": 396900 },
-  "Telltale Batman Season 1": { "artSteamId": 498240 },
-  "Telltale Batman Season 2": { "artSteamId": 675260 },
-  "Trine 4: Definitive Edition": { "artSteamId": 690640 },
-  "Rustler - Grand Theft Horse": { "artSteamId": 844260 }
+  "Hollow Knight: Voidheart Edition": {
+    "productId": "9MW9469V91LM"
+  },
+  "Fallout 4 (PC)": {
+    "productId": "9P71MB9QCF77"
+  },
+  "Dishonored® Definitive Edition (PC)": {
+    "productId": "9P1N07XDL1D4"
+  },
+  "Marvel's Avengers Definitive Edition": {
+    "productId": "BRX6HS1G5CDK"
+  },
+  "Forza Horizon 4": {
+    "productId": "9PNJXVCVWD4K"
+  },
+  "Valorant": {
+    "productId": "9N1NLJK9SKRN"
+  },
+  "Dark Souls III": {
+    "artSteamId": 374320
+  },
+  "Ghostbusters Remastered": {
+    "artSteamId": 1449280
+  },
+  "Shadowrun Hong Kong": {
+    "artSteamId": 346940
+  },
+  "GRIP": {
+    "artSteamId": 396900
+  },
+  "Telltale Batman Season 1": {
+    "artSteamId": 498240
+  },
+  "Telltale Batman Season 2": {
+    "artSteamId": 675260
+  },
+  "Trine 4: Definitive Edition": {
+    "artSteamId": 690640
+  },
+  "Rustler - Grand Theft Horse": {
+    "artSteamId": 844260
+  },
+  "Assassin's Creed Freedom Cry": {
+    "portraitUrl": "https://cdn2.steamgriddb.com/grid/88c9dc3c86b55bce08d0800cd4f2ebb9.png",
+    "portraitSource": "https://www.steamgriddb.com/grid/57403",
+    "portraitAuthor": "aaronth07"
+  },
+  "Batman™: Arkham Origins Blackgate - Deluxe Edition": {
+    "portraitUrl": "https://cdn2.steamgriddb.com/grid/1a01d4765449d0ca43d17f33392014a4.png",
+    "portraitSource": "https://www.steamgriddb.com/grid/57402",
+    "portraitAuthor": "aaronth07"
+  },
+  "Child of Light": {
+    "portraitUrl": "https://cdn2.steamgriddb.com/grid/3581c5cb35d229c9ed60b39f9135f799.png",
+    "portraitSource": "https://www.steamgriddb.com/grid/36855",
+    "portraitAuthor": "_Gustavo"
+  },
+  "Far Cry® 3 Blood Dragon": {
+    "portraitUrl": "https://cdn2.steamgriddb.com/grid/84aaa84129e365590aeb86b57697edb9.png",
+    "portraitSource": "https://www.steamgriddb.com/grid/36462",
+    "portraitAuthor": "rickyspanish"
+  },
+  "Mortal Kombat Komplete Edition": {
+    "portraitUrl": "https://cdn2.steamgriddb.com/grid/c9c9f8e41433ff4ad15aa577a465e599.png",
+    "portraitSource": "https://www.steamgriddb.com/grid/46421",
+    "portraitAuthor": "Kinsie"
+  },
+  "The Deed: Dynasty": {
+    "portraitUrl": "https://cdn2.steamgriddb.com/grid/8c9a375b5a9103b8e637ddfe81251902.png",
+    "portraitSource": "https://www.steamgriddb.com/grid/45770",
+    "portraitAuthor": "Dsp21"
+  }
 }

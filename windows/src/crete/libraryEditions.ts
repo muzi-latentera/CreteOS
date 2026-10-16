@@ -4,7 +4,7 @@ import { epochMs } from "./model";
 // Only explicit edition suffixes are collapsed. Years, sequel numbers, DLC,
 // demos and remakes retain their identity; punctuation/trademarks are cosmetic.
 export function gameEdition(name: string) {
-  let base = name.normalize("NFKC").replace(/[™®]/g, "").replace(/[’‘]/g, "'")
+  let base = name.replace(/[™®]/g, "").normalize("NFKC").replace(/[’‘]/g, "'")
     .replace(/\s*\((?:PC|Windows)\)\s*$/i, "").trim();
   let rank = 0;
   const suffixes: [RegExp, number][] = [
@@ -13,6 +13,7 @@ export function gameEdition(name: string) {
     [/[\s:–—-]+(?:the\s+)?(?:complete|ultimate|game of the year|goty|gold) edition$/i, 3],
     [/[\s:–—-]+(?:the\s+)?(?:deluxe|enhanced|enchanted|special|voidheart) edition$/i, 2],
     [/[\s:–—-]+(?:the\s+)?(?:director's cut|final cut|complete story|20 year celebration)$/i, 2],
+    [/[\s:–—-]+(?:enhanced|redux)$/i, 4],
   ];
   let changed = true;
   while (changed) {
@@ -22,7 +23,14 @@ export function gameEdition(name: string) {
       if (stripped) { base = stripped; rank = Math.max(rank, score); changed = true; break; }
     }
   }
-  return { family: base.toLowerCase().replace(/[^\p{L}\p{N}]/gu, ""), rank };
+  let family = base.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+  // These are the same STALKER campaigns under the remasters' transliterations.
+  const aliases: Record<string, string> = {
+    stalkershadowofchornobyl: "stalkershadowofchernobyl",
+    stalkercallofprypiat: "stalkercallofpripyat",
+  };
+  family = aliases[family] ?? family;
+  return { family, rank };
 }
 
 const stores: Record<string, number> = { steam: 0, gog: 1, epic: 2, xbox: 3, cloud: 4 };

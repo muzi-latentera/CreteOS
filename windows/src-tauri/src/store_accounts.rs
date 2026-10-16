@@ -7,6 +7,8 @@ use std::sync::{atomic::{AtomicBool, AtomicU64, Ordering}, mpsc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{Emitter, Manager};
 use super::AppEntry;
+#[path = "store_progress.rs"]
+pub(crate) mod progress;
 
 // Public desktop OAuth application identifiers, used by the interoperable clients
 // cited above. These are not user credentials. User tokens live only in keyring.
@@ -57,6 +59,7 @@ struct OwnedGame {
 }
 #[derive(Clone, Serialize, Deserialize, Default)]
 struct Library {
+    #[serde(default)] format_version: u32,
     account_id: String,
     account_name: String,
     updated_at: u64,
@@ -129,6 +132,13 @@ fn epic_game(item: &Value, meta: &Value) -> Option<OwnedGame> {
     // non-game flag: ordinary owned games include ["games", "applications"].
     if meta["categories"].as_array().is_some_and(|a| a.iter().any(|c| matches!(c["path"].as_str(), Some("mods" | "dlc" | "addons")))) { return None; }
     let id = item["appName"].as_str()?;
+    // The library API includes mobile/macOS artifacts too. Only reject an
+    // explicitly platform-labelled artifact; missing metadata is not proof.
+    if let Some(releases) = meta["releaseInfo"].as_array() {
+        let platforms = releases.iter().filter(|r| r["appId"].as_str() == Some(id))
+            .filter_map(|r| r["platform"].as_array()).flatten().filter_map(Value::as_str).collect::<Vec<_>>();
+        if !platforms.is_empty() && !platforms.iter().any(|p| p.eq_ignore_ascii_case("Windows")) { return None; }
+    }
     let namespace = item["namespace"].as_str()?;
     let catalog_id = item["catalogItemId"].as_str()?;
     let name = meta["title"].as_str()?.trim();
@@ -277,6 +287,7 @@ pub fn merge_cached(apps: &mut Vec<AppEntry>, source: &str) {
                 }
             }
         } else { merge_games(apps, store, games, &mut HashMap::new()); }
+        progress::merge(apps,source);
     }
 }
 pub fn clear_credentials() {
@@ -404,7 +415,8 @@ pub async fn store_account_connect(app: tauri::AppHandle, source: String) -> Res
             let games = fetch_library(store, &session, generation)?;
             if store.generation().load(Ordering::SeqCst) != generation { return Err("Sign-in cancelled".into()); }
             store.key()?.set_password(&session.refresh).map_err(|_| "Could not securely save the store session")?;
-            persist(store, &Library { account_id: session.account_id, account_name: session.account_name, updated_at: now(), games })?;
+            progress::refresh_times(store,&session,&games);
+            persist(store, &Library { format_version: 1, account_id: session.account_id, account_name: session.account_name, updated_at: now(), games })?;
             notify(&app); Ok(status(store))
         })();
         store.login().store(false, Ordering::SeqCst); result
@@ -417,7 +429,7 @@ pub async fn store_account_refresh(app: tauri::AppHandle, source: String, force:
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = store.lock().lock().map_err(|_| "Account is busy")?;
         let old = load(store).ok_or("Connect this store first")?;
-        if !force.unwrap_or(false) && now().saturating_sub(old.updated_at) < 86400 { return Ok(status(store)); }
+        if !force.unwrap_or(false) && old.format_version >= 1 && now().saturating_sub(old.updated_at) < 86400 { return Ok(status(store)); }
         let refresh = store.key()?.get_password().map_err(|_| "Reconnect this account to refresh its library")?;
         let session = exchange(store, "refresh_token", &refresh)?;
         if session.account_id != old.account_id { return Err("The store returned a different account. Please reconnect.".into()); }
@@ -425,8 +437,9 @@ pub async fn store_account_refresh(app: tauri::AppHandle, source: String, force:
         if store.generation().load(Ordering::SeqCst) != generation { return Err("Account disconnected".into()); }
         store.key()?.set_password(&session.refresh).map_err(|_| "Could not securely renew the store session")?;
         let games = fetch_library(store, &session, generation)?;
+        progress::refresh_times(store,&session,&games);
         if store.generation().load(Ordering::SeqCst) != generation { return Err("Account disconnected".into()); }
-        persist(store, &Library { account_id: session.account_id, account_name: session.account_name, updated_at: now(), games })?;
+        persist(store, &Library { format_version: 1, account_id: session.account_id, account_name: session.account_name, updated_at: now(), games })?;
         notify(&app); Ok(status(store))
     }).await.map_err(|_| "Store refresh could not finish".to_string())?
 }
@@ -513,6 +526,12 @@ mod tests {
         }
         let mut private=item.clone(); private["sandboxType"]=json!("PRIVATE");
         assert!(epic_game(&private,&meta).is_none());
+    }
+    #[test] fn epic_keeps_windows_and_filters_explicit_mobile_artifacts(){
+        let item=json!({"appName":"artifact","namespace":"ns","catalogItemId":"cat"});
+        for platform in ["Android","IOS","Mac"]{assert!(epic_game(&item,&json!({"title":"Monument Valley","releaseInfo":[{"appId":"artifact","platform":[platform]}]})).is_none());}
+        assert!(epic_game(&item,&json!({"title":"Monument Valley","releaseInfo":[{"appId":"artifact","platform":["Windows","Mac"]}]})).is_some());
+        assert!(epic_game(&item,&json!({"title":"Unknown platform"})).is_some());
     }
     #[test] fn callback_rejects_other_sites_and_mismatched_state() {
         assert!(gog_callback(&tauri::Url::parse("https://evil.test/on_login_success?code=bad").unwrap(),"expected").is_none());

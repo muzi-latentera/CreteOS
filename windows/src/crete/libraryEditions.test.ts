@@ -22,3 +22,11 @@ it("retains installed paths and other-copy history without adding playtimes toge
  const result=preferGameEditions([a,b],[{...a,launched_at:1700000000}]);
  expect(result[0].id).toBe("b"); expect(result[0].last_played).toBe(1700000000000); expect(result[0].playtime_minutes).toBe(9); expect(result[0].library_variants?.[0].launch_path).toBe("C:/game.exe");
 });
+it("matches trademarks before compatibility normalization and explicit upgraded campaign names", () => {
+ for (const [a,b] of [["DARK SOULS™ III","Dark Souls III"],["NieR:Automata™","NieR: Automata"]]) {
+  expect(preferGameEditions([game("steam",a,"steam"),game("xbox",b,"xbox")]).map(a=>a.id)).toEqual(["steam"]);
+ }
+ for (const [a,b] of [["Grand Theft Auto V","Grand Theft Auto V Enhanced"],["The Vanishing of Ethan Carter","The Vanishing of Ethan Carter Redux"],["S.T.A.L.K.E.R.: Shadow of Chernobyl","S.T.A.L.K.E.R.: Shadow of Chornobyl - Enhanced Edition"],["S.T.A.L.K.E.R.: Call of Pripyat","S.T.A.L.K.E.R.: Call of Prypiat - Enhanced Edition"]]) {
+  expect(preferGameEditions([game("old",a,"steam"),game("new",b,"epic")]).map(a=>a.id)).toEqual(["new"]);
+ }
+});

@@ -12,11 +12,12 @@ import { withStreamCover } from "../components/launch/StreamLaunchCover";
 import { LaunchLoading } from "./LaunchLoading";
 import { scrollPane } from "./smoothScroll";
 import { useNavigationState, useViewNavigation, type NavigationRef } from "./navigation";
-import { playedGames, playtime, lastPlayed, steamId, sourceLabel } from "./model";
+import { playedGames, playtime, lastPlayed, steamId, epochMs, sourceLabel } from "./model";
 import { isHeroVideoLayer, resolveHeroType } from "../utils/heroMedia";
 import { useCreteText } from "./text";
 import { invoke } from "@tauri-apps/api/core";
 import { useXboxProgress } from "./useXboxProgress";
+import { useStoreProgress } from "./useStoreProgress";
 import { gameCopies, preferGameEditions } from "./libraryEditions";
 
 export interface CreteHomeProps {
@@ -41,6 +42,7 @@ export function CreteHomeView(p: CreteHomeProps) {
   const games = useMemo(() => playedGames(displayApps, recorded), [displayApps, recorded]);
   const hero = games[0];
   const heroProgress = useXboxProgress(hero?.name ?? "", !!hero && p.active && hero.source === "xbox");
+  const storeProgress = useStoreProgress(hero, p.active);
   const streaming = useStreaming(hero ?? { id: "", name: "" }, p.active && !!hero);
   const recentItems = p.settings.show_recent_games_only ? games.slice(1) : [...games.slice(1), ...p.recent.filter(app => app.app_type === "app")];
   const pinned = p.settings.show_home_pinned !== false && p.settings.home_pinned_pos !== "none"
@@ -174,7 +176,7 @@ export function CreteHomeView(p: CreteHomeProps) {
             onFocus={() => { setSelection(null); setNewsIndex(-1); }} onClick={() => open(hero)}><IoPlay />{text("Play")}</button>}
           {launchError && <p role="alert">{launchError}</p>}{p.spotifyHeroChip}
         </div>
-        <aside className="crete-hero-info"><span className="crete-eyebrow">{text("Game info")}</span><dl><dt>{text("Developer")}</dt><dd>{meta.data?.developers.join(", ") || "—"}</dd><dt>{text("Publisher")}</dt><dd>{meta.data?.publishers.join(", ") || "—"}</dd><dt>{text("Playtime")}</dt><dd>{playtime(heroProgress?.minutes ?? hero.playtime_minutes)}</dd><dt>{text("Last played")}</dt><dd>{lastPlayed(hero.last_played)}</dd></dl></aside>
+        <aside className="crete-hero-info"><span className="crete-eyebrow">{text("Game info")}</span><dl><dt>{text("Developer")}</dt><dd>{meta.data?.developers.join(", ") || "—"}</dd><dt>{text("Publisher")}</dt><dd>{meta.data?.publishers.join(", ") || "—"}</dd><dt>{text("Playtime")}</dt><dd>{playtime(heroProgress?.minutes ?? storeProgress?.minutes ?? hero.playtime_minutes)}</dd><dt>{text("Last played")}</dt><dd>{lastPlayed(Math.max(epochMs(hero.last_played) ?? 0, epochMs(storeProgress?.last_played) ?? 0) || undefined)}</dd></dl></aside>
       </section>}
     {rows.map(row => <section className="crete-rail" key={row.id} data-home-row={row.id} aria-label={row.name}>{(p.settings.show_home_collection_names !== false || !row.id.startsWith("collection:")) && <h2>{row.name}<span /><small>{row.items.length}</small></h2>}
       <div className="crete-rail-cards" ref={node => { rowsRef.current[row.id] = node; }}>{row.items.map(app => <CreteGameCard key={app.id} app={app} art={p.customArt[app.id] || p.gameArt[app.id]} pinned={gameCopies(app).some(copy => p.pins.includes(copy.id))} running={p.isRunning(app.id)} selected={!onNews && selection?.row === row.id && selection.id === app.id} showStoreBadge={p.settings.show_store_badges}

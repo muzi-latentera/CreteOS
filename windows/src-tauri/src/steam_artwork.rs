@@ -139,6 +139,21 @@ pub fn artwork_product(name: &str) -> Value {
     serde_json::from_str::<Value>(include_str!("../../src/data/artworkProducts.json")).ok()
         .and_then(|products| products.get(name).cloned()).unwrap_or(Value::Null)
 }
+// Reviewed alternatives for publisher "portrait" files containing a padded
+// landscape header. Dimensions alone cannot establish usable cover composition.
+pub fn reviewed_portrait(name: &str) -> Option<(String,String)> {
+    let record=artwork_product(name);let text=record["portraitUrl"].as_str()?;
+    let url=reqwest::Url::parse(text).ok()?;
+    if url.scheme()!="https" || url.host_str()!=Some("cdn2.steamgriddb.com") || !url.username().is_empty() || url.password().is_some() || url.port().is_some(){return None;}
+    let file=std::path::Path::new(url.path()).file_stem()?.to_str()?;
+    if file.len()!=32 || !file.chars().all(|c|c.is_ascii_hexdigit()){return None;}
+    Some((text.into(),file.into()))
+}
+pub fn reviewed_cache_matches(name: &str, path: &str) -> bool {
+    let Some((_,key))=reviewed_portrait(name) else{return true;};
+    let path=std::path::Path::new(path);
+    path.file_stem().and_then(|s|s.to_str())==Some(key.as_str())&&path.parent().is_some_and(|p|p.ends_with("reviewed-v1"))
+}
 
 pub fn fetch_community_images(client: &reqwest::blocking::Client, name: &str) -> (Option<String>, Option<String>) {
     let normalize = |name: &str| name.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect::<String>();
@@ -191,6 +206,12 @@ pub fn fetch_store_images(client: &reqwest::blocking::Client, appid: u32) -> (Op
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn reviewed_cover_has_exact_source_and_versioned_cache_key(){
+        let (url,key)=reviewed_portrait("Child of Light").unwrap();assert!(url.starts_with("https://cdn2.steamgriddb.com/grid/"));
+        assert!(!reviewed_cache_matches("Child of Light","C:/art/portrait-v2/Child_of_Light.jpg"));
+        assert!(reviewed_cache_matches("Child of Light",&format!("C:/art/reviewed-v1/{key}.jpg")));
+        assert!(reviewed_portrait("Unreviewed game").is_none());
+    }
     #[test] fn title_art_is_exact_and_never_borrows_a_sequel_or_ambiguous_first_hit() {
         let value=serde_json::json!({"items":[{"id":1086940,"name":"Baldur's Gate 3"},{"id":42,"name":"Baldur's Gate 2"}]});
         assert_eq!(title_artwork_match(&value,"Baldur's Gate 3"),Some(1086940));

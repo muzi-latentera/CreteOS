@@ -39,9 +39,10 @@ export function useStoreAccounts(refreshLibrary: (options?: { background?: boole
     void refreshAll().then(changed => { if (changed) void refreshRef.current({ background: true }); });
     const online = () => { void refreshAll().then(changed => { if (changed) void refreshRef.current({ background: true }); }); };
     window.addEventListener("online", online);
-    let disposed = false; let unlisten: (() => void) | undefined;
+    let disposed = false; let unlisten: (() => void) | undefined; let activityRelease: (() => void) | undefined;
     void listen("store-accounts-changed", () => { if (!disposed) void readStatus(); }).then(fn => { if (disposed) fn(); else unlisten = fn; });
-    return () => { disposed = true; unlisten?.(); window.removeEventListener("online", online); };
+    void listen("store-progress-changed", () => { if (!disposed) void refreshRef.current({ background: true }); }).then(fn => { if (disposed) fn(); else activityRelease = fn; });
+    return () => { disposed = true; unlisten?.(); activityRelease?.(); window.removeEventListener("online", online); };
   }, [readStatus, refreshAll]);
   const open = useCallback((store: AccountStore) => {
     operation.current++; selectedRef.current = store; openRef.current = true;

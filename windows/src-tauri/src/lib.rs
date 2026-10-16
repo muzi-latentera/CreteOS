@@ -5845,7 +5845,7 @@ fn get_cached_art_bulk(game_names: Vec<String>) -> HashMap<String, GameArtBundle
     let hero_animated_cache = load_hero_animated_cache();
     let mut result = HashMap::new();
     for name in game_names {
-        let grid = grid_cache.get(&name).filter(|s| !s.is_empty()).cloned();
+        let grid = grid_cache.get(&name).filter(|s| !s.is_empty() && steam_artwork::reviewed_cache_matches(&name,s)).cloned();
         let hero_static = hero_static_cache
             .get(&name)
             .filter(|s| !s.is_empty())
@@ -5892,9 +5892,17 @@ fn fetch_game_art_blocking(
     let mut hero_animated_cache = load_hero_animated_cache();
 
     let force_refresh = force_refresh.unwrap_or(false);
-    let grid_cached_raw = grid_cache.get(&game_name).cloned();
+    let mut grid_cached_raw = grid_cache.get(&game_name).cloned();
     let hero_static_cached_raw = hero_static_cache.get(&game_name).cloned();
     let hero_animated_cached_raw = hero_animated_cache.get(&game_name).cloned();
+    if let Some((url,key))=steam_artwork::reviewed_portrait(&game_name) {
+        if !grid_cached_raw.as_deref().is_some_and(|p|steam_artwork::reviewed_cache_matches(&game_name,p)) {
+            let client=reqwest::blocking::Client::builder().user_agent("CreteOS/0.1").timeout(std::time::Duration::from_secs(10)).build().ok();
+            grid_cached_raw=client.and_then(|c|steam_artwork::download_portrait(&c,&url,&grid_art_dir().join("reviewed-v1"),&key));
+            if let Some(path)=&grid_cached_raw {artwork_cache::replace(&art_cache_path(),&game_name,path);grid_cache.insert(game_name.clone(),path.clone());}
+            else {return GameArtBundle{grid:None,hero_static:hero_static_cached_raw.filter(|s|!s.is_empty()),hero_animated:hero_animated_cached_raw.filter(|s|!s.is_empty())};}
+        }
+    }
     let has_real_art = |cached: &Option<String>| {
         cached
             .as_deref()
@@ -10399,6 +10407,7 @@ pub fn run() {
             steam_qr_begin,
             steam_account_status,
             store_accounts::store_account_status,
+            store_accounts::progress::store_game_progress,
             store_accounts::store_account_connect,
             store_accounts::store_account_refresh,
             store_accounts::store_account_disconnect,

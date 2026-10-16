@@ -15,6 +15,29 @@ catalogue metadata. GOG reads every product page. DLC, mods and non-game product
 are excluded where the provider identifies them. No purchase or installation is
 performed by connecting an account.
 
+Activity sync reads Epic's account playtime (seconds converted to minutes) and
+GOG Galaxy's recorded playtime (already minutes). Background ownership refreshes
+also cache these totals. Opening a game reads saved activity immediately, then
+refreshes achievements and that title's playtime on a worker. Account-scoped
+`store_progress/` caches retain earned/total achievements, Epic XP, full achievement
+records and any last-played date returned by the provider. Details show totals and
+the four most recently unlocked achievements; hidden locked descriptions remain
+hidden. Offline startup uses saved data. Focus/session return refreshes activity,
+with a short throttle and a follow-up for provider propagation. Activity failures
+never remove ownership or replace a known total with a guessed zero. Steam/Xbox
+activity is never borrowed for an Epic/GOG copy or added to its time.
+
+The tested Epic playtime and GOG sessions endpoints currently supply totals but
+no historical last-played timestamp. CreteOS retains its own accepted launch dates
+for those games; an unknown historical date displays a dash, not "Never". Games
+without provider achievements or unavailable/private activity may show no total.
+The local progress caches contain personal account activity and must not be copied
+to the G1 portable profile: sign in afresh there.
+
+Epic's library also contains Android/macOS artifacts. Explicit non-Windows
+artifacts are excluded; missing platform metadata is not a reason to discard a
+game. The cache-format migration performs a one-time refresh of older imports.
+
 Epic's `applications` category also appears on ordinary games. It must not be
 used to exclude games; DLC/addon/mod categories and parent-game relationships
 remain the relevant exclusions. A live import exposed this distinction after
@@ -66,6 +89,9 @@ an exact-title informational match without changing the launch identity.
 Original implementation against the public desktop-client flows documented by:
 
 - [Legendary Epic API](https://github.com/derrod/legendary/blob/master/legendary/api/egs.py)
+- [Legendary achievement query schema](https://github.com/derrod/legendary/blob/master/legendary/models/gql.py)
+- [Galaxy Epic playtime protocol](https://github.com/FriendsOfGalaxy/galaxy-integration-epic/blob/master/src/backend.py)
+- [Heroic GOG recorded playtime](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher/blob/main/src/backend/storeManagers/gog/games.ts)
 - [Legendary library combination](https://github.com/derrod/legendary/blob/master/legendary/core.py)
 - [Heroic gogdl authorization](https://github.com/Heroic-Games-Launcher/heroic-gogdl/blob/main/gogdl/auth.py)
 - [Minigalaxy GOG pagination](https://github.com/sharkwouter/minigalaxy/blob/master/minigalaxy/api.py)

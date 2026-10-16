@@ -7,6 +7,11 @@ Epic remaster, while Epic BioShock Infinite Complete Edition beats Steam standar
 Definitive/remastered and complete/ultimate/GOTY/gold/deluxe/enhanced/special/voidheart suffixes are
 recognized conservatively. Sequel numbers, years, remakes, demos and DLC stay
 distinct. Ambiguous same-store releases are retained rather than silently merged.
+Trademark symbols are removed before Unicode compatibility normalization so ™
+does not become the letters TM. Explicit Enhanced/Redux upgrades and the reviewed
+STALKER Chornobyl/Chernobyl and Prypiat/Pripyat campaign spellings share a family.
+Steam wins Dark Souls III/NieR ties; GTA V Enhanced and Ethan Carter Redux win
+over their older editions. Epic Windows/mobile artifacts are filtered at import.
 
 This is presentation grouping, not deletion or hiding of account ownership. Other
 copies remain in the Play dropdown and management actions, with their actual IDs,
@@ -24,6 +29,12 @@ blank failures cannot erase other successful downloads. Explicit clear remains
 an actual clear. Custom artwork remains separate.
 Network and disk artwork work runs on a blocking worker, outside the UI event
 thread and the async executor; a slow publisher must not block navigation.
+Some official 600x900 images are themselves padded landscape headers. Reviewed
+portrait alternatives in artworkProducts.json take precedence for Freedom Cry,
+Arkham Origins Blackgate, Child of Light, Blood Dragon, Mortal Kombat Komplete
+and The Deed: Dynasty. Their source/author links are retained. A versioned cache
+key and explicit atomic correction replace old non-empty covers; user custom art
+is not overwritten. Dimensions alone are not a composition-quality test.
 
 Reddit's r/Games feed often supplies no thumbnail, unlike r/pcgaming. CreteOS uses
 YouTube thumbnails or the linked publisher's metadata image, downloaded to its
