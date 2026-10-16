@@ -109,7 +109,10 @@ export function useLibraryData({ fetchGameArt, onLoaded, onLoadError }: UseLibra
   };
 
   const togglePin = (app: App) => {
-    invoke<string[]>("toggle_pin", { appId: app.id }).then((updatedPins) => {
+    const copies = [app.id, ...(app.library_variants ?? []).map(copy => copy.id)];
+    const pinned = copies.filter(id => pinsRef.current.includes(id));
+    const targets = pinned.length ? pinned : [app.id];
+    targets.reduce((pending, appId) => pending.then(() => invoke<string[]>("toggle_pin", { appId })), Promise.resolve(pinsRef.current)).then((updatedPins) => {
       setPins(updatedPins);
       pinsRef.current = updatedPins;
     }).catch(console.error);

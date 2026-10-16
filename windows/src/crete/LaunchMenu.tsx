@@ -6,9 +6,10 @@ import { getBestGamepad, readGpState } from "../utils/gamepad";
 import type { useStreaming, MoonlightProfile } from "./useStreaming";
 
 type Streaming = ReturnType<typeof useStreaming>;
-export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, localEnabled, manage, manageLabel, block, loading = false }: {
+export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, localEnabled, manage, manageLabel, block, loading = false, copies = [] }: {
   streaming: Streaming; open: boolean; setOpen: (open: boolean) => void; local: () => void;
   localLabel: string; localEnabled: boolean; manage: () => void; manageLabel: string; block: (blocked: boolean) => void; loading?: boolean;
+  copies?: { key: string; label: string; onClick: () => void }[];
 }) {
   const text = useCreteText();
   const root = useRef<HTMLDivElement>(null);
@@ -107,7 +108,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   }, [active, s.configure, gfn]);
   useEffect(() => { if (choices) window.setTimeout(() => root.current?.querySelector<HTMLButtonElement>('[data-stream-choices] button[aria-selected="true"]')?.focus(), 0); }, [choices]);
   const choose = (action: () => void) => { setOpen(false); action(); };
-  const row = (label: string, provider: string, color: string, action: () => void, disabled = false) => <button type="button" role="menuitem" disabled={disabled} onClick={() => choose(action)}><i style={{ background: color }} />{text(label)}{s.provider === provider && <small aria-hidden="true">{text("DEFAULT")}</small>}</button>;
+  const row = (label: string, provider: string, color: string, action: () => void, disabled = false, key?: string) => <button key={key} type="button" role="menuitem" disabled={disabled} onClick={() => choose(action)}><i style={{ background: color }} />{text(label)}{s.provider === provider && <small aria-hidden="true">{text("DEFAULT")}</small>}</button>;
   const preset = (value: string) => {
     const values: Record<string, [string, number]> = { native: ["1920x1080", 120], xreal: ["1920x1200", gfn ? 60 : 90], tv: ["3840x2160", 60] };
     const [resolution, fps] = values[value] ?? [(gfn ? s.geforceDisplay : s.display).profile.resolution, (gfn ? s.geforceDisplay : s.display).profile.fps];
@@ -117,6 +118,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     {!loading && <button ref={anchor} type="button" className="crete-details-manage" aria-label={text("Launch options")} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><IoChevronDownOutline /></button>}
     {open && !loading && <div className="crete-launch-popover" role="menu" aria-label={text("Launch options")}>
       {row(localLabel, "local", "#c9482a", local, !localEnabled)}
+      {copies.map(copy => row(copy.label, "copy", "#a7a29a", copy.onClick, false, copy.key))}
       {s.pcGame && row("Moonlight", "moonlight", "#697580", () => s.launch("moonlight"), !s.clients.moonlight)}
       {s.gameUrl && row("GeForce NOW", "geforceNow", "#7cab00", () => s.launch("geforceNow", true))}
       {!s.gameUrl && s.clients.geforceNow && row("GeForce NOW library", "", "#7cab00", () => s.launch("geforceNow"))}

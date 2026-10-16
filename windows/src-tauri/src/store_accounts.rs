@@ -108,11 +108,11 @@ fn exchange(store: Store, grant: &str, value: &str) -> Result<Session, String> {
 }
 fn identifier(v: &Value) -> Option<String> { v.as_str().map(str::to_string).or_else(|| v.as_u64().map(|n| n.to_string())) }
 fn safe_id(s: &str) -> bool { !s.is_empty() && s.len() <= 256 && s.chars().all(|c| c.is_ascii_alphanumeric() || "_-.:".contains(c)) }
-fn cover_url(v: &Value) -> Option<String> {
+pub(crate) fn cover_url(v: &Value) -> Option<String> {
     let s = v.as_str()?; let s = if s.starts_with("//") { format!("https:{s}") } else { s.to_string() };
     let u = tauri::Url::parse(&s).ok()?;
     let host = u.host_str()?;
-    (u.scheme() == "https" && (host == "images.gog-statics.com" || host.ends_with(".gog.com") || host.ends_with(".gog-statics.com") || host.ends_with(".epicgames.com"))).then_some(s)
+    (u.scheme() == "https" && u.username().is_empty() && u.password().is_none() && u.port().is_none() && (host == "images.gog-statics.com" || host.ends_with(".gog.com") || host.ends_with(".gog-statics.com") || host.ends_with(".epicgames.com"))).then_some(s)
 }
 fn gog_products(page: &Value) -> Result<Vec<OwnedGame>, String> {
     let products = page["products"].as_array().ok_or("GOG returned an incomplete library page")?;

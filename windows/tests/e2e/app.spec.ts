@@ -144,6 +144,14 @@ test.beforeEach(async ({ page }) => {
             ...(params.has("disabledStores") ? { scan_epic: false, scan_gog: false } : {}) };
         }
         if (command === "get_all_apps") {
+          if (params.has("duplicates")) return [
+            {id:"steam:8850",name:"BioShock 2",source:"steam",steam_appid:8850,app_type:"game",installed:false},
+            {id:"steam:409720",name:"BioShock 2 Remastered",source:"steam",steam_appid:409720,app_type:"game",installed:false},
+            {id:"epic:bs2",name:"BioShock 2 Remastered",source:"epic",app_type:"game",installed:false},
+            {id:"steam:8870",name:"BioShock Infinite",source:"steam",steam_appid:8870,app_type:"game",installed:false},
+            {id:"xbox:infinite",name:"BioShock Infinite",source:"xbox",app_type:"game",installed:false},
+            {id:"epic:infinite",store_id:"infinite",name:"BioShock Infinite: Complete Edition",source:"epic",app_type:"game",installed:false},
+          ];
           if (params.has("ownedStores") || params.has("storeSignIn")) return [
             ...(storeAccounts.epic && ((window as any).__savedSettings?.scan_epic ?? !params.has("disabledStores")) ? [{ id: "epic:owned", name: "007 First Light", source: "epic", store_id: "owned", app_type: "game", installed: false }] : []),
             ...(storeAccounts.gog && ((window as any).__savedSettings?.scan_gog ?? !params.has("disabledStores")) ? [{ id: "gog:123", name: "Baldur's Gate 3", source: "gog", store_id: "123", app_type: "game", installed: false }] : []),
@@ -1498,4 +1506,19 @@ test("Touch dragging the library keeps selection stable and interrupts controlle
   expect(await pane.evaluate(el => el.scrollTop)).toBeGreaterThan(520);
   await page.keyboard.press('ArrowUp');
   await expect.poll(() => pane.evaluate(el => el.scrollTop)).toBe(0);
+});
+
+test("Preferred editions show one tile while other store copies stay accessible", async ({ page }) => {
+  await page.goto('/?crete&duplicates');
+  await page.getByRole('button',{name:'Library',exact:true}).click();
+  const pane=page.locator('.crete-library').first();
+  await expect(pane.locator('.crete-game-card')).toHaveCount(2);
+  await expect(pane.locator('[data-game-id="steam:409720"]')).toBeVisible();
+  await pane.locator('[data-game-id="epic:infinite"]').click();
+  const details=page.locator('[data-crete-details="true"]');
+  await expect(details.locator('[data-launch-btn]')).toHaveText(/Install/);
+  await details.getByRole('button',{name:'Launch options',exact:true}).click();
+  await page.getByRole('menuitem',{name:/Steam · BioShock Infinite/}).click();
+  await expect(details.getByRole('heading',{name:'BioShock Infinite',exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>(window as any).__invokeCounts.launch_app||0)).toBe(0);
 });

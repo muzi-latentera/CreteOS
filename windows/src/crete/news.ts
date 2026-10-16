@@ -30,7 +30,7 @@ export function parseNews(xml: string): NewsPost[] {
           const article = new URL(link.getAttribute("href")!);
           if (article.protocol !== "https:" || article.hostname.endsWith("reddit.com") || article.hostname.endsWith("redd.it")) continue;
           if (!articleUrl || link.textContent?.trim() === "[link]") articleUrl = article.href;
-          const videoId = article.hostname === "youtu.be" ? article.pathname.slice(1) : ["www.youtube.com", "youtube.com"].includes(article.hostname) ? article.searchParams.get("v") : undefined;
+          const videoId = article.hostname === "youtu.be" ? article.pathname.slice(1) : ["www.youtube.com", "youtube.com"].includes(article.hostname) ? article.searchParams.get("v") || article.pathname.match(/^\/(?:live|shorts|embed)\/([\w-]{11})(?:\/|$)/)?.[1] : undefined;
           if (videoId && /^[\w-]{11}$/.test(videoId)) thumbnail ||= `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
         } catch { /* malformed article */ }
       }

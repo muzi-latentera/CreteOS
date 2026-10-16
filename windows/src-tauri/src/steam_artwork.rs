@@ -76,6 +76,33 @@ pub fn fetch_library_images(client: &reqwest::blocking::Client, appid: u32) -> (
         .map(|value| library_images(&value, appid)).unwrap_or((None, None))
 }
 
+fn title_key(name: &str) -> String {
+    name.replace(['™','®'],"").chars().filter(|c|c.is_alphanumeric()).flat_map(char::to_lowercase).collect()
+}
+fn art_base_title(name: &str) -> String {
+    static SUFFIX: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let suffix=SUFFIX.get_or_init(||regex::Regex::new(r"(?i)[\s:–—-]+(?:the\s+)?(?:(?:complete|definitive|ultimate|game of the year|goty|gold|deluxe|enhanced) edition|director's cut|final cut|20 year celebration)$").unwrap());
+    suffix.replace(&name.replace(['™','®'],""), "").trim().to_string()
+}
+pub fn title_artwork_match(value: &Value, name: &str) -> Option<u32> {
+    let items=value["items"].as_array()?;
+    let exact=items.iter().filter(|item|item["name"].as_str().is_some_and(|title|title_key(title)==title_key(name))).collect::<Vec<_>>();
+    let matches=if exact.is_empty() {items.iter().filter(|item|item["name"].as_str().is_some_and(|title|title_key(&art_base_title(title))==title_key(&art_base_title(name)))).collect::<Vec<_>>()}else{exact};
+    if matches.len()!=1 {return None;}
+    u32::try_from(matches[0]["id"].as_u64()?).ok()
+}
+pub fn find_title_appid(client: &reqwest::blocking::Client, name: &str) -> Option<u32> {
+    let recorded=artwork_product(name);
+    if let Some(id)=recorded["artSteamId"].as_u64().and_then(|id|u32::try_from(id).ok()) {return Some(id);}
+    for query in [name.to_string(), art_base_title(name)] {
+        let value=client.get("https://store.steampowered.com/api/storesearch/").query(&[("term",query.as_str()),("cc","GB"),("l","english")])
+            .send().ok().and_then(|r|r.error_for_status().ok()).and_then(|r|r.json::<Value>().ok());
+        if let Some(id)=value.and_then(|value|title_artwork_match(&value,name)) {return Some(id);}
+        if query==art_base_title(name) {break;}
+    }
+    None
+}
+
 pub fn xbox_images(value: &Value) -> (Option<String>, Option<String>) {
     let Some(product) = value.pointer("/Payload/Products/0").or_else(|| value.get("Payload")).or_else(|| value.pointer("/Products/0")) else { return (None, None); };
     let images = product.get("Images").or_else(|| product.pointer("/LocalizedProperties/0/Images")).and_then(Value::as_array);
@@ -153,6 +180,14 @@ pub fn fetch_store_images(client: &reqwest::blocking::Client, appid: u32) -> (Op
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn title_art_is_exact_and_never_borrows_a_sequel_or_ambiguous_first_hit() {
+        let value=serde_json::json!({"items":[{"id":1086940,"name":"Baldur's Gate 3"},{"id":42,"name":"Baldur's Gate 2"}]});
+        assert_eq!(title_artwork_match(&value,"Baldur's Gate 3"),Some(1086940));
+        assert_eq!(title_artwork_match(&value,"Baldur's Gate"),None);
+        assert_eq!(title_artwork_match(&serde_json::json!({"items":[{"id":8870,"name":"BioShock Infinite"}]}),"BioShock Infinite: Complete Edition"),Some(8870));
+        assert_eq!(title_artwork_match(&serde_json::json!({"items":[{"id":42,"name":"Nioh 2 – The Complete Edition"}]}),"Nioh: The Complete Edition"),None);
+        assert_eq!(title_artwork_match(&serde_json::json!({"items":[{"id":1,"name":"Prey"},{"id":2,"name":"PREY"}]}),"Prey"),None);
+    }
     #[test]
     fn resolves_exact_hashed_portrait_and_library_hero() {
         let value = serde_json::json!({"response":{"store_items":[{"appid":42,"success":1,"assets":{

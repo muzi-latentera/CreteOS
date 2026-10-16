@@ -19,4 +19,10 @@ describe("CreteOS news feed", () => {
     const body = `<entry><title>Game review</title><link href="https://www.reddit.com/r/Games/comments/review"/><content type="html">&lt;a href="https://www.youtube.com/watch?v=abcdefghijk"&gt;[link]&lt;/a&gt;</content></entry>`;
     expect(parseNews(feed(body))[0].thumbnail).toBe("https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg");
   });
+  it("uses YouTube live and shorts thumbnails when Reddit supplies none", () => {
+    for (const path of ["live", "shorts"]) {
+      const body=`<entry><title>New trailer</title><link href="https://www.reddit.com/r/Games/comments/test"/><content type="html">&lt;a href="https://www.youtube.com/${path}/abcdefghijk"&gt;[link]&lt;/a&gt;</content></entry>`;
+      expect(parseNews(feed(body))[0].thumbnail).toBe("https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg");
+    }
+  });
 });

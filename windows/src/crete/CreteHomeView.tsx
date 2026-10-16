@@ -17,6 +17,7 @@ import { isHeroVideoLayer, resolveHeroType } from "../utils/heroMedia";
 import { useCreteText } from "./text";
 import { invoke } from "@tauri-apps/api/core";
 import { useXboxProgress } from "./useXboxProgress";
+import { gameCopies, preferGameEditions } from "./libraryEditions";
 
 export interface CreteHomeProps {
   active: boolean; apps: App[]; recent: App[]; pins: string[];
@@ -36,16 +37,17 @@ export interface CreteHomeProps {
 export function CreteHomeView(p: CreteHomeProps) {
   const text = useCreteText();
   const recorded = useRecordedHistory(p.active, p.recent);
-  const games = useMemo(() => playedGames(p.apps, recorded), [p.apps, recorded]);
+  const displayApps = useMemo(() => preferGameEditions(p.apps, recorded), [p.apps, recorded]);
+  const games = useMemo(() => playedGames(displayApps, recorded), [displayApps, recorded]);
   const hero = games[0];
   const heroProgress = useXboxProgress(hero?.name ?? "", !!hero && p.active && hero.source === "xbox");
   const streaming = useStreaming(hero ?? { id: "", name: "" }, p.active && !!hero);
   const recentItems = p.settings.show_recent_games_only ? games.slice(1) : [...games.slice(1), ...p.recent.filter(app => app.app_type === "app")];
   const pinned = p.settings.show_home_pinned !== false && p.settings.home_pinned_pos !== "none"
-    ? p.pins.flatMap(id => p.apps.find(app => app.id === id) ?? []) : [];
+    ? displayApps.filter(app => gameCopies(app).some(copy => p.pins.includes(copy.id))) : [];
   const collections = p.settings.show_home_collections ? [...(p.gameCollections ?? []).map(col => ({ ...col, kind: "game" })), ...(p.appCollections ?? []).map(col => ({ ...col, kind: "app" }))]
     .filter(col => !(p.homeHiddenCollections ?? []).includes(col.name)).map(col => ({ id: `collection:${col.kind}:${col.id}`, name: col.name,
-      items: p.apps.filter(app => app.app_type === col.kind && (col.kind === "game" ? p.gameMemberships : p.appMemberships)?.[app.id]?.includes(col.id)) })) : [];
+      items: displayApps.filter(app => app.app_type === col.kind && gameCopies(app).some(copy => (col.kind === "game" ? p.gameMemberships : p.appMemberships)?.[copy.id]?.includes(col.id))) })) : [];
   const rows = [
     ...(p.settings.home_pinned_pos === "top" && pinned.length ? [{ id: "pinned", name: text("Pinned"), items: pinned }] : []),
     ...(p.settings.show_home_recents !== false && recentItems.length ? [{ id: "recent", name: text("Jump back in"), items: recentItems }] : []),
@@ -175,7 +177,7 @@ export function CreteHomeView(p: CreteHomeProps) {
         <aside className="crete-hero-info"><span className="crete-eyebrow">{text("Game info")}</span><dl><dt>{text("Developer")}</dt><dd>{meta.data?.developers.join(", ") || "—"}</dd><dt>{text("Publisher")}</dt><dd>{meta.data?.publishers.join(", ") || "—"}</dd><dt>{text("Playtime")}</dt><dd>{playtime(heroProgress?.minutes ?? hero.playtime_minutes)}</dd><dt>{text("Last played")}</dt><dd>{lastPlayed(hero.last_played)}</dd></dl></aside>
       </section>}
     {rows.map(row => <section className="crete-rail" key={row.id} data-home-row={row.id} aria-label={row.name}>{(p.settings.show_home_collection_names !== false || !row.id.startsWith("collection:")) && <h2>{row.name}<span /><small>{row.items.length}</small></h2>}
-      <div className="crete-rail-cards" ref={node => { rowsRef.current[row.id] = node; }}>{row.items.map(app => <CreteGameCard key={app.id} app={app} art={p.customArt[app.id] || p.gameArt[app.id]} pinned={p.pins.includes(app.id)} running={p.isRunning(app.id)} selected={!onNews && selection?.row === row.id && selection.id === app.id} showStoreBadge={p.settings.show_store_badges}
+      <div className="crete-rail-cards" ref={node => { rowsRef.current[row.id] = node; }}>{row.items.map(app => <CreteGameCard key={app.id} app={app} art={p.customArt[app.id] || p.gameArt[app.id]} pinned={gameCopies(app).some(copy => p.pins.includes(copy.id))} running={p.isRunning(app.id)} selected={!onNews && selection?.row === row.id && selection.id === app.id} showStoreBadge={p.settings.show_store_badges}
         onSelect={() => { setSelection({ row: row.id, id: app.id }); setNewsIndex(-1); }} onContextMenu={event => context(event, app)} onOpen={() => open(app)} />)}</div>
     </section>)}
     {news.length > 0 && <section className="crete-rail crete-news"><h2>{text("What's new")}<span /><small>{news.length}</small></h2><div ref={newsRef} className="crete-rail-cards">{news.map((post, i) => <button key={post.id} type="button" className="crete-news-card" data-selected={onNews && newsIndex === i} onFocus={() => { setSelection(null); setNewsIndex(i); }} onClick={() => void openUrl(post.url).catch(() => {})}>{post.thumbnail && <img src={post.thumbnail} alt="" referrerPolicy="no-referrer" loading="lazy" onError={event => { event.currentTarget.style.display = "none"; }} />}<div><small>{post.subreddit}</small><strong>{post.title}</strong></div></button>)}</div></section>}

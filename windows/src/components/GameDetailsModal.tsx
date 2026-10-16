@@ -1,5 +1,6 @@
 import { cloudProvider } from "../crete/streaming";
 import { useCreteText } from "../crete/text";
+import { sourceLabel } from "../crete/model";
 import { CreteDetailsInfo } from "../crete/CreteDetailsInfo";
 import { LaunchMenu } from "../crete/LaunchMenu";
 import { LaunchLoading } from "../crete/LaunchLoading";
@@ -90,6 +91,7 @@ interface GameDetailsModalProps {
   onDelete?: () => void;
   onResetCategory?: () => void;
   onClose: () => void;
+  onSwitchEdition?: (app: App) => void;
   hapticEnabled?: boolean;
   storeMetaEnabled?: boolean;
   accent: AccentColors;
@@ -210,6 +212,7 @@ export function GameDetailsModal({
   onDelete,
   onResetCategory,
   onClose,
+  onSwitchEdition,
   hapticEnabled = true,
   storeMetaEnabled = true,
   accent,
@@ -469,6 +472,7 @@ export function GameDetailsModal({
   };
 
   const actions = useMemo<DetailAction[]>(() => [
+    ...(onSwitchEdition ? (app.library_variants ?? []).map(copy => ({ key: `copy-${copy.id}`, label: `${sourceLabel(copy.source)} · ${copy.name}`, onClick: () => onSwitchEdition({ ...copy, library_variants: [app, ...(app.library_variants ?? []).filter(other => other.id !== copy.id)].map(({ library_variants: _, ...entry }) => entry) }) })) : []),
     ...(cloudDefault && !installed && (canInstall || canXboxInstall || storeAccountGame) ? [{ key: "install-local", label: storeAccountGame ? storeClientLabel : "Install locally", onClick: handleLocalAction }] : []),
     ...(running && onCloseGame ? [{ key: "close-game", label: t("home.close"), onClick: onCloseGame, danger: true }] : []),
     ...(installed && onVerify && isSteam ? [{ key: "verify", label: t("install.verify"), onClick: onVerify }] : []),
@@ -511,7 +515,7 @@ export function GameDetailsModal({
     isSteam,
     running,
     onCloseGame,
-    resolvedTheme, streaming.gameUrl, streaming.pcGame, streaming.clients.geforceNow, streaming.clients.moonlight, streaming.launch, cloudDefault, canInstall, canXboxInstall, handleLocalAction,
+    resolvedTheme, streaming.gameUrl, streaming.pcGame, streaming.clients.geforceNow, streaming.clients.moonlight, streaming.launch, cloudDefault, canInstall, canXboxInstall, handleLocalAction, app, onSwitchEdition,
   ]);
 
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
@@ -1227,7 +1231,7 @@ export function GameDetailsModal({
               {primaryLabel}
               </button>}
               {resolvedTheme === "crete" && <LaunchMenu streaming={streaming} open={launchMenuOpen} setOpen={setLaunchMenuOpen} loading={launchLoading}
-                block={blockLaunchPopup} local={handleLocalAction} localLabel={installed ? "Local" : installing ? "Cancel installation" : storeAccountGame ? storeClientLabel : "Install locally"}
+                block={blockLaunchPopup} copies={actions.filter(action => action.key.startsWith("copy-"))} local={handleLocalAction} localLabel={installed ? "Local" : installing ? "Cancel installation" : storeAccountGame ? storeClientLabel : "Install locally"}
                 manageLabel={activeTab === "manage" ? "Game information" : "Manage game"}
                 localEnabled={installed || canInstall || canXboxInstall || storeAccountGame || installing} manage={() => {
                   revealControls(); const next = activeTab === "manage" ? "details" : "manage";

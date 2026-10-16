@@ -30,8 +30,9 @@ export function isArtBackfillPending(
   app: Pick<App, "app_type" | "id">,
   resolved: Record<string, string | undefined>,
   inFlight: Set<string>,
+  attempted = new Set<string>(),
 ): boolean {
-  return app.app_type === "game" && resolved[app.id] === undefined && !inFlight.has(app.id);
+  return app.app_type === "game" && !resolved[app.id] && !inFlight.has(app.id) && !attempted.has(app.id);
 }
 
 export function useArtBackfill({
@@ -48,6 +49,9 @@ export function useArtBackfill({
     if (!enabled) return;
     let cancelled = false;
     inFlightRef.current.clear();
+    const attempted = new Set<string>();
+    const reconnect = () => attempted.clear();
+    window.addEventListener("online", reconnect);
 
     const idle = (cb: () => void) => {
       const ric = window.requestIdleCallback;
@@ -59,7 +63,7 @@ export function useArtBackfill({
     const pickChunk = (): App[] => {
       const resolved = gameArtRef.current;
       const inFlight = inFlightRef.current;
-      const isPending = (app: App) => isArtBackfillPending(app, resolved, inFlight);
+      const isPending = (app: App) => isArtBackfillPending(app, resolved, inFlight, attempted);
 
       const byId = new Map(appsRef.current.map((app) => [app.id, app]));
       const out: App[] = [];
@@ -91,7 +95,7 @@ export function useArtBackfill({
           continue;
         }
 
-        chunk.forEach((app) => inFlightRef.current.add(app.id));
+        chunk.forEach((app) => { inFlightRef.current.add(app.id); attempted.add(app.id); });
         await new Promise<void>((resolve) =>
           idle(async () => {
             if (cancelled) return resolve();
@@ -110,6 +114,7 @@ export function useArtBackfill({
     return () => {
       cancelled = true;
       inFlightRef.current.clear();
+      window.removeEventListener("online", reconnect);
     };
   }, [enabled, fetchGameArt, appsRef, gameArtRef, priorityIdsRef]);
 }

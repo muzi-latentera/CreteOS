@@ -5,5 +5,12 @@
   "Marvel's Avengers Definitive Edition": { "productId": "BRX6HS1G5CDK" },
   "Forza Horizon 4": { "productId": "9PNJXVCVWD4K" },
   "Valorant": { "productId": "9N1NLJK9SKRN" },
-  "Dark Souls III": { "artSteamId": 374320 }
+  "Dark Souls III": { "artSteamId": 374320 },
+  "Ghostbusters Remastered": { "artSteamId": 1449280 },
+  "Shadowrun Hong Kong": { "artSteamId": 346940 },
+  "GRIP": { "artSteamId": 396900 },
+  "Telltale Batman Season 1": { "artSteamId": 498240 },
+  "Telltale Batman Season 2": { "artSteamId": 675260 },
+  "Trine 4: Definitive Edition": { "artSteamId": 690640 },
+  "Rustler - Grand Theft Horse": { "artSteamId": 844260 }
 }

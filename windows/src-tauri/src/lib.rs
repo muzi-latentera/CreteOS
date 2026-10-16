@@ -53,6 +53,7 @@ mod steam_appinfo;
 mod storage_info;
 mod store_metadata;
 mod steam_artwork;
+mod artwork_cache;
 mod streaming;
 mod gfn_catalog;
 mod launch_cover;
@@ -1159,13 +1160,7 @@ fn load_art_cache() -> HashMap<String, String> {
 }
 
 fn save_art_cache(cache: &HashMap<String, String>) {
-    let path = art_cache_path();
-    if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    if let Ok(json) = serde_json::to_string(cache) {
-        let _ = std::fs::write(path, json);
-    }
+    artwork_cache::save(&art_cache_path(), cache);
 }
 
 fn load_hero_cache() -> HashMap<String, String> {
@@ -1180,13 +1175,7 @@ fn load_hero_cache() -> HashMap<String, String> {
 }
 
 fn save_hero_cache(cache: &HashMap<String, String>) {
-    let path = hero_cache_path();
-    if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    if let Ok(json) = serde_json::to_string(cache) {
-        let _ = std::fs::write(path, json);
-    }
+    artwork_cache::save(&hero_cache_path(), cache);
 }
 
 fn load_hero_animated_cache() -> HashMap<String, String> {
@@ -1201,13 +1190,7 @@ fn load_hero_animated_cache() -> HashMap<String, String> {
 }
 
 fn save_hero_animated_cache(cache: &HashMap<String, String>) {
-    let path = hero_animated_cache_path();
-    if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    if let Ok(json) = serde_json::to_string(cache) {
-        let _ = std::fs::write(path, json);
-    }
+    artwork_cache::save(&hero_animated_cache_path(), cache);
 }
 
 pub(crate) fn fse_hard_reload_recovery_enabled() -> bool {
@@ -5890,6 +5873,7 @@ fn fetch_game_art(
     appid: Option<u32>,
     force_refresh: Option<bool>,
     product_id: Option<String>,
+    store_cover_url: Option<String>,
 ) -> GameArtBundle {
     let mut grid_cache = load_art_cache();
     let mut hero_static_cache = load_hero_cache();
@@ -5947,6 +5931,12 @@ fn fetch_game_art(
         }
     };
 
+    if grid_cached.is_none() {
+        if let Some(url)=store_cover_url.and_then(|url|store_accounts::cover_url(&serde_json::Value::String(url))) {
+            grid_cached=steam_artwork::download_portrait(&client,&url,&grid_art_dir().join("portrait-v2"),&sanitize_filename(&game_name));
+            if let Some(path)=&grid_cached {grid_cache.insert(game_name.clone(),path.clone());save_art_cache(&grid_cache);}
+        }
+    }
     if source.as_deref().map(|s| s.eq_ignore_ascii_case("xbox")).unwrap_or(false) {
         let normalized = normalize_xbox_catalog_name(&game_name);
         let catalog = bundled_xcloud_games().into_iter().find(|game| normalize_xbox_catalog_name(&game.name) == normalized);
@@ -6074,6 +6064,21 @@ fn fetch_game_art(
         }
     }
 
+    // A Steam artwork identity is informational only; never replace the Epic/
+    // GOG entitlement, executable or streaming store variant with this ID.
+    if !is_steam && (grid_cached.is_none() || hero_static_cached.is_none()) {
+        if let Some(art_id) = steam_artwork::find_title_appid(&client, &game_name) {
+            let (portrait, hero) = steam_artwork::fetch_library_images(&client, art_id);
+            if grid_cached.is_none() {
+                grid_cached = portrait.and_then(|url| steam_artwork::download_portrait(&client,&url,&grid_art_dir().join("portrait-v2"),&sanitize_filename(&game_name)));
+                if let Some(path)=&grid_cached {grid_cache.insert(game_name.clone(),path.clone());save_art_cache(&grid_cache);}
+            }
+            if hero_static_cached.is_none() {
+                hero_static_cached=hero.and_then(|url| download_file(&client,&url,&hero_static_art_dir(),&game_name));
+                if let Some(path)=&hero_static_cached {hero_static_cache.insert(game_name.clone(),path.clone());save_hero_cache(&hero_static_cache);}
+            }
+        }
+    }
     if SGDB_KEY.is_empty() {
         if grid_cached.is_none() || hero_static_cached.is_none() {
             let (cover, hero) = steam_artwork::fetch_community_images(&client,&game_name);

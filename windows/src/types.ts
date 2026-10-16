@@ -15,6 +15,7 @@ export interface App {
   xbox_product_id?: string;
   store_id?: string;
   store_cover_url?: string;
+  library_variants?: App[];
   installing?: boolean;
   installProgress?: number;
   runAsAdmin?: boolean;

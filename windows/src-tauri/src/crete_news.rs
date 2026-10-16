@@ -18,7 +18,7 @@ pub async fn get_crete_news_rss() -> Result<String, String> {
 }
 
 fn article_host(host: &str) -> bool {
-    ["pcgamer.com", "ign.com", "gamespot.com", "eurogamer.net", "vg247.com", "polygon.com", "rockpapershotgun.com", "videogameschronicle.com", "gematsu.com", "gamingbolt.com", "nintendolife.com", "pushsquare.com", "store.steampowered.com", "blog.playstation.com", "xbox.com", "gamesindustry.biz", "gamesbeat.com", "opencritic.com", "aftermath.site", "digitalfoundry.net", "techpowerup.com", "bsky.app", "gamesradar.com", "gamedeveloper.com"].iter().any(|allowed| host == *allowed || host.ends_with(&format!(".{allowed}")))
+    ["pcgamer.com", "ign.com", "gamespot.com", "eurogamer.net", "vg247.com", "polygon.com", "rockpapershotgun.com", "videogameschronicle.com", "gematsu.com", "gamingbolt.com", "nintendolife.com", "pushsquare.com", "store.steampowered.com", "steamcommunity.com", "blog.playstation.com", "xbox.com", "gamesindustry.biz", "gamesbeat.com", "opencritic.com", "aftermath.site", "digitalfoundry.net", "techpowerup.com", "bsky.app", "gamesradar.com", "gamedeveloper.com", "automaton-media.com", "insider-gaming.com", "worldofwarcraft.blizzard.com", "ritchietorres.house.gov"].iter().any(|allowed| host == *allowed || host.ends_with(&format!(".{allowed}")))
 }
 fn attribute<'a>(tag: &'a str, key: &str) -> Option<&'a str> {
     let bytes = tag.as_bytes(); let mut i = 4;
@@ -48,7 +48,7 @@ fn thumbnail(html: &str) -> Option<String> {
         let value = value.replace("&amp;", "&").replace("&#38;", "&");
         let Ok(image) = reqwest::Url::parse(&value) else { continue; };
         let host = image.host_str().unwrap_or_default();
-        let cdn = ["futurecdn.net", "ignimgs.com", "gamespot.com", "vox-cdn.com", "gamer-network.net", "gnwcdn.com", "vgc.news", "gematsu.com", "gamingbolt.com", "pushsquare.com", "nintendolife.com", "steamstatic.com", "playstation.com", "xbox.com", "akamaized.net", "xboxwire.thesourcemediaassets.com"];
+        let cdn = ["futurecdn.net", "ignimgs.com", "gamespot.com", "vox-cdn.com", "gamer-network.net", "gnwcdn.com", "vgc.news", "gematsu.com", "gamingbolt.com", "pushsquare.com", "nintendolife.com", "steamstatic.com", "playstation.com", "xbox.com", "akamaized.net", "xboxwire.thesourcemediaassets.com", "bnetcmsus-a.akamaihd.net", "d12t4t5x3vyizu.cloudfront.net"];
         if image.scheme() == "https" && image.username().is_empty() && image.password().is_none() && image.port().is_none() && (article_host(host) || cdn.iter().any(|h| host == *h || host.ends_with(&format!(".{h}")))) { return Some(image.to_string()); }
     }
     None
@@ -121,5 +121,11 @@ async fn cache_news_image(image_url: &str) -> Result<String, String> {
         assert!(super::thumbnail("<meta property=\"og:image\" content=\"https://127.0.0.1/private.jpg\">").is_none());
         assert!(super::article_host("gamesindustry.biz"));
         assert!(!super::article_host("gamesindustry.biz.attacker.test"));
+    }
+    #[test] fn linked_games_publishers_use_verified_public_hosts_not_arbitrary_cdn_tenants() {
+        for host in ["steamcommunity.com","automaton-media.com","insider-gaming.com","worldofwarcraft.blizzard.com","ritchietorres.house.gov"] {assert!(super::article_host(host));}
+        assert!(super::thumbnail("<meta property='og:image' content='https://bnetcmsus-a.akamaihd.net/game.jpg'>").is_some());
+        assert!(super::thumbnail("<meta property='og:image' content='https://d12t4t5x3vyizu.cloudfront.net/news.jpg'>").is_some());
+        assert!(super::thumbnail("<meta property='og:image' content='https://unrelated.cloudfront.net/news.jpg'>").is_none());
     }
 }

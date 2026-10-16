@@ -7,6 +7,7 @@ import { useNavigationState, useViewNavigation, type NavigationRef } from "./nav
 import { useCreteText } from "./text";
 import { StoreBadge } from "../components/ui/StoreBadge";
 import { cancelPaneScroll, scrollPane } from "./smoothScroll";
+import { gameCopies } from "./libraryEditions";
 
 export interface CreteLibraryProps {
   tab: "Games" | "Apps";
@@ -169,7 +170,7 @@ export function CreteLibraryView(p: CreteLibraryProps) {
         {p.settings.show_store_badges !== false && <StoreBadge source={app.source} inline />}{p.pins.includes(app.id) && <span aria-label={text("Pinned")}>◆</span>}{p.isRunning(app.id) && <span>{text("Running")}</span>}
       </button> : <CreteGameCard key={app.id} app={app}
       art={p.customArt[app.id] || p.gameArt[app.id]} selected={toolbarIndex === null && selected?.id === app.id}
-      pinned={p.pins.includes(app.id)} running={p.isRunning(app.id)} showStoreBadge={p.settings.show_store_badges}
+      pinned={gameCopies(app).some(copy => p.pins.includes(copy.id))} running={p.isRunning(app.id)} showStoreBadge={p.settings.show_store_badges}
       onContextMenu={event => { event.preventDefault(); p.setContextMenu({ x: event.clientX, y: event.clientY, app }); }}
       onSelect={() => { setSelectedId(app.id); setToolbarIndex(null); }} onOpen={() => p.openDetails(app)} />)}</div>
     {!items.length && <div className="crete-empty"><h2>{text(appsMode ? "No applications found" : "No games found")}</h2><p>{text(query ? "Try another search." : "Choose another filter or add a source in Settings.")}</p></div>}

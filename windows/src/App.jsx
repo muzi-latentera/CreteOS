@@ -1,5 +1,6 @@
 import { useStoreAccounts } from "./hooks/useStoreAccounts";
 import { StoreAccountModal } from "./components/modals/StoreAccountModal";
+import { preferGameEditions, gameCopies } from "./crete/libraryEditions";
 //Copyright (C) 2025 Taylor Denby
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
@@ -464,7 +465,7 @@ export default function App() {
   // Every pin toggle (grid X, context menu, Details) reports through the Smart bar.
   const togglePin = useCallback((app) => {
     if (!app) return;
-    const wasPinned = pinsRef.current.includes(app.id);
+    const wasPinned = gameCopies(app).some(copy => pinsRef.current.includes(copy.id));
     togglePinBase(app);
     pushBarEvent({
       kind: wasPinned ? "unpin" : "pin",
@@ -2307,7 +2308,8 @@ export default function App() {
       const byStore = (a.source || "").localeCompare(b.source || "", undefined, { sensitivity: "base" });
       return byStore || (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
     }
-    return (recentRank.get(b.id) || 0) - (recentRank.get(a.id) || 0)
+    const rank = app => Math.max(0, ...gameCopies(app).map(copy => recentRank.get(copy.id) || 0));
+    return rank(b) - rank(a)
       || (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
   });
 
@@ -2326,8 +2328,8 @@ export default function App() {
     return true;
   }), [apps, customSources, gameCollections, gameMemberships, gameSourceTab, showUninstalledGames]);
   const gamesFilteredApps = useMemo(
-    () => sortGamesForView(filterByInstallState(gamesSourceFilteredApps)),
-    [gamesSourceFilteredApps, installFilter, gamesSort, recentRank, showUninstalledGames]
+    () => sortGamesForView(preferGameEditions(filterByInstallState(gamesSourceFilteredApps), recent)),
+    [gamesSourceFilteredApps, installFilter, gamesSort, recentRank, showUninstalledGames, recent]
   );
   // Ids in the order the user currently sees them (current tab/filter/sort).
   // The backfill fills these first so on-screen tiles resolve before off-screen ones.
@@ -3390,6 +3392,7 @@ export default function App() {
       {detailsApp && detailsApp.app_type === "game" && (
         <GameDetailsModal
           app={detailsApp}
+          onSwitchEdition={setResolvedDetailsApp}
           heroAnimated={heroAnimated[detailsApp.id]}
           heroStatic={customHeroArt[detailsApp.id] || heroStatic[detailsApp.id]}
           coverArt={customArt[detailsApp.id] || gameArt[detailsApp.id]}

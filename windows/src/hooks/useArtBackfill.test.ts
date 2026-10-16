@@ -8,7 +8,8 @@ describe("isArtBackfillPending", () => {
   });
 
   it("skips resolved, in-flight, and non-game entries", () => {
-    expect(isArtBackfillPending({ id: "g1", app_type: "game" }, { g1: "" }, new Set())).toBe(false);
+    expect(isArtBackfillPending({ id: "g1", app_type: "game" }, { g1: "" }, new Set())).toBe(true);
+    expect(isArtBackfillPending({ id: "g1", app_type: "game" }, { g1: "" }, new Set(), new Set(["g1"]))).toBe(false);
     expect(isArtBackfillPending({ id: "g1", app_type: "game" }, {}, new Set(["g1"]))).toBe(false);
     expect(isArtBackfillPending({ id: "a1", app_type: "app" }, {}, new Set())).toBe(false);
   });
