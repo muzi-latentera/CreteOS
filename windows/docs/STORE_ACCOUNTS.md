@@ -36,6 +36,14 @@ on the new device instead. Sign-in uses a separate incognito WebView without mai
 window IPC permissions. Provider errors omit URLs/bodies to avoid exposing codes
 or query-string tokens.
 
+On Windows the private sign-in browser uses a separate per-store WebView2 data
+directory under `store-signin/`, because the main window's custom browser flags
+cannot share an environment with a differently configured WebView. Construction
+runs on a worker thread; the sign-in window is owned by the main window and shown
+only after it is ready. `logs/store-accounts.log` records bounded, generic lifecycle
+phases and Windows HRESULTs only, without URLs, response bodies, codes or tokens.
+The private browser directories and diagnostic log are excluded from G1 exports.
+
 GeForce NOW checks the exact title/known alias **and the owning store variant**;
 an Epic/GOG title never borrows a Steam edition. Availability still depends on
 NVIDIA, membership and ownership. Moonlight supports a host app advertised under

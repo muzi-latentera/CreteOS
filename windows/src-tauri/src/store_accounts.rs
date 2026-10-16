@@ -293,41 +293,83 @@ fn gog_callback(url: &tauri::Url, state: &str) -> Option<Result<String, String>>
     if query.get("state").is_some_and(|s| s != state) { return Some(Err("GOG sign-in could not be verified".into())); }
     query.get("code").filter(|s| !s.is_empty()).map(|s| Ok(s.clone()))
 }
+fn auth_log(store: Store, phase: &str) {
+    use std::io::Write;
+    static LOG_LOCK: Mutex<()> = Mutex::new(());
+    let Ok(_guard) = LOG_LOCK.lock() else { return; };
+    let dir = super::liftoff_dir().join("logs");
+    if std::fs::create_dir_all(&dir).is_err() { return; }
+    let path = dir.join("store-accounts.log");
+    let oversized = std::fs::metadata(&path).is_ok_and(|m| m.len() > 128 * 1024);
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).write(true).append(!oversized).truncate(oversized).open(path) {
+        let _ = writeln!(file, "{} {} {}", now(), store.name(), phase);
+    }
+}
+fn window_error_message(error: &str) -> String {
+    // Only extract a Windows error number. Never expose a URL, browser error
+    // body, credential, authorization code or token from a runtime error.
+    let code = error.find("HRESULT(0x").and_then(|start| error.get(start + 8..start + 18))
+        .filter(|code| code[2..].chars().all(|c| c.is_ascii_hexdigit()));
+    code.map(|code| format!("Could not open the store sign-in window (Windows {code}). Please try again."))
+        .unwrap_or_else(|| "Could not open the store sign-in window. Please try again.".into())
+}
 fn authorize(app: &tauri::AppHandle, store: Store) -> Result<String, String> {
     let (send, receive) = mpsc::channel::<Result<String, String>>();
-    let handle = app.clone(); let state = super::random_url_safe(24);
+    let state = super::random_url_safe(24);
     let url = tauri::Url::parse(&login_url(store, &state)).map_err(|_| "Could not start store sign-in")?;
-    let label = format!("{}-account-signin", store.name()); let build_label = label.clone();
-    let code_sender = send.clone(); let error_sender = send.clone();
-    app.run_on_main_thread(move || {
-        let sender = code_sender.clone(); let callback_state = state.clone();
-        let epic_state = state.clone();
-        let builder = tauri::WebviewWindowBuilder::new(&handle, &build_label, tauri::WebviewUrl::External(url))
-            .title(if store == Store::Epic { "Connect Epic Games — CreteOS" } else { "Connect GOG — CreteOS" })
-            .inner_size(1000., 760.).incognito(true)
-            .on_navigation(move |url| {
-                if store == Store::Gog { if let Some(result) = gog_callback(url, &callback_state) { let _ = sender.send(result); return false; } }
-                if store == Store::Epic && url.scheme() == "https" && url.host_str() == Some("creteos-auth.invalid") && url.path() == "/epic" {
-                    let q: HashMap<_, _> = url.query_pairs().into_owned().collect();
-                    if q.get("state") == Some(&callback_state) { if let Some(code) = q.get("code").filter(|s| !s.is_empty()) { let _ = sender.send(Ok(code.clone())); } }
-                    return false;
-                }
-                url.scheme() == "https" || url.as_str() == "about:blank"
-            })
-            .on_page_load(move |window, payload| {
-                if store == Store::Epic && payload.url().host_str() == Some("www.epicgames.com") && payload.url().path() == "/id/api/redirect" {
-                    let state_json = serde_json::to_string(&epic_state).unwrap_or_default();
-                    // Read only the provider's authorization response, never the sign-in form.
-                    let _ = window.eval(&format!("(()=>{{try{{const d=JSON.parse(document.body.innerText);if(d.authorizationCode)location.href='https://creteos-auth.invalid/epic?state='+encodeURIComponent({state_json})+'&code='+encodeURIComponent(d.authorizationCode)}}catch{{}}}})()"));
-                }
-            });
-        match builder.build() {
-            Ok(window) => { let _ = window.set_focus(); window.on_window_event(move |event| { if matches!(event, tauri::WindowEvent::Destroyed) { let _ = code_sender.send(Err("Sign-in cancelled".into())); } }); }
-            Err(_) => { let _ = error_sender.send(Err("Could not open the secure store sign-in window".into())); }
+    let label = format!("{}-account-signin", store.name());
+    let sender = send.clone(); let callback_state = state.clone(); let epic_state = state;
+    auth_log(store, "authorization-start");
+    let signin_data = super::liftoff_dir().join("store-signin").join(store.name());
+    std::fs::create_dir_all(&signin_data).map_err(|_| "Could not prepare the private store sign-in browser")?;
+    // authorize() runs on spawn_blocking. Do not move window construction onto
+    // the UI event thread: WebView2 creation can deadlock there on Windows.
+    // The main window has custom browser flags, so this browser also needs its
+    // own data directory/environment. Incognito prevents persistent sign-in.
+    let mut builder = tauri::WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::External(url))
+        .title(if store == Store::Epic { "Connect Epic Games — CreteOS" } else { "Connect GOG — CreteOS" })
+        .inner_size(960., 680.).maximized(true).visible(false).incognito(true)
+        .data_directory(signin_data)
+        .on_navigation(move |url| {
+            if store == Store::Gog { if let Some(result) = gog_callback(url, &callback_state) { auth_log(store, "authorization-callback"); let _ = sender.send(result); return false; } }
+            if store == Store::Epic && url.scheme() == "https" && url.host_str() == Some("creteos-auth.invalid") && url.path() == "/epic" {
+                let q: HashMap<_, _> = url.query_pairs().into_owned().collect();
+                if q.get("state") == Some(&callback_state) { if let Some(code) = q.get("code").filter(|s| !s.is_empty()) { auth_log(store, "authorization-callback"); let _ = sender.send(Ok(code.clone())); } }
+                return false;
+            }
+            url.scheme() == "https" || url.as_str() == "about:blank"
+        })
+        .on_page_load(move |window, payload| {
+            auth_log(store, "page-load");
+            if store == Store::Epic && payload.url().host_str() == Some("www.epicgames.com") && payload.url().path() == "/id/api/redirect" {
+                let state_json = serde_json::to_string(&epic_state).unwrap_or_default();
+                let _ = window.eval(&format!("(()=>{{try{{const d=JSON.parse(document.body.innerText);if(d.authorizationCode)location.href='https://creteos-auth.invalid/epic?state='+encodeURIComponent({state_json})+'&code='+encodeURIComponent(d.authorizationCode)}}catch{{}}}})()"));
+            }
+        });
+    if let Some(main) = app.get_webview_window("main") {
+        // Owned windows remain above their owner, without a global topmost flag
+        // or repeated focus grabs that would interfere with deliberate Alt-Tab.
+        builder = builder.parent(&main).map_err(|_| "Could not attach the store sign-in window")?;
+    }
+    auth_log(store, "window-build-start");
+    let window = builder.build().map_err(|error| {
+        let message = window_error_message(&format!("{error:?}"));
+        auth_log(store, &message); message
+    })?;
+    auth_log(store, "window-ready");
+    window.on_window_event(move |event| {
+        if matches!(event, tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed) {
+            auth_log(store, "window-closed"); let _ = send.send(Err("Sign-in cancelled".into()));
         }
-    }).map_err(|_| "Could not open store sign-in")?;
+    });
+    if window.show().is_err() {
+        let _ = window.close();
+        return Err("Could not show the store sign-in window".into());
+    }
+    let _ = window.set_focus();
     let result = receive.recv_timeout(Duration::from_secs(600)).unwrap_or_else(|_| Err("Sign-in timed out. Please try again.".into()));
-    if let Some(window) = app.get_webview_window(&label) { let _ = window.close(); }
+    auth_log(store, if result.is_ok() { "authorization-received" } else { "authorization-ended-without-code" });
+    let _ = window.close();
     result
 }
 fn notify(app: &tauri::AppHandle) { let _ = app.emit("store-accounts-changed", ()); }
@@ -464,6 +506,12 @@ mod tests {
         assert!(gog_callback(&tauri::Url::parse("https://evil.test/on_login_success?code=bad").unwrap(),"expected").is_none());
         assert!(gog_callback(&tauri::Url::parse("https://embed.gog.com/on_login_success?code=test&state=wrong").unwrap(),"expected").unwrap().is_err());
         assert_eq!(gog_callback(&tauri::Url::parse("https://embed.gog.com/on_login_success?origin=client&code=test&state=expected").unwrap(),"expected").unwrap().unwrap(),"test");
+    }
+    #[test] fn window_errors_only_expose_the_windows_error_number() {
+        let message=window_error_message("WindowsError HRESULT(0x8007139F) https://example.test/?code=private");
+        assert!(message.contains("0x8007139F")); assert!(!message.contains("https")); assert!(!message.contains("private"));
+        assert!(!window_error_message("https://example.test/?access_token=private").contains("private"));
+        assert!(!window_error_message("https://example.test/?code=0x01234567").contains("0x01234567"));
     }
     #[test] fn owned_cache_contains_no_tokens_and_rejects_unknown_sources() {
         let v=serde_json::to_string(&Library::default()).unwrap();assert!(!v.contains("token"));assert!(Store::parse("steam").is_err());
