@@ -1032,6 +1032,7 @@
     "refresh": "Refresh library",
     "disconnect": "Disconnect",
     "reconnect": "Sign in again",
-    "close": "Close"
+    "close": "Close",
+    "connected_one": "{{account}} · {{count}} owned game"
   }
 }

@@ -130,7 +130,7 @@ test.beforeEach(async ({ page }) => {
         if (command === "get_crete_review_videos" && params.has("manyMedia")) return ["Whitelight", "Whitelight", "Skill Up", "Joseph Anderson", "Noah Caldwell-Gervais", "gameranx"].map((channel, i) => ({ id: `review${i}`, title: `Review ${i}`, channel, thumbnail: "https://fixture.test/review.svg", url: `https://www.youtube.com/watch?v=review${i}` }));
         if (command === "get_crete_review_videos") return params.has("xboxDetails") ? [{ id: "abcdefghijk", title: "A Plague Tale Requiem analysis", channel: "Whitelight", thumbnail: "https://fixture.test/review.svg", url: "https://www.youtube.com/watch?v=abcdefghijk" }, { id: "lmnopqrstuv", title: "A Plague Tale Requiem review", channel: "Skill Up", thumbnail: "https://fixture.test/review.svg", url: "https://www.youtube.com/watch?v=lmnopqrstuv" }] : [];
         if (command === "get_xbox_game_progress") return { minutes: 922, earned: 20, total: null, gamerscore: 330, totalGamerscore: 1000 };
-        if (command === "fetch_title_store_metadata") return { source: "xbox", appId: "2089483628", developers: ["Asobo Studio"], publishers: ["Focus Entertainment"], shortDescription: "A Plague Tale: Requiem description", aboutHtml: "", genres: [], screenshots: [], movies: [], controllerSupport: "none", fetchedAt: 0 };
+        if (command === "fetch_title_store_metadata") { (window as any).__lastTitleMeta = args; return { source: "xbox", appId: "2089483628", developers: ["Asobo Studio"], publishers: ["Focus Entertainment"], shortDescription: "A Plague Tale: Requiem description", aboutHtml: "", genres: [], screenshots: [], movies: [], controllerSupport: "none", fetchedAt: 0 }; }
         if (command === "get_crete_news_rss") return params.has("news") ? `<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Test gaming headline</title><link href="https://www.reddit.com/r/Games/comments/test"/></entry></feed>` : "";
         if (params.has("applications") && command === "get_app_collections") return [{ id: "tools", name: "Tools" }];
         if (params.has("applications") && command === "get_app_memberships") return { "app:terminal": ["tools"] };
@@ -1432,7 +1432,7 @@ test("Epic and GOG owned libraries connect, refresh and disconnect from Settings
     await row.getByRole("button", { name: "Connect", exact: true }).click();
     const modal = page.getByRole("dialog", { name: `Connect ${store}`, exact: true });
     await modal.getByRole("button", { name: "Connect", exact: true }).click();
-    await expect(modal).toContainText("1 owned games");
+    await expect(modal).toContainText("1 owned game");
     await expect(modal.getByRole("button", { name: "Refresh library" })).toBeEnabled();
     await modal.getByRole("button", { name: "Refresh library" }).click();
     await expect(modal.getByRole("button", { name: "Refresh library" })).toBeEnabled();
@@ -1440,7 +1440,7 @@ test("Epic and GOG owned libraries connect, refresh and disconnect from Settings
     await pad(page, 0);
     await expect(modal.getByRole("button", { name: "Connect", exact: true })).toBeEnabled();
     await modal.getByRole("button", { name: "Connect", exact: true }).click();
-    await expect(modal).toContainText("1 owned games");
+    await expect(modal).toContainText("1 owned game");
     await pad(page, 1);
     await expect(modal).not.toBeVisible();
   }
@@ -1455,6 +1455,7 @@ test("Uninstalled Epic and GOG games retain direct GFN settings and truthful sto
   for (const [name, label, source, id] of [["007 First Light", "Open Epic library", "epic", "owned"], ["Baldur's Gate 3", "Open in GOG Galaxy", "gog", "123"]]) {
     await page.getByRole("button", { name, exact: true }).click();
     const details = page.locator('[data-crete-details="true"]');
+    await expect.poll(() => page.evaluate(() => (window as any).__lastTitleMeta?.gameName)).toBe(name);
     await expect(details.locator("[data-launch-btn]")).toHaveAttribute("data-provider", "geforceNow");
     await details.locator("[data-launch-btn]").click();
     const dialog = page.getByRole("dialog", { name: "GeForce NOW stream settings" });

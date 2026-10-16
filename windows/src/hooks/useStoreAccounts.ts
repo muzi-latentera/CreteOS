@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { suspendGamepadInputUntilButtonsReleased } from "../utils/gamepad";
 
 export type AccountStore = "epic" | "gog";
 export interface StoreAccountStatus { connected: boolean; account_name?: string; owned_count: number; updated_at?: number }
@@ -48,6 +49,7 @@ export function useStoreAccounts(refreshLibrary: (options?: { background?: boole
   }, []);
   const close = useCallback(() => {
     const source = selectedRef.current;
+    suspendGamepadInputUntilButtonsReleased();
     operation.current++; selectedRef.current = null; openRef.current = false; setSelected(null); setBusy(false);
     if (source) void invoke("store_account_cancel", { source }).catch(() => {});
   }, []);

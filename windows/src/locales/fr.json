@@ -1032,6 +1032,7 @@
     "refresh": "Actualiser la bibliothèque",
     "disconnect": "Déconnecter",
     "reconnect": "Se reconnecter",
-    "close": "Fermer"
+    "close": "Fermer",
+    "connected_one": "{{account}} · {{count}} jeu possédé"
   }
 }
