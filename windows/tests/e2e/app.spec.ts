@@ -122,12 +122,12 @@ test.beforeEach(async ({ page }) => {
         if (command === "launch_moonlight") { if (params.has("streamOffline")) throw new Error("Host unavailable"); (window as any).__lastStream = args; return null; }
         if (command === "get_host_installed_games") { if (params.has("holdHost")) await new Promise<void>(resolve => { (window as any).__releaseHostCheck = resolve; }); if (params.has("inventoryOffline")) throw new Error("SSH unavailable"); return params.has("hostInstalled") ? [{ steamAppId: "870780", name: "Control Ultimate Edition" }] : []; }
         if (command === "get_moondeck_status") return { paired: !params.has("buddyUnpaired"), version: 8 };
-        if (command === "get_moonlight_profile") return { displayKey: "DISPLAY1:1920x1080", profile: { host: "Bosgame", resolution: "1920x1080", fps: 120, bitrate: 80000, codec: "auto" } };
+        if (command === "get_moonlight_profile") return { displayKey: "DISPLAY1:1920x1080", ...(params.has("g1Display") ? { nativeResolution: "2560x1600", nativeFps: 120, displayLabel: "G1" } : {}), profile: { host: "Bosgame", resolution: "1920x1080", fps: 120, bitrate: 80000, codec: "auto" } };
         if (command === "get_moonlight_apps") { if (params.has("hostOffline")) throw new Error("Host offline"); return params.has("hostGame") ? ["Control Ultimate Edition", "Desktop"] : ["Desktop", "Steam Big Picture", "MoonDeckStream"]; }
         if (command === "get_streaming_clients") return { geforceNow: true, moonlight: true };
         if (command === "wait_stream_window" && params.has("holdStreamWindow")) return new Promise<void>(resolve => { (window as any).__releaseStreamWindow = resolve; });
         if (command === "get_geforce_profile" && params.has("holdGfnProfile")) await new Promise<void>(resolve => { (window as any).__releaseGfnProfile = resolve; });
-        if (command === "get_geforce_profile") return { displayKey: "DISPLAY1:1920x1080", profile: { host: "GeForce NOW", resolution: "1920x1080", fps: 120, bitrate: 80000, codec: "auto" } };
+        if (command === "get_geforce_profile") return { displayKey: "DISPLAY1:1920x1080", ...(params.has("g1Display") ? { nativeResolution: "2560x1600", nativeFps: 120, displayLabel: "G1" } : {}), profile: { host: "GeForce NOW", resolution: "1920x1080", fps: 120, bitrate: params.has("g1Display") ? 0 : 80000, codec: "auto" } };
         if (command === "start_geforce_game" || command === "launch_geforce_game") { (window as any).__lastGeforce = args; return null; }
         if (command === "get_crete_review_videos" && params.has("manyMedia")) return ["Whitelight", "Whitelight", "Skill Up", "Joseph Anderson", "Noah Caldwell-Gervais", "gameranx"].map((channel, i) => ({ id: `review${i}`, title: `Review ${i}`, channel, thumbnail: "https://fixture.test/review.svg", url: `https://www.youtube.com/watch?v=review${i}` }));
         if (command === "get_crete_review_videos") return params.has("xboxDetails") ? [{ id: "abcdefghijk", title: "A Plague Tale Requiem analysis", channel: "Whitelight", thumbnail: "https://fixture.test/review.svg", url: "https://www.youtube.com/watch?v=abcdefghijk" }, { id: "lmnopqrstuv", title: "A Plague Tale Requiem review", channel: "Skill Up", thumbnail: "https://fixture.test/review.svg", url: "https://www.youtube.com/watch?v=lmnopqrstuv" }] : [];
@@ -1539,4 +1539,26 @@ test("Broken Reddit hotlinks recover through the publisher and unavailable artic
   await unavailable.click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"])).toBe(1);
   await page.locator(".crete-news").screenshot({ path: testInfo.outputPath("news-recovery.png") });
+});
+
+test("G1 native preset uses detected 1600p in both providers and preserves GFN Auto bitrate", async ({ page }) => {
+  await page.goto("/?crete&rich&gfn&hostGame&g1Display");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const details = page.locator('[data-crete-details="true"]');
+  await details.getByRole("button", { name: "Play", exact: true }).click();
+  const moonlight = details.getByRole("dialog", { name: "Moonlight stream settings" });
+  await expect(moonlight.getByRole("option", { name: "G1 · 1600p / 120fps", exact: true })).toHaveCount(1);
+  await moonlight.getByLabel("Display preset").selectOption("native");
+  await expect(moonlight.getByLabel("Resolution")).toHaveValue("2560x1600");
+  await expect(moonlight.getByLabel("Frame rate")).toHaveValue("120");
+  await moonlight.getByRole("button", { name: "Cancel", exact: true }).click();
+  await details.getByRole("button", { name: "Launch options", exact: true }).click();
+  await details.getByRole("menuitem", { name: "GeForce NOW", exact: true }).click();
+  const gfn = details.getByRole("dialog", { name: "GeForce NOW stream settings" });
+  await expect(gfn.getByLabel("Bitrate")).toHaveValue("0");
+  await gfn.getByLabel("Display preset").selectOption("native");
+  await expect(gfn.getByLabel("Resolution")).toHaveValue("2560x1600");
+  await expect(gfn.getByLabel("Frame rate")).toHaveValue("120");
+  await expect(gfn.getByLabel("Bitrate")).toHaveValue("0");
 });

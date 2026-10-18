@@ -23,6 +23,10 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   const openChoices = (select: HTMLSelectElement) => { choicesRef.current = select; setChoices(select); };
   const closeChoices = () => { const select = choicesRef.current; choicesRef.current = null; setChoices(null); select?.focus(); };
   const gfn = s.geforceConfigure;
+  const activeDisplay = gfn ? s.geforceDisplay : s.display;
+  const nativeResolution = activeDisplay.nativeResolution ?? "1920x1080";
+  const nativeLabel = activeDisplay.displayLabel ?? "Handheld";
+  const nativeFps = activeDisplay.nativeFps === 90 && gfn ? 60 : activeDisplay.nativeFps ?? 120;
   const active = open || s.configure || gfn;
   useEffect(() => { block(active); return () => block(false); }, [active, block]);
   useEffect(() => {
@@ -110,9 +114,9 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   const choose = (action: () => void) => { setOpen(false); action(); };
   const row = (label: string, provider: string, color: string, action: () => void, disabled = false, key?: string) => <button key={key} type="button" role="menuitem" disabled={disabled} onClick={() => choose(action)}><i style={{ background: color }} />{text(label)}{s.provider === provider && <small aria-hidden="true">{text("DEFAULT")}</small>}</button>;
   const preset = (value: string) => {
-    const values: Record<string, [string, number]> = { native: ["1920x1080", 120], xreal: ["1920x1200", gfn ? 60 : 90], tv: ["3840x2160", 60] };
+    const values: Record<string, [string, number]> = { native: [nativeResolution, nativeFps], xreal: ["1920x1200", gfn ? 60 : 90], tv: ["3840x2160", 60] };
     const [resolution, fps] = values[value] ?? [(gfn ? s.geforceDisplay : s.display).profile.resolution, (gfn ? s.geforceDisplay : s.display).profile.fps];
-    setProfile(p => ({ ...p, resolution, fps, bitrate: 80000 }));
+    setProfile(p => ({ ...p, resolution, fps, bitrate: gfn ? p.bitrate : 80000 }));
   };
   return <div ref={root} className="crete-launch-menu">
     {!loading && <button ref={anchor} type="button" className="crete-details-manage" aria-label={text("Launch options")} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><IoChevronDownOutline /></button>}
@@ -133,7 +137,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
         {s.buddy?.paired ? <p>{text("CreteOS is paired with MoonDeck Buddy.")}</p> : <><p>{text("MoonDeck Buddy needs a separate pairing for CreteOS.")}</p><button type="button" onClick={() => { const bytes = crypto.getRandomValues(new Uint32Array(1)); const value = 1000 + bytes[0] % 9000; setPin(value); void s.pair(value); }}>{text("Pair MoonDeck Buddy")}</button>{pin && <p>{text("Enter PIN on Bosgame and choose Refresh host", { pin })}</p>}{s.buddyError && <p role="status">{s.buddyError}</p>}</>}
       </div>}
       {!gfn && <label>{text("Host app")}<select aria-label={text("Host app")} value={target} onChange={e => setTarget(e.target.value)}>{s.apps.map(name => <option key={name}>{name}</option>)}</select></label>}
-      <label>{text("Display preset")}<select aria-label={text("Display preset")} defaultValue="auto" onChange={e => preset(e.target.value)}><option value="auto">{text("Current display")}</option><option value="native">GPD · 1080p / 120fps</option><option value="xreal">XREAL · 1200p / {gfn ? 60 : 90}fps</option><option value="tv">TV · 4K / 60fps</option></select></label>
+      <label>{text("Display preset")}<select aria-label={text("Display preset")} defaultValue="auto" onChange={e => preset(e.target.value)}><option value="auto">{text("Current display")}</option><option value="native">{nativeLabel} · {nativeResolution.split("x")[1]}p / {nativeFps}fps</option><option value="xreal">XREAL · 1200p / {gfn ? 60 : 90}fps</option><option value="tv">TV · 4K / 60fps</option></select></label>
       <label>{text("Resolution")}<select aria-label={text("Resolution")} value={profile.resolution} onChange={e => setProfile(p => ({ ...p, resolution: e.target.value }))}>{["1280x720", "1920x1080", "1920x1200", "2560x1440", "2560x1600", "3840x2160"].map(value => <option key={value}>{value}</option>)}</select></label>
       <label>{text("Frame rate")}<select aria-label={text("Frame rate")} value={profile.fps} onChange={e => setProfile(p => ({ ...p, fps: Number(e.target.value) }))}>{(gfn ? [30, 60, 120, 240] : [30, 60, 90, 120]).map(value => <option key={value} value={value}>{value}fps</option>)}</select></label>
       <label>{text("Bitrate")}<select aria-label={text("Bitrate")} value={profile.bitrate} onChange={e => setProfile(p => ({ ...p, bitrate: Number(e.target.value) }))}>{gfn && <option value={0}>{text("Auto")}</option>}{Array.from({ length: gfn ? 20 : 30 }, (_, i) => (i + 1) * 5000).map(value => <option key={value} value={value}>{value / 1000}Mbps</option>)}</select></label>

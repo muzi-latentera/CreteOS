@@ -7,7 +7,7 @@ import { refreshGeForceCatalog, subscribeGeForceCatalog } from "./gfnCatalog";
 import { withStreamCover } from "../components/launch/StreamLaunchCover";
 
 export interface MoonlightProfile { host: string; resolution: string; fps: number; bitrate: number; codec: string }
-export interface DisplayProfile { displayKey: string; profile: MoonlightProfile }
+export interface DisplayProfile { displayKey: string; profile: MoonlightProfile; nativeResolution?: string; nativeFps?: number; displayLabel?: string }
 const fallback: DisplayProfile = { displayKey: "display", profile: { host: "Bosgame", resolution: "1920x1080", fps: 120, bitrate: 80000, codec: "auto" } };
 export function useStreaming(app: App, enabled: boolean) {
   const [clients, setClients] = useState({ geforceNow: false, moonlight: false });

@@ -574,9 +574,10 @@ pub fn get_moonlight_profile(window: tauri::Window) -> Result<serde_json::Value,
     }
     let path = super::liftoff_dir().join("moonlight_profiles.json");
     let profiles: serde_json::Value = std::fs::read(path).ok().and_then(|bytes| serde_json::from_slice(&bytes).ok()).unwrap_or(serde_json::json!({}));
-    let (resolution, fps) = if size.height >= 2160 { ("3840x2160", 60) } else if xreal || size.height == 1200 { ("1920x1200", 90) } else { ("1920x1080", 120) };
+    let (resolution, fps) = if size.height >= 2160 { ("3840x2160", 60) } else if size.width == 2560 && size.height == 1600 { ("2560x1600", 120) } else if xreal || size.height == 1200 { ("1920x1200", 90) } else { ("1920x1080", 120) };
+    let display_label = if key.to_uppercase().starts_with("MONITOR\\HSX0224\\") { "G1" } else { "Handheld" };
     let saved = profiles.get(&key).cloned().unwrap_or(serde_json::json!({"host":"Bosgame","resolution":resolution,"fps":fps,"bitrate":80000,"codec":"auto"}));
-    Ok(serde_json::json!({"displayKey":key,"profile":saved}))
+    Ok(serde_json::json!({"displayKey":key,"profile":saved,"nativeResolution":resolution,"nativeFps":fps,"displayLabel":display_label}))
 }
 
 #[tauri::command]
