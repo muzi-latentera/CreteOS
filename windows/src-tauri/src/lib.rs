@@ -63,6 +63,7 @@ mod moondeck;
 mod crete_news;
 mod crete_videos;
 mod xbox_details;
+mod steam_password;
 mod input_diagnostics;
 mod store_accounts;
 
@@ -1725,9 +1726,14 @@ fn steam_auth_post(method: &str, request: Vec<u8>) -> Result<Vec<u8>, String> {
         method
     );
     let encoded = general_purpose::STANDARD.encode(request);
-    let response = client
-        .post(url)
-        .form(&[("input_protobuf_encoded", encoded)])
+    let request = if method == "GetPasswordRSAPublicKey" {
+        client.get(url).query(&[("input_protobuf_encoded", encoded)])
+    } else {
+        client.post(url).form(&[("input_protobuf_encoded", encoded)])
+    };
+    let response = request
+        .header("Origin", "https://steamcommunity.com")
+        .header("Referer", "https://steamcommunity.com/")
         .send()
         .map_err(|_| "Steam auth request failed".to_string())?;
     let status = response.status();
@@ -1870,12 +1876,13 @@ fn cache_owned_games_for_session(
     Ok(games)
 }
 
-fn run_steam_qr_login(app: tauri::AppHandle) -> Result<SteamSession, String> {
+fn run_steam_qr_login(app: tauri::AppHandle, generation: u64) -> Result<SteamSession, String> {
     let begin_bytes = steam_auth_post("BeginAuthSessionViaQR", build_steam_qr_begin_request())?;
     let begin = decode_steam_begin_response(&begin_bytes);
     if begin.client_id == 0 || begin.challenge_url.is_empty() || begin.request_id.is_empty() {
         return Err("Steam QR challenge missing".to_string());
     }
+    if !steam_password::current(generation) { return Err("cancelled".into()); }
     let _ = app.emit("steam-qr-url", begin.challenge_url.clone());
     let interval = begin.interval.max(2.0).min(10.0);
     let started = Instant::now();
@@ -1883,6 +1890,7 @@ fn run_steam_qr_login(app: tauri::AppHandle) -> Result<SteamSession, String> {
     let mut sent_confirmed = false;
 
     loop {
+        if !steam_password::current(generation) { return Err("cancelled".into()); }
         if started.elapsed() > Duration::from_secs(STEAM_QR_TIMEOUT_SECS) {
             let _ = app.emit("steam-qr-expired", ());
             return Err("expired".to_string());
@@ -1892,6 +1900,7 @@ fn run_steam_qr_login(app: tauri::AppHandle) -> Result<SteamSession, String> {
             "PollAuthSessionStatus",
             build_steam_poll_request(client_id, &begin.request_id),
         )?;
+        if !steam_password::current(generation) { return Err("cancelled".into()); }
         let poll = decode_steam_poll_response(&poll_bytes);
         if poll.new_client_id != 0 {
             client_id = poll.new_client_id;
@@ -1910,7 +1919,8 @@ fn run_steam_qr_login(app: tauri::AppHandle) -> Result<SteamSession, String> {
             } else {
                 poll.account_name
             };
-            store_steam_refresh_token(&account, &poll.refresh_token)
+            steam_password::commit(generation, || store_steam_refresh_token(&account, &poll.refresh_token))
+                .ok_or("cancelled")?
                 .map_err(|_| "Steam token storage failed".to_string())?;
             return Ok(SteamSession {
                 account_name: account,
@@ -2290,25 +2300,27 @@ fn steam_account_status() -> SteamStatus {
     steam_status_inner()
 }
 
+fn finish_steam_login(app: &tauri::AppHandle, session: SteamSession, generation: u64) {
+    if !steam_password::current(generation) { return; }
+    let games = fetch_owned_games_for_session(&session).ok();
+    steam_password::commit(generation, || {
+        let owned_count = games.as_ref().map(|g|g.len()).unwrap_or_else(|| {
+            load_steam_account_meta().filter(|m|m.account_name==session.account_name).map(|m|m.owned_count).unwrap_or(0)
+        });
+        if let Some(games) = games { save_owned_steam_games(&games); }
+        save_steam_account_meta(&SteamAccountMeta { account_name: session.account_name.clone(), steamid: session.steamid.clone(), owned_count, updated_at: unix_now_i64() });
+        let payload = SteamLoginPayload { account_name: session.account_name, steamid: session.steamid, owned_count };
+        let _ = app.emit("steam-login-success", payload);
+        emit_steam_account_changed(app);
+    });
+}
 #[tauri::command]
 fn steam_qr_begin(app_handle: tauri::AppHandle) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || match run_steam_qr_login(app_handle.clone()) {
-        Ok(session) => {
-            let owned_count = cache_owned_games_for_session(&session)
-                .map(|games| games.len())
-                .unwrap_or_default();
-            let payload = SteamLoginPayload {
-                account_name: session.account_name,
-                steamid: session.steamid,
-                owned_count,
-            };
-            let _ = app_handle.emit("steam-login-success", payload);
-            emit_steam_account_changed(&app_handle);
-        }
-        Err(error) if error == "expired" => {}
-        Err(_) => {
-            let _ = app_handle.emit("steam-login-error", "Steam sign-in failed");
-        }
+    let generation = steam_password::cancel();
+    tauri::async_runtime::spawn_blocking(move || match run_steam_qr_login(app_handle.clone(), generation) {
+        Ok(session) => finish_steam_login(&app_handle, session, generation),
+        Err(error) if error == "expired" || !steam_password::current(generation) => {},
+        Err(_) => { let _ = app_handle.emit("steam-login-error", "Steam sign-in failed"); }
     });
     Ok(())
 }
@@ -10405,6 +10417,9 @@ pub fn run() {
             spotify_play_context,
             spotify_transfer,
             steam_qr_begin,
+            steam_password::steam_credentials_begin,
+            steam_password::steam_guard_submit,
+            steam_password::steam_auth_cancel,
             steam_account_status,
             store_accounts::store_account_status,
             store_accounts::progress::store_game_progress,

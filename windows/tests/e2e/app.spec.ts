@@ -93,6 +93,16 @@ test.beforeEach(async ({ page }) => {
       },
       invoke: async (command: string, args?: any) => {
         counts[command] = (counts[command] || 0) + 1;
+        if (command === "steam_credentials_begin") {
+          if (params.has("steamPasswordError")) throw "Incorrect Steam account name or password.";
+          return { codeTypes: [2,3], message: "Enter the Steam Guard code sent to your email." };
+        }
+        if (command === "steam_guard_submit") {
+          if (counts[command] === 1) throw "That Steam Guard code was not accepted. Try a new code.";
+          return null;
+        }
+        if (command === "steam_auth_cancel" || command === "steam_qr_begin") return null;
+
         if (command === "store_account_status" || command === "store_account_refresh") return storeStatus(args.source);
         if (command === "store_account_connect") { storeAccounts[args.source] = true; return storeStatus(args.source); }
         if (command === "store_account_disconnect") { storeAccounts[args.source] = false; return null; }
@@ -1561,4 +1571,51 @@ test("G1 native preset uses detected 1600p in both providers and preserves GFN A
   await expect(gfn.getByLabel("Resolution")).toHaveValue("2560x1600");
   await expect(gfn.getByLabel("Frame rate")).toHaveValue("120");
   await expect(gfn.getByLabel("Bitrate")).toHaveValue("0");
+});
+
+async function openSteamPassword(page: Page, query = "") {
+  await page.goto("/?crete&storeSignIn" + query);
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByText("Library & accounts", { exact: true }).click();
+  const row = page.locator("[data-settings-row]").filter({ has: page.getByText("Steam account", {exact:true}) });
+  await row.getByRole("button", { name: "Connect", exact: true }).click();
+  return page.getByRole("dialog", { name: "Connect Steam", exact: true });
+}
+test("Steam password sign-in handles Guard retries, code types and clears secrets on close", async ({page}) => {
+  const modal = await openSteamPassword(page);
+  await modal.getByLabel("Steam account name", {exact:true}).fill("fixture-user");
+  await modal.getByLabel("Password", {exact:true}).fill("fixture-password");
+  await modal.getByRole("button",{name:"Sign in",exact:true}).click();
+  await expect(modal.getByLabel("Password",{exact:true})).toHaveCount(0);
+  await expect(modal.getByLabel("Steam Guard code",{exact:true})).toBeVisible();
+  await modal.getByLabel("Steam Guard code",{exact:true}).fill("AAAAA");
+  await modal.getByRole("button",{name:"Submit code",exact:true}).click();
+  await expect(modal.getByRole("alert")).toContainText("not accepted");
+  await expect(modal.getByLabel("Steam Guard code",{exact:true})).toHaveValue("");
+  await modal.getByLabel("Verification method").selectOption("3");
+  await modal.getByLabel("Steam Guard code",{exact:true}).fill("BBBBB");
+  await modal.getByRole("button",{name:"Submit code",exact:true}).click();
+  await expect(modal.getByRole("alert")).toHaveCount(0);
+  await modal.getByRole("button",{name:"Close",exact:true}).click();
+  await expect(modal).toHaveCount(0);
+  await expect.poll(()=>page.evaluate(()=>(window as any).__invokeCounts.steam_auth_cancel??0)).toBe(1);
+  const row=page.locator("[data-settings-row]").filter({has:page.getByText("Steam account",{exact:true})});
+  await row.getByRole("button",{name:"Connect",exact:true}).click();
+  await expect(modal.getByLabel("Password",{exact:true})).toHaveValue("");
+  await expect(modal.getByLabel("Steam account name",{exact:true})).toHaveValue("");
+});
+test("Steam password sign-in errors remain retryable and QR switching cancels the old session", async ({page}) => {
+  const modal=await openSteamPassword(page,"&steamPasswordError");
+  await modal.getByLabel("Steam account name",{exact:true}).fill("fixture-user");
+  await modal.getByLabel("Password",{exact:true}).fill("fixture-password");
+  await modal.getByRole("button",{name:"Sign in",exact:true}).click();
+  await expect(modal.getByRole("alert")).toContainText("Incorrect Steam");
+  await expect(modal.getByLabel("Password",{exact:true})).toHaveValue("");
+  await expect(modal.getByRole("button",{name:"Sign in",exact:true})).toBeEnabled();
+  await modal.getByRole("button",{name:"QR code",exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>(window as any).__invokeCounts.steam_qr_begin??0)).toBe(1);
+  await expect.poll(()=>page.evaluate(()=>(window as any).__invokeCounts.steam_auth_cancel??0)).toBe(1);
+  await modal.getByRole("button",{name:"Username & password",exact:true}).click();
+  await expect(modal.getByLabel("Password",{exact:true})).toHaveValue("");
+  await expect.poll(()=>page.evaluate(()=>(window as any).__invokeCounts.steam_auth_cancel??0)).toBe(2);
 });

@@ -670,6 +670,10 @@ export default function App() {
     setSteamQrError("");
     setSteamQrPhase("starting");
     setShowSteamQr(true);
+  };
+  const beginSteamQr = () => {
+    setSteamQrError("");
+    setSteamQrPhase("starting");
     invoke("steam_qr_begin").catch(() => {
       setSteamQrPhase("error");
       setSteamQrError(t("steam.qrError"));
@@ -4348,8 +4352,10 @@ export default function App() {
       isDark={isDark}
       surfaceStyle={settings.surface_style ?? "glass"}
       glass={glass}
-      onBegin={openSteamQr}
-      onClose={() => setShowSteamQr(false)}
+      onAuthStart={() => { setSteamQrError(""); setSteamQrPhase("waiting"); }}
+      defaultMethod="password"
+      onBegin={beginSteamQr}
+      onClose={() => { void invoke("steam_auth_cancel").catch(() => {}); setShowSteamQr(false); }}
       t={t}
     />
     <XboxConnectGuide

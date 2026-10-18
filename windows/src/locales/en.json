@@ -209,7 +209,7 @@
     "disconnect": "Disconnect",
     "connected": "Connected",
     "notConnected": "Not connected",
-    "connectHint": "Scan a Steam mobile QR code to import owned games that are not installed.",
+    "connectHint": "Sign in with your Steam account name and password, or scan a Steam mobile QR code, to import your owned library.",
     "connectedHint": "Owned library connected. {{count}} Steam games cached.",
     "securityHint": "Refresh token is stored in Windows Credential Manager. CreteOS never stores your Steam password.",
     "qrTitle": "Sign in to Steam",

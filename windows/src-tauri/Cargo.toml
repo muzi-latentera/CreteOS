@@ -28,6 +28,8 @@ urlencoding = "2"
 keyring = { version = "3", features = ["windows-native"] }
 sha2 = "0.10"
 getrandom = "0.2"
+rsa = "0.9"
+zeroize = "1"
 chrono = { version = "0.4", default-features = false, features = ["serde"] }
 
 [target.'cfg(windows)'.dependencies]

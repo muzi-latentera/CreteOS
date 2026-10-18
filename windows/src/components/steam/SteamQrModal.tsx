@@ -1,4 +1,6 @@
-import { useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { SteamPasswordForm } from "./SteamPasswordForm";
+import { useEffect, useState, useRef } from "react";
 import { useTheme } from "../../contexts/ThemeContext";
 import { ACCOUNT_DIALOG_Z, modalSurfaceStyle } from "../modals/modalStyles";
 import { getBestGamepad, readGpState, type GpState } from "../../utils/gamepad";
@@ -11,6 +13,7 @@ export type SteamQrPhase = "idle" | "starting" | "waiting" | "confirmed" | "expi
 
 interface SteamQrModalProps {
   open: boolean;
+  defaultMethod?: "qr" | "password";
   phase: SteamQrPhase;
   qrUrl: string;
   error?: string;
@@ -20,12 +23,14 @@ interface SteamQrModalProps {
   surfaceStyle: string;
   glass: CSSProperties;
   onBegin: () => void;
+  onAuthStart?: () => void;
   onClose: () => void;
   t: (key: string, options?: any) => string;
 }
 
 export function SteamQrModal({
   open,
+  defaultMethod = "qr",
   phase,
   qrUrl,
   error,
@@ -34,15 +39,28 @@ export function SteamQrModal({
   isDark,
   surfaceStyle,
   onBegin,
+  onAuthStart,
   onClose,
   t,
 }: SteamQrModalProps) {
   const themeValue = useTheme();
+  const [method, setMethod] = useState(defaultMethod);
+  const dialog = useRef<HTMLDivElement>(null);
+  const opened = useRef(open); opened.current = open;
+  const switching = useRef(0);
+  useEffect(() => { if (open) setMethod(defaultMethod); }, [open, defaultMethod]);
+  const switchMethod = async (value: "qr" | "password") => {
+    if (value === method) return;
+    const ticket = ++switching.current;
+    setMethod(value);
+    await invoke("steam_auth_cancel").catch(() => {});
+    if (opened.current && ticket === switching.current && value === "qr") onBegin();
+  };
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
-      if (event.key === "Enter" && (phase === "expired" || phase === "error")) onBegin();
+      if (method === "qr" && event.key === "Enter" && (phase === "expired" || phase === "error")) onBegin();
     };
     window.addEventListener("keydown", onKeyDown);
     let rafId = 0;
@@ -61,7 +79,14 @@ export function SteamQrModal({
           Escape: escapeReleased && base.Escape,
         };
         if (state.Escape && !last.Escape) onClose();
-        if (state.Enter && !last.Enter && (phase === "expired" || phase === "error")) onBegin();
+        if (method === "qr" && state.Enter && !last.Enter && (phase === "expired" || phase === "error")) onBegin();
+        if (method === "password") {
+          const nodes = Array.from(dialog.current?.querySelectorAll<HTMLElement>("button:not(:disabled),input:not(:disabled),select:not(:disabled)") ?? []);
+          const selected = nodes.indexOf(document.activeElement as HTMLElement);
+          if (base.ArrowDown && !last.ArrowDown) nodes[(selected + 1) % nodes.length]?.focus();
+          if (base.ArrowUp && !last.ArrowUp) nodes[(selected - 1 + nodes.length) % nodes.length]?.focus();
+          if (state.Enter && !last.Enter && document.activeElement instanceof HTMLButtonElement) document.activeElement.click();
+        }
         Object.assign(last, state);
       }
       rafId = requestAnimationFrame(poll);
@@ -71,7 +96,7 @@ export function SteamQrModal({
       window.removeEventListener("keydown", onKeyDown);
       cancelAnimationFrame(rafId);
     };
-  }, [open, phase, onBegin, onClose]);
+  }, [open, phase, method, onBegin, onClose]);
 
   if (!open) return null;
 
@@ -97,10 +122,10 @@ export function SteamQrModal({
       }}
       role="dialog"
       aria-modal="true"
-      aria-label={t("steam.qrTitle")}
+      aria-label="Connect Steam"
     >
       <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: isDark ? "rgba(0,0,0,0.58)" : "rgba(10,16,24,0.38)" }} />
-      <div data-modal="steam-qr"
+      <div ref={dialog} data-modal="steam-qr"
         style={{
           width: "min(520px, 100%)",
           ...modalSurfaceStyle(themeValue),
@@ -131,12 +156,17 @@ export function SteamQrModal({
         </button>
 
         <div style={{ paddingRight: 34 }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: theme.text }}>{t("steam.qrTitle")}</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: theme.text }}>Connect Steam</div>
           <div style={{ fontSize: 12, color: theme.textDim, marginTop: 6, lineHeight: 1.5 }}>
-            {t("steam.qrIntro")}
+            {method === "qr" ? t("steam.qrIntro") : "Sign in with your Steam account name and password."}
           </div>
         </div>
 
+        <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+          <button type="button" aria-pressed={method === "password"} onClick={() => void switchMethod("password")} style={{ flex: 1, padding: 10, color: theme.text, background: method === "password" ? `${accent.primary}33` : "transparent", border: `1px solid ${accent.primary}`, borderRadius: 8 }}>Username &amp; password</button>
+          <button type="button" aria-pressed={method === "qr"} onClick={() => void switchMethod("qr")} style={{ flex: 1, padding: 10, color: theme.text, background: method === "qr" ? `${accent.primary}33` : "transparent", border: `1px solid ${accent.primary}`, borderRadius: 8 }}>QR code</button>
+        </div>
+        {method === "password" ? <SteamPasswordForm onStart={onAuthStart} color={theme.text} dim={theme.textDim} error={phase === "error" ? error : undefined} /> : <>
         <div
           style={{
             margin: "22px auto 18px",
@@ -187,6 +217,7 @@ export function SteamQrModal({
             {t("steam.newCode")}
           </button>
         )}
+        </>}
       </div>
     </div>
   );

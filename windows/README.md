@@ -74,3 +74,7 @@ The GitHub workflow `.github/workflows/windows.yml` performs these checks and pr
 The browser suite mocks Tauri commands and verifies the frontend, controller navigation and dialogs. It cannot verify Windows discovery, installer behavior, FSE transitions, credential storage or GPD hardware controls. Those require a Windows build and the device checklist in the setup guide. This initial fork is not yet validated on a GPD device.
 
 See [privacy and services](PRIVACY.md) and the preserved [upstream README](UPSTREAM-README.md) for inherited features.
+
+## Steam password sign-in (18 October 2026)
+
+Settings → Library & accounts → Steam → Connect offers username/password and QR sign-in. Enter the Steam account login name (not the display name). Password sign-in supports the email or authenticator code methods returned by Steam, as well as awaiting an offered approval. Steam Guard is still required when enabled; an unavailable authenticator cannot be bypassed. Closing or changing methods cancels the pending attempt. Successful login reuses the existing owned-library refresh and Windows Credential Manager session storage.
