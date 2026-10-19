@@ -1,0 +1,16 @@
+# Optional home Wi-Fi switching
+
+The native launcher invokes the installed per-device WiFiSmart.ps1 with PrepareGaming before Moonlight host/stream setup and before starting a GeForce NOW game. The hook is a no-op when the helper is absent. Foreign networks, disconnected Wi-Fi and paused automation are left alone. A successful preflight establishes a short gaming lease so the background download watcher does not undo the switch during stream setup. Existing active streams are protected from network changes.
+
+The helper selects the download profile for Steam download state, active Windows Delivery Optimization jobs, or two sustained15-second receive samples above256KiB/s. This generic transfer fallback covers Epic/GOG/browser downloads without depending on private launcher log formats; it also classifies other sustained heavy traffic. It returns to the gaming profile after120seconds of low traffic, with a five-minute minimum download-profile residence. Steam/DO completion does not force a switch during an existing stream. Moonlight and GeForceNOWStreamer processes protect the current connection; direct launches outside CreteOS cannot guarantee a pre-launch switch. Manual Gaming mode is available for other browser-based cloud sessions or a direct external client launch.
+
+The source pack does not include wireless credentials or a device-specific config. Installation supplies Enabled, Interface, InterfaceGuid, GamingProfile and DownloadProfile in config.json and uses already-saved Windows WLAN profiles. No keys are exported. Monitor/Status/DryRun and manual Gaming/Download/Auto/Pause modes are supported. Manual overrides last two hours; Pause lasts until Auto or a manual mode is selected. Only visible saved home profiles are selected; other networks and disabled/disconnected Wi-Fi are not overridden. A logon task starts Monitor hidden. No router/DNS/driver changes.
+
+Run Test-Policy.ps1 with Windows PowerShell5.1. DryRun observes the current connection and transfer hints without connecting or writing monitor state. The helper and policy must be installed together under the current user's native LocalAppData/CreteOS-Bootstrap/WiFiSmart. Actual switching and network reachability must be verified on the device; policy tests do not establish performance.
+
+In Automatic mode, startup and Windows resume notifications select the gaming profile first when it becomes available. Downloads that resume afterwards can select the fast profile again. The helper subscribes to Win32_PowerManagementEvent7/18, with a long-sample-gap fallback. Existing stream protection, Pause and explicit manual overrides remain higher priority. Hibernate/resume behavior still requires physical acceptance on the G1.
+
+
+Windows' cached available-network list can contain only the current AP even while both home networks are in range. When a requested target is missing, the helper requests a native WLAN scan and rechecks visibility before connecting. It rechecks stream protection immediately before the connect call. Pre-launch preparation has a bounded20-second wait for scanning, association and profile confirmation.
+
+On a device with multiple wireless interfaces, only the configured interface is considered; other adapters cannot select a home profile on its behalf.
