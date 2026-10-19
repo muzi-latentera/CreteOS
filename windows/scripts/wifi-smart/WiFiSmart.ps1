@@ -23,6 +23,7 @@ function Write-Event($Event,$Reason,$Network) {
 }
 function Current-Profile {
  $lines=& "$env:SystemRoot\System32\netsh.exe" wlan show interfaces
+ if(!($lines|Where-Object {$_ -match '^\s*State\s*:\s*connected\s*$'})){return ''}
  $match=$lines|Select-String '^\s*Profile\s*:\s*(.+)$'|Select-Object -First 1
  if($match){return $match.Matches[0].Groups[1].Value.Trim()}
  return ''
@@ -56,7 +57,7 @@ function Connect-Profile($Target,$Reason,[bool]$Preparing=$false) {
   if(Is-Streaming){Write-Event 'held' 'stream-started-during-preparation' $current;return $false}
   & "$env:SystemRoot\System32\netsh.exe" wlan connect "name=$Target" "interface=$($config.Interface)" *> $null
   if($LASTEXITCODE -ne 0){Write-Event 'failed' $Reason $Target;return $false}
-  $deadline=[DateTime]::UtcNow.AddSeconds(6)
+  $deadline=[DateTime]::UtcNow.AddSeconds(12)
   do {
    Start-Sleep -Milliseconds 350
    if((Current-Profile) -eq $Target){Write-Event 'connected' $Reason $Target;return $true}
