@@ -10,3 +10,6 @@ Run Test-Policy.ps1 with Windows PowerShell5.1. DryRun observes the current conn
 
 In Automatic mode, startup and Windows resume notifications select the gaming profile first when it becomes available. Downloads that resume afterwards can select the fast profile again. The helper subscribes to Win32_PowerManagementEvent7/18, with a long-sample-gap fallback. Existing stream protection, Pause and explicit manual overrides remain higher priority. Hibernate/resume behavior still requires physical acceptance on the G1.
 
+
+Windows' cached available-network list can contain only the current AP even while both home networks are in range. When a requested target is missing, the helper requests a native WLAN scan and rechecks visibility before connecting. It rechecks stream protection immediately before the connect call. Pre-launch preparation has a bounded20-second wait for scanning, association and profile confirmation.
+

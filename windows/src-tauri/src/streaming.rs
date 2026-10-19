@@ -393,8 +393,21 @@ fn prepare_gaming_wifi() -> Result<(), String> {
     let mut command = std::process::Command::new(PathBuf::from(system).join("System32/WindowsPowerShell/v1.0/powershell.exe"));
     command.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File"])
         .arg(helper).args(["-Mode", "PrepareGaming"]);
-    let output = bounded_output(command, None).map_err(|_| "Gaming Wi-Fi preparation timed out. Check your connection and retry.")?;
-    if !output.status.success() { return Err("Gaming Wi-Fi could not be selected. Check that it is in range, or pause Wi-Fi automation and retry.".into()); }
+    command.stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    #[cfg(windows)] { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
+    let mut child = command.spawn().map_err(|_| "Gaming Wi-Fi helper could not start.")?;
+    let started = std::time::Instant::now();
+    loop {
+        if let Some(status) = child.try_wait().map_err(|_| "Gaming Wi-Fi helper status unavailable.")? {
+            if !status.success() { return Err("Gaming Wi-Fi could not be selected. Check that it is in range, or pause Wi-Fi automation and retry.".into()); }
+            break;
+        }
+        if started.elapsed() > std::time::Duration::from_secs(20) {
+            let _ = child.kill(); let _ = child.wait();
+            return Err("Gaming Wi-Fi preparation timed out. Check your connection and retry.".into());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
     Ok(())
 }
 

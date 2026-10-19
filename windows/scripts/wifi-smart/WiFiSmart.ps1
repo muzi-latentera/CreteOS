@@ -32,6 +32,17 @@ function Available($Profile) {
  $lines=& "$env:SystemRoot\System32\netsh.exe" wlan show networks "interface=$($config.Interface)"
  return [bool]($lines|Where-Object {$_ -match '^\s*SSID\s+\d+\s*:\s*(.+)$' -and $Matches[1].Trim() -eq $Profile})
 }
+function Refresh-VisibleProfiles {
+ try {
+  if(-not ('CreteOSWifiNativeScan' -as [type])){
+   Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class CreteOSWifiNativeScan { [DllImport("wlanapi.dll")] public static extern uint WlanOpenHandle(uint v, IntPtr r, out uint n, out IntPtr h); [DllImport("wlanapi.dll")] public static extern uint WlanScan(IntPtr h, ref Guid g, IntPtr s, IntPtr i, IntPtr r); [DllImport("wlanapi.dll")] public static extern uint WlanCloseHandle(IntPtr h, IntPtr r); }'
+  }
+  [uint32]$version=0;[IntPtr]$handle=[IntPtr]::Zero
+  if([CreteOSWifiNativeScan]::WlanOpenHandle(2,[IntPtr]::Zero,[ref]$version,[ref]$handle) -ne 0){return}
+  try {$guid=[Guid]$config.InterfaceGuid;$result=[CreteOSWifiNativeScan]::WlanScan($handle,[ref]$guid,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero)}finally{[void][CreteOSWifiNativeScan]::WlanCloseHandle($handle,[IntPtr]::Zero)}
+  if($result -eq 0){Start-Sleep -Seconds 2}else{Write-Event 'scan-unavailable' ([string]$result) ''}
+ } catch {Write-Event 'scan-unavailable' 'scan-api-error' ''}
+}
 function Connect-Profile($Target,$Reason,[bool]$Preparing=$false) {
  $locked=$false
  try {
@@ -40,7 +51,9 @@ function Connect-Profile($Target,$Reason,[bool]$Preparing=$false) {
   $current=Current-Profile
   if($current -eq $Target){return $true}
   if($homeProfiles -notcontains $current -or (Is-Streaming)){Write-Event 'held' 'outside-home-or-active-stream' $current;return $false}
+  if(!(Available $Target)){Refresh-VisibleProfiles}
   if(!(Available $Target)){Write-Event 'unavailable' $Reason $Target;return $false}
+  if(Is-Streaming){Write-Event 'held' 'stream-started-during-preparation' $current;return $false}
   & "$env:SystemRoot\System32\netsh.exe" wlan connect "name=$Target" "interface=$($config.Interface)" *> $null
   if($LASTEXITCODE -ne 0){Write-Event 'failed' $Reason $Target;return $false}
   $deadline=[DateTime]::UtcNow.AddSeconds(6)
