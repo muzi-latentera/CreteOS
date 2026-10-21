@@ -9515,8 +9515,11 @@ async fn wait_stream_window(provider: String) -> Result<bool, String> {
 
 #[tauri::command]
 async fn focus_stream_window(window: tauri::Window, provider: String) -> Result<(), String> {
+    let epoch = streaming::launch_epoch();
+    if !launch_cover::active() { return Err("Stream launch cover was dismissed".into()); }
     streaming::complete_pending_launch();
     tauri::async_runtime::spawn_blocking(move || {
+        if !streaming::launch_current(epoch) { return Ok(()); }
         if provider == "moonlight" && streaming::moonlight_game_closed() {
             launch_cover::set_launch_cover(window.clone(), false, None, None)?;
             return Ok(());
@@ -9543,6 +9546,7 @@ async fn focus_stream_window(window: tauri::Window, provider: String) -> Result<
         let start = Instant::now();
         let mut stable_since = None;
         while start.elapsed() < Duration::from_secs(3) {
+            if !streaming::launch_current(epoch) { return Ok(()); }
             if provider == "moonlight" && streaming::moonlight_game_closed() { return Ok(()); }
             let foreground = unsafe { GetForegroundWindow() }.0 as isize;
             // Foreground ownership alone does not prove our fullscreen surface

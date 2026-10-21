@@ -8,7 +8,8 @@ static SESSION_GENERATION: AtomicU64 = AtomicU64::new(0);
 static LAUNCH_EPOCH: AtomicU64 = AtomicU64::new(0);
 type OwnedClient = std::sync::Arc<std::sync::Mutex<std::process::Child>>;
 static PENDING_MOONLIGHT: std::sync::Mutex<Option<(u64, OwnedClient)>> = std::sync::Mutex::new(None);
-fn launch_current(epoch: u64) -> bool { LAUNCH_EPOCH.load(Ordering::SeqCst) == epoch }
+pub(crate) fn launch_epoch() -> u64 { LAUNCH_EPOCH.load(Ordering::SeqCst) }
+pub(crate) fn launch_current(epoch: u64) -> bool { launch_epoch() == epoch }
 fn check_launch(epoch: u64) -> Result<(), String> {
     if launch_current(epoch) { Ok(()) } else { Err("Stream launch cancelled".into()) }
 }
