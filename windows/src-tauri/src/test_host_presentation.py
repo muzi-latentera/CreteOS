@@ -41,9 +41,11 @@ class PresentationIsolationTests(unittest.TestCase):
         dialog = ({"visible": True, "window_properties": {"class": "steam", "window_type": "dialog"}}, "1")
         self.assertTrue(needs_attention("ShowInterstitials", 0, 2, [dialog]))
         self.assertFalse(needs_attention(None, None, 99, [dialog]))
-        self.assertTrue(needs_attention("ShowInterstitials", 0, 31, []))
+        self.assertFalse(needs_attention("ShowInterstitials", 0, 31, []))
         self.assertFalse(needs_attention(None, None, 44, [], 0))
-        self.assertTrue(needs_attention(None, None, 45, [], 0))
+        self.assertFalse(needs_attention(None, None, 45, [], 0))
+        self.assertFalse(needs_attention("ProcessingShaderCache", 0, 120, [], 0))
+        self.assertTrue(needs_attention("ShowInterstitials", 0, 60, [dialog], 0))
 
     def test_recovery_never_moves_a_game_reusing_an_old_steam_container_id(self):
         with tempfile.TemporaryDirectory() as directory:

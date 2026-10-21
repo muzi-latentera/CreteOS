@@ -72,18 +72,16 @@ def steam_library(node):
 
 
 def needs_attention(pending, waiting_at, now, nodes, started=None):
-    # A repeated Steam URL can attach to an already-pending launch without
-    # logging a fresh waiting event. Reveal Steam rather than covering it until
-    # the entire game-start timeout expires.
-    if started is not None and now - started >= 45:
-        return True
+    # Elapsed time alone does not establish a prompt: shader preparation and
+    # slow game startup can legitimately outlast this cover. Require an actual
+    # visible Steam dialog and a pending interaction before exposing the host.
     if not pending or waiting_at is None:
         return False
     dialogs = [n for n, _ in nodes if n.get("visible") and
                str((n.get("window_properties") or {}).get("class", "")).lower() == "steam" and
                ((n.get("window_properties") or {}).get("transient_for") or
                 (n.get("window_properties") or {}).get("window_type") == "dialog")]
-    return now - waiting_at > 30 or bool(dialogs and now - waiting_at > 1)
+    return bool(dialogs and now - waiting_at > 1)
 
 
 def write_state(folder, phase):

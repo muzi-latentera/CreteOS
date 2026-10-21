@@ -39,11 +39,14 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
         if !allow_external_focus.unwrap_or(false) { window.show().map_err(|e| e.to_string())?; }
         std::thread::spawn(move || {
             if let Some(provider) = stream_provider.filter(|_| !allow_external_focus.unwrap_or(false)) {
-                // Streaming clients can create their own topmost startup
-                // windows. Keep painted artwork above those without taking
-                // keyboard focus, and let deliberate Alt-Tab to another app
-                // escape the cover. Never reassert after cancellation/handoff.
+                // In Xbox full-screen mode a client taking foreground can
+                // shell-cloak the launcher; topmost alone cannot display a
+                // cloaked window. Retain foreground until readiness, but only
+                // reclaim it from the selected streaming client. Alt-Tab to an
+                // unrelated app still escapes. Generation and z-order lock
+                // prevent a late reclaim after cancellation or handoff.
                 let mut cancel_was_down = true;
+                let mut reclaimed = false;
                 while GENERATION.load(Ordering::SeqCst) == generation && self::active() {
                     use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
                     let foreground = unsafe { GetForegroundWindow() };
@@ -73,6 +76,13 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
                         let Ok(_z_order) = Z_ORDER.lock() else { return; };
                         if GENERATION.load(Ordering::SeqCst) != generation { return; }
                         let _ = topmost_without_activation(hwnd, keep_cover);
+                        if keep_cover && !ours && self::active() {
+                            crate::focus_external_window_attempt(windows::Win32::Foundation::HWND(hwnd as _));
+                            if !reclaimed {
+                                crate::fse_watcher::log_stream_transition(window.app_handle(), "launch-cover-foreground-retained");
+                                reclaimed = true;
+                            }
+                        }
                     }
                     std::thread::sleep(std::time::Duration::from_millis(50));
                 }
