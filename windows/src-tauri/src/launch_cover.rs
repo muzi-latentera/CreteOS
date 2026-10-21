@@ -21,7 +21,9 @@ fn topmost_without_activation(raw: isize, topmost: bool) -> Result<(), String> {
         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER).map_err(|e| e.to_string()) }
 }
 
-#[tauri::command]
+// Window operations can synchronously wait on the UI thread. Never make that
+// thread wait for Z_ORDER while the guard holds it for a window operation.
+#[tauri::command(async)]
 pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focus: Option<bool>, stream_provider: Option<String>) -> Result<(), String> {
     if stream_provider.as_deref().is_some_and(|p| !matches!(p, "moonlight" | "geforceNow")) { return Err("Unknown streaming client".into()); }
     let hwnd = window.hwnd().map_err(|e| e.to_string())?.0 as isize;

@@ -29,7 +29,7 @@ pub(crate) fn cancel_pending_launch() {
 pub(crate) fn complete_pending_launch() {
     if let Ok(mut pending) = PENDING_MOONLIGHT.lock() { *pending = None; }
 }
-#[tauri::command]
+#[tauri::command(async)]
 pub fn cancel_stream_launch(window: tauri::Window) -> Result<(), String> {
     cancel_pending_launch();
     super::launch_cover::set_launch_cover(window.clone(), false, None, None)?;
@@ -82,7 +82,9 @@ pub(crate) fn end_return(window: &tauri::Window, provider: &str, generation: u64
     }
 }
 
-#[tauri::command]
+// Runs off the UI thread: cover release may wait for the native foreground
+// guard, which itself needs the UI message pump to remain responsive.
+#[tauri::command(async)]
 pub fn present_stream_return_cover(window: tauri::Window, provider: String, session: u64) -> Result<bool, String> {
     if !matches!(provider.as_str(), "moonlight" | "geforceNow") { return Err("Unknown streaming client".into()); }
     if !session_current(session) || RETURN_COVER.load(Ordering::SeqCst) != session { return Ok(false); }
@@ -94,6 +96,7 @@ pub fn present_stream_return_cover(window: tauri::Window, provider: String, sess
     // The game has exited. Return to the usable launcher now; the tracked
     // client can finish its normal shutdown behind it without a modal wait.
     super::launch_cover::set_launch_cover(window.clone(), false, None, None)?;
+    super::fse_watcher::log_stream_transition(window.app_handle(), "return-cover-released");
     foreground_result?;
     Ok(true)
 }

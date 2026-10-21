@@ -9669,7 +9669,7 @@ fn focus_external_window_attempt(hwnd: windows::Win32::Foundation::HWND) {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn handoff_launched_app(name: String, launch_path: String, source: String, app_type: Option<String>, app_handle: tauri::AppHandle, window: tauri::Window) -> bool {
     let target = best_launch_window(&name, &launch_path, &source).map(|(window, _)| window.hwnd).or_else(|| {
         let aumid = launch_path.strip_prefix("shell:AppsFolder\\")?;
