@@ -52,3 +52,43 @@ it("does not present late artwork when the session ended before its paint acknow
   expect(invoke).not.toHaveBeenCalledWith("present_stream_return_cover", expect.anything());
   expect(container.querySelector("[data-stream-launch-cover]")).toBeNull();
 });
+it("cancels a pending launch immediately with Escape and ignores a late backend result", async () => {
+  let finish!: () => void;
+  let pending!: Promise<void>;
+  const handoff = vi.fn();
+  await act(async () => {
+    pending = withStreamCover({ id: "oni", name: "Onimusha" } as App, "moonlight", () => new Promise<void>(resolve => { finish = resolve; }), handoff);
+    await vi.advanceTimersByTimeAsync(50);
+  });
+  expect(container.querySelector("button")?.textContent).toContain("Cancel launch");
+  await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); await pending; });
+  expect(container.querySelector("[data-stream-launch-cover]")).toBeNull();
+  expect(invoke).toHaveBeenCalledWith("cancel_stream_launch");
+  invoke.mockClear();
+  await act(async () => { finish(); await vi.advanceTimersByTimeAsync(20_000); });
+  expect(handoff).not.toHaveBeenCalled();
+  expect(invoke).not.toHaveBeenCalledWith("focus_stream_window", expect.anything());
+  expect(invoke).not.toHaveBeenCalledWith("record_stream_launch", expect.anything());
+});
+it("handles native B cancellation when Moonlight owns input focus", async () => {
+  let pending!: Promise<void>;
+  await act(async () => {
+    pending = withStreamCover({ id: "oni", name: "Onimusha" } as App, "moonlight", () => new Promise(() => {}));
+    await vi.advanceTimersByTimeAsync(50);
+  });
+  await act(async () => { callbacks.get("stream-launch-cancel")?.({ payload: null }); await pending; });
+  expect(container.querySelector("[data-stream-launch-cover]")).toBeNull();
+  expect(invoke).not.toHaveBeenCalledWith("focus_stream_window", expect.anything());
+});
+it("cancels through the visible button and releases the duplicate launch guard", async () => {
+  let pending!: Promise<void>;
+  await act(async () => {
+    pending = withStreamCover({ id: "oni", name: "Onimusha" } as App, "moonlight", () => new Promise(() => {}));
+    await vi.advanceTimersByTimeAsync(50);
+  });
+  await expect(withStreamCover({ id: "oni", name: "Onimusha" } as App, "moonlight", async () => undefined)).rejects.toThrow("already in progress");
+  await act(async () => { container.querySelector("button")!.click(); await pending; });
+  expect(invoke).toHaveBeenCalledWith("cancel_stream_launch");
+  const next = withStreamCover({ id: "oni", name: "Onimusha" } as App, "moonlight", async () => undefined);
+  await act(async () => { await vi.advanceTimersByTimeAsync(10_100); await next; });
+});

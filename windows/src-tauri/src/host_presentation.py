@@ -71,7 +71,12 @@ def steam_library(node):
             and props.get("window_type") == "normal")
 
 
-def needs_attention(pending, waiting_at, now, nodes):
+def needs_attention(pending, waiting_at, now, nodes, started=None):
+    # A repeated Steam URL can attach to an already-pending launch without
+    # logging a fresh waiting event. Reveal Steam rather than covering it until
+    # the entire game-start timeout expires.
+    if started is not None and now - started >= 45:
+        return True
     if not pending or waiting_at is None:
         return False
     dialogs = [n for n, _ in nodes if n.get("visible") and
@@ -340,7 +345,7 @@ def present(token):
             # "waiting for user response" also covers asynchronous Steam UI
             # preparation. Reveal only a real dialog, or a genuinely stalled
             # launch, not a normal background app-details lookup.
-            if needs_attention(pending, waiting_at, now, nodes):
+            if needs_attention(pending, waiting_at, now, nodes, began):
                 attention = True
             games = [node for node, _ in nodes if game_window(node, config["appId"])]
             if games:

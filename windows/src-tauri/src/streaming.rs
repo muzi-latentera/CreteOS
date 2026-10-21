@@ -5,6 +5,37 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::Manager;
 
 static SESSION_GENERATION: AtomicU64 = AtomicU64::new(0);
+static LAUNCH_EPOCH: AtomicU64 = AtomicU64::new(0);
+type OwnedClient = std::sync::Arc<std::sync::Mutex<std::process::Child>>;
+static PENDING_MOONLIGHT: std::sync::Mutex<Option<(u64, OwnedClient)>> = std::sync::Mutex::new(None);
+fn launch_current(epoch: u64) -> bool { LAUNCH_EPOCH.load(Ordering::SeqCst) == epoch }
+fn check_launch(epoch: u64) -> Result<(), String> {
+    if launch_current(epoch) { Ok(()) } else { Err("Stream launch cancelled".into()) }
+}
+pub(crate) fn cancel_pending_launch() {
+    LAUNCH_EPOCH.fetch_add(1, Ordering::SeqCst);
+    let pending = PENDING_MOONLIGHT.lock().ok().and_then(|mut pending| pending.take());
+    if let Some((_, client)) = pending {
+        // Close only the client created for this pending launch. Never kill a
+        // shared Moonlight process or the remote game/Steam session.
+        std::thread::spawn(move || {
+            if let Ok(child) = client.lock() {
+                super::close_owned_moonlight_client(child.id(), || true);
+            }
+        });
+    }
+}
+pub(crate) fn complete_pending_launch() {
+    if let Ok(mut pending) = PENDING_MOONLIGHT.lock() { *pending = None; }
+}
+#[tauri::command]
+pub fn cancel_stream_launch(window: tauri::Window) -> Result<(), String> {
+    cancel_pending_launch();
+    super::launch_cover::set_launch_cover(window.clone(), false, None, None)?;
+    super::fse_watcher::prepare_stream_return(window.app_handle());
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())
+}
 static RETURN_COVER: AtomicU64 = AtomicU64::new(0);
 static ENDED_SESSION_GENERATION: AtomicU64 = AtomicU64::new(0);
 // 0 unavailable/fallback, 1 waiting for the exact game, 2 visible, 3 closed.
@@ -612,16 +643,21 @@ pub fn get_moonlight_profile(window: tauri::Window) -> Result<serde_json::Value,
 
 #[tauri::command]
 pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_key: String, profile: MoonlightProfile, steam_id: Option<String>, game_id: Option<String>, game_name: Option<String>) -> Result<(), String> {
+    let epoch = LAUNCH_EPOCH.load(Ordering::SeqCst);
     validate(&profile)?;
     if display_key.len() > 512 { return Err("Invalid display".into()); }
     if app_name.starts_with('-') || app_name.chars().any(char::is_control) { return Err("Invalid host app name".into()); }
     tauri::async_runtime::spawn_blocking(move || {
         prepare_gaming_wifi()?;
+        check_launch(epoch)?;
         if !query_apps(&profile.host)?.contains(&app_name) { return Err("This app is no longer advertised by the host. Refresh the Moonlight list.".into()); }
+        check_launch(epoch)?;
         if steam_id.is_some() {
             if app_name != "MoonDeckStream" { return Err("Direct Steam launching requires MoonDeckStream".into()); }
             if super::moondeck::status(&profile.host)?["paired"] != true { return Err("Pair CreteOS with MoonDeck Buddy first".into()); }
+            check_launch(epoch)?;
             super::moondeck::prepare(&profile.host, steam_id.as_deref().unwrap_or_default())?;
+            check_launch(epoch)?;
             if !host_games(&profile.host)?.iter().any(|game| Some(&game.steam_app_id) == steam_id.as_ref()) {
                 return Err("This game is not installed on Bosgame. Choose local install or GeForce NOW.".into());
             }
@@ -639,6 +675,10 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
                 Err(_) => { super::fse_watcher::log_stream_transition(window.app_handle(), "host-artwork-unavailable"); None },
             }
         } else { None };
+        if let Err(error) = check_launch(epoch) {
+            if let Some(token) = &presentation { finish_host_presentation(&profile.host, token); }
+            return Err(error);
+        }
         let client = std::process::Command::new(client_path("moonlight")?).args(["stream", &profile.host, &app_name,
             "--resolution", &profile.resolution, "--fps", &profile.fps.to_string(), "--bitrate", &profile.bitrate.to_string(),
             "--video-codec", &profile.codec, "--display-mode", "borderless", "--quit-after"]).spawn().map_err(|e| {
@@ -646,13 +686,27 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
                 e.to_string()
             })?;
         let client = std::sync::Arc::new(std::sync::Mutex::new(client));
+        {
+            let mut pending = PENDING_MOONLIGHT.lock().map_err(|_| "Stream launch state unavailable")?;
+            if launch_current(epoch) { *pending = Some((epoch, client.clone())); }
+        }
+        if !launch_current(epoch) {
+            if let Ok(child) = client.lock() { super::close_owned_moonlight_client(child.id(), || true); }
+            if let Some(token) = &presentation { finish_host_presentation(&profile.host, token); }
+            return Err("Stream launch cancelled".into());
+        }
         let monitor_active = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         if let Some(id) = &steam_id { watch_host_game_window(window.clone(), profile.host.clone(), id.clone(), presentation.clone(), generation, monitor_active.clone()); }
         let launch_result = if let Some(id) = &steam_id {
             super::moondeck::launch(&profile.host, id,
-                || session_current(generation) && client.lock().is_ok_and(|mut child| child.try_wait().ok().flatten().is_none()),
+                || launch_current(epoch) && session_current(generation) && client.lock().is_ok_and(|mut child| child.try_wait().ok().flatten().is_none()),
                 |phase| super::fse_watcher::log_stream_transition(window.app_handle(), phase))
         } else { Ok(()) };
+        if !launch_current(epoch) {
+            monitor_active.store(false, Ordering::SeqCst);
+            if let Some(token) = &presentation { finish_host_presentation(&profile.host, token); }
+            return Err("Stream launch cancelled".into());
+        }
         let started = launch_result.is_ok() || matches!(host_window_state(), 2 | 3);
         // Always attach the owned session lifecycle, including after a slow
         // startup error. A late-starting game must not become an orphan stream.

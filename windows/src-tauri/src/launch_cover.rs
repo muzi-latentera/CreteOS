@@ -43,6 +43,7 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
                 // windows. Keep painted artwork above those without taking
                 // keyboard focus, and let deliberate Alt-Tab to another app
                 // escape the cover. Never reassert after cancellation/handoff.
+                let mut cancel_was_down = true;
                 while GENERATION.load(Ordering::SeqCst) == generation && self::active() {
                     use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
                     let foreground = unsafe { GetForegroundWindow() };
@@ -51,12 +52,29 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
                     unsafe { GetWindowThreadProcessId(foreground, Some(&mut pid)); }
                     let path = crate::process_exe_path(pid);
                     let keep_cover = ours || path.as_deref().is_some_and(|path| stream_process(&provider, path));
+                    // The stream window can own foreground underneath our
+                    // artwork, so WebView gamepad/keyboard polling may stop.
+                    // Observe a fresh B/Escape edge natively while our cover is
+                    // visible, never while the user has Alt-Tabbed elsewhere.
+                    use windows::Win32::UI::Input::{XboxController::{XInputGetState, XINPUT_STATE}, KeyboardAndMouse::{GetAsyncKeyState, VK_ESCAPE}};
+                    let mut cancel_down = unsafe { GetAsyncKeyState(VK_ESCAPE.0 as i32) } < 0;
+                    for index in 0..4 {
+                        let mut state = XINPUT_STATE::default();
+                        if unsafe { XInputGetState(index, &mut state) } == 0 { cancel_down |= state.Gamepad.wButtons.0 & 0x2000 != 0; }
+                    }
+                    if keep_cover && cancel_down && !cancel_was_down {
+                        use tauri::Emitter;
+                        let _ = window.emit("stream-launch-cancel", ());
+                        let _ = crate::streaming::cancel_stream_launch(window.clone());
+                        return;
+                    }
+                    cancel_was_down = cancel_down;
                     {
                         let Ok(_z_order) = Z_ORDER.lock() else { return; };
                         if GENERATION.load(Ordering::SeqCst) != generation { return; }
                         let _ = topmost_without_activation(hwnd, keep_cover);
                     }
-                    std::thread::sleep(std::time::Duration::from_millis(200));
+                    std::thread::sleep(std::time::Duration::from_millis(50));
                 }
             } else {
                 std::thread::sleep(std::time::Duration::from_secs(cover_seconds));

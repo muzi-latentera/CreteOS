@@ -9515,6 +9515,7 @@ async fn wait_stream_window(provider: String) -> Result<bool, String> {
 
 #[tauri::command]
 async fn focus_stream_window(window: tauri::Window, provider: String) -> Result<(), String> {
+    streaming::complete_pending_launch();
     tauri::async_runtime::spawn_blocking(move || {
         if provider == "moonlight" && streaming::moonlight_game_closed() {
             launch_cover::set_launch_cover(window.clone(), false, None, None)?;
@@ -10367,6 +10368,7 @@ pub fn run() {
             streaming::get_host_installed_games,
             streaming::get_moonlight_profile,
             streaming::launch_moonlight,
+            streaming::cancel_stream_launch,
             record_stream_launch,
             moondeck::get_moondeck_status,
             moondeck::pair_moondeck,
