@@ -136,8 +136,9 @@ impl NvidiaSession {
     }
 }
 
-fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::LogCursor, generation: u64) {
+fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::LogCursor, generation: u64, wifi: Option<super::stream_wifi::Session>) {
     std::thread::spawn(move || {
+        let _wifi = wifi;
         let mut session = NvidiaSession::default();
         let start = std::time::Instant::now();
         while session_current(generation) && start.elapsed() < std::time::Duration::from_secs(86400) {
@@ -151,7 +152,11 @@ fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::L
                 end_return(&window, "geforceNow", generation);
                 return;
             }
-            if !session.started && start.elapsed() > std::time::Duration::from_secs(180) { return; }
+            if session.started && !super::is_process_running("GeForceNOWStreamer.exe") && !super::is_process_running("GeForceNOW.exe") { return; }
+            // A membership queue can legitimately outlast three minutes. Keep
+            // its selected network while the native streamer is still open.
+            if !session.started && start.elapsed() > std::time::Duration::from_secs(180)
+                && !super::is_process_running("GeForceNOWStreamer.exe") { return; }
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
     });
@@ -263,10 +268,10 @@ fn geforce_native_game_uri(game_url: &str) -> Result<String, String> {
 pub async fn launch_geforce_game(window: tauri::Window, game_url: String, source: Option<String>, play: Option<bool>) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let (client, argument) = geforce_launch(&game_url, source.as_deref(), play.unwrap_or(true))?;
-        if play.unwrap_or(true) { prepare_gaming_wifi()?; }
+        let wifi = if play.unwrap_or(true) { super::stream_wifi::prepare("geforceNow") } else { None };
         let log = super::stream_readiness::LogCursor::new(nvidia_console());
         spawn_geforce(&client, &argument)?;
-        if play.unwrap_or(true) { watch_geforce_exit(window, log, next_session()); }
+        if play.unwrap_or(true) { watch_geforce_exit(window, log, next_session(), wifi); }
         Ok(())
     }).await.map_err(|e| e.to_string())?
 }
@@ -374,7 +379,7 @@ pub async fn start_geforce_game(window: tauri::Window, game_url: String, display
         if !output.status.success() { return Err("Could not check whether GeForce NOW is running".into()); }
         let processes = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
         if processes.contains("geforcenow.exe") || processes.contains("geforcenowstreamer.exe") { return Err("Close GeForce NOW before pressing Play so your chosen settings can be applied.".into()); }
-        prepare_gaming_wifi()?;
+        let wifi = super::stream_wifi::prepare("geforceNow");
         let root = dirs::data_local_dir().ok_or("No local data folder")?;
         let path = root.join("NVIDIA Corporation/GeForceNOW/sharedstorage.json");
         let original = std::fs::read(&path).map_err(|_| "Open GeForce NOW and configure Custom streaming quality once")?;
@@ -397,7 +402,7 @@ pub async fn start_geforce_game(window: tauri::Window, game_url: String, display
         let log = super::stream_readiness::LogCursor::new(nvidia_console());
         let launch = spawn_geforce(&client, &argument);
         if let Err(error) = launch { let _ = std::fs::write(&path, original); return Err(error.to_string()); }
-        watch_geforce_exit(window, log, generation);
+        watch_geforce_exit(window, log, generation, wifi);
         let path = super::liftoff_dir().join("geforce_profiles.json");
         let mut profiles: serde_json::Value = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(serde_json::json!({}));
         profiles[display_key] = serde_json::to_value(profile).map_err(|e| e.to_string())?;
@@ -429,34 +434,6 @@ fn validate(profile: &MoonlightProfile) -> Result<(), String> {
         || ![30, 60, 90, 120].contains(&profile.fps) || !(5000..=150000).contains(&profile.bitrate)
         || !["auto", "H.264", "HEVC", "AV1"].contains(&profile.codec.as_str()) {
         return Err("Unsupported streaming settings".into());
-    }
-    Ok(())
-}
-
-// Optional per-device Wi-Fi helper. Devices without this setup keep their normal networking.
-fn prepare_gaming_wifi() -> Result<(), String> {
-    let Some(root) = dirs::data_local_dir() else { return Ok(()); };
-    let folder = root.join("CreteOS-Bootstrap/WiFiSmart");
-    let helper = folder.join("WiFiSmart.ps1");
-    if !helper.is_file() || !folder.join("config.json").is_file() { return Ok(()); }
-    let system = std::env::var_os("SystemRoot").ok_or("Windows system directory unavailable")?;
-    let mut command = std::process::Command::new(PathBuf::from(system).join("System32/WindowsPowerShell/v1.0/powershell.exe"));
-    command.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File"])
-        .arg(helper).args(["-Mode", "PrepareGaming"]);
-    command.stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
-    #[cfg(windows)] { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
-    let mut child = command.spawn().map_err(|_| "Gaming Wi-Fi helper could not start.")?;
-    let started = std::time::Instant::now();
-    loop {
-        if let Some(status) = child.try_wait().map_err(|_| "Gaming Wi-Fi helper status unavailable.")? {
-            if !status.success() { return Err("Gaming Wi-Fi could not be selected. Check that it is in range, or pause Wi-Fi automation and retry.".into()); }
-            break;
-        }
-        if started.elapsed() > std::time::Duration::from_secs(20) {
-            let _ = child.kill(); let _ = child.wait();
-            return Err("Gaming Wi-Fi preparation timed out. Check your connection and retry.".into());
-        }
-        std::thread::sleep(std::time::Duration::from_millis(100));
     }
     Ok(())
 }
@@ -667,7 +644,7 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
     if display_key.len() > 512 { return Err("Invalid display".into()); }
     if app_name.starts_with('-') || app_name.chars().any(char::is_control) { return Err("Invalid host app name".into()); }
     tauri::async_runtime::spawn_blocking(move || {
-        prepare_gaming_wifi()?;
+        let wifi = super::stream_wifi::prepare("moonlight");
         check_launch(epoch)?;
         if !query_apps(&profile.host)?.contains(&app_name) { return Err("This app is no longer advertised by the host. Refresh the Moonlight list.".into()); }
         check_launch(epoch)?;
@@ -730,6 +707,7 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         // Always attach the owned session lifecycle, including after a slow
         // startup error. A late-starting game must not become an orphan stream.
         std::thread::spawn(move || {
+            let _wifi = wifi;
             if let Some(id) = steam_id {
                 let exit_confirmed = std::sync::atomic::AtomicBool::new(false);
                 // A failed/disconnected client can exit before Buddy ever

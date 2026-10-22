@@ -5,6 +5,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { getBestGamepad, readGpState } from "../utils/gamepad";
 import type { useStreaming, MoonlightProfile } from "./useStreaming";
 
+import { HomeWifiSelect } from "./HomeWifiSelect";
+
 type Streaming = ReturnType<typeof useStreaming>;
 export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, localEnabled, manage, manageLabel, block, loading = false, copies = [] }: {
   streaming: Streaming; open: boolean; setOpen: (open: boolean) => void; local: () => void;
@@ -17,6 +19,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   const [profile, setProfile] = useState<MoonlightProfile>(s.display.profile);
   const [target, setTarget] = useState("");
   const [busy, setBusy] = useState(false);
+  const [wifiOnly, setWifiOnly] = useState(false);
   const [pin, setPin] = useState<number | null>(null);
   const [choices, setChoices] = useState<HTMLSelectElement | null>(null);
   const choicesRef = useRef<HTMLSelectElement | null>(null);
@@ -27,7 +30,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   const nativeResolution = activeDisplay.nativeResolution ?? "1920x1080";
   const nativeLabel = activeDisplay.displayLabel ?? "Handheld";
   const nativeFps = activeDisplay.nativeFps === 90 && gfn ? 60 : activeDisplay.nativeFps ?? 120;
-  const active = open || s.configure || gfn;
+  const active = open || s.configure || gfn || wifiOnly;
   useEffect(() => { block(active); return () => block(false); }, [active, block]);
   useEffect(() => {
     if (!s.configure && !gfn) return;
@@ -39,7 +42,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   }, [s.configure, s.apps, s.moonlightGame]);
   const close = () => {
     const returnFocus = s.configure || gfn ? root.current?.closest('[data-crete-detail-slot="primary-actions"]')?.querySelector<HTMLButtonElement>('[data-launch-btn]') : anchor.current;
-    setOpen(false); s.setConfigure(false); s.setGeforceConfigure(false); choicesRef.current = null; setChoices(null);
+    setOpen(false); setWifiOnly(false); s.setConfigure(false); s.setGeforceConfigure(false); choicesRef.current = null; setChoices(null);
     returnFocus?.focus({ preventScroll: true });
   };
   useEffect(() => {
@@ -122,14 +125,17 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     {!loading && <button ref={anchor} type="button" className="crete-details-manage" aria-label={text("Launch options")} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><IoChevronDownOutline /></button>}
     {open && !loading && <div className="crete-launch-popover" role="menu" aria-label={text("Launch options")}>
       {row(localLabel, "local", "#c9482a", local, !localEnabled)}
+      {s.provider === "luna" && row("Amazon Luna Wi-Fi", "", "#b49de5", () => setWifiOnly(true))}
       {copies.map(copy => row(copy.label, "copy", "#a7a29a", copy.onClick, false, copy.key))}
       {s.pcGame && row("Moonlight", "moonlight", "#697580", () => s.launch("moonlight"), !s.clients.moonlight)}
       {s.gameUrl && row("GeForce NOW", "geforceNow", "#7cab00", () => s.launch("geforceNow", true))}
       {!s.gameUrl && s.clients.geforceNow && row("GeForce NOW library", "", "#7cab00", () => s.launch("geforceNow"))}
       <button type="button" role="menuitem" onClick={() => choose(manage)}>{text(manageLabel)}</button>
     </div>}
-    {(s.configure || gfn) && <div className="crete-stream-backdrop"><div role="dialog" aria-modal="true" aria-label={text(gfn ? "GeForce NOW stream settings" : "Moonlight stream settings")} className="crete-stream-settings">
-      <h2>{gfn ? "GeForce NOW" : <>{text("Play on")} {profile.host}</>}</h2>
+    {(s.configure || gfn || wifiOnly) && <div className="crete-stream-backdrop"><div role="dialog" aria-modal="true" aria-label={text(wifiOnly ? "Amazon Luna Wi-Fi" : gfn ? "GeForce NOW stream settings" : "Moonlight stream settings")} className="crete-stream-settings">
+      <h2>{wifiOnly ? "Amazon Luna" : gfn ? "GeForce NOW" : <>{text("Play on")} {profile.host}</>}</h2>
+      <HomeWifiSelect provider={wifiOnly ? "luna" : gfn ? "geforceNow" : "moonlight"} saving={setBusy} />
+      {!wifiOnly && <>
       {gfn && <p>{text("Close GeForce NOW before applying settings. NVIDIA may limit quality according to your membership and device. Codec is managed in the NVIDIA app.")}</p>}
       {!gfn && <p>{text(target === "MoonDeckStream" && s.steamId ? s.hostInstalled ? "Installed on Bosgame. Launch this game directly through MoonDeck Buddy." : s.hostGames ? "This game is not installed on Bosgame. Choose another host app, local install or GeForce NOW." : "Checking whether this game is installed on Bosgame…" : s.moonlightGame ? "Game available on the host." : "Choose a host app. Its advertised apps do not confirm this game is installed.")}</p>}
       {!gfn && s.inventoryError && <p role="status">{s.inventoryError}</p>}
@@ -149,6 +155,8 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       {gfn && <p>{text("Play uses your settings above. Auto bitrate lets NVIDIA choose the bitrate.")}</p>}
       {gfn ? <div className="crete-stream-buttons"><button className="crete-gfn-play" type="button" disabled={busy || !s.online} onClick={() => { setBusy(true); void s.geforceStream(profile).finally(() => setBusy(false)); }}>{text(busy ? "Connecting…" : "Play")}</button><button type="button" onClick={close}>{text("Cancel")}</button></div> : <div className="crete-stream-buttons"><button type="button" disabled={busy || !target || !s.online || s.checking || (target === "MoonDeckStream" && !!s.steamId && (!s.buddy?.paired || !s.hostInstalled))} onClick={() => { setBusy(true); void s.stream(target, profile).finally(() => setBusy(false)); }}>{text(busy ? "Connecting…" : "Start stream")}</button><button type="button" disabled={busy || s.refreshing || !s.online} onClick={s.refresh}>{text(s.refreshing ? "Checking…" : "Refresh host")}</button><button type="button" onClick={() => void invoke("launch_streaming_client", { provider: "moonlight" }).catch(() => {} )}>{text("Open Moonlight")}</button><button type="button" onClick={close}>{text("Cancel")}</button></div>}
       {!gfn && <p>{text("Settings are saved for this display when the stream starts. Codec availability depends on the host and device.")}</p>}
+      </>}
+      {wifiOnly && <div className="crete-stream-buttons"><button type="button" disabled={busy} onClick={close}>Done</button></div>}
       {choices && <div className="crete-stream-choice-backdrop"><div data-stream-choices role="listbox" aria-label={choices.getAttribute("aria-label") ?? "Options"} className="crete-stream-choices">{Array.from(choices.options).map(option => <button type="button" role="option" aria-selected={option.selected} disabled={option.disabled} key={option.value} onClick={() => { choices.value = option.value; choices.dispatchEvent(new Event("change", { bubbles: true })); closeChoices(); }}>{option.text}</button>)}</div></div>}
     </div></div>}
   </div>;

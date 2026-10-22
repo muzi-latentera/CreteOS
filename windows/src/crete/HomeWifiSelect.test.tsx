@@ -1,0 +1,31 @@
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, expect, it, vi } from "vitest";
+import { invoke } from "@tauri-apps/api/core";
+import { HomeWifiSelect } from "./HomeWifiSelect";
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+let root: Root;
+let host: HTMLDivElement;
+afterEach(async () => { await act(async () => root?.unmount()); host?.remove(); vi.clearAllMocks(); });
+it("loads the provider preference and saves an explicit choice to that service", async () => {
+  vi.mocked(invoke).mockResolvedValue({ moonlight: "automatic", geforceNow: "current", luna: "gaming" });
+  host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+  const saving = vi.fn();
+  await act(async () => root.render(<HomeWifiSelect provider="geforceNow" saving={saving} />));
+  const select = host.querySelector("select")!;
+  expect(select.value).toBe("current");
+  expect(select.options[0].text).toContain("Fibre E433");
+  await act(async () => { select.value = "download"; select.dispatchEvent(new Event("change", { bubbles: true })); });
+  expect(invoke).toHaveBeenCalledWith("set_stream_wifi_preference", { provider: "geforceNow", choice: "download" });
+  expect(select.value).toBe("download");
+  expect(saving.mock.calls).toEqual([[true], [false]]);
+});
+it("retains the saved choice when a write fails", async () => {
+  vi.mocked(invoke).mockResolvedValueOnce({ moonlight: "gaming" }).mockRejectedValueOnce("disk unavailable");
+  host = document.createElement("div"); root = createRoot(host);
+  await act(async () => root.render(<HomeWifiSelect provider="moonlight" saving={() => {}} />));
+  const select = host.querySelector("select")!;
+  await act(async () => { select.value = "current"; select.dispatchEvent(new Event("change", { bubbles: true })); });
+  expect(select.value).toBe("gaming");
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain("disk unavailable");
+});

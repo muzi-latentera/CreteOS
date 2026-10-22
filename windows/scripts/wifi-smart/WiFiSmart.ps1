@@ -1,6 +1,8 @@
-﻿param([ValidateSet('Monitor','Status','DryRun','PrepareGaming','Gaming','Download','Auto','Pause')][string]$Mode='Monitor')
+﻿param([ValidateSet('Monitor','Status','DryRun','PrepareSession','PrepareGaming','Gaming','Download','Auto','Pause')][string]$Mode='Monitor', [ValidateSet('Gaming','Download','Current')][string]$Preference='Gaming', [ValidatePattern('^[0-9]+-[0-9]+$')][string]$Token='0-0')
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Policy.ps1')
+. (Join-Path $PSScriptRoot 'Sessions.ps1')
+$sessionFolder=Join-Path $PSScriptRoot 'sessions'
 $configPath=Join-Path $PSScriptRoot 'config.json'
 $controlPath=Join-Path $PSScriptRoot 'control.json'
 $statePath=Join-Path $PSScriptRoot 'status.json'
@@ -28,7 +30,7 @@ function Current-Profile {
  if($match){return $match.Matches[0].Groups[1].Value.Trim()}
  return ''
 }
-function Is-Streaming {return [bool](Get-Process Moonlight,GeForceNOWStreamer -ErrorAction SilentlyContinue)}
+function Is-Streaming([string]$Exclude='') {return ((Test-WifiSessions $sessionFolder $Exclude) -or [bool](Get-Process Moonlight,GeForceNOWStreamer -ErrorAction SilentlyContinue))}
 function Available($Profile) {
  $lines=& "$env:SystemRoot\System32\netsh.exe" wlan show networks "interface=$($config.Interface)"
  return [bool]($lines|Where-Object {$_ -match '^\s*SSID\s+\d+\s*:\s*(.+)$' -and $Matches[1].Trim() -eq $Profile})
@@ -51,10 +53,10 @@ function Connect-Profile($Target,$Reason,[bool]$Preparing=$false) {
   if(!$locked){return $false}
   $current=Current-Profile
   if($current -eq $Target){return $true}
-  if($homeProfiles -notcontains $current -or (Is-Streaming)){Write-Event 'held' 'outside-home-or-active-stream' $current;return $false}
+  if($homeProfiles -notcontains $current -or (Is-Streaming $(if($Preparing){$Token}else{''}))){Write-Event 'held' 'outside-home-or-active-stream' $current;return $false}
   if(!(Available $Target)){Refresh-VisibleProfiles}
   if(!(Available $Target)){Write-Event 'unavailable' $Reason $Target;return $false}
-  if(Is-Streaming){Write-Event 'held' 'stream-started-during-preparation' $current;return $false}
+  if(Is-Streaming $(if($Preparing){$Token}else{''})){Write-Event 'held' 'stream-started-during-preparation' $current;return $false}
   & "$env:SystemRoot\System32\netsh.exe" wlan connect "name=$Target" "interface=$($config.Interface)" *> $null
   if($LASTEXITCODE -ne 0){Write-Event 'failed' $Reason $Target;return $false}
   $deadline=[DateTime]::UtcNow.AddSeconds(12)
@@ -102,6 +104,16 @@ function Receive-Counter {
  return [double]$adapter.GetIPv4Statistics().BytesReceived
 }
 if($Mode -eq 'Status'){if(Test-Path $statePath){Get-Content $statePath -Raw}else{'No monitor status yet'};exit 0}
+if($Mode -eq 'PrepareSession') {
+ $current=Current-Profile;$control=Read-Control
+ if(!$config.Enabled -or $control.Paused -or $homeProfiles -notcontains $current){Write-Event 'session-held' 'paused-or-away' $current;exit 0}
+ $target=Get-WifiSessionTarget $Preference $current $config.GamingProfile $config.DownloadProfile
+ if($target -ne $current){
+  if(!(Connect-Profile $target ('session-'+$Preference.ToLower()) $true)){Write-Event 'session-fallback' 'keep-current-connection' (Current-Profile)}
+ }
+ Write-Event 'session-held' $Preference (Current-Profile)
+ exit 0
+}
 if($Mode -eq 'PrepareGaming') {
  $current=Current-Profile;$control=Read-Control
  if(!$config.Enabled -or $control.Paused -or $homeProfiles -notcontains $current){exit 0}

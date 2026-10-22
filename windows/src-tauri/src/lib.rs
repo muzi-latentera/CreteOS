@@ -59,6 +59,7 @@ mod gfn_catalog;
 mod launch_cover;
 mod stream_readiness;
 mod luna;
+mod stream_wifi;
 mod moondeck;
 mod crete_news;
 mod crete_videos;
@@ -9975,6 +9976,10 @@ async fn launch_app(
             focus_external_window(windows::Win32::Foundation::HWND(window.hwnd as _));
         }
     }
+    let luna_wifi = if source.eq_ignore_ascii_case("cloud") && luna::luna_url(&path) {
+        // Network preparation can wait for association; keep it off the UI executor.
+        tauri::async_runtime::spawn_blocking(|| stream_wifi::prepare("luna")).await.map_err(|e| e.to_string())?
+    } else { None };
     let cloud_kiosk_pid = if source.eq_ignore_ascii_case("cloud") {
         match launch_cloud_game_kiosk(&path) {
             Ok(pid) => {
@@ -10294,6 +10299,21 @@ async fn launch_app(
             return;
         }
         if found != 0 {
+            if let Some(wifi) = luna_wifi {
+                // Track the actual PWA HWND, never chrome_proxy.exe or all Chrome tabs.
+                std::thread::spawn(move || {
+                    let _wifi = wifi;
+                    let hwnd = windows::Win32::Foundation::HWND(found as _);
+                    let mut owner = 0;
+                    unsafe { windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, Some(&mut owner)); }
+                    loop {
+                        let mut current_owner = 0;
+                        unsafe { windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, Some(&mut current_owner)); }
+                        if current_owner == 0 || current_owner != owner { break; }
+                        std::thread::sleep(Duration::from_secs(1));
+                    }
+                });
+            }
             // Steam starts a fresh watch here, replacing any previous game's
             // watch rather than retargeting an already-acquired window.
             let fse_was_active =
@@ -10341,6 +10361,8 @@ pub fn run() {
             Some(vec![]),
         ))
         .invoke_handler(tauri::generate_handler![
+            stream_wifi::get_stream_wifi_preferences,
+            stream_wifi::set_stream_wifi_preference,
             crete_news::get_crete_news_rss,
             crete_news::get_crete_article_thumbnail,
             crete_videos::get_crete_review_videos,
