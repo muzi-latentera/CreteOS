@@ -112,7 +112,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     };
     frame = requestAnimationFrame(poll);
     return () => { clearTimeout(timer); cancelAnimationFrame(frame); window.removeEventListener("keydown", key, true); window.removeEventListener("pointerdown", outside); };
-  }, [active, s.configure, gfn]);
+  }, [active, s.configure, gfn, wifiOnly]);
   useEffect(() => { if (choices) window.setTimeout(() => root.current?.querySelector<HTMLButtonElement>('[data-stream-choices] button[aria-selected="true"]')?.focus(), 0); }, [choices]);
   const choose = (action: () => void) => { setOpen(false); action(); };
   const row = (label: string, provider: string, color: string, action: () => void, disabled = false, key?: string) => <button key={key} type="button" role="menuitem" disabled={disabled} onClick={() => choose(action)}><i style={{ background: color }} />{text(label)}{s.provider === provider && <small aria-hidden="true">{text("DEFAULT")}</small>}</button>;
