@@ -128,7 +128,7 @@ export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (disposed || ticket !== returnTicket.current) return;
         void invoke<boolean>("present_stream_return_cover", { provider: event.payload.provider, session: event.payload.session })
-          .then(() => { if (ticket === returnTicket.current) setCover(previous => previous?.returning ? null : previous); })
+          .then(presented => { if (!presented && ticket === returnTicket.current) setCover(previous => previous?.returning ? null : previous); })
           .catch(() => { if (ticket === returnTicket.current) setCover(previous => previous?.returning ? null : previous); });
       }));
     });
@@ -156,6 +156,5 @@ export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<
   const art = customHeroArt[cover.app.id] || heroArt[cover.app.id];
   return <div data-stream-launch-cover="" role="status" aria-label={t("launch.launching")} style={{ position: "fixed", inset: 0, zIndex: 10000, display: "grid", placeContent: "center", background: art ? `linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.4)),url(${JSON.stringify(art)}) center/cover` : "rgba(10,13,16,.92)" }}>
     {!cover.returning && <LaunchMessages />}
-    {!cover.returning && <button type="button" onClick={() => dismiss()} style={{ position: "absolute", bottom: 40, justifySelf: "center", padding: "12px 24px", borderRadius: 12, border: "1px solid rgba(255,255,255,.4)", background: "rgba(10,13,16,.75)", color: "white", fontSize: 18 }}>B / Esc · Cancel launch</button>}
   </div>;
 }

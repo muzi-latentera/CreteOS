@@ -38,6 +38,8 @@ pub fn cancel_stream_launch(window: tauri::Window) -> Result<(), String> {
     window.set_focus().map_err(|e| e.to_string())
 }
 static RETURN_COVER: AtomicU64 = AtomicU64::new(0);
+static RETURN_PAINTED: AtomicU64 = AtomicU64::new(0);
+static RETURN_PRESENTATION: std::sync::Mutex<()> = std::sync::Mutex::new(());
 static ENDED_SESSION_GENERATION: AtomicU64 = AtomicU64::new(0);
 // 0 unavailable/fallback, 1 waiting for the exact game, 2 visible, 3 closed.
 static HOST_GAME_WINDOW: AtomicU64 = AtomicU64::new(0);
@@ -53,25 +55,35 @@ pub(crate) fn moonlight_game_waiting() -> bool { host_window_state() == 1 }
 pub(crate) fn moonlight_game_closed() -> bool { host_window_state() == 3 }
 fn next_session() -> u64 {
     let generation = SESSION_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
-    RETURN_COVER.store(0, Ordering::SeqCst); HOST_GAME_WINDOW.store(generation << 3, Ordering::SeqCst);
+    RETURN_COVER.store(0, Ordering::SeqCst); RETURN_PAINTED.store(0, Ordering::SeqCst); HOST_GAME_WINDOW.store(generation << 3, Ordering::SeqCst);
     generation
 }
 fn session_current(generation: u64) -> bool { SESSION_GENERATION.load(Ordering::SeqCst) == generation }
 
 fn begin_return(window: &tauri::Window, provider: &str, generation: u64) {
     if !session_current(generation) || !super::can_return_from_stream(window, provider) { return; }
-    if RETURN_COVER.compare_exchange(0, generation, Ordering::SeqCst, Ordering::SeqCst).is_err() { return; }
-    use tauri::Emitter;
-    let _ = window.emit("stream-return-phase", serde_json::json!({"provider":provider,"phase":"ending","session":generation}));
-    // Resume painting without activating the window. The frontend acknowledges
-    // two painted frames before presenting the return artwork.
-    super::fse_watcher::prepare_stream_return(window.app_handle());
+    if RETURN_COVER.compare_exchange(0, generation, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+        use tauri::Emitter;
+        let _ = window.emit("stream-return-phase", serde_json::json!({"provider":provider,"phase":"ending","session":generation}));
+        super::fse_watcher::prepare_stream_return(window.app_handle());
+    }
+    // Both the game-window watcher and Buddy may report exit. Each cleanup
+    // caller must wait for the same painted, foreground artwork before ending
+    // the host stream. This worker wait never blocks the UI message pump.
+    let start = std::time::Instant::now();
+    while session_current(generation) && RETURN_COVER.load(Ordering::SeqCst) == generation
+        && RETURN_PAINTED.load(Ordering::SeqCst) != generation
+        && start.elapsed() < std::time::Duration::from_millis(1500) {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 }
 
 pub(crate) fn end_return(window: &tauri::Window, provider: &str, generation: u64) {
+    let Ok(_presentation) = RETURN_PRESENTATION.lock() else { return; };
     if RETURN_COVER.compare_exchange(generation, 0, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
         use tauri::Emitter;
         let _ = super::launch_cover::set_launch_cover(window.clone(), false, None, None);
+        super::fse_watcher::log_stream_transition(window.app_handle(), "return-cover-released");
         let _ = window.emit("stream-return-phase", serde_json::json!({"provider":provider,"phase":"ended","session":generation}));
     }
     // Session completion is data, not a foreground/presentation operation.
@@ -87,17 +99,20 @@ pub(crate) fn end_return(window: &tauri::Window, provider: &str, generation: u64
 #[tauri::command(async)]
 pub fn present_stream_return_cover(window: tauri::Window, provider: String, session: u64) -> Result<bool, String> {
     if !matches!(provider.as_str(), "moonlight" | "geforceNow") { return Err("Unknown streaming client".into()); }
+    let _presentation = RETURN_PRESENTATION.lock().map_err(|_| "Return presentation unavailable")?;
     if !session_current(session) || RETURN_COVER.load(Ordering::SeqCst) != session { return Ok(false); }
     // The client may close between the ending event and the paint ack. Only a
     // request originating from our own foreground stream can reach this point.
     if !super::can_return_from_stream(&window, &provider) && !super::foreground_is_desktop() { return Ok(false); }
     super::launch_cover::set_launch_cover(window.clone(), true, None, Some(provider))?;
-    let foreground_result = super::show_stream_return(&window);
-    // The game has exited. Return to the usable launcher now; the tracked
-    // client can finish its normal shutdown behind it without a modal wait.
-    super::launch_cover::set_launch_cover(window.clone(), false, None, None)?;
-    super::fse_watcher::log_stream_transition(window.app_handle(), "return-cover-released");
-    foreground_result?;
+    if let Err(error) = super::show_stream_return(&window) {
+        let _ = super::launch_cover::set_launch_cover(window.clone(), false, None, None);
+        return Err(error);
+    }
+    RETURN_PAINTED.store(session, Ordering::SeqCst);
+    super::fse_watcher::log_stream_transition(window.app_handle(), "return-cover-painted");
+    // Keep artwork and the native guard through client shutdown. end_return
+    // releases both only after the owned client has closed and cleanup ended.
     Ok(true)
 }
 

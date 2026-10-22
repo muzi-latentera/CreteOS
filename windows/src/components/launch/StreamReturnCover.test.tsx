@@ -25,7 +25,7 @@ beforeEach(async () => {
   invoke.mockClear();
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.useRealTimers(); vi.unstubAllGlobals(); });
-it("paints artwork before returning, then unlocks CreteOS while the client closes behind it", async () => {
+it("keeps painted return artwork until client cleanup finishes", async () => {
   await phase("ending");
   expect(container.querySelector("[data-stream-launch-cover]")).not.toBeNull();
   expect(container.textContent).not.toContain("Resident Evil");
@@ -33,7 +33,7 @@ it("paints artwork before returning, then unlocks CreteOS while the client close
   expect(invoke).not.toHaveBeenCalledWith("present_stream_return_cover", expect.anything());
   await act(async () => { await vi.advanceTimersByTimeAsync(50); });
   expect(invoke).toHaveBeenCalledWith("present_stream_return_cover", { provider: "moonlight", session: 1 });
-  expect(container.querySelector("[data-stream-launch-cover]")).toBeNull();
+  expect(container.querySelector("[data-stream-launch-cover]")).not.toBeNull();
   await phase("ended");
   expect(container.querySelector("[data-stream-launch-cover]")).toBeNull();
 });
@@ -60,7 +60,8 @@ it("cancels a pending launch immediately with Escape and ignores a late backend 
     pending = withStreamCover({ id: "oni", name: "Onimusha" } as App, "moonlight", () => new Promise<void>(resolve => { finish = resolve; }), handoff);
     await vi.advanceTimersByTimeAsync(50);
   });
-  expect(container.querySelector("button")?.textContent).toContain("Cancel launch");
+  expect(container.querySelector("button")).toBeNull();
+  expect(container.textContent).not.toContain("Cancel launch");
   await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); await pending; });
   expect(container.querySelector("[data-stream-launch-cover]")).toBeNull();
   expect(invoke).toHaveBeenCalledWith("cancel_stream_launch");
@@ -80,15 +81,16 @@ it("handles native B cancellation when Moonlight owns input focus", async () => 
   expect(container.querySelector("[data-stream-launch-cover]")).toBeNull();
   expect(invoke).not.toHaveBeenCalledWith("focus_stream_window", expect.anything());
 });
-it("cancels through the visible button and releases the duplicate launch guard", async () => {
+it("releases the duplicate launch guard through native B without any cancel prompt", async () => {
   let pending!: Promise<void>;
   await act(async () => {
     pending = withStreamCover({ id: "oni", name: "Onimusha" } as App, "moonlight", () => new Promise(() => {}));
     await vi.advanceTimersByTimeAsync(50);
   });
   await expect(withStreamCover({ id: "oni", name: "Onimusha" } as App, "moonlight", async () => undefined)).rejects.toThrow("already in progress");
-  await act(async () => { container.querySelector("button")!.click(); await pending; });
-  expect(invoke).toHaveBeenCalledWith("cancel_stream_launch");
+  expect(container.querySelector("button")).toBeNull();
+  await act(async () => { callbacks.get("stream-launch-cancel")?.({ payload: null }); await pending; });
+  expect(container.querySelector("[data-stream-launch-cover]")).toBeNull();
   const next = withStreamCover({ id: "oni", name: "Onimusha" } as App, "moonlight", async () => undefined);
   await act(async () => { await vi.advanceTimersByTimeAsync(10_100); await next; });
 });
