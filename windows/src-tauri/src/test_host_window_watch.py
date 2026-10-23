@@ -1,8 +1,13 @@
 import unittest
-from host_window_watch import WindowPresence, has_game_window, preparation_phase
+from host_window_watch import WindowPresence, has_game_window, preparation_phase, environment_matches
 
 
 class HostWindowLifecycleTests(unittest.TestCase):
+    def test_nonsteam_64bit_game_id_matches_only_exact_registered_shortcut(self):
+        app_id='3137199813'
+        values=[b'SteamAppId=0', ('SteamGameId='+str((int(app_id)<<32)|0x02000000)).encode()]
+        self.assertTrue(environment_matches(values,app_id))
+        self.assertFalse(environment_matches(values,'4014772628'))
     def test_progress_is_exact_game_and_reports_no_log_content(self):
         self.assertEqual(preparation_phase("2638890", "Still replaying 2638890: 50%", ""), "compiling")
         self.assertIsNone(preparation_phase("263889", "Still replaying 2638890: 50%", ""))

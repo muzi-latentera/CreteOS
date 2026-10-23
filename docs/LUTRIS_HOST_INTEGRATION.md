@@ -2,6 +2,14 @@
 
 Status: **feasible, not implemented or gameplay-tested**. User requested inspection of three disc-installed Lutris entries for the same CreteOS library/Moonlight/metadata/playtime experience. SSH inspection was read-only; no game, installer or GUI was launched, no host configuration/database/Steam shortcut was changed, and no G1 executable/profile was changed.
 
+## Subsequent authorized implementation — 22:33 BST
+
+The opening section is the earlier audit. User subsequently authorized implementation, Mouse/MGS V tests, local G1 build, guide and backup updates; then asked to let the ongoing install finish before live game launches. Source now includes namespaced cached Lutris library entries, fresh executable/installer preflight, registered shortcut IDs independent of metadata products, public title metadata/artwork, launcher-recorded playtime and post-exit cache refresh. Six inventory, nineteen host lifecycle,248frontend and129native tests passed. Build/install/live acceptance pending at this entry.
+
+Host setup backed up the live Lutris DB and Steam shortcuts, closed idle Steam normally, and registered three runner-preserving isolated-D-Bus shortcuts using stable Lutris IDs. The separate bus avoids forwarding a stream launch into the user's physical-desktop Lutris installer. Mortal Shell shortcut registration does not execute its installer; native/UI preflight blocks that target. Retargeting the existing Lutris entry later preserves its identity and can enable it after Refresh host without regenerating IDs. New Lutris entries need host shortcut registration with Steam closed; they can still be discovered as unconfigured entries first. No game has been launched by this implementation task yet.
+
+Private backup refresh is required after the final install and must include `lutris_host_library.json`, the exact executable, host Lutris DB/config/Steam-shortcut snapshot and host setup/export helpers. Game downloads, Wine prefixes and saves are outside that settings backup. Current prior ZIP predates this host change and must not be presented as covering the completed integration.
+
 ## Observed host state
 
 Native Lutris `/usr/bin/lutris`, installed Python package version **0.5.22**. Database `~/.local/share/lutris/pga.db`; game configs are under `~/.local/share/lutris/games` (not the historical config-directory path). Sunshine headless and MoonDeck Buddy services were active. There is a 13-byte Steam shortcuts file, with no substantial shortcut inventory.

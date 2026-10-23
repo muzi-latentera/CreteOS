@@ -7,6 +7,12 @@ from host_presentation import conceal_library, game_window, needs_attention, res
 
 
 class PresentationIsolationTests(unittest.TestCase):
+    def test_nonsteam_64bit_identity_can_match_without_a_steam_window_class(self):
+        ident='3137199813'
+        values=('SteamGameId='+str((int(ident)<<32)|0x02000000)).encode()+b'\0'
+        with patch('pathlib.Path.read_bytes',return_value=values):
+            self.assertTrue(game_window({'pid':123,'window_properties':{'class':'MOUSE.exe'}},ident))
+            self.assertFalse(game_window({'pid':123,'window_properties':{'class':'MOUSE.exe'}},'4014772628'))
     def test_existing_physical_steam_is_blocked_even_with_an_inherited_wayland_variable(self):
         with tempfile.TemporaryDirectory() as directory:
             proc = Path(directory)

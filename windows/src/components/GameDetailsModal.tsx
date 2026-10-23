@@ -266,7 +266,7 @@ export function GameDetailsModal({
     app.source,
     steamAppId,
     xboxProductId,
-    storeMetaEnabled && (isSteam || isXbox || isCloud || storeAccountGame),
+    storeMetaEnabled && (isSteam || isXbox || isCloud || storeAccountGame || source === "lutris"),
     app.name,
   );
   const deckCompat = useDeckCompat(
@@ -479,7 +479,7 @@ export function GameDetailsModal({
     ...(installed && onUninstall ? [{ key: "uninstall", label: t("install.uninstall"), onClick: onUninstall, danger: true }] : []),
     { key: "pin", label: t(isPinned ? "contextMenu.unpin" : "contextMenu.pin"), onClick: onTogglePin, checked: isPinned },
     { key: "hide", label: t(isHidden ? "contextMenu.show" : "contextMenu.hide"), onClick: onToggleHidden, checked: isHidden },
-    ...(!isCloud ? [{
+    ...(!isCloud && source !== "lutris" ? [{
       key: "admin",
       label: "Run as Administrator",
       sublabel: "Game will request elevated privileges via UAC on launch",

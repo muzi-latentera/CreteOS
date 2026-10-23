@@ -9,6 +9,7 @@ import { withStreamCover } from "../components/launch/StreamLaunchCover";
 export interface MoonlightProfile { host: string; resolution: string; fps: number; bitrate: number; codec: string }
 export interface DisplayProfile { displayKey: string; profile: MoonlightProfile; nativeResolution?: string; nativeFps?: number; displayLabel?: string }
 const fallback: DisplayProfile = { displayKey: "display", profile: { host: "Bosgame", resolution: "1920x1080", fps: 120, bitrate: 80000, codec: "auto" } };
+export interface LutrisGame { id: string; name: string; launchable: boolean; reason: string; shortcutId: string | null; playtimeMinutes: number | null }
 export function useStreaming(app: App, enabled: boolean) {
   const [clients, setClients] = useState({ geforceNow: false, moonlight: false });
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +20,8 @@ export function useStreaming(app: App, enabled: boolean) {
   const [clientsFor, setClientsFor] = useState<string | null>(null);
   const [, update] = useState(0);
   const [online, setOnline] = useState(navigator.onLine);
+  const [lutrisGames, setLutrisGames] = useState<LutrisGame[] | null>(null);
+  const [lutrisError, setLutrisError] = useState<string | null>(null);
   const pcGame = enabled && isPcGame(app);
   const host = readHost(display.profile.host);
   const apps = host.snapshot.apps ?? [];
@@ -28,8 +31,17 @@ export function useStreaming(app: App, enabled: boolean) {
   // hides Play or changes its colour while the saved state is in use.
   const checking = pcGame && clientsFor !== app.id;
   const gameUrl = pcGame ? geforceNowUrl(app) : undefined;
-  const hostInstalled = app.source === "steam" && !!app.steam_appid && !!hostGames?.some(game => game.steamAppId === String(app.steam_appid));
-  const moonlightGame = pcGame && online && clients.moonlight ? moonlightTarget(app, apps, hostGames?.map(game => game.steamAppId) ?? []) : undefined;
+  const lutrisGame = app.source === "lutris" ? lutrisGames?.find(game => game.id === app.store_id) : undefined;
+  const launchId = app.source === "lutris" ? lutrisGame?.shortcutId ?? "lutris-pending" : app.source === "steam" ? app.steam_appid : undefined;
+  const hostInstalled = app.source === "lutris" ? !!lutrisGame?.launchable && !!lutrisGame.shortcutId : app.source === "steam" && !!app.steam_appid && !!hostGames?.some(game => game.steamAppId === String(app.steam_appid));
+  const moonlightGame = pcGame && online && clients.moonlight ? app.source === "lutris" && hostInstalled && apps.includes("MoonDeckStream") ? "MoonDeckStream" : moonlightTarget(app, apps, hostGames?.map(game => game.steamAppId) ?? []) : undefined;
+  useEffect(() => {
+    if (app.source !== "lutris" || !enabled || !online) return;
+    let active = true;
+    setLutrisGames(null); setLutrisError(null);
+    void invoke<LutrisGame[]>("get_lutris_games", { host: display.profile.host }).then(games => { if (active) setLutrisGames(games); }).catch(error => { if (active) setLutrisError(String(error)); });
+    return () => { active = false; };
+  }, [app.id, app.source, enabled, online, display.profile.host]);
   useEffect(() => subscribeHost(() => update(value => value + 1)), []);
   useEffect(() => subscribeGeForceCatalog(() => update(value => value + 1)), []);
   useEffect(() => {
@@ -58,7 +70,7 @@ export function useStreaming(app: App, enabled: boolean) {
     })().catch(() => {}).finally(() => { if (active) setClientsFor(app.id); });
     return () => { active = false; };
   }, [pcGame, app.id]);
-  const refresh = () => { void refreshHost(display.profile.host, true); };
+  const refresh = () => { void refreshHost(display.profile.host, true); if (app.source === "lutris") void invoke<LutrisGame[]>("get_lutris_games", { host: display.profile.host }).then(games => { setLutrisGames(games); setLutrisError(null); }).catch(reason => setLutrisError(String(reason))); };
   const launch = (provider: "geforceNow" | "moonlight", direct = false) => {
     setError(null);
     if (provider === "moonlight") {
@@ -83,12 +95,12 @@ export function useStreaming(app: App, enabled: boolean) {
     setError(null);
     try {
       const steamId = appName === "MoonDeckStream" && app.source === "steam" && app.steam_appid ? String(app.steam_appid) : null;
-      await withStreamCover(app, "moonlight", () => invoke("launch_moonlight", { appName, displayKey: display.displayKey, profile, steamId, gameId: app.id, gameName: app.name }), () => setConfigure(false));
+      await withStreamCover(app, "moonlight", () => invoke("launch_moonlight", { appName, displayKey: display.displayKey, profile, steamId, gameId: app.id, gameName: app.name, lutrisId: app.source === "lutris" ? app.store_id : null }), () => setConfigure(false));
     } catch (reason) { setError(`Could not start Moonlight on ${profile.host}. ${String(reason)}`); }
   };
   const pair = async (pin: number) => {
     setError(null);
     try { await invoke("pair_moondeck", { host: display.profile.host, pin }); } catch (reason) { setError(String(reason)); }
   };
-  return { pcGame, gameUrl, clients, error, hostError: host.error, apps, moonlightGame, provider: defaultProvider(app, moonlightGame, online ? gameUrl : undefined), display, configure, setConfigure, geforceConfigure, setGeforceConfigure, geforceDisplay, geforceStream, checking, refreshing: host.refreshing, refresh, launch, stream, buddy, buddyError: null, pair, steamId: app.source === "steam" ? app.steam_appid : undefined, hostGames, hostInstalled, inventoryError: null, localInstalled: !!app.installed, online };
+  return { isLutris: app.source === "lutris", pcGame, gameUrl, clients, error, hostError: host.error, apps, moonlightGame, provider: defaultProvider(app, moonlightGame, online ? gameUrl : undefined), display, configure, setConfigure, geforceConfigure, setGeforceConfigure, geforceDisplay, geforceStream, checking, refreshing: host.refreshing, refresh, launch, stream, buddy, buddyError: null, pair, steamId: launchId, hostGames, hostInstalled, inventoryError: lutrisError || (app.source === "lutris" ? lutrisGame?.reason || (lutrisGame && !lutrisGame.shortcutId ? "This game needs its CreteOS host shortcut configured." : null) : null), localInstalled: !!app.installed, online };
 }

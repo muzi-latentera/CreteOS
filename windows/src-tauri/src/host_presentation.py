@@ -58,7 +58,8 @@ def game_window(node, app_id):
         return True
     try:
         values = (Path("/proc") / str(int(node["pid"])) / "environ").read_bytes().split(b"\0")
-        return any((key + app_id).encode() in values for key in ("SteamAppId=", "SteamGameId="))
+        shortcut_game_id = str((int(app_id) << 32) | 0x02000000)
+        return any(value in values for value in (("SteamAppId=" + app_id).encode(), ("SteamGameId=" + app_id).encode(), ("SteamGameId=" + shortcut_game_id).encode()))
     except (OSError, ValueError, KeyError):
         return False
 

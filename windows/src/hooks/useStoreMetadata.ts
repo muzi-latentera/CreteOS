@@ -23,7 +23,7 @@ export function useStoreMetadata(
   useEffect(() => {
     const normalizedSource = source?.toLowerCase();
     const metadataId = normalizedSource === "steam" || normalizedSource === "cloud" ? appId : normalizedSource === "xbox" ? productId : undefined;
-    if (!enabled || (!metadataId && !(["xbox", "cloud", "epic", "gog"].includes(normalizedSource ?? "") && gameName)) || !["steam", "xbox", "cloud", "epic", "gog"].includes(normalizedSource ?? "")) {
+    if (!enabled || (!metadataId && !(["xbox", "cloud", "epic", "gog", "lutris"].includes(normalizedSource ?? "") && gameName)) || !["steam", "xbox", "cloud", "epic", "gog", "lutris"].includes(normalizedSource ?? "")) {
       setState({ data: null, loading: false, error: null });
       return;
     }
@@ -40,7 +40,7 @@ export function useStoreMetadata(
     const titleFallback = () => invoke<StoreMetadata>("fetch_title_store_metadata", { gameName, offline: !navigator.onLine });
     const request = normalizedSource === "xbox"
       ? (metadataId ? invoke<StoreMetadata>("fetch_xbox_store_metadata", { productId: metadataId }).then(meta => meta.shortDescription || meta.aboutHtml || meta.movies.length ? meta : titleFallback()).catch(() => titleFallback()) : titleFallback())
-      : ((normalizedSource === "cloud" && !metadataId) || normalizedSource === "epic" || normalizedSource === "gog") ? titleFallback()
+      : ((normalizedSource === "cloud" && !metadataId) || normalizedSource === "epic" || normalizedSource === "gog" || normalizedSource === "lutris") ? titleFallback()
       : invoke<StoreMetadata>("fetch_store_metadata", { source: normalizedSource === "cloud" ? "steam" : normalizedSource, appId: metadataId });
     request
       .then((meta) => {

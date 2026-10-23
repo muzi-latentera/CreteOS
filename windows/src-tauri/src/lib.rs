@@ -60,6 +60,7 @@ mod launch_cover;
 mod stream_readiness;
 mod luna;
 mod luna_session;
+mod lutris;
 mod stream_artwork;
 mod native_artwork;
 mod stream_wifi;
@@ -8341,6 +8342,8 @@ fn get_apps_inner(app: tauri::AppHandle) -> Vec<AppEntry> {
     }
     push_scan_timing(&mut scan_timing, "other_launchers", other_phase_started);
 
+    lutris::merge(&mut apps);
+    lutris::schedule(app.clone());
     apply_local_play_history(&mut apps, &load_recent_games());
     drop_shadowed_xbox_duplicates(&mut apps);
 
@@ -8498,6 +8501,8 @@ fn get_all_apps_inner(app: tauri::AppHandle) -> Vec<AppEntry> {
     }
     push_scan_timing(&mut scan_timing, "other_launchers", other_phase_started);
 
+    lutris::merge(&mut apps);
+    lutris::schedule(app.clone());
     apply_local_play_history(&mut apps, &load_recent_games());
 
     // Deduplicate only — no hidden filter
@@ -10419,6 +10424,8 @@ pub fn run() {
             streaming::start_geforce_game,
             streaming::get_moonlight_apps,
             streaming::get_host_installed_games,
+            lutris::get_lutris_games,
+            lutris::get_lutris_progress,
             streaming::get_moonlight_profile,
             streaming::launch_moonlight,
             streaming::launch_luna_session,

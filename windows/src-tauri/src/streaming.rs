@@ -535,7 +535,7 @@ fn query_apps(host: &str) -> Result<Vec<String>, String> {
 #[serde(rename_all = "camelCase")]
 pub struct HostGame { pub steam_app_id: String, pub name: String }
 
-fn host_command(host: &str) -> Result<std::process::Command, String> {
+pub(crate) fn host_command(host: &str) -> Result<std::process::Command, String> {
     validate_host(host)?;
     let folder = dirs::data_local_dir().ok_or("No local data directory")?.join("CreteOS-Bootstrap/ssh");
     let settings: serde_json::Value = std::fs::read(folder.join("bosgame.json")).ok()
@@ -724,7 +724,7 @@ pub fn get_moonlight_profile(window: tauri::Window) -> Result<serde_json::Value,
 }
 
 #[tauri::command]
-pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_key: String, profile: MoonlightProfile, steam_id: Option<String>, game_id: Option<String>, game_name: Option<String>) -> Result<(), String> {
+pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_key: String, profile: MoonlightProfile, steam_id: Option<String>, game_id: Option<String>, game_name: Option<String>, lutris_id: Option<String>) -> Result<(), String> {
     let epoch = LAUNCH_EPOCH.load(Ordering::SeqCst);
     validate(&profile)?;
     if display_key.len() > 512 { return Err("Invalid display".into()); }
@@ -734,13 +734,17 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         check_launch(epoch)?;
         if !query_apps(&profile.host)?.contains(&app_name) { return Err("This app is no longer advertised by the host. Refresh the Moonlight list.".into()); }
         check_launch(epoch)?;
+        let steam_id = if let Some(id)=&lutris_id {Some(super::lutris::launch_id(&profile.host,id,game_id.as_deref())?)} else {
+            if game_id.as_deref().is_some_and(|id|id.starts_with("lutris:")){return Err("Missing Lutris launch identity".into());}
+            steam_id
+        };
         if steam_id.is_some() {
             if app_name != "MoonDeckStream" { return Err("Direct Steam launching requires MoonDeckStream".into()); }
             if super::moondeck::status(&profile.host)?["paired"] != true { return Err("Pair CreteOS with MoonDeck Buddy first".into()); }
             check_launch(epoch)?;
             super::moondeck::prepare(&profile.host, steam_id.as_deref().unwrap_or_default())?;
             check_launch(epoch)?;
-            if !host_games(&profile.host)?.iter().any(|game| Some(&game.steam_app_id) == steam_id.as_ref()) {
+            if lutris_id.is_none() && !host_games(&profile.host)?.iter().any(|game| Some(&game.steam_app_id) == steam_id.as_ref()) {
                 return Err("This game is not installed on Bosgame. Choose local install or GeForce NOW.".into());
             }
         }
@@ -822,6 +826,7 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
             while session_current(generation) && start.elapsed() < std::time::Duration::from_secs(86400) {
                 if client.lock().is_ok_and(|mut child| child.try_wait().ok().flatten().is_some()) {
                     if let Some(token) = &presentation { finish_host_presentation(&profile.host, token); }
+                    if lutris_id.is_some() { let _=super::lutris::refresh(&profile.host); use tauri::Emitter; let _=window.emit("library-rescan-needed",()); }
                     if session_current(generation) { super::finish_stream_session(window.clone(), "moonlight", || session_current(generation)); }
                     end_return(&window, "moonlight", generation);
                     return;

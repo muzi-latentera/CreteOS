@@ -3,7 +3,7 @@ import type { App } from "../types";
 export type Availability = "all" | "local" | "owned" | "uninstalled" | "cloud";
 export const AVAILABILITY = ["all", "local", "owned", "uninstalled", "cloud"] as const;
 export const AVAILABILITY_LABELS = ["All Games", "Local", "Owned", "Not installed", "Cloud"];
-const OWNED_STORES = new Set(["steam", "xbox", "gog", "epic", "battlenet"]);
+const OWNED_STORES = new Set(["steam", "xbox", "gog", "epic", "battlenet", "lutris"]);
 
 export function matchesAvailability(app: App, filter: Availability) {
   const source = app.source?.toLowerCase();
@@ -55,5 +55,5 @@ export function steamId(app?: App) {
 }
 
 export function sourceLabel(source?: string) {
-  return ({ steam: "Steam", xbox: "Xbox", gog: "GOG", epic: "Epic Games", battlenet: "Battle.net", cloud: "Cloud" } as Record<string, string>)[source ?? ""] ?? source ?? "Local";
+  return ({ steam: "Steam", xbox: "Xbox", gog: "GOG", epic: "Epic Games", battlenet: "Battle.net", cloud: "Cloud", lutris: "Lutris · Bosgame" } as Record<string, string>)[source ?? ""] ?? source ?? "Local";
 }

@@ -12,14 +12,14 @@ export function useStoreProgress(app: App | undefined, enabled = true) {
   const gameId = app?.store_id ?? (source === "epic" ? app?.id.replace(/^epic:/, "") : undefined);
   useEffect(() => {
     setProgress(null);
-    if (!enabled || !gameId || (source !== "epic" && source !== "gog")) return;
+    if (!enabled || !gameId || (source !== "epic" && source !== "gog" && source !== "lutris")) return;
     let active = true, ticket = 0;
     let timer: ReturnType<typeof setTimeout>;
     let release: (() => void) | undefined;
     const read = async (offline: boolean, refresh = false) => {
       const request = ++ticket;
       try {
-        const result = await invoke<StoreProgress>("store_game_progress", { source, gameId, offline, refresh });
+        const result = source === "lutris" ? await invoke<StoreProgress>("get_lutris_progress", { gameId: app?.id }) : await invoke<StoreProgress>("store_game_progress", { source, gameId, offline, refresh });
         if (active && request === ticket) setProgress(result);
       } catch { /* Saved activity stays visible when a provider cannot refresh. */ }
     };

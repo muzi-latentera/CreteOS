@@ -9,7 +9,7 @@ export function geforceNowUrl(app: App): string | undefined {
 }
 
 export function isPcGame(app: App): boolean {
-  return app.app_type === "game" && ["steam", "xbox", "gog", "epic", "ea", "ubisoft", "battlenet", "desktop"].includes(app.source?.toLowerCase() ?? "");
+  return app.app_type === "game" && ["steam", "xbox", "gog", "epic", "ea", "ubisoft", "battlenet", "desktop", "lutris"].includes(app.source?.toLowerCase() ?? "");
 }
 
 export function moonlightMatch(app: App, apps: string[]): string | undefined {
@@ -28,6 +28,7 @@ export function cloudProvider(app: App): "luna" | "geforceNow" | "cloud" {
 
 export function defaultProvider(app: App, moonlightGame?: string, gfnUrl?: string): "local" | "moonlight" | "geforceNow" | "luna" | "cloud" | "install" {
   if (app.source === "cloud") return cloudProvider(app);
+  if (app.source === "lutris") return "moonlight";
   return moonlightGame ? "moonlight" : app.installed ? "local" : gfnUrl ? "geforceNow" : "install";
 }
 
