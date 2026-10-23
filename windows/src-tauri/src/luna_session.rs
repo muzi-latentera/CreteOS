@@ -48,6 +48,11 @@ pub fn phase() -> Phase {
     s.phase
 }
 pub fn connected() -> bool { SESSION.lock().ok().is_some_and(|s|s.as_ref().is_some_and(|s|s.companion_seen)) }
+// Browser fullscreen/autoplay must be allowed to acquire foreground. The
+// main-window fallback retains it and therefore cannot wait for live video.
+pub fn needs_foreground(elapsed:Duration, independent:bool, connected:bool, has_window:bool)->bool {
+    has_window && elapsed>=Duration::from_secs(3) && (!independent || !connected)
+}
 pub fn finish(nonce:&str) {if let Ok(mut slot)=SESSION.lock(){if let Some(s)=slot.as_mut().filter(|s|s.nonce==nonce){persist(s);s.phase=Phase::Ended;}}}
 fn ingest(s:&mut Session,event:Event,now:Instant)->bool {
     if event.nonce!=s.nonce || event.sequence==0 || s.phase==Phase::Ended || event.document.is_empty() || event.document.len()>80{return false;}
@@ -82,6 +87,10 @@ fn serve(mut stream:TcpStream) {
     let value=|key:&str|lines.iter().skip(1).filter_map(|l|l.split_once(':')).find(|(k,_)|k.eq_ignore_ascii_case(key)).map(|(_,v)|v.trim());
     if value("Origin")!=Some(ORIGIN) || value("Host")!=Some(ADDRESS){reply(&mut stream,"403 Forbidden","{}");return;}
     if request.starts_with("OPTIONS "){reply(&mut stream,"204 No Content","");return;}
+    if request=="GET /status HTTP/1.1" {
+        let body=SESSION.lock().ok().and_then(|slot|slot.as_ref().map(|s|serde_json::json!({"phase":s.phase,"connected":s.companion_seen,"session_seconds":s.seconds.floor(),"persisted_seconds":s.saved.floor()}).to_string())).unwrap_or("{}".into());
+        reply(&mut stream,"200 OK",&body);return;
+    }
     // Extension GET requests can omit Origin when Chrome grants host access.
     // POST supplies it, keeping the exact extension-origin check intact.
     if request=="GET /session HTTP/1.1" || request=="POST /session HTTP/1.1" {
@@ -107,6 +116,13 @@ fn start_server()->Result<(),String> {
 }
 #[cfg(test)]mod tests {
     use super::*;
+    #[test]fn fallback_releases_the_browser_even_with_a_connected_companion(){
+        assert!(needs_foreground(Duration::from_secs(3),false,true,true));
+        assert!(!needs_foreground(Duration::from_secs(2),false,true,true));
+        assert!(!needs_foreground(Duration::from_secs(3),true,true,true));
+        assert!(needs_foreground(Duration::from_secs(3),true,false,true));
+        assert!(!needs_foreground(Duration::from_secs(3),false,true,false));
+    }
     fn session()->Session{Session{nonce:"test".into(),game:"luna:test".into(),asin:"TEST".into(),tab:None,document:String::new(),phase:Phase::Waiting,heard:Instant::now(),tick:Instant::now(),claimed:None,sequence:0,companion_seen:false,seconds:0.0,saved:0.0}}
     fn event(phase:Phase,sequence:u64)->Event{Event{nonce:"test".into(),tab:1,frame:0,document:"doc1".into(),phase,sequence}}
     #[test]fn only_advancing_stream_heartbeats_count(){let mut s=session();let now=s.tick;

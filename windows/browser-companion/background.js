@@ -1,4 +1,5 @@
 const endpoint = 'http://127.0.0.1:59265';
+let lastReport = '';
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (message?.type !== 'luna-state' || !sender.tab || !sender.url) return;
   let origin;
@@ -15,7 +16,9 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     try { asin = message.launchAsin || new URL(sender.tab.url || sender.url).searchParams.get('asin'); } catch { return; }
     if (session.tab != null ? sender.tab.id !== session.tab : asin !== session.asin) return;
     if (!sender.documentId) return;
-    await fetch(endpoint + '/state', {method:'POST', mode:'cors', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nonce:session.nonce, tab:sender.tab.id, frame:sender.frameId, document:sender.documentId, phase, sequence}), signal:AbortSignal.timeout(2000)});
+    const result = await fetch(endpoint + '/state', {method:'POST', mode:'cors', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nonce:session.nonce, tab:sender.tab.id, frame:sender.frameId, document:sender.documentId, phase, sequence}), signal:AbortSignal.timeout(2000)});
+    const report = `${phase}:${result.status}`;
+    if (report !== lastReport) { console.info('Luna companion state', report); lastReport = report; }
   })().then(() => respond({ok:true}), () => respond({ok:false}));
   return true;
 });

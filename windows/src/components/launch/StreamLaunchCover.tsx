@@ -165,6 +165,13 @@ export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<
     return () => window.clearTimeout(timer);
   }, [cover?.returning]);
   useEffect(() => {
+    if (!failure) return;
+    // An error must not become a permanent fullscreen loading screen. Keep
+    // the message long enough to read, then restore the usable launcher.
+    const timer=window.setTimeout(()=>{setCover(null);setFailure(null);},12_000);
+    return()=>window.clearTimeout(timer);
+  },[failure]);
+  useEffect(() => {
     if (!cover) return;
     // Never leave an unresponsive launch behind indefinite artwork.
     const timeout = window.setTimeout(() => dismiss(), 180_000);

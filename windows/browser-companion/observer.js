@@ -30,6 +30,6 @@
     finally { inflight = false; }
   }
   setInterval(tick, 750);
-  addEventListener('pagehide', () => { if (seen) void chrome.runtime.sendMessage({ type: 'luna-state', state: {sequence: ++sequence, phase:'buffering'} }).catch(() => {}); });
+  addEventListener('pagehide', () => { if (seen) { try { void chrome.runtime.sendMessage({ type: 'luna-state', state: {sequence: ++sequence, phase:'buffering'} }).catch(() => {}); } catch { /* Extension reload invalidated this document. */ } } });
   tick();
 })();

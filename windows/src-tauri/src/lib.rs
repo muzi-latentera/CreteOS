@@ -9504,9 +9504,10 @@ async fn wait_stream_window(provider: String) -> Result<bool, String> {
                     luna_session::Phase::Ended => return Err("Luna session ended before a live stream appeared".into()),
                     _ => {},
                 }
-                if start.elapsed()>Duration::from_secs(3) && !luna_session::connected() {
-                    // Preserve normal Luna access before the optional companion
-                    // is installed. Never invent playtime or game-end events.
+                if luna_session::needs_foreground(start.elapsed(),launch_cover::independent(),luna_session::connected(),stream_window("luna").is_some()) {
+                    // The fallback artwork owns foreground. Waiting for browser
+                    // autoplay behind it deadlocks the launch, even with a
+                    // healthy companion. Tracking continues after handoff.
                     return Ok(false);
                 }
             }

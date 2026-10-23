@@ -37,6 +37,12 @@ it("keeps painted return artwork until client cleanup finishes", async () => {
   await phase("ended");
   expect(container.querySelector("[data-stream-launch-cover]")).toBeNull();
 });
+it("clears failed-launch artwork after the error has been readable", async () => {
+  await act(async()=>window.dispatchEvent(new CustomEvent("crete-stream-failure",{detail:"Host unavailable"})));
+  expect(container.querySelector('[role="alert"]')?.textContent).toBe("Host unavailable");
+  await act(async()=>{await vi.advanceTimersByTimeAsync(12_050);});
+  expect(container.querySelector("[data-stream-launch-cover]")).toBeNull();
+});
 it("ignores a stale end event and fails open if the client never completes", async () => {
   invoke.mockImplementation(async command => { if (command === "present_stream_return_cover") await new Promise(() => {}); return true; });
   await phase("ending", 2);

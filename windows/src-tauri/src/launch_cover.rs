@@ -10,6 +10,9 @@ static GENERATION: AtomicU64 = AtomicU64::new(0);
 static Z_ORDER: Mutex<()> = Mutex::new(());
 fn now() -> u64 { SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() }
 pub fn active() -> bool { UNTIL.load(Ordering::SeqCst) > now() }
+fn cover_seconds(provider:Option<&str>)->u64 {
+    if matches!(provider,Some("moonlight"|"luna")) {240} else {120}
+}
 
 // Changing cover z-order must never activate CreteOS during external handoff
 // or delayed overlay cleanup. Work only on the command's own managed window.
@@ -33,7 +36,10 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
     let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     // Slow host launches need the same cover throughout game-window readiness.
     // Retain a bounded escape if the renderer or host stops responding.
-    let cover_seconds = if stream_provider.as_deref() == Some("moonlight") { 240 } else { 120 };
+    // Outlast the provider readiness budget (180s for Moonlight/Luna), its
+    // minimum artwork hold and the foreground handoff. The frontend's 180s
+    // cancel remains the user-visible upper bound.
+    let cover_seconds = cover_seconds(stream_provider.as_deref());
     let until = if active { now() + cover_seconds } else { 0 };
     UNTIL.store(until, Ordering::SeqCst);
     INDEPENDENT.store(false,Ordering::SeqCst);
@@ -144,6 +150,10 @@ pub(crate) fn stream_process(provider: &str, path: &str) -> bool {
 }
 
 #[cfg(test)] mod tests {
+    #[test] fn cover_outlasts_readiness_and_foreground_handoff() {
+        for provider in ["moonlight","luna"] {assert!(super::cover_seconds(Some(provider))>180+10+3);}
+        assert!(super::cover_seconds(Some("geforceNow"))>45+10+3);
+    }
     #[test] fn artwork_guard_only_covers_the_requested_stream_client() {
         assert!(super::stream_process("moonlight", r"C:\Apps\Moonlight.exe"));
         assert!(super::stream_process("geforceNow", r"C:\NVIDIA\GeForceNOWStreamer.exe"));
