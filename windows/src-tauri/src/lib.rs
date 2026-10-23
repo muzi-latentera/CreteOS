@@ -9551,6 +9551,9 @@ async fn focus_stream_window(window: tauri::Window, provider: String) -> Result<
         fse_watcher::prepare_stream_return(window.app_handle());
         window.set_decorations(false).map_err(|e| e.to_string())?;
         fse_watcher::keep_main_borderless(window.app_handle());
+        // The legacy fallback retains foreground; stop that guard before
+        // attempting handoff. The independent surface can stay opaque until stable.
+        if !launch_cover::independent(){launch_cover::set_launch_cover(window.clone(),false,None,None)?;}
         fse_watcher::log_stream_transition(window.app_handle(), "handoff-start");
         let foreground = unsafe { GetForegroundWindow() }.0 as isize;
         if foreground != ours && foreground != 0 && !can_return_from_stream(&window, &provider) && !foreground_is_desktop() {

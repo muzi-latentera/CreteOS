@@ -1,8 +1,10 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Manager;
 
+static INDEPENDENT:AtomicBool=AtomicBool::new(false);
+pub fn independent()->bool {INDEPENDENT.load(Ordering::SeqCst)}
 static UNTIL: AtomicU64 = AtomicU64::new(0);
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 static Z_ORDER: Mutex<()> = Mutex::new(());
@@ -34,6 +36,7 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
     let cover_seconds = if stream_provider.as_deref() == Some("moonlight") { 240 } else { 120 };
     let until = if active { now() + cover_seconds } else { 0 };
     UNTIL.store(until, Ordering::SeqCst);
+    INDEPENDENT.store(false,Ordering::SeqCst);
     if active { crate::stream_readiness::begin(); }
     if !active { let _=crate::stream_artwork::visible(&window,false); }
     if let Some(provider)=stream_provider.clone().filter(|_|active && !allow_external_focus.unwrap_or(false)) {
@@ -43,6 +46,8 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
         let cover=crate::stream_artwork::visible(&window,true);
         if let Err(error)=&cover {let _=crate::streaming::record_stream_issue(provider.clone(),"artwork".into(),error.clone());}
         if cover.is_ok() {
+        INDEPENDENT.store(true,Ordering::SeqCst);
+        crate::fse_watcher::log_stream_transition(window.app_handle(),"artwork-native-shown");
         std::thread::spawn(move||{
             let mut cancel_was_down=true;
             let mut shown=true;
