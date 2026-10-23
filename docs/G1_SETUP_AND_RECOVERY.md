@@ -139,6 +139,12 @@ Earlier successful gameplay had 76.58 incoming FPS despite a 120 FPS target, nea
 
 ## Games and provider behavior
 
+### Lutris host games — inspected 23 October, integration pending
+
+Read-only SSH confirmed native Lutris0.5.22 on Bosgame with Mouse: P.I. For Hire, Metal Gear Solid V: The Phantom Pain and Mortal Shell II entries and existing launcher-recorded playtime. Mouse/MGS V configured game executables and prefixes exist. Mortal Shell II still targets its installer setup.exe; its actual installation/game executable is not yet verified, and its recorded time may include installation. The current CreteOS host scanner handles installed Steam manifests only, so these entries are not automatically imported or launchable through its Buddy route. No game/installer was launched or settings changed during inspection.
+
+[Lutris integration audit](LUTRIS_HOST_INTEGRATION.md) records the concrete plan: namespaced Lutris discovery/library entries, separate metadata/launch IDs, runner-preserving non-Steam shortcuts through Buddy where verified, exact game lifecycle/return tests, and cumulative host-playtime refresh without double counting. Public game metadata can be matched where available; Steam achievements/account statistics are not implied. This is feasibility evidence, **not an installed feature**. Current executable/private backup are unchanged; extend backup inputs if this integration is implemented.
+
 ### Onimusha
 
 Initial direct Steam launch crashed too, so it was not solely CreteOS dispatch. Steam integrity verification passed. Muzi installed AMD Adrenalin/updates and changed VRAM from 4 to 16 GiB, then confirmed Onimusha working on 18 October. Both changed together; the individual cause is unproven. Xbox Game Bar was restored for the `ms-gamebar` association error.
