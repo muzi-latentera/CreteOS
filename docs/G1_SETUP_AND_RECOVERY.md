@@ -185,6 +185,14 @@ Git contains source and these sanitized records. It is **not** a backup of Windo
 
 ## Replacement device checklist
 
+### Actual private profile backup — 23 October, 16:52 BST
+
+Created `outputs/CreteOS-G1-profile-backup-20261023-165259.zip` in the original G1 task workspace, with an extracted copy alongside it and a `.zip.sha256` sidecar. **1,257 payload files**, 722,440,113 uncompressed bytes; ZIP 701,482,568 bytes. SHA-256: `c8e9c02b67f68ab67bccf555b11f64929c4ace070ca120e8a4b5bc47983faf02`. Every ZIP payload was decompressed and hash-checked; all requested source files were present. OneXConsole used SQLite online backup and integrity_check=ok. No live app was closed or reconfigured.
+
+The ZIP contains the live preferences/profiles, onboarding state, ownership/art caches, hidden/pinned items, history, provider Wi-Fi choices, Luna playtime/companion, exact recovery executable/license, and supporting Moonlight, NVIDIA quality, AnyFSE, Lossless Scaling, Wi-Fi helper, non-secret SSH and Windows startup/power configuration. Account-bound progress caches are retained as reference. It includes `RESTORE-INSTRUCTIONS.txt`, `Restore-CreteOS.ps1` and a per-file manifest. The restore script passed an isolated fixture check for hashes, no-write WhatIf, path rebasing, saved onboarding, JSON types, binary files and default exclusion of old G1 display identities.
+
+This is a private, unencrypted local archive, outside Git. Only C: was attached when created, so **copy it and its checksum to an external drive or private off-device backup before returning the G1**. No off-device copy is claimed. Windows Credential Manager/DPAPI/Autologon secrets, browser/Steam sessions, private SSH/Moonlight keys and WLAN passwords are excluded; fresh login/pairing is required. Game saves/downloads are not included. Supporting vendor/device settings are preserved for review rather than blindly applied to another model. Use the included restore instructions; a source Git bundle does not replace this profile ZIP.
+
 1. Preserve the current device's native profile/bootstrap and vendor settings privately before returning it. Export a portable profile with the existing supported process; exclude secrets. Keep the latest source bundle, exact executable and this guide off the device as well.
 2. Read the pack manifest/current handoff; verify checksums. Install the current Windows artifact, using native paths. Back up the destination and import portable data once with path rebasing. Verify artwork, history, onboarding state and profile settings before deleting any old device data.
 3. Detect the replacement's actual panel, refresh rate and external displays. Create its own display presets; do not assume G1 or GPD geometry. Preserve GFN Auto bitrate where selected.
