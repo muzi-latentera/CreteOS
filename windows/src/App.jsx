@@ -2292,6 +2292,7 @@ export default function App() {
     && a.source !== "gog"
     && a.source !== "epic"
     && a.source !== "cloud"
+    && a.source !== "lutris"
     && !customSources.includes(a.source);
 
   const isInstalled = (app) => app?.installed !== false;
@@ -2325,6 +2326,7 @@ export default function App() {
     if (gameSourceTab === "GOG")  return a.source === "gog";
     if (gameSourceTab === "Epic") return a.source === "epic";
     if (gameSourceTab === "Cloud") return a.source === "cloud";
+    if (gameSourceTab === "Lutris") return a.source === "lutris";
     if (gameSourceTab === "Other") return isOtherGameSource(a);
     if (customSources.includes(gameSourceTab)) return a.source === gameSourceTab;
     const gameCol = gameCollections.find(c => c.name === gameSourceTab);
@@ -2923,6 +2925,7 @@ export default function App() {
   const _showGog       = settings.scan_gog       !== false && _hasSource("gog");
   const _showEpic      = settings.scan_epic      !== false && _hasSource("epic");
   const _showCloud     = _hasSource("cloud");
+  const _showLutris    = _hasSource("lutris");
   const _showOther     = apps.some(a => isVisibleGameForLibrary(a) && isOtherGameSource(a));
   const _hdrSources = [...new Map([
     "All",
@@ -2932,6 +2935,7 @@ export default function App() {
     ...(_showGog       ? ["GOG"]        : []),
     ...(_showEpic      ? ["Epic"]       : []),
     ...(_showCloud     ? ["Cloud"]      : []),
+    ...(_showLutris    ? ["Lutris"]     : []),
     ...(_showOther     ? ["Other"]      : []),
     ...customSources,
     ...gameCollections.map(c => c.name),

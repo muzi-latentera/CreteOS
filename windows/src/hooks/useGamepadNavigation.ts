@@ -930,6 +930,7 @@ export function useGamepadNavigation(
       && app.source !== "gog"
       && app.source !== "epic"
       && app.source !== "cloud"
+      && app.source !== "lutris"
       && !customSourcesRef.current.includes(app.source);
     const isVisibleGameForLibrary = (app: App) =>
       app.app_type === "game" && (showUninstalledGames || isInstalled(app));
@@ -943,6 +944,7 @@ export function useGamepadNavigation(
         ...(currentSettings.scan_gog !== false && hasSource("gog") ? ["GOG"] : []),
         ...(currentSettings.scan_epic !== false && hasSource("epic") ? ["Epic"] : []),
         ...(hasSource("cloud") ? ["Cloud"] : []),
+        ...(hasSource("lutris") ? ["Lutris"] : []),
         ...(appsRef.current.some(a => isVisibleGameForLibrary(a) && isOtherGameSource(a)) ? ["Other"] : []),
         ...customSourcesRef.current,
         ...gameCollectionsRef.current.map(c => c.name),
@@ -977,6 +979,7 @@ export function useGamepadNavigation(
         if (src === "GOG")  return a.source === "gog";
         if (src === "Epic") return a.source === "epic";
         if (src === "Cloud") return a.source === "cloud";
+        if (src === "Lutris") return a.source === "lutris";
         if (src === "Other") return isOtherGameSource(a);
         if (customSourcesRef.current.includes(src)) return a.source === src;
         const gameCol = gameCollectionsRef.current.find(c => c.name === src);

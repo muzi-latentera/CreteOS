@@ -12,10 +12,10 @@ Maintained device record, updated 23 October 2026 (Europe/London). Covers this G
 | Personal data | `%LOCALAPPDATA%\CreteOS`; preserve this directory during updates |
 | Bootstrap/helpers/backups | `%LOCALAPPDATA%\CreteOS-Bootstrap` |
 | Source branch | `codex/g1-smart-wifi`; contains the G1 display and Steam password-login changes too |
-| Installed executable source | `babbdf9bfc2a00c50a082b7e6a3170cddc6a7acf` |
-| Installed executable SHA-256 | `A3041EB593A14CA0C1307BAB89D77A9F3C34CF979232861E2E0E8E4472034ADB` |
-| Build / install | Built locally on OXPG1 23 October 16:07:04–16:10:01 BST; installed 16:10:31 BST |
-| Previous executable | `CreteOS-Bootstrap\app-updates\Provider-lifecycle-20261023-161028` |
+| Installed executable source | `f4601b21151bc4591adb461cfa460903fb266ea4` (Lutris initial implementation; final presentation update pending) |
+| Installed executable SHA-256 | `8132C1A72AF8EB118D1B755357BAEA4F2D0E29E60D55ECACE8736150BFB9B231` |
+| Build / install | Built locally on OXPG1 23 October 22:33:49–22:36:56 BST; installed 22:37:40 BST |
+| Previous executable | `CreteOS-Bootstrap\app-updates\Provider-lifecycle-20261023-223737` |
 | Luna Companion | 0.1.2, Chrome extension `gmneapkhejdngoenacdnamaddbfcihab`, permanent folder `CreteOS\LunaCompanion` |
 | Latest live acceptance | Luna advancing playback, 242.269 seconds saved, ended detected, native launch/return artwork events and focus returned to CreteOS |
 
@@ -194,6 +194,8 @@ Git contains source and these sanitized records. It is **not** a backup of Windo
 ## Replacement device checklist
 
 ### Actual private profile backup — 23 October, 16:52 BST
+
+**Lutris refresh pending:** this retained archive predates the host shortcut configuration and22:37G1 build. It remains a verified earlier recovery point, not a complete backup of the new Lutris integration. A fresh combined profile/host-settings archive is required after final build and acceptance.
 
 Created `outputs/CreteOS-G1-profile-backup-20261023-165259.zip` in the original G1 task workspace, with an extracted copy alongside it and a `.zip.sha256` sidecar. **1,257 payload files**, 722,440,113 uncompressed bytes; ZIP 701,482,568 bytes. SHA-256: `c8e9c02b67f68ab67bccf555b11f64929c4ace070ca120e8a4b5bc47983faf02`. Every ZIP payload was decompressed and hash-checked; all requested source files were present. OneXConsole used SQLite online backup and integrity_check=ok. No live app was closed or reconfigured.
 

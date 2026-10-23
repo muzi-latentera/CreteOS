@@ -67,7 +67,7 @@ export function useCustomArt() {
       if (Object.keys(newStatic).length) setHeroStatic(prev => ({ ...prev, ...newStatic }));
     } catch {}
 
-    const networkGames = options.includeUninstalled ? games : games.filter(game => game.installed !== false);
+    const networkGames = options.includeUninstalled ? games : games.filter(game => game.installed !== false || game.source === "lutris");
     let done = 0;
     const total = networkGames.length;
     if (!networkGames.length) return;

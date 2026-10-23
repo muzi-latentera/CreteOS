@@ -1,5 +1,5 @@
 import { FaBattleNet, FaSteam, FaXbox } from "react-icons/fa6";
-import { SiEpicgames, SiGogdotcom } from "react-icons/si";
+import { SiEpicgames, SiGogdotcom, SiLutris } from "react-icons/si";
 import { useSettings } from "../../contexts/SettingsContext";
 import { useTheme } from "../../contexts/ThemeContext";
 
@@ -10,6 +10,7 @@ const STORE_ICONS = {
   gog: SiGogdotcom,
   epic: SiEpicgames,
   cloud: CloudIcon,
+  lutris: SiLutris,
 };
 
 const STORE_LABELS: Record<string, string> = {
@@ -19,6 +20,7 @@ const STORE_LABELS: Record<string, string> = {
   gog: "GOG",
   epic: "Epic Games",
   cloud: "Cloud",
+  lutris: "Lutris on Bosgame",
 };
 
 function CloudIcon({ size }: { size: number }) {
