@@ -56,13 +56,37 @@ def game_window(node, app_id):
     props = node.get("window_properties") or {}
     if str(props.get("class", "")).lower() == "steam_app_" + app_id or node.get("app_id") == "steam_app_" + app_id:
         return True
-    try:
-        values = (Path("/proc") / str(int(node["pid"])) / "environ").read_bytes().split(b"\0")
-        shortcut_game_id = str((int(app_id) << 32) | 0x02000000)
-        return any(value in values for value in (("SteamAppId=" + app_id).encode(), ("SteamGameId=" + app_id).encode(), ("SteamGameId=" + shortcut_game_id).encode()))
-    except (OSError, ValueError, KeyError):
-        return False
+    return process_matches(node.get("pid"), app_id)
 
+
+def process_matches(pid, app_id, proc=Path("/proc")):
+    """Follow only this window's same-owner ancestry, bounded to 16 processes.
+
+    UMU replaces Steam IDs inside its container with 'default'. Its Lutris
+    launcher retains the registered shortcut identity. Never match by title,
+    generic Wine class, or a different process elsewhere on the machine.
+    """
+    wanted = {("SteamAppId=" + app_id).encode(), ("SteamGameId=" + app_id).encode(),
+              ("SteamGameId=" + str((int(app_id) << 32) | 0x02000000)).encode()}
+    seen = set()
+    try:
+        pid = int(pid)
+        for _ in range(16):
+            if pid <= 1 or pid in seen:
+                return False
+            seen.add(pid)
+            process = proc / str(pid)
+            values = process.joinpath("environ").read_bytes().split(b"\0")
+            if wanted.intersection(values):
+                return True
+            # The comm field may contain spaces or parentheses.
+            parent = int(process.joinpath("stat").read_text().rsplit(")", 1)[1].split()[1])
+            if process.stat().st_uid != (proc / str(parent)).stat().st_uid:
+                return False
+            pid = parent
+    except (OSError, ValueError, IndexError, TypeError):
+        return False
+    return False
 
 def steam_library(node):
     props = node.get("window_properties") or {}

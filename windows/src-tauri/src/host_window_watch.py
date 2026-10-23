@@ -6,6 +6,7 @@ credentials, input or commands that close a host application.
 import json
 import os
 import pathlib
+from pathlib import Path
 import re
 import socket
 import struct
@@ -110,6 +111,36 @@ def environment_matches(values, app_id):
     return any(value in values for value in (("SteamAppId=" + app_id).encode(), ("SteamGameId=" + app_id).encode(), ("SteamGameId=" + shortcut_game_id).encode()))
 
 
+def process_matches(pid, app_id, proc=Path("/proc")):
+    """Follow only this window's same-owner ancestry, bounded to 16 processes.
+
+    UMU replaces Steam IDs inside its container with 'default'. Its Lutris
+    launcher retains the registered shortcut identity. Never match by title,
+    generic Wine class, or a different process elsewhere on the machine.
+    """
+    wanted = {("SteamAppId=" + app_id).encode(), ("SteamGameId=" + app_id).encode(),
+              ("SteamGameId=" + str((int(app_id) << 32) | 0x02000000)).encode()}
+    seen = set()
+    try:
+        pid = int(pid)
+        for _ in range(16):
+            if pid <= 1 or pid in seen:
+                return False
+            seen.add(pid)
+            process = proc / str(pid)
+            values = process.joinpath("environ").read_bytes().split(b"\0")
+            if wanted.intersection(values):
+                return True
+            # The comm field may contain spaces or parentheses.
+            parent = int(process.joinpath("stat").read_text().rsplit(")", 1)[1].split()[1])
+            if process.stat().st_uid != (proc / str(parent)).stat().st_uid:
+                return False
+            pid = parent
+    except (OSError, ValueError, IndexError, TypeError):
+        return False
+    return False
+
+
 def main():
     if sys.platform != "linux" or len(sys.argv) not in (2, 3):
         emit("unavailable")
@@ -127,11 +158,7 @@ def main():
         return
 
     def pid_matches(pid):
-        try:
-            values = (pathlib.Path("/proc") / str(int(pid)) / "environ").read_bytes().split(b"\0")
-            return environment_matches(values, app_id)
-        except (OSError, ValueError):
-            return False
+        return process_matches(pid, app_id)
 
     tracker = WindowPresence()
     presentation = None
