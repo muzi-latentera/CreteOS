@@ -1,8 +1,8 @@
 // Observe live media activity and the requested game ASIN only. Never transmit
 // page text, cookies, credentials, account IDs, URLs or video/audio content.
 (() => {
-  const launchUrl = new URL(location.href);
-  const launchAsin = launchUrl.searchParams.get('asin') || launchUrl.pathname.match(/^\/game\/[^/]+\/(B[A-Z0-9]{9})(?:\/|$)/i)?.[1] || null;
+  const gameId = () => {const url=new URL(location.href);return url.searchParams.get('asin') || url.pathname.match(/^\/game\/[^/]+\/(B[A-Z0-9]{9})(?:\/|$)/i)?.[1] || null;};
+  let launchAsin = gameId();
   let previous = new WeakMap(), seen = false, played = false, absentAt = 0, sequence = 0;
   let inflight = false;
   const snapshot = () => {
@@ -27,6 +27,8 @@
   };
   async function tick() {
     if (inflight) return;
+    const current=gameId();
+    if(current && current!==launchAsin){launchAsin=current;previous=new WeakMap();seen=false;played=false;absentAt=0;}
     inflight = true;
     try { await chrome.runtime.sendMessage({ type: 'luna-state', launchAsin, state: snapshot() }); }
     catch { /* CreteOS/extension may be restarting. No content is logged. */ }

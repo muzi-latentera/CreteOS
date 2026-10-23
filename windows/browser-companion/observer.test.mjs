@@ -7,9 +7,18 @@ function harness(href='https://luna.amazon.co.uk/play?asin=TEST'){
  let tick;let clock=1000;let videos=[];let attention=false;let promptVisible=true;const messages=[];const events={};
  class Stream {getVideoTracks(){return [{readyState:'live'}];}}
  const launchIds=[];
- runInNewContext(observer,{URL,location:{href},MediaStream:Stream,document:{querySelectorAll:()=>videos,querySelector:()=>attention?{checkVisibility:()=>promptVisible}:null},performance:{now:()=>clock},chrome:{runtime:{sendMessage:async m=>{messages.push(m.state);launchIds.push(m.launchAsin);}}},setInterval:fn=>{tick=fn;},addEventListener:(n,fn)=>{events[n]=fn;}});
- return {messages,launchIds,Stream,setVideos:v=>{videos=v;},setAttention:v=>{attention=v;},setPromptVisible:v=>{promptVisible=v;},advance:async n=>{clock+=n;await Promise.resolve();await tick();},events};
+ const location={href};
+ runInNewContext(observer,{URL,location,MediaStream:Stream,document:{querySelectorAll:()=>videos,querySelector:()=>attention?{checkVisibility:()=>promptVisible}:null},performance:{now:()=>clock},chrome:{runtime:{sendMessage:async m=>{messages.push(m.state);launchIds.push(m.launchAsin);}}},setInterval:fn=>{tick=fn;},addEventListener:(n,fn)=>{events[n]=fn;}});
+ return {messages,launchIds,Stream,navigate:url=>{location.href=url;},setVideos:v=>{videos=v;},setAttention:v=>{attention=v;},setPromptVisible:v=>{promptVisible=v;},advance:async n=>{clock+=n;await Promise.resolve();await tick();},events};
 }
+
+test('SPA game changes replace the old game identity and playback history',async()=>{
+ const h=harness('https://luna.amazon.co.uk/game/old/B0HLN4GG5K');await h.advance(750);
+ h.setVideos([{srcObject:new h.Stream(),currentTime:1,paused:false,readyState:4}]);await h.advance(750);
+ h.navigate('https://luna.amazon.co.uk/game/new/B012345678');h.setVideos([]);await h.advance(750);await h.advance(1500);
+ assert.equal(h.launchIds.at(-1),'B012345678');assert.equal(h.messages.at(-1).phase,'waiting');
+ h.navigate('https://luna.amazon.co.uk/player');await h.advance(750);assert.equal(h.launchIds.at(-1),'B012345678');
+});
 
 test('a live track disappearing before any advancing playback is not a completed session',async()=>{
  const h=harness();h.setVideos([{srcObject:new h.Stream(),currentTime:0,paused:true,readyState:1}]);await h.advance(750);

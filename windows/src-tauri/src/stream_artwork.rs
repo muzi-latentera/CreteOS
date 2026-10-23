@@ -8,6 +8,7 @@ static ART:Mutex<Artwork>=Mutex::new(Artwork{art:String::new(),message:String::n
 static PAINTED:AtomicBool=AtomicBool::new(false);
 static NATIVE_READY:AtomicBool=AtomicBool::new(false);
 static NATIVE_SHOWN:AtomicBool=AtomicBool::new(false);
+pub fn native_available()->bool {NATIVE_READY.load(Ordering::SeqCst) && crate::native_artwork::prepare().is_ok()}
 // Startup diagnostics describe only our own surface, not browser windows or
 // content. They distinguish missing native creation from failed painting.
 pub fn diagnose_startup(app:tauri::AppHandle) {

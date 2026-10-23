@@ -134,6 +134,14 @@ fn begin_return(window: &tauri::Window, provider: &str, generation: u64) {
         let _ = window.emit("stream-return-phase", serde_json::json!({"provider":provider,"phase":"ending","session":generation}));
         super::fse_watcher::prepare_stream_return(window.app_handle());
     }
+    // A background/cloaked WebView may pause requestAnimationFrame. The native
+    // image can paint and restore our foreground before browser/client cleanup,
+    // without waiting for that frontend callback. Its late ack is generation-
+    // checked by the same presentation function.
+    if super::stream_artwork::native_available() {
+        super::stream_artwork::message(window,"");
+        let _=present_stream_return_cover(window.clone(),provider.into(),generation);
+    }
     // Both the game-window watcher and Buddy may report exit. Each cleanup
     // caller must wait for the same painted, foreground artwork before ending
     // the host stream. This worker wait never blocks the UI message pump.
