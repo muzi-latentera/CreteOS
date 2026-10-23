@@ -12,10 +12,10 @@ Maintained device record, updated 23 October 2026 (Europe/London). Covers this G
 | Personal data | `%LOCALAPPDATA%\CreteOS`; preserve this directory during updates |
 | Bootstrap/helpers/backups | `%LOCALAPPDATA%\CreteOS-Bootstrap` |
 | Source branch | `codex/g1-smart-wifi`; contains the G1 display and Steam password-login changes too |
-| Installed executable source | `f4601b21151bc4591adb461cfa460903fb266ea4` (Lutris initial implementation; final presentation update pending) |
-| Installed executable SHA-256 | `8132C1A72AF8EB118D1B755357BAEA4F2D0E29E60D55ECACE8736150BFB9B231` |
-| Build / install | Built locally on OXPG1 23 October 22:33:49–22:36:56 BST; installed 22:37:40 BST |
-| Previous executable | `CreteOS-Bootstrap\app-updates\Provider-lifecycle-20261023-223737` |
+| Installed executable source | `a9552cdb824d69068d9efddbadd43af92240b5f4` (Lutris details/media build) |
+| Installed executable SHA-256 | `69F6B66F88133AB2997F348A58E9371447451AFCDDBC8196D09AA66CCDD0A0F3` |
+| Build / install | Built locally on OXPG1 23 October 23:03:16–23:08:32 BST; installed 23:09:01 BST |
+| Previous executable | `CreteOS-Bootstrap\app-updates\Provider-lifecycle-20261023-230857` |
 | Luna Companion | 0.1.2, Chrome extension `gmneapkhejdngoenacdnamaddbfcihab`, permanent folder `CreteOS\LunaCompanion` |
 | Latest live acceptance | Luna advancing playback, 242.269 seconds saved, ended detected, native launch/return artwork events and focus returned to CreteOS |
 

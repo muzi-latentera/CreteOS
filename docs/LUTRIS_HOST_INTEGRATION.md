@@ -1,6 +1,6 @@
-# Bosgame Lutris games — feasibility audit, 23 October 2026
+# Bosgame Lutris games — integration and original audit, 23 October 2026
 
-Status: **feasible, not implemented or gameplay-tested**. User requested inspection of three disc-installed Lutris entries for the same CreteOS library/Moonlight/metadata/playtime experience. SSH inspection was read-only; no game, installer or GUI was launched, no host configuration/database/Steam shortcut was changed, and no G1 executable/profile was changed.
+Current status: **implemented and installed on the G1; live game acceptance still pending network/interactive-launch diagnosis**. The original read-only audit below is historical. Five host shortcuts and Steam artwork are now registered. User requested inspection of three disc-installed Lutris entries for the same CreteOS library/Moonlight/metadata/playtime experience. SSH inspection was read-only; no game, installer or GUI was launched, no host configuration/database/Steam shortcut was changed, and no G1 executable/profile was changed.
 
 ## Subsequent authorized implementation — 22:33 BST
 

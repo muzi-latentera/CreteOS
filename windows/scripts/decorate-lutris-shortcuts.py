@@ -60,10 +60,26 @@ def main():
             records.append({'name': name, 'error': 'Store metadata unavailable'})
             continue
         data = details['data']
+        browse_query = {'ids': [{'appid': int(store)}], 'context': {'language': 'english', 'country_code': 'GB'}, 'data_request': {'include_assets': True}}
+        browse = json.loads(fetch('https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?'+urllib.parse.urlencode({'input_json': json.dumps(browse_query)})))
+        item = next((item for item in browse.get('response', {}).get('store_items', []) if str(item.get('appid')) == store), {})
+        assets = item.get('assets', {})
+        template = assets.get('asset_url_format', '')
+        def asset(keys, fallback):
+            if template.startswith('steam/apps/'+store+'/') and '${FILENAME}' in template:
+                for key in keys:
+                    file = assets.get(key)
+                    if file and not any(part in file for part in ('..', ':', '\\')) and not file.startswith('/'):
+                        return 'https://shared.fastly.steamstatic.com/store_item_assets/'+template.replace('${FILENAME}', file)
+            return fallback
         ident = str(int(entry['appid']) & 0xffffffff)
         result = {'name': name, 'shortcutId': ident, 'metadataStoreId': store, 'description': bool(data.get('short_description')), 'trailers': len(data.get('movies', [])), 'art': [], 'missing': []}
         base = 'https://cdn.cloudflare.steamstatic.com/steam/apps/'+store+'/'
-        for filename, url in [(ident+'p.jpg', base+'library_600x900.jpg'), (ident+'_hero.jpg', base+'library_hero.jpg'), (ident+'_logo.png', base+'logo.png'), (ident+'.jpg', data['header_image'])]:
+        images = [(ident+'p.jpg', asset(['library_capsule_2x', 'library_capsule'], base+'library_600x900.jpg')), (ident+'_hero.jpg', asset(['library_hero_2x', 'library_hero'], base+'library_hero.jpg')), (ident+'_logo.png', asset(['library_logo', 'logo'], base+'logo.png')), (ident+'.jpg', data['header_image'])]
+        icon = assets.get('community_icon', '')
+        if re.fullmatch('[0-9a-f]{40}', icon):
+            images.append((ident+'_icon.jpg', 'https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/'+store+'/'+icon+'.jpg'))
+        for filename, url in images:
             try:
                 content = fetch(url)
                 if not (content.startswith(b'\xff\xd8') or content.startswith(b'\x89PNG')):
@@ -75,7 +91,7 @@ def main():
                 temp.write_bytes(content)
                 temp.replace(target)
                 result['art'].append({'file': filename, 'bytes': len(content), 'sha256': hashlib.sha256(content).hexdigest()})
-                if filename.endswith('_logo.png'):
+                if filename.endswith('_icon.jpg') or (filename.endswith('_logo.png') and not icon):
                     entry['icon'] = str(target)
             except Exception as error:
                 result['missing'].append({'file': filename, 'reason': type(error).__name__})

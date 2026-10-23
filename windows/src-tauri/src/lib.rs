@@ -1,6 +1,7 @@
 //Copyright (C) 2025 Taylor Denby
 
 use base64::{engine::general_purpose, Engine as _};
+mod bundle_validation;
 use serde::{Deserialize, Serialize};
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
@@ -10381,6 +10382,18 @@ async fn launch_app(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let context: tauri::Context<tauri::Wry> = tauri::generate_context!();
+    // Build verification never opens windows, initializes providers or reads profiles.
+    if std::env::args().any(|arg| arg == "--verify-bundled-assets") {
+        let result = context.assets().get(&"index.html".into())
+            .ok_or_else(|| "Missing embedded index.html".to_string())
+            .and_then(|index| bundle_validation::verify(&index, |path| context.assets().get(&path.into()).map(|bytes| bytes.into_owned())));
+        match result {
+            Ok(assets) => println!("{}", serde_json::json!({"verified":true,"sourceCommit":env!("CRETE_SOURCE_COMMIT"),"assets":assets})),
+            Err(error) => { println!("{}", serde_json::json!({"verified":false,"error":error})); std::process::exit(2); }
+        }
+        return;
+    }
     apply_pending_factory_reset();
     tauri::Builder::default()
         .manage(fse_watcher::FseWatch::default())
@@ -10595,6 +10608,6 @@ pub fn run() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running tauri application");
 }
