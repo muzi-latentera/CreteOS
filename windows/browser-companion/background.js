@@ -7,7 +7,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   const {phase, sequence} = message.state ?? {};
   if (!['waiting','buffering','playing','attention','ended'].includes(phase) || !Number.isSafeInteger(sequence) || sequence < 1) return;
   (async () => {
-    const session = await fetch(endpoint + '/session', {cache:'no-store', mode:'cors', signal:AbortSignal.timeout(2000)}).then(r => r.ok ? r.json() : null);
+    const session = await fetch(endpoint + '/session', {method:'POST', cache:'no-store', mode:'cors', signal:AbortSignal.timeout(2000)}).then(r => r.ok ? r.json() : null);
     if (!session?.nonce) return;
     // Bind the requested game first, then continue reporting its tab when it
     // returns to Luna home. Never attach another already-open Luna game.

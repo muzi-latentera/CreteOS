@@ -82,7 +82,9 @@ fn serve(mut stream:TcpStream) {
     let value=|key:&str|lines.iter().skip(1).filter_map(|l|l.split_once(':')).find(|(k,_)|k.eq_ignore_ascii_case(key)).map(|(_,v)|v.trim());
     if value("Origin")!=Some(ORIGIN) || value("Host")!=Some(ADDRESS){reply(&mut stream,"403 Forbidden","{}");return;}
     if request.starts_with("OPTIONS "){reply(&mut stream,"204 No Content","");return;}
-    if request=="GET /session HTTP/1.1" {
+    // Extension GET requests can omit Origin when Chrome grants host access.
+    // POST supplies it, keeping the exact extension-origin check intact.
+    if request=="GET /session HTTP/1.1" || request=="POST /session HTTP/1.1" {
         let body=SESSION.lock().ok().and_then(|slot|slot.as_ref().filter(|s|s.phase!=Phase::Ended).map(|s|serde_json::json!({"nonce":s.nonce,"asin":s.asin,"tab":s.tab}).to_string())).unwrap_or("{}".into());
         reply(&mut stream,"200 OK",&body);return;
     }

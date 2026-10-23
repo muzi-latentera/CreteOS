@@ -1,7 +1,8 @@
 // Observe live media activity and the requested game ASIN only. Never transmit
 // page text, cookies, credentials, account IDs, URLs or video/audio content.
 (() => {
-  const launchAsin = new URL(location.href).searchParams.get('asin');
+  const launchUrl = new URL(location.href);
+  const launchAsin = launchUrl.searchParams.get('asin') || launchUrl.pathname.match(/^\/game\/[^/]+\/(B[A-Z0-9]{9})(?:\/|$)/i)?.[1] || null;
   let previous = new WeakMap(), seen = false, absentAt = 0, sequence = 0;
   let inflight = false;
   const snapshot = () => {

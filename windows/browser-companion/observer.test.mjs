@@ -3,12 +3,19 @@ import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import test from 'node:test';
 const observer=readFileSync(new URL('./observer.js',import.meta.url),'utf8');
-function harness(){
+function harness(href='https://luna.amazon.co.uk/play?asin=TEST'){
  let tick;let clock=1000;let videos=[];let attention=false;const messages=[];const events={};
  class Stream {getVideoTracks(){return [{readyState:'live'}];}}
- runInNewContext(observer,{URL,location:{href:'https://luna.amazon.co.uk/play?asin=TEST'},MediaStream:Stream,document:{querySelectorAll:()=>videos,querySelector:()=>attention?{}:null},performance:{now:()=>clock},chrome:{runtime:{sendMessage:async m=>{messages.push(m.state);}}},setInterval:fn=>{tick=fn;},addEventListener:(n,fn)=>{events[n]=fn;}});
- return {messages,Stream,setVideos:v=>{videos=v;},setAttention:v=>{attention=v;},advance:async n=>{clock+=n;await Promise.resolve();await tick();},events};
+ const launchIds=[];
+ runInNewContext(observer,{URL,location:{href},MediaStream:Stream,document:{querySelectorAll:()=>videos,querySelector:()=>attention?{}:null},performance:{now:()=>clock},chrome:{runtime:{sendMessage:async m=>{messages.push(m.state);launchIds.push(m.launchAsin);}}},setInterval:fn=>{tick=fn;},addEventListener:(n,fn)=>{events[n]=fn;}});
+ return {messages,launchIds,Stream,setVideos:v=>{videos=v;},setAttention:v=>{attention=v;},advance:async n=>{clock+=n;await Promise.resolve();await tick();},events};
 }
+
+test('binds the actual Luna game path before SPA navigation',async()=>{
+ const h=harness('https://luna.amazon.co.uk/game/star-wars-galactic-racer/B0HLN4GG5K?autoplay=1');
+ await h.advance(750);assert.equal(h.launchIds.at(-1),'B0HLN4GG5K');
+ const home=harness('https://luna.amazon.co.uk/player');await home.advance(750);assert.equal(home.launchIds.at(-1),null);
+});
 test('only advancing live game media counts; homepage/trailer do not',async()=>{
  const h=harness();await h.advance(750);assert.equal(h.messages.at(-1).phase,'waiting');
  let frames=0;const video={srcObject:new h.Stream(),getVideoPlaybackQuality:()=>({totalVideoFrames:frames}),paused:false,readyState:4};
