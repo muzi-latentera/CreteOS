@@ -15,3 +15,5 @@ Selected dated records copied from this task's outputs on 23 October 2026. These
 - `2026-10-23-luna-live-review.json`: sanitized latest native event sequence and persisted playtime, with artifact identity.
 
 Private runtime profiles, credentials, full raw logs, driver binaries and vendor databases are not included here. Workspace outputs retain more detailed evidence and require a separate private backup.
+
+- [24 October Lutris build and live smoke tests](2026-10-24-lutris-live-validation.json): three permitted games, exact deployment, lifecycle events, playtime deltas and network limits.

@@ -1,6 +1,20 @@
-# Bosgame Lutris games — integration and original audit, 23 October 2026
+# Bosgame Lutris integration
 
-Current status: **implemented and installed on the G1; live game acceptance still pending network/interactive-launch diagnosis**. The original read-only audit below is historical. Five host shortcuts and Steam artwork are now registered. User requested inspection of three disc-installed Lutris entries for the same CreteOS library/Moonlight/metadata/playtime experience. SSH inspection was read-only; no game, installer or GUI was launched, no host configuration/database/Steam shortcut was changed, and no G1 executable/profile was changed.
+Current as of 23 October 2026. Five games are registered in Steam and discovered in CreteOS: Mouse: P.I. For Hire, Metal Gear Solid V: The Phantom Pain, Mortal Shell II, Stellar Blade, and LEGO Batman: Legacy of the Dark Knight. The user authorized launch tests only for the first three. Stellar Blade and LEGO must not be launched during this task.
+
+CreteOS uses stable `lutris:bosgame:<id>` library identities, the actual registered non-Steam shortcut for launching, and separate public Store matches for metadata. Covers, hero artwork, descriptions and trailer/review entries are available. This does not grant Steam ownership, achievements or cloud saves. Standard non-Steam Steam entries support custom artwork but do not become full Steam Store records with imported descriptions.
+
+Launch route: CreteOS → Moonlight/MoonDeckStream → paired Buddy → Steam 64-bit shortcut game ID → isolated D-Bus session → the existing Lutris runner and prefix. The raw 32-bit shortcut ID remains the window/artwork identity. UMU changes the game process's Steam IDs to `default`, so the host cover and window watcher must follow its bounded, same-owner process ancestry to find the exact shortcut ID. Generic Wine classes and game titles are not accepted as identity.
+
+Playtime is explicitly labeled as Lutris playtime and imported from its cumulative hours, with refresh after exit. Historical Lutris totals can include installer time and cannot be retrospectively certified as actual gameplay. New live test deltas and last-played changes are recorded separately in the dated journal. Do not double-count those totals as another native session timer.
+
+Stellar Blade now points to the installed `~/Games/Stellar Blade/SB.exe`. LEGO remains pointed at its installer while unpacking; preflight blocks that entry rather than launching setup through Moonlight. Retargeting its existing Lutris entry after installation preserves its identity. New entries need shortcut registration with Steam closed; refresh alone does not manufacture a shortcut.
+
+Use `windows/scripts/setup-lutris-shortcuts.py` only while Steam is closed. It backs up VDF, keeps IDs stable, and preserves artwork/custom fields. `decorate-lutris-shortcuts.py` obtains exact-title public Store artwork with per-file backup/hash manifests. All five have portrait covers, headers and heroes. Mortal Shell's optional icon/logo URLs returned 404; do not claim every optional asset exists. `export-lutris-settings.py` exports a verified host settings archive without game files, prefixes, saves or credentials. The recovery guide and latest private-backup locator identify the combined verified archive once refreshed.
+
+## Historical implementation and original audit
+
+The following dated entries describe their state at the time. Earlier read-only/no-launch statements are not current deployment claims.
 
 ## Subsequent authorized implementation — 22:33 BST
 

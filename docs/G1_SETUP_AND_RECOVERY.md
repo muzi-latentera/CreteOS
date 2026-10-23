@@ -1,6 +1,6 @@
 # CreteOS on OneXPlayer G1 — setup, history and recovery
 
-Maintained device record, updated 23 October 2026 (Europe/London). Covers this G1 installation from 17 October onward. Use this as the entry point for another Windows handheld; use the dated journals for detailed evidence. Earlier GPD results and the USB's pre-17-October history are references, not acceptance results for this G1.
+Maintained device record, updated 24 October 2026 (Europe/London). Covers this G1 installation from 17 October onward. Use this as the entry point for another Windows handheld; use the dated journals for detailed evidence. Earlier GPD results and the USB's pre-17-October history are references, not acceptance results for this G1.
 
 ## Current state
 
@@ -12,12 +12,12 @@ Maintained device record, updated 23 October 2026 (Europe/London). Covers this G
 | Personal data | `%LOCALAPPDATA%\CreteOS`; preserve this directory during updates |
 | Bootstrap/helpers/backups | `%LOCALAPPDATA%\CreteOS-Bootstrap` |
 | Source branch | `codex/g1-smart-wifi`; contains the G1 display and Steam password-login changes too |
-| Installed executable source | `52fb53ca5e1a6685bdca482c6ceae89f4e2ca204` (Lutris details/media; embedded assets verified) |
-| Installed executable SHA-256 | `6F4FA77050D43B2978CDE0FB4711F12E86EC97EF86A86E13D346F70FCF6D91A5` |
-| Build / install | Built locally on OXPG1 23 October 23:21:12–23:30:46 BST; installed 23:31:40 BST |
-| Previous executable | `CreteOS-Bootstrap\app-updates\Provider-lifecycle-20261023-233137` |
+| Installed executable source | `aca475c4d87fda4ac55ac5f7206aecb52ee6d59d` (Lutris / UMU window handoff verified) |
+| Installed executable SHA-256 | `8338C036964A8A8200785DD719BD2F2B4722B8E52C3E0651418BEBB70D18EC46` |
+| Build / install | Built locally on OXPG1 23 October 23:53:57–23:58:33 BST; installed 23:59:29 BST |
+| Previous executable | `CreteOS-Bootstrap\app-updates\Provider-lifecycle-20261023-235921` |
 | Luna Companion | 0.1.2, Chrome extension `gmneapkhejdngoenacdnamaddbfcihab`, permanent folder `CreteOS\LunaCompanion` |
-| Latest live acceptance | Luna advancing playback, 242.269 seconds saved, ended detected, native launch/return artwork events and focus returned to CreteOS |
+| Latest live acceptance | 24 October: Mouse, MGS V and Mortal Shell stream handoff, close/return and Lutris playtime/last-played refresh; prior Luna acceptance retained below |
 
 The app version remains 0.1.0 across multiple builds. Identify an artifact by source commit and executable hash, never by version or file date alone. Documentation commits after the executable's source commit do not imply a newer executable was installed.
 
@@ -193,11 +193,11 @@ Git contains source and these sanitized records. It is **not** a backup of Windo
 
 ## Replacement device checklist
 
-### Actual private profile backup — 23 October, 16:52 BST
+### Actual private profile backup — 24 October, verified 00:12 BST
 
-**Lutris refresh pending:** this retained archive predates the host shortcut configuration and22:37G1 build. It remains a verified earlier recovery point, not a complete backup of the new Lutris integration. A fresh combined profile/host-settings archive is required after final build and acceptance.
+Current archive: `outputs/CreteOS-G1-profile-backup-20261024-001018.zip`, with an extracted copy and `.zip.sha256` sidecar. **1,314 payload files**, 732,193,095 uncompressed bytes; ZIP 710,878,243 bytes. SHA-256: `bdc9da20d75d14019649d223bb4357c52c9ccda19444b52d2d7b208232bc6ecd`. Every archived payload was decompressed and hash-checked; no requested source file was missing. OneXConsole and the nested Bosgame Lutris DB used consistent SQLite backups with integrity_check=ok. The archive includes the actual final 8338C036… executable, restored original 80 Mbps profiles, updated Lutris cache, all five host configurations/shortcuts and Steam artwork, plus the setup/export/decorate helpers. No games, prefixes, saves or login secrets are included.
 
-Created `outputs/CreteOS-G1-profile-backup-20261023-165259.zip` in the original G1 task workspace, with an extracted copy alongside it and a `.zip.sha256` sidecar. **1,257 payload files**, 722,440,113 uncompressed bytes; ZIP 701,482,568 bytes. SHA-256: `c8e9c02b67f68ab67bccf555b11f64929c4ace070ca120e8a4b5bc47983faf02`. Every ZIP payload was decompressed and hash-checked; all requested source files were present. OneXConsole used SQLite online backup and integrity_check=ok. No live app was closed or reconfigured.
+Previous verified recovery point preserved: `outputs/CreteOS-G1-profile-backup-20261023-165259.zip`, SHA-256 `c8e9c02b67f68ab67bccf555b11f64929c4ace070ca120e8a4b5bc47983faf02`. Do not replace it. The current locator is `outputs/CreteOS-G1-profile-backup-latest.json`. The guide inside a ZIP is captured before that ZIP's final hash is known; use this maintained guide, the locator and checksum sidecar for the final archive identity. Documentation-only completion edits after this snapshot do not invalidate its personal payloads.
 
 The ZIP contains the live preferences/profiles, onboarding state, ownership/art caches, hidden/pinned items, history, provider Wi-Fi choices, Luna playtime/companion, exact recovery executable/license, and supporting Moonlight, NVIDIA quality, AnyFSE, Lossless Scaling, Wi-Fi helper, non-secret SSH and Windows startup/power configuration. Account-bound progress caches are retained as reference. It includes `RESTORE-INSTRUCTIONS.txt`, `Restore-CreteOS.ps1` and a per-file manifest. The restore script passed an isolated fixture check for hashes, no-write WhatIf, path rebasing, saved onboarding, JSON types, binary files and default exclusion of old G1 display identities.
 
@@ -226,12 +226,18 @@ Detailed histories: [18 October display](journal/2026-10-18-g1-display-pending-s
 
 Selected original reports are archived under [device-records](device-records/README.md). Their dates matter: older “current installed” values and unchecked items are superseded by later verification, not silently rewritten. The workspace's `outputs` and `work` folders retain full install JSONs, driver rollback package, scripts, binaries and logs; those are outside the source repository unless explicitly archived here. Retain a private backup of them before returning this device.
 
-### Lutris expanded-library update in progress — 23 October evening
+## Lutris integration — verified 24 October
 
-Host inventory now contains Mouse, MGS V, Mortal Shell II, Stellar Blade and LEGO Batman: Legacy of the Dark Knight. First three point to existing game executables; last two still point to installers and are blocked. Never bypass this preflight or launch an installer as a game. All five have registered independent non-Steam shortcut IDs. Imported descriptions/videos must use public title metadata, with identity separate from the launch shortcut. Preserve shortcut tags/art/history when re-registering. Steam art must be backed up with host settings. Live test initially encountered Moonlight-1/network packet loss before game launch; acceptance and final private backup refresh pending. See dated Lutris journal for actual build/install identities.
+Five Bosgame games are registered as Steam non-Steam shortcuts and appear in CreteOS with covers, hero art, descriptions and trailer/review entries. The Lutris library filter and controller navigation include them. Full details remain in CreteOS; standard Steam non-Steam shortcuts have artwork but do not gain Store descriptions, ownership or achievements. See [integration and host restore tools](LUTRIS_HOST_INTEGRATION.md).
 
-Non-Steam launch identity has two forms: registered32bitshortcutID forart/processmatching,64bitSteamGameId=(ID<<32)|0x02000000 forBuddylaunchandtracking. Never substitute a publicStoremetadataID. Direct32bitSteamlaunch can silentlyfailwhileMoonlightstreamsperfectly. Buildverification must resolve the executable's own hashedJS/CSS using--verify-bundled-assets; compilationsuccessaloneisnotacceptance. Rejected69F6detailsbuildhadmoduleMIMEtext/html;clean52fb53buildpassesassetselfcheckandUIrestart. Preservedcachefolderisdiagnosticonly,notarestorerequirement. CurrenttestsarelimitedtoMouse,MGS,Mortal;othergamesmustnotbelaunched.
+The final local build above fixes two faults found by live testing: Buddy needs the shortcut's 64-bit SteamGameId for launch/tracking, while artwork uses the registered 32-bit ID; and UMU changes the game's own Steam IDs to `default`, requiring both window detectors to inspect its exact, bounded, same-owner process ancestry. Never match generic Wine classes or substitute a Store metadata ID. The executable's own embedded JS/CSS passed `--verify-bundled-assets` before installation. Six live profile JSONs were unchanged by the installer.
 
-### Lutris test update — 23:56 BST
+Only the three user-authorized games were launched. Mouse reached its privacy notice, MGS V its autosave information, and Mortal Shell completed shaders and showed its opening scene. Each produced host-window-visible, stable handoff, window-closed, Buddy end accepted, return cover released, and a closed owned Moonlight client. Test windows were closed gracefully via exact verified Sway containers; no installer or unrelated application was killed. These are launch/exit smoke tests, not full gameplay, controller or frame-perfect transition acceptance.
 
-The installed 94e2 build opens normally and launches Mouse through the correct 64-bit non-Steam Buddy ID. Its loading handoff still needs the newly tested UMU process-ancestry fix: the runtime replaces the game's own Steam ID with 'default'. The fix is pending local build/install and full launch/exit acceptance. Native release tests: 133 passed; host lifecycle plus ancestry: 21 passed. Stellar Blade's target is now SB.exe; LEGO Batman is still installing and remains blocked from launch. The private backup remains stale until the final deployed executable and live host settings are captured.
+Lutris raw counters increased by approximately 46.01 seconds for the final Mouse retry, 54.01 seconds for MGS V and 148.05 seconds for Mortal Shell. Current displayed totals are 42, 52 and 84 minutes, with last-played 24 October. Totals are explicitly labeled Lutris; older values may include installation time and cannot be retrospectively certified as gameplay. Refresh after exit uses the host's cumulative total and does not add a second timer. [Sanitized build and live evidence](device-records/2026-10-24-lutris-live-validation.json).
+
+Stellar Blade points to the existing `~/Games/Stellar Blade/SB.exe` and uses the same tested route, but was not launched. LEGO Batman is still unpacking and its entry still points to setup.exe; preflight blocks it. After installation, change that existing Lutris entry to the real game executable, preserve its prefix and ID, then Refresh host. Do not launch the installer through Moonlight or regenerate identities unnecessarily. All five have Steam portrait/header/hero artwork; some optional icon/logo URLs were unavailable.
+
+Network diagnostics used 20 Mbps, 2560 × 1600 and 120 FPS. The three completed tests reported 0.33% / 0.00% / 0.12% network frame loss respectively; jitter losses were 0.77% / 0.20% / 2.38%. Average network latency was 1 / 8 / 2 ms. This does not establish performance at the original 80 Mbps, which was restored at 00:07:16 on 24 October, including the unused display profile's invalid diagnostic value. No display resolution or Wi-Fi policy changed. Earlier 80 Mbps attempts had about 40% loss and ~840–880 ms latency across G1 Extra and Bosgame Fibre E433. Bosgame also resolves to one responding and one stale address; strict SSH through the responding address worked, but no system DNS or host Wi-Fi fix is claimed. If connection errors return, check that routing before changing display or launcher settings.
+
+Validation: 133 native release tests passed before the Python-only ancestry fix; 21 host lifecycle/ancestry tests passed after it. The earlier 249-test frontend suite, focused detail/media regression, eight inventory tests, final typecheck/production build and embedded asset checks passed. Canonical Obsidian vault remains unavailable; dated repo journals are pending vault sync. Private backup refresh follows the final deployed state; use the actual archive entry above and latest JSON locator.

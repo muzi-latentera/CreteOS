@@ -1,0 +1,157 @@
+{
+  "recorded": "2026-10-24T00:08:18.6406948+01:00",
+  "computer": "OXPG1",
+  "build": {
+    "start": "2026-10-23T23:53:57.6679424+01:00",
+    "sourceCommit": "aca475c4d87fda4ac55ac5f7206aecb52ee6d59d",
+    "exitCode": 0,
+    "assetVerificationExitCode": 0,
+    "end": "2026-10-23T23:58:33.2087004+01:00",
+    "artifact": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\work\\g1-display-update\\windows\\src-tauri\\target\\release\\creteos.exe",
+    "computer": "OXPG1",
+    "sha256": "8338C036964A8A8200785DD719BD2F2B4722B8E52C3E0651418BEBB70D18EC46"
+  },
+  "install": {
+    "time": "2026-10-23T23:59:29.2102415+01:00",
+    "sourceCommit": "aca475c4d87fda4ac55ac5f7206aecb52ee6d59d",
+    "installedHash": "8338C036964A8A8200785DD719BD2F2B4722B8E52C3E0651418BEBB70D18EC46",
+    "backup": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS-Bootstrap\\app-updates\\Provider-lifecycle-20261023-235921",
+    "profiles": [
+      {
+        "unchanged": true,
+        "name": "settings.json"
+      },
+      {
+        "unchanged": true,
+        "name": "moonlight_profiles.json"
+      },
+      {
+        "unchanged": true,
+        "name": "geforce_profiles.json"
+      },
+      {
+        "unchanged": true,
+        "name": "custom_data.json"
+      },
+      {
+        "unchanged": true,
+        "name": "stream_wifi_preferences.json"
+      },
+      {
+        "unchanged": true,
+        "name": "recent_games.json"
+      }
+    ]
+  },
+  "tests": [
+    {
+      "name": "Mouse: P.I. For Hire",
+      "lutrisId": 1,
+      "observedScreen": "Mouse privacy notice",
+      "launchHandoffAndReturn": true,
+      "lutrisSecondsAdded": 46.01,
+      "lastPlayedBefore": 1792795972,
+      "lastPlayedAfter": 1792796464,
+      "displayedMinutes": 42,
+      "exitMethod": "WM_DELETE sent only to verified test-game Sway container; no process-wide kill"
+    },
+    {
+      "name": "Metal Gear Solid V: The Phantom Pain",
+      "lutrisId": 2,
+      "observedScreen": "Metal Gear autosave information",
+      "launchHandoffAndReturn": true,
+      "lutrisSecondsAdded": 54.009,
+      "lastPlayedBefore": 1792781382,
+      "lastPlayedAfter": 1792796584,
+      "displayedMinutes": 52,
+      "exitMethod": "WM_DELETE sent only to verified test-game Sway container; no process-wide kill"
+    },
+    {
+      "name": "Mortal Shell II",
+      "lutrisId": 3,
+      "observedScreen": "Mortal Shell shader compilation and opening scene",
+      "launchHandoffAndReturn": true,
+      "lutrisSecondsAdded": 148.05,
+      "lastPlayedBefore": 1792791842,
+      "lastPlayedAfter": 1792796804,
+      "displayedMinutes": 84,
+      "exitMethod": "WM_DELETE sent only to verified test-game Sway container; no process-wide kill"
+    }
+  ],
+  "eventCounts": {
+    "artwork-native-shown": 12,
+    "host-artwork-ready": 3,
+    "host-game-window-ready": 3,
+    "buddy-game-launch-requested": 3,
+    "buddy-game-running": 3,
+    "buddy-live-events": 3,
+    "host-game-window-visible": 3,
+    "handoff-start": 3,
+    "handoff-window-restored-raised": 3,
+    "handoff-stable": 3,
+    "host-game-window-closed": 3,
+    "buddy-game-exit-event": 3,
+    "return-to-crete": 9,
+    "return-cover-painted": 9,
+    "buddy-end-request": 3,
+    "buddy-end-accepted": 3,
+    "moonlight-owned-close-requested": 3,
+    "return-cover-released": 3
+  },
+  "notLaunched": [
+    "Stellar Blade",
+    "LEGO Batman: Legacy of the Dark Knight"
+  ],
+  "stellarBladeTarget": "Existing SB.exe, verified; launch inferred from shared tested route only",
+  "legoStatus": "Installer still running, setup.exe target blocked; no game executable yet at final inspection",
+  "networkTest": "20 Mbps diagnostic setting at 2560x1600/120 fps; original 80 Mbps restored after tests",
+  "limits": [
+    "Startup/exit smoke tests; no full gameplay or controller acceptance",
+    "Historical Lutris totals can include installer time",
+    "No frame recording to prove every transition flash-free",
+    "Stale second Bosgame DNS address and earlier severe 80 Mbps loss remain unresolved"
+  ],
+  "moonlightTestStats": [
+    {
+      "file": "Moonlight-1792796651.log",
+      "stats": [
+        "00:00:05 - SDL Info (0): Dropping window event during flush: 6 (2560 1600)",
+        "00:00:10 - SDL Info (0): Network dropped audio data (expected 1029, but received 1058)",
+        "00:00:29 - SDL Info (0): Network dropped audio data (expected 4954, but received 4982)",
+        "Host processing latency min/max/average: 3.3/74.7/12.1 ms",
+        "Frames dropped by your network connection: 0.12%",
+        "Frames dropped due to network jitter: 2.38%",
+        "Average network latency: 2 ms (variance: 6 ms)",
+        "Average decoding time: 0.83 ms",
+        "Average frame queue delay: 0.57 ms",
+        "Average rendering time (including monitor V-sync latency): 1.79 ms"
+      ]
+    },
+    {
+      "file": "Moonlight-1792796525.log",
+      "stats": [
+        "00:00:06 - SDL Info (0): Dropping window event during flush: 6 (2560 1600)",
+        "Host processing latency min/max/average: 3.3/28.9/7.2 ms",
+        "Frames dropped by your network connection: 0.00%",
+        "Frames dropped due to network jitter: 0.20%",
+        "Average network latency: 8 ms (variance: 11 ms)",
+        "Average decoding time: 0.65 ms",
+        "Average frame queue delay: 0.09 ms",
+        "Average rendering time (including monitor V-sync latency): 1.06 ms"
+      ]
+    },
+    {
+      "file": "Moonlight-1792796414.log",
+      "stats": [
+        "00:00:05 - SDL Info (0): Dropping window event during flush: 6 (2560 1600)",
+        "Host processing latency min/max/average: 3.3/24.3/7.7 ms",
+        "Frames dropped by your network connection: 0.33%",
+        "Frames dropped due to network jitter: 0.77%",
+        "Average network latency: 1 ms (variance: 2 ms)",
+        "Average decoding time: 0.86 ms",
+        "Average frame queue delay: 0.23 ms",
+        "Average rendering time (including monitor V-sync latency): 1.43 ms"
+      ]
+    }
+  ]
+}
