@@ -12,10 +12,10 @@ Maintained device record, updated 23 October 2026 (Europe/London). Covers this G
 | Personal data | `%LOCALAPPDATA%\CreteOS`; preserve this directory during updates |
 | Bootstrap/helpers/backups | `%LOCALAPPDATA%\CreteOS-Bootstrap` |
 | Source branch | `codex/g1-smart-wifi`; contains the G1 display and Steam password-login changes too |
-| Installed executable source | `a9552cdb824d69068d9efddbadd43af92240b5f4` (Lutris details/media build) |
-| Installed executable SHA-256 | `69F6B66F88133AB2997F348A58E9371447451AFCDDBC8196D09AA66CCDD0A0F3` |
-| Build / install | Built locally on OXPG1 23 October 23:03:16–23:08:32 BST; installed 23:09:01 BST |
-| Previous executable | `CreteOS-Bootstrap\app-updates\Provider-lifecycle-20261023-230857` |
+| Installed executable source | `52fb53ca5e1a6685bdca482c6ceae89f4e2ca204` (Lutris details/media; embedded assets verified) |
+| Installed executable SHA-256 | `6F4FA77050D43B2978CDE0FB4711F12E86EC97EF86A86E13D346F70FCF6D91A5` |
+| Build / install | Built locally on OXPG1 23 October 23:21:12–23:30:46 BST; installed 23:31:40 BST |
+| Previous executable | `CreteOS-Bootstrap\app-updates\Provider-lifecycle-20261023-233137` |
 | Luna Companion | 0.1.2, Chrome extension `gmneapkhejdngoenacdnamaddbfcihab`, permanent folder `CreteOS\LunaCompanion` |
 | Latest live acceptance | Luna advancing playback, 242.269 seconds saved, ended detected, native launch/return artwork events and focus returned to CreteOS |
 
@@ -229,3 +229,5 @@ Selected original reports are archived under [device-records](device-records/REA
 ### Lutris expanded-library update in progress — 23 October evening
 
 Host inventory now contains Mouse, MGS V, Mortal Shell II, Stellar Blade and LEGO Batman: Legacy of the Dark Knight. First three point to existing game executables; last two still point to installers and are blocked. Never bypass this preflight or launch an installer as a game. All five have registered independent non-Steam shortcut IDs. Imported descriptions/videos must use public title metadata, with identity separate from the launch shortcut. Preserve shortcut tags/art/history when re-registering. Steam art must be backed up with host settings. Live test initially encountered Moonlight-1/network packet loss before game launch; acceptance and final private backup refresh pending. See dated Lutris journal for actual build/install identities.
+
+Non-Steam launch identity has two forms: registered32bitshortcutID forart/processmatching,64bitSteamGameId=(ID<<32)|0x02000000 forBuddylaunchandtracking. Never substitute a publicStoremetadataID. Direct32bitSteamlaunch can silentlyfailwhileMoonlightstreamsperfectly. Buildverification must resolve the executable's own hashedJS/CSS using--verify-bundled-assets; compilationsuccessaloneisnotacceptance. Rejected69F6detailsbuildhadmoduleMIMEtext/html;clean52fb53buildpassesassetselfcheckandUIrestart. Preservedcachefolderisdiagnosticonly,notarestorerequirement. CurrenttestsarelimitedtoMouse,MGS,Mortal;othergamesmustnotbelaunched.

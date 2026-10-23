@@ -114,8 +114,12 @@ pub async fn pair_moondeck(host: String, pin: u32) -> Result<(), String> {
     }).await.map_err(|e| e.to_string())?
 }
 
+fn valid_app_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 20 && id.bytes().all(|c| c.is_ascii_digit()) && id.parse::<u64>().is_ok_and(|id| id > 0)
+}
+
 pub fn launch(host: &str, steam_id: &str, current: impl Fn() -> bool, note: impl Fn(&str)) -> Result<(), String> {
-    if steam_id.is_empty() || steam_id.len() > 10 || !steam_id.bytes().all(|c| c.is_ascii_digit()) {
+    if !valid_app_id(steam_id) {
         return Err("Invalid Steam app ID".into());
     }
     let connected = || if current() { Ok(()) } else { Err("Moonlight closed or disconnected before the game started. Check the stream connection and try again.".to_string()) };
@@ -344,6 +348,13 @@ pub fn prepare(host: &str, steam_id: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn accepts_shortcut_game_ids_without_overflow_or_command_text() {
+        assert!(super::valid_app_id("13474170597885870080"));
+        assert!(super::valid_app_id("2638890"));
+        for id in ["0", "18446744073709551616", "-1", "1/launch", ""] {assert!(!super::valid_app_id(id));}
+        assert!(super::launch("invalid.invalid", "13474170597885870080", || false, |_| {}).unwrap_err().contains("closed or disconnected"));
+    }
     #[test]
     fn a_closed_client_cancels_launch_before_any_host_request() {
         let result = super::launch("invalid.invalid", "2638890", || false, |_| panic!("no launch phase expected"));

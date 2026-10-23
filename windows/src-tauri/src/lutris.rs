@@ -17,6 +17,13 @@ fn now()->u64 {std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH
 fn path()->std::path::PathBuf {super::liftoff_dir().join("lutris_host_library.json")}
 fn load()->Cache {std::fs::read(path()).ok().and_then(|b|serde_json::from_slice(&b).ok()).unwrap_or_default()}
 pub fn identity(host:&str,id:&str)->String {format!("lutris:{}:{}",host.to_ascii_lowercase(),id)}
+/// Buddy must receive a ShortcutGameId so it selects steam://rungameid/.
+/// The 32-bit VDF appid is retained for artwork and process/window matching.
+pub fn buddy_id(shortcut_id:&str)->Result<String,String> {
+    let id=shortcut_id.parse::<u32>().map_err(|_|"Invalid registered shortcut ID")?;
+    if id & 0x80000000 == 0 {return Err("Registered ID is not a non-Steam shortcut".into());}
+    Ok((((id as u64)<<32)|0x02000000).to_string())
+}
 fn validate(games:&[Game])->Result<(),String> {
     if games.len()>1000 || games.iter().any(|g|g.id.is_empty() || g.id.len()>9 || !g.id.bytes().all(|b|b.is_ascii_digit()) || g.name.is_empty() || g.name.len()>2048 || g.shortcut_id.as_ref().is_some_and(|id|id.parse::<u32>().is_err())) {return Err("Invalid Lutris inventory".into());}
     let mut ids=std::collections::HashSet::new();
@@ -83,6 +90,7 @@ pub fn launch_id(host:&str,id:&str,game_id:Option<&str>)->Result<String,String> 
 }
 #[cfg(test)]
 mod tests {
+    #[test]fn buddy_uses_64_bit_shortcut_game_id(){assert_eq!(super::buddy_id("3137199813").unwrap(),"13474170597885870080");assert!(super::buddy_id("2638890").is_err());assert!(super::buddy_id("4294967296").is_err());}
     #[test]fn identities_do_not_collide_with_store_products(){assert_eq!(super::identity("Bosgame","1"),"lutris:bosgame:1");assert_ne!(super::identity("other","1"),super::identity("Bosgame","1"));}
     #[test]fn rejects_bad_and_duplicate_inventory(){let game=super::Game{id:"1".into(),name:"Mouse".into(),slug:"mouse".into(),runner:"wine".into(),launchable:true,reason:String::new(),playtime_minutes:Some(30),last_played:0,shortcut_id:Some("4000000000".into())};assert!(super::validate(&[game.clone()]).is_ok());assert!(super::validate(&[game.clone(),game]).is_err());}
 }

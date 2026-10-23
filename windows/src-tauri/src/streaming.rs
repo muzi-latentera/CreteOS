@@ -738,11 +738,15 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
             if game_id.as_deref().is_some_and(|id|id.starts_with("lutris:")){return Err("Missing Lutris launch identity".into());}
             steam_id
         };
+        let buddy_id = match &steam_id {
+            Some(id) if lutris_id.is_some() => Some(super::lutris::buddy_id(id)?),
+            _ => steam_id.clone(),
+        };
         if steam_id.is_some() {
             if app_name != "MoonDeckStream" { return Err("Direct Steam launching requires MoonDeckStream".into()); }
             if super::moondeck::status(&profile.host)?["paired"] != true { return Err("Pair CreteOS with MoonDeck Buddy first".into()); }
             check_launch(epoch)?;
-            super::moondeck::prepare(&profile.host, steam_id.as_deref().unwrap_or_default())?;
+            super::moondeck::prepare(&profile.host, buddy_id.as_deref().unwrap_or_default())?;
             check_launch(epoch)?;
             if lutris_id.is_none() && !host_games(&profile.host)?.iter().any(|game| Some(&game.steam_app_id) == steam_id.as_ref()) {
                 return Err("This game is not installed on Bosgame. Choose local install or GeForce NOW.".into());
@@ -783,7 +787,7 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         }
         let monitor_active = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         if let Some(id) = &steam_id { watch_host_game_window(window.clone(), profile.host.clone(), id.clone(), presentation.clone(), generation, monitor_active.clone()); }
-        let launch_result = if let Some(id) = &steam_id {
+        let launch_result = if let Some(id) = &buddy_id {
             super::moondeck::launch(&profile.host, id,
                 || launch_current(epoch) && session_current(generation) && client.lock().is_ok_and(|mut child| child.try_wait().ok().flatten().is_none()),
                 |phase| {
@@ -801,7 +805,7 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         // startup error. A late-starting game must not become an orphan stream.
         std::thread::spawn(move || {
             let _wifi = wifi;
-            if let Some(id) = steam_id {
+            if let Some(id) = buddy_id {
                 let exit_confirmed = std::sync::atomic::AtomicBool::new(false);
                 // A failed/disconnected client can exit before Buddy ever
                 // observes Running. Stop watching it too, rather than waiting
