@@ -6,6 +6,22 @@ use tauri::{Emitter,Manager};
 pub struct Artwork { art:String, message:String }
 static ART:Mutex<Artwork>=Mutex::new(Artwork{art:String::new(),message:String::new()});
 static PAINTED:AtomicBool=AtomicBool::new(false);
+// Startup diagnostics describe only our own surface, not browser windows or
+// content. They distinguish missing native creation from failed painting.
+pub fn diagnose_startup(app:tauri::AppHandle) {
+    std::thread::spawn(move||{
+        std::thread::sleep(std::time::Duration::from_secs(3));
+        let cover=app.get_webview_window("stream-artwork");
+        let diagnostic=serde_json::json!({
+            "configured":app.config().app.windows.iter().any(|w|w.label=="stream-artwork" && w.create),
+            "managed":cover.is_some(),
+            "handle_available":cover.as_ref().is_some_and(|w|w.hwnd().is_ok()),
+            "painted":PAINTED.load(Ordering::SeqCst)
+        });
+        let folder=crate::liftoff_dir().join("logs");let _=std::fs::create_dir_all(&folder);
+        let _=std::fs::write(folder.join("artwork-startup.json"),diagnostic.to_string());
+    });
+}
 #[tauri::command]
 pub fn get_stream_artwork()->Artwork {ART.lock().map(|s|s.clone()).unwrap_or(Artwork{art:String::new(),message:String::new()})}
 #[tauri::command]

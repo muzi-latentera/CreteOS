@@ -4,12 +4,23 @@ import {runInNewContext} from 'node:vm';
 import test from 'node:test';
 const observer=readFileSync(new URL('./observer.js',import.meta.url),'utf8');
 function harness(href='https://luna.amazon.co.uk/play?asin=TEST'){
- let tick;let clock=1000;let videos=[];let attention=false;const messages=[];const events={};
+ let tick;let clock=1000;let videos=[];let attention=false;let promptVisible=true;const messages=[];const events={};
  class Stream {getVideoTracks(){return [{readyState:'live'}];}}
  const launchIds=[];
- runInNewContext(observer,{URL,location:{href},MediaStream:Stream,document:{querySelectorAll:()=>videos,querySelector:()=>attention?{}:null},performance:{now:()=>clock},chrome:{runtime:{sendMessage:async m=>{messages.push(m.state);launchIds.push(m.launchAsin);}}},setInterval:fn=>{tick=fn;},addEventListener:(n,fn)=>{events[n]=fn;}});
- return {messages,launchIds,Stream,setVideos:v=>{videos=v;},setAttention:v=>{attention=v;},advance:async n=>{clock+=n;await Promise.resolve();await tick();},events};
+ runInNewContext(observer,{URL,location:{href},MediaStream:Stream,document:{querySelectorAll:()=>videos,querySelector:()=>attention?{checkVisibility:()=>promptVisible}:null},performance:{now:()=>clock},chrome:{runtime:{sendMessage:async m=>{messages.push(m.state);launchIds.push(m.launchAsin);}}},setInterval:fn=>{tick=fn;},addEventListener:(n,fn)=>{events[n]=fn;}});
+ return {messages,launchIds,Stream,setVideos:v=>{videos=v;},setAttention:v=>{attention=v;},setPromptVisible:v=>{promptVisible=v;},advance:async n=>{clock+=n;await Promise.resolve();await tick();},events};
 }
+
+test('a live track disappearing before any advancing playback is not a completed session',async()=>{
+ const h=harness();h.setVideos([{srcObject:new h.Stream(),currentTime:0,paused:true,readyState:1}]);await h.advance(750);
+ h.setVideos([]);await h.advance(750);await h.advance(1500);assert.equal(h.messages.at(-1).phase,'waiting');
+});
+test('hidden prompts and a zero frame counter do not suppress advancing cross-realm media',async()=>{
+ const h=harness();await h.advance(750);const video={srcObject:{getVideoTracks:()=>[{readyState:'live'}]},getVideoPlaybackQuality:()=>({totalVideoFrames:0}),currentTime:0,paused:false,readyState:4};
+ h.setVideos([video]);h.setAttention(true);h.setPromptVisible(false);await h.advance(750);
+ video.currentTime=0.75;await h.advance(750);assert.equal(h.messages.at(-1).phase,'playing');
+ h.setPromptVisible(true);video.currentTime=1.5;await h.advance(750);assert.equal(h.messages.at(-1).phase,'attention');
+});
 
 test('binds the actual Luna game path before SPA navigation',async()=>{
  const h=harness('https://luna.amazon.co.uk/game/star-wars-galactic-racer/B0HLN4GG5K?autoplay=1');

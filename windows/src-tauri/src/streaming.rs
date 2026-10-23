@@ -99,6 +99,7 @@ pub async fn launch_luna_session(window:tauri::Window, game_id:String, game_name
                 if found==0 {if let Some((target,_))=super::best_launch_window(&game_name,&url,"cloud"){found=target.hwnd;owner=target.pid;}}
                 let phase=super::luna_session::phase();
                 if previous!=Some(phase) {
+                    super::fse_watcher::log_stream_transition(window.app_handle(),match phase {super::luna_session::Phase::Waiting=>"luna-phase-waiting",super::luna_session::Phase::Buffering=>"luna-phase-buffering",super::luna_session::Phase::Playing=>"luna-phase-playing",super::luna_session::Phase::Attention=>"luna-phase-attention",super::luna_session::Phase::Ended=>"luna-phase-ended"});
                     progress(&window,match phase {super::luna_session::Phase::Waiting=>"Connecting to Amazon Luna…",super::luna_session::Phase::Buffering=>"Waiting for Luna video…",super::luna_session::Phase::Playing=>"Luna stream ready",super::luna_session::Phase::Attention=>"Amazon Luna needs your attention",super::luna_session::Phase::Ended=>"Returning to CreteOS…"});previous=Some(phase);
                 }
                 if phase==super::luna_session::Phase::Playing {observed=true;}

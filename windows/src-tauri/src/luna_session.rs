@@ -10,7 +10,7 @@ pub enum Phase { Waiting, Buffering, Playing, Attention, Ended }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Event { nonce:String, tab:u64, frame:u64, document:String, phase:Phase, sequence:u64 }
-struct Session { nonce:String, game:String, asin:String, tab:Option<u64>, document:String, phase:Phase, heard:Instant, tick:Instant, claimed:Option<(u64,u64)>, sequence:u64, companion_seen:bool, seconds:f64, saved:f64 }
+struct Session { nonce:String, game:String, asin:String, tab:Option<u64>, document:String, phase:Phase, heard:Instant, tick:Instant, claimed:Option<(u64,u64)>, sequence:u64, companion_seen:bool, seconds:f64, saved:f64, ever_played:bool, ignored_early_ends:u64 }
 static SESSION: Mutex<Option<Session>> = Mutex::new(None);
 static SERVER: OnceLock<Result<(),String>> = OnceLock::new();
 static FILE: Mutex<()> = Mutex::new(());
@@ -39,7 +39,7 @@ pub fn begin(game:&str,url:&str) -> Result<String,String> {
     let mut bytes=[0u8;24];getrandom::getrandom(&mut bytes).map_err(|e|e.to_string())?;
     let nonce:String=bytes.iter().map(|b|format!("{b:02x}")).collect();
     let asin=reqwest::Url::parse(url).ok().and_then(|u|u.query_pairs().find(|(k,_)|k=="asin").map(|(_,v)|v.into_owned())).ok_or("Luna game URL has no game identity")?;
-    *slot=Some(Session{nonce:nonce.clone(),game:game.into(),asin,tab:None,document:String::new(),phase:Phase::Waiting,heard:Instant::now(),tick:Instant::now(),claimed:None,sequence:0,companion_seen:false,seconds:0.0,saved:0.0});Ok(nonce)
+    *slot=Some(Session{nonce:nonce.clone(),game:game.into(),asin,tab:None,document:String::new(),phase:Phase::Waiting,heard:Instant::now(),tick:Instant::now(),claimed:None,sequence:0,companion_seen:false,seconds:0.0,saved:0.0,ever_played:false,ignored_early_ends:0});Ok(nonce)
 }
 pub fn phase() -> Phase {
     let Ok(mut slot)=SESSION.lock() else{return Phase::Ended;};
@@ -57,6 +57,9 @@ pub fn finish(nonce:&str) {if let Ok(mut slot)=SESSION.lock(){if let Some(s)=slo
 fn ingest(s:&mut Session,event:Event,now:Instant)->bool {
     if event.nonce!=s.nonce || event.sequence==0 || s.phase==Phase::Ended || event.document.is_empty() || event.document.len()>80{return false;}
     if s.tab.is_some_and(|tab|tab!=event.tab){return false;}
+    // An existing Luna document can report the previous stream's end while
+    // Chrome opens the new launch. It must neither claim nor end this session.
+    if event.phase==Phase::Ended && !s.ever_played {s.ignored_early_ends+=1;return false;}
     s.tab=Some(event.tab);
     s.companion_seen=true;
     let owner=(event.tab,event.frame);
@@ -72,7 +75,8 @@ fn ingest(s:&mut Session,event:Event,now:Instant)->bool {
     else {s.heard=now;s.phase=event.phase;return true;}
     let elapsed=now.duration_since(s.tick).as_secs_f64();
     if s.phase==Phase::Playing && event.phase==Phase::Playing && elapsed<=3.0 {s.seconds+=elapsed;}
-    s.tick=now;s.heard=now;s.sequence=event.sequence;s.phase=event.phase;true
+    s.tick=now;s.heard=now;s.sequence=event.sequence;s.phase=event.phase;
+    s.ever_played|=event.phase==Phase::Playing;true
 }
 fn reply(stream:&mut TcpStream,status:&str,body:&str) {
     let _=write!(stream,"HTTP/1.1 {status}\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: {ORIGIN}\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: content-type\r\nCache-Control: no-store\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{body}",body.len());
@@ -88,7 +92,7 @@ fn serve(mut stream:TcpStream) {
     if value("Origin")!=Some(ORIGIN) || value("Host")!=Some(ADDRESS){reply(&mut stream,"403 Forbidden","{}");return;}
     if request.starts_with("OPTIONS "){reply(&mut stream,"204 No Content","");return;}
     if request=="GET /status HTTP/1.1" {
-        let body=SESSION.lock().ok().and_then(|slot|slot.as_ref().map(|s|serde_json::json!({"phase":s.phase,"connected":s.companion_seen,"session_seconds":s.seconds.floor(),"persisted_seconds":s.saved.floor()}).to_string())).unwrap_or("{}".into());
+        let body=SESSION.lock().ok().and_then(|slot|slot.as_ref().map(|s|serde_json::json!({"phase":s.phase,"connected":s.companion_seen,"session_seconds":s.seconds.floor(),"persisted_seconds":s.saved.floor(),"ever_played":s.ever_played,"ignored_early_ends":s.ignored_early_ends}).to_string())).unwrap_or("{}".into());
         reply(&mut stream,"200 OK",&body);return;
     }
     // Extension GET requests can omit Origin when Chrome grants host access.
@@ -123,7 +127,17 @@ fn start_server()->Result<(),String> {
         assert!(needs_foreground(Duration::from_secs(3),true,false,true));
         assert!(!needs_foreground(Duration::from_secs(3),false,true,false));
     }
-    fn session()->Session{Session{nonce:"test".into(),game:"luna:test".into(),asin:"TEST".into(),tab:None,document:String::new(),phase:Phase::Waiting,heard:Instant::now(),tick:Instant::now(),claimed:None,sequence:0,companion_seen:false,seconds:0.0,saved:0.0}}
+    fn session()->Session{Session{nonce:"test".into(),game:"luna:test".into(),asin:"TEST".into(),tab:None,document:String::new(),phase:Phase::Waiting,heard:Instant::now(),tick:Instant::now(),claimed:None,sequence:0,companion_seen:false,seconds:0.0,saved:0.0,ever_played:false,ignored_early_ends:0}}
+    #[test]fn old_end_cannot_claim_or_terminate_a_new_launch(){
+        let mut s=session();let now=s.tick;
+        assert!(!ingest(&mut s,event(Phase::Ended,99),now));
+        assert_eq!(s.tab,None);assert_eq!(s.phase,Phase::Waiting);assert_eq!(s.ignored_early_ends,1);
+        assert!(ingest(&mut s,event(Phase::Buffering,1),now));
+        assert!(!ingest(&mut s,event(Phase::Ended,2),now));assert_eq!(s.phase,Phase::Buffering);
+        assert!(ingest(&mut s,event(Phase::Playing,3),now+Duration::from_secs(1)));
+        assert!(ingest(&mut s,event(Phase::Playing,4),now+Duration::from_secs(2)));
+        assert!(ingest(&mut s,event(Phase::Ended,5),now+Duration::from_secs(3)));assert_eq!(s.seconds,1.0);
+    }
     fn event(phase:Phase,sequence:u64)->Event{Event{nonce:"test".into(),tab:1,frame:0,document:"doc1".into(),phase,sequence}}
     #[test]fn only_advancing_stream_heartbeats_count(){let mut s=session();let now=s.tick;
         assert!(ingest(&mut s,event(Phase::Waiting,1),now));assert_eq!(s.seconds,0.0);
