@@ -35,12 +35,17 @@ class InventoryTests(unittest.TestCase):
         root=self.db.parent
         (root/'games'/f'g{ident}.yml').write_text('game:\n  exe: '+str(exe).replace('\\','/')+'\n')
         self.con.execute('insert into games values(?,?,?,?,?,?,?,?)',(ident,'Mouse','mouse','wine',1,f'g{ident}',hours,100));self.con.commit()
-    def test_missing_lutris_is_empty(self):
-        self.assertEqual(module.inventory(self.home/'absent'),[])
+    def test_missing_lutris_is_unknown_not_a_confirmed_empty_library(self):
+        with self.assertRaises(RuntimeError):module.inventory(self.home/'absent')
+    def test_readable_empty_database_is_a_confirmed_empty_library(self):
+        self.assertEqual(module.inventory(self.home),[])
     def test_installer_never_launches_or_claims_game_time(self):
         exe=self.home/'setup.exe';exe.touch();self.add(1,exe)
         game=module.inventory(self.home)[0]
         self.assertFalse(game['launchable']);self.assertIsNone(game['playtimeMinutes'])
+    def test_numbered_installer_is_also_blocked(self):
+        exe=self.home/'setup64.exe';exe.touch();self.add(1,exe)
+        self.assertFalse(module.inventory(self.home)[0]['launchable'])
     def test_correcting_target_keeps_identity_and_converts_hours_once(self):
         exe=self.home/'Mouse.exe';exe.touch();self.add(1,exe,1.5)
         game=module.inventory(self.home)[0]

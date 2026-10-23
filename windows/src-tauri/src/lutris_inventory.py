@@ -4,7 +4,6 @@ import math
 import pathlib
 import re
 import sqlite3
-import struct
 from contextlib import closing
 
 
@@ -58,6 +57,8 @@ def shortcuts(home):
 
 def inventory(home):
     roots = [home / '.local/share/lutris', home / '.var/app/net.lutris.Lutris/data/lutris']
+    if not any((root / 'pga.db').is_file() for root in roots):
+        raise RuntimeError('Lutris database is unavailable; installation state is unknown')
     result = []
     for root in roots:
         db = root / 'pga.db'
@@ -80,7 +81,7 @@ def inventory(home):
             data = yaml.safe_load(path.read_text()) or {}
             game = data.get('game') or {}
             exe = pathlib.Path(str(game.get('exe') or '')).expanduser()
-            installer = bool(re.match(r'^(setup|install|unins|uninstall)([._-]|$)', exe.name.lower()))
+            installer = bool(re.match(r'^(setup|install|unins|uninstall)([._-]|[0-9]|$)', exe.name.lower()))
             launchable = exe.is_file() and not installer
             hours = float(row['playtime'] or 0)
             if not math.isfinite(hours) or hours < 0:
