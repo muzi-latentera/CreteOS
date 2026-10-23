@@ -1,0 +1,38 @@
+{
+  "installedHash": "A3041EB593A14CA0C1307BAB89D77A9F3C34CF979232861E2E0E8E4472034ADB",
+  "reviewTime": "2026-10-23T16:35:40.8197737+01:00",
+  "processes": [
+    {
+      "Id": 32440,
+      "Name": "creteos",
+      "MainWindowTitle": "CreteOS",
+      "Responding": true
+    }
+  ],
+  "playtime": {
+    "cloud:luna:B0HLN4GG5K": 242.26915789999984
+  },
+  "scope": "Native log and persisted playtime inspection; no continuous visual recording. Earlier status snapshot: ever_played=true, persisted_seconds=242, ignored_early_ends=4. Endpoint not available on later refresh after session cleanup.",
+  "companionObserverHash": "D91AB8E53D76EB78EF5C1230369A03A92C7BC57CD7F2CD87274AFDEA190A9C59",
+  "events": [
+    "[1792769015254] pid=32440 stream[artwork-native-shown]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x750082 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769016744] pid=32440 stream[luna-phase-waiting]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x750082 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769028103] pid=32440 stream[luna-phase-attention]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x660a76 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769028449] pid=32440 stream[handoff-start]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x660a76 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769028735] pid=32440 stream[handoff-window-restored-raised]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x660a76 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769029384] pid=32440 stream[handoff-stable]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x660a76 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769030957] pid=32440 stream[luna-phase-playing]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x660a76 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769272396] pid=32440 stream[luna-phase-buffering]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x660a76 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769273207] pid=32440 stream[luna-phase-playing]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x660a76 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769275445] pid=32440 stream[luna-phase-waiting]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x660a76 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769276876] pid=32440 stream[luna-phase-ended]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x660a76 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769276960] pid=32440 stream[artwork-native-shown]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x660a76 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769277241] pid=32440 stream[return-to-crete]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x750082 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769277246] pid=32440 stream[return-cover-painted]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x750082 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769277268] pid=32440 stream[artwork-native-shown]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x750082 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769277390] pid=32440 stream[return-to-crete]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x750082 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769277398] pid=32440 stream[return-cover-painted]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x750082 ours=0x750082 wv_child_visible=None controller_visible=Some(true)",
+    "[1792769277760] pid=32440 stream[return-cover-released]: rect=(0,0,2560,1600) monitor=Some((0, 0, 2560, 1600)) visible=true iconic=false cloaked=0 fg=0x750082 ours=0x750082 wv_child_visible=None controller_visible=Some(true)"
+  ],
+  "companionBackgroundHash": "0FAF068793ADD2D777F901C1ED2E9C9933F978DB5002D92DB4309009DF9308AC"
+}

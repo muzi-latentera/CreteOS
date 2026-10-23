@@ -1,0 +1,21 @@
+G1 Intel AX210 driver update completed 21 October 2026 BST
+
+Updated installed driver from 23.150.0.4 (oem106.inf) to 24.80.0.2 (oem6.inf). Official Intel 24.80.0 package, valid Intel Corporation Authenticode signature, SHA512 matched Intel's published value. Installer exit code 0; no restart requested or required by the installer. No reboot performed.
+
+Original package exported successfully to:
+C:\Users\Muzi\Documents\Codex\2026-10-17\set-up-chrome-os-as-shown\work\wifi-driver-backup-20261021-002344
+It includes netwtw6e.inf, catalog, binaries and export.log. Original package was not manually deleted. For rollback, use Device Manager Roll Back Driver when available, or choose the backed-up compatible driver through Device Manager Have Disk; pnputil adding an older package alone does not guarantee Windows selects it over a newer driver.
+
+Verification after installation: active AX210 driver 24.80.0.2; connected to Hyperoptic_Extra; both saved home WLAN profiles retained; 8/8 Bosgame ping replies at 2-4 ms; SSH to Bosgame passed; Steam HTTPS 200. CreteOS WiFi Smart task resumed and running, Automatic mode unpaused with no override. No Netwtw14 event 5005 failures in the short recent verification window. This does not establish long-session stability; another gameplay session is needed to validate recurrence of the earlier disconnect.
+
+Black bars investigation: panel is 2560x1600 landscape, 16:10, 144 Hz. Windows video-controller WMI reports the panel's 1600x2560 native orientation. Previous stream and host capture logs show 2560x1600. On Bosgame, Onimusha's REFramework configuration has Graphics_UltrawideFix=false; constrain UI and 16x10 mode are also false. The reported top/bottom bars are consistent with 16:9 game letterboxing inside a correctly sized 16:10 output. A full-width 16:9 image is 2560x1440, leaving 80 pixels at each edge in a 2560x1600 frame. No screenshot/pixel measurement was taken, so bar dimensions are calculated rather than measured. Game aspect-ratio/mod settings were not changed by this driver update.
+
+Machine-readable evidence:
+Intel-WiFi-update-20261021.json
+Intel-WiFi-verification-20261021.json
+Native installer log: work/intel-wifi-installer-20261021.log
+Host aspect settings: work/host-aspect.txt
+
+Sources:
+https://www.intel.com/content/www/us/en/download/19351/intel-wireless-wi-fi-drivers-for-windows-10-and-windows-11.html
+https://github.com/praydog/REFramework/blob/master/src/mods/Graphics.cpp

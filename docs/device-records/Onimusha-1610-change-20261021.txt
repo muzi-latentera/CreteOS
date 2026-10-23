@@ -1,0 +1,26 @@
+SSH exit: 0
+{
+  "time": "2026-10-21T00:30:21.059645+01:00",
+  "file": "/home/muzidube/.local/share/Steam/steamapps/common/OnimushaWotS/re2_fw_config.txt",
+  "backup": "/home/muzidube/.local/share/Steam/steamapps/common/OnimushaWotS/re2_fw_config.txt.bak-before-1610-20261021-003021",
+  "changed": {
+    "Graphics_UltrawideFix": {
+      "before": false,
+      "after": true
+    }
+  },
+  "before_sha256": "[redacted-client-id]",
+  "after_sha256": "[redacted-client-id]",
+  "game_was_closed": true,
+  "gameplay_verified": false,
+  "settings": [
+    "Graphics_Ultrawide16x10Mode=false",
+    "Graphics_UltrawideConstrainChildUI=false",
+    "Graphics_UltrawideConstrainUI=false",
+    "Graphics_UltrawideCustomFOV=true",
+    "Graphics_UltrawideFOVMultiplier_V2=1.000000",
+    "Graphics_UltrawideFix=true",
+    "Graphics_UltrawideFixVerticalFOV_V2=true",
+    "Graphics_UltrawideUICorrection=100.000000"
+  ]
+}

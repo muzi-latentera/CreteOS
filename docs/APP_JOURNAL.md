@@ -2,6 +2,8 @@
 
 Canonical app: **creteos**. Worktrees use the same app records and identify their own branch/commit in entries.
 
+G1 setup, recovery and replacement-device entry point: [G1_SETUP_AND_RECOVERY.md](G1_SETUP_AND_RECOVERY.md). Keep its deployed state current alongside the dated journal; detailed older records remain historical.
+
 ## Locate the Obsidian vault
 
 Use `CRETE_VAULT_ROOT` if configured, or the Obsidian vault named **Crete**. On Muzi's current Mac it is:

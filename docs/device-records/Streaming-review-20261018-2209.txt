@@ -1,0 +1,40 @@
+Onimusha streaming review - 18 October 2026, 22:09:24-22:14:51 BST
+
+Verdict: broadly good and responsive by the user's report, with excellent G1 decoding, but not a clean locked-120-fps run. A short burst of network/audio loss occurred around Moonlight elapsed 02:26-02:28 (approximately 22:11:46-22:11:48 BST). These logs do not establish end-to-end input latency or predict every later session.
+
+Actual stream: 2560x1600, target 120 fps, HEVC SDR 8-bit; client requested 80 Mbps. Host encoder logged 62,988,000 bps as its configured streaming bitrate; this is not measured network throughput. Actual session used 1600p, rather than the original imported 1080p target.
+
+Moonlight client summary:
+Incoming frame rate: 104.67 fps
+Decoding frame rate: 104.67 fps
+Rendering frame rate: 104.65 fps
+Network frame loss: 0.48%
+Jitter-related frame drops: 0.01%
+Reported network latency estimate: 8 ms, reported variance 8 ms
+Average decoding time: 0.28 ms
+Average rendering time including V-sync: 0.36 ms
+Host processing latency min/max/average: 3.9/30.1/10.0 ms
+
+The 8 ms network value is an estimated RTT sampled by Moonlight, despite its label 'Average network latency'; it is not a complete session latency distribution, one-way latency, or controller-to-screen latency. Decoding/rendering statistics and FPS are Moonlight's summary, not independent game-engine FPS measurements. Their close incoming/decoded/rendered values indicate the G1 kept up with received frames. The logs do not isolate why the stream averaged below its 120 fps target. Host processing is substantially longer than client decoding/rendering, but this alone does not prove an encoder-only or game-only bottleneck.
+
+Client loss timeline:
+00:24: one explicitly logged lost video frame.
+02:26-02:28: concentrated video loss, 26 unrecoverable audio-block messages and 27 audio-gap messages across the log. 78 video frames are explicitly counted by individual loss messages; that count is not substituted for Moonlight's independent 0.48% aggregate statistic.
+After this burst there are no further network-drop messages before shutdown in the captured log.
+G1 display was 144 Hz; Moonlight reported frame pacing disabled for the 120 fps stream. This does not establish a perceptible pacing issue; user reported it felt good.
+A decode queue overflow was logged during shutdown at 05:31, rather than as a recurring gameplay decoder problem.
+
+Bosgame:
+Sunshine captured dedicated Sway HEADLESS-1 at 2560x1600/120 Hz, using hevc_vulkan on AMD Radeon 8060S Graphics (RADV STRIX_HALO), balanced encoder quality.
+Buddy tracked Onimusha AppID 2638890 from Running at 22:09:40 until processes ended at 22:14:51; stream cleanup followed. The tracked process duration includes menus/loading and is not a measured gameplay duration.
+VAAPI/CUDA failures preceded the session during automatic encoder probing; Sunshine explicitly marks those probe errors as ignorable and selected a working Vulkan encoder.
+Sunshine warned three times that nice -15 priority could not be set. No settings were changed to address this; its performance effect is not established by this one session.
+The client disconnected at 22:14:51.606, MoonDeckStream exited with code 0, and the resolution-reset command ran. Frame capture failed at 22:14:51.619 during reset to 1920x1080, after disconnection; it is not evidence of a mid-game capture failure.
+Buddy's RemoteHostClosedError and the client's cancelled applist request occurred during session teardown. No mid-session host crash was found in the reviewed Sunshine/Buddy logs.
+
+Assessment: retain this as a user-accepted short streaming run with measurable imperfections. The G1 decoder is not the apparent limiting stage. The next useful comparison, if desired, is a similar run in the same location with lower resolution or bitrate while keeping other settings fixed. This review changed no streaming, network, priority or power settings.
+
+Evidence:
+G1 native Temp/Moonlight-1792357760.log (session begins approximately 22:09:20 BST; stream connects around 22:09:24).
+Bosgame ~/.config/sunshine/sunshine.log; sunshine-headless.service and moondeckbuddy.service journals for the same period.
+Moonlight metric implementation: https://github.com/moonlight-stream/moonlight-qt/blob/v6.2.0/app/streaming/video/ffmpeg.cpp

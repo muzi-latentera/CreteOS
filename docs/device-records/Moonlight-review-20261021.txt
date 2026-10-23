@@ -1,0 +1,55 @@
+Moonlight review for Muzi
+Collected 21 October 2026 shortly after midnight BST. All session times below are Europe/London.
+
+Findings
+1. The recent successful session was measurably less smooth. The 20 October 23:37:38 client session, ending around 21 October 00:08:28, requested 2560x1600 at 120 FPS and 80 Mbps HEVC SDR. Incoming/decoded/rendered rates were 76.58/76.58/76.56 FPS. Network frame loss was 0.00%, jitter drops 0.02%, estimated RTT 1 ms with reported variance 0 ms. Average G1 decoding was 1.29 ms and rendering 1.76 ms. Host processing min/max/average was 4.3/57.0/18.2 ms. The client generally kept up with frames delivered; the evidence points toward host/game/capture delivery rather than sustained network loss as the main limitation in that session. It does not isolate game rendering from capture, scheduling or encoding.
+2. The recent -1 error was a control-channel disconnection contemporaneous with clear local Intel WLAN driver failures. Native Windows System log Netwtw14 event 5005 repeatedly reports the AX210 encountered an internal error and failed, around 23:36:09 and 23:36:16 on 20 October. Moonlight logs an unexpected control disconnect and Connection terminated: -1 at elapsed 00:00:16 in the 23:36:02 process. Sunshine logs CLIENT DISCONNECTED at 23:36:13 without restarting. WLAN AutoConfig then records driver-initiated disconnection from Extra at 23:36:27 and successful reconnection at 23:36:28. The client later observes Bosgame offline then online. The timing strongly supports the local adapter/driver failure as the immediate reason that attempt was lost. The underlying driver trigger is not established.
+3. The WiFiSmart events show protect-stream and no network-switch request around this failed launch. This was not an Extra-to-Fibre automation transition. Refresh/retry plausibly succeeded after the adapter recovered; there is no evidence that re-pairing was required.
+
+Recent client summaries
+Date 20 October 2026; times are process start times, not exact first-frame times.
+00:17:05  80.64 incoming FPS; host average 15.3 ms; decode 3.11 ms; requested 150 Mbps; -1 termination.
+00:20:44  94.42 incoming FPS; host average 15.4 ms; decode 1.31 ms; requested 150 Mbps.
+14:18:48  28.54 incoming FPS; host average 14.5 ms; decode 26.14 ms; -1 termination after long elapsed duration. This anomalous older run includes lengthy elapsed/inactive time; do not use its whole-session averages as a clean gameplay benchmark.
+16:41:46  98.32 incoming FPS; host average 14.5 ms; decode 1.25 ms.
+19:51:06  84.63 incoming FPS; host average 16.4 ms; decode 0.41 ms.
+20:33:04 120.07 incoming FPS; host average 5.0 ms; decode 0.45 ms; short session including Steam Updating state.
+20:35:15 119.98 incoming FPS; host average 6.5 ms; decode 0.40 ms; short session.
+21:23:22  89.19 incoming FPS; host average 15.5 ms; decode 0.42 ms.
+23:36:02  failed short launch; -1; brief-run statistics are not a stable benchmark.
+23:37:38  76.58 incoming FPS; host average 18.2 ms; decode 1.29 ms; latest full session.
+The short 120 FPS sessions include menus/loading and cannot be compared directly with longer gameplay scenes.
+The accepted 18 October run averaged 104.67 incoming FPS, 10.0 ms host processing and 0.28 ms G1 decode, with 0.48% network loss.
+
+Host findings from SSH
+Sunshine, dedicated Sway and MoonDeckBuddy are active. Sunshine NRestarts=0 and the PID is unchanged across the reviewed recent sessions. Stream resolution is 2560x1600, headless output 120 Hz, encoder hevc_vulkan, balanced quality. Host configured encoder bitrate is 62,988,000 bps for the recent 80 Mbps requests, the same logged value as the original good run; this is a configured encoder bitrate, not measured network throughput. No evidence of a resolution or codec downgrade in the latest session.
+The plain sunshine.conf says vaapi, but the effective running session explicitly uses Vulkan via the existing wrapper. Runtime session logs are the relevant evidence; do not change the dormant config solely to match them.
+Sunshine repeatedly cannot set nice -15 (permission denied), including the earlier good run. This can leave it less protected from competing work, but is not a newly proven regression.
+At collection, Bosgame had 32 logical CPUs and load average approximately 24/38/39. Docker Runner.Worker jobs and Node/turbo work were active; some observed jobs only started after gameplay finished. Subsequent vmstat samples showed about 74-75% idle CPU, and current GPU busy was 6% after the game exited. There is no captured per-process CPU/GPU timeline during the last game, so background contention is a plausible contributor, not a demonstrated cause. Do not stop unrelated work based on this snapshot.
+Host game configuration currently shows 2560x1600 borderless, many High settings and Highest shadows, FSR3 Balanced, frame generation On and unlimited frame rate. OptiScaler is also present. Upscaling/mod configuration could influence softness, artifacts and performance, but there is no before/after configuration history proving a recent change. Stream logs cannot assess visual sharpness directly.
+
+Client findings
+At collection the G1 was on Extra at 5 GHz, RSSI -54 dBm, 86% signal and 574 Mbps negotiated link. These are current radio values, not historical throughput measurements.
+Installed Intel AX210 Wi-Fi driver version: 23.150.0.4. Moonlight version 6.2.0; AMD client display driver 32.0.31041.1004. The driver has explicit failure evidence; do not infer a GPU decoder failure from the generic -1 code.
+Moonlight reports no matching display mode for 120 FPS, uses desktop mode and enables V-sync. This may affect cadence on the 144 Hz panel, but the same warning occurred previously and does not explain the latest low incoming frame rate by itself.
+Startup/shutdown decoder queue overflows and OperationCanceledError on teardown should not be confused with repeated mid-game decoder or server crashes. Control stream 10004 messages during orderly shutdown are separate from unexpected -1 termination.
+
+Next work in priority order
+1. Address the G1 AX210 driver stability with a compatible signed OEM/Intel Wi-Fi driver update, retaining rollback and saved profiles. Intel recommends current drivers for disconnections; its download page offers a newer package than the installed version. This audit did not install a driver or interrupt connectivity.
+2. Measure a comparable gameplay scene with live host CPU/GPU/frame-time data, then compare with background builds paused at an agreed time. Consider properly granting Sunshine its requested scheduling priority; do not claim a fix before testing.
+3. If the complaint is visual softness rather than motion, inspect in-game upscaling and mod settings and compare the same scene. Retain stream resolution and bitrate initially to avoid changing several variables together.
+
+No settings, drivers, service priorities, game configuration or network profiles were changed. No games, streams, reboots or throughput stress tests were started.
+
+Evidence folder
+work/recent-stream-review: client Moonlight logs, native-intake.json (WLAN events), system-failure-window.json, wifi-driver.json, wifi-properties.json, wifi-events.log, host-intake.txt, host-detail.txt and host-workload.txt.
+
+Primary references
+Moonlight control stream source maps unexpected ENet disconnect to -1:
+https://github.com/moonlight-stream/moonlight-common-c/blob/master/src/ControlStream.c
+Moonlight 6.2.0 statistics implementation:
+https://github.com/moonlight-stream/moonlight-qt/blob/v6.2.0/app/streaming/video/ffmpeg.cpp
+Intel disconnect troubleshooting:
+https://www.intel.com/content/www/us/en/support/articles/000088581.html
+Intel driver download page checked 21 October 2026:
+https://www.intel.com/content/www/us/en/download/19351/intel-wireless-wi-fi-drivers-for-windows-10-and-windows-11.html

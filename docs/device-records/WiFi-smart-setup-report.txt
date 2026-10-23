@@ -1,0 +1,35 @@
+CreteOS G1 smart home Wi-Fi — 19 October 2026
+
+Installed app source: 4b1999d6781f64dbe25ad5f59a9eff54f1587753, codex/g1-smart-wifi.
+Executable SHA256: bdd4e8192212428b6a80a41dd82169f7e7890b1d4236b5740f445c99936268b0.
+Native executable: C:\Users\Muzi\AppData\Local\CreteOS\creteos.exe.
+Previous executable backup: C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\WiFi-smart-20261019-234404\creteos.exe (interim0890175, SHA7383a620c192a82b9c79c837f18b8cde5f652cdc4b170f9c75ac99bcdcf3afe9).
+Pre-Wi-Fi app backup: C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\WiFi-smart-20261019-233422\creteos.exe (6135a2e password-login build).
+Interim0890175 actual install retained separately in WiFi-smart-app-install-0890175.json. Final actual install recorded in WiFi-smart-app-install.json. Builds5bb29b9/4b1999d are separate from interim installation; only4b1999d is final.
+
+Helper: native LocalAppData\CreteOS-Bootstrap\WiFiSmart.
+Installed helper SHA256: 8f950f95190bb808403d6042b5495d638234f76287f649cc9619f5997470d1cc.
+Policy SHA256: fff2c6db5552e479fd21a057951f3ccdec2e2ccd63b4af8c0549b64ddb3daa5b.
+Enabled current-user logon task: CreteOS WiFi Smart, Limited/Interactive, hidden action, allowed on battery, no execution-time limit. Verified running with exactly one monitor process and fresh status. Actual cold login/hibernate has not been physically tested.
+
+User-approved policy: Moonlight takes priority over concurrent downloads. Automatic startup/resume defaults to Hyperoptic_Extra when available. Downloads/resumed downloads select Hyperoptic Fibre E433; idle returns to Extra. Existing active Moonlight/GeForceNOWStreamer clients keep the current connection. CreteOS performs PrepareGaming before Moonlight host/stream preparation and GeForce NOW launch, with a bounded20-second wait, so it selects Extra before creating the stream. Optional helper absent/paused/foreign-network cases preserve prior networking. Existing streams launched outside CreteOS are never switched; use manual Gaming mode before external or browser cloud launches.
+
+Steam download-state hints and Windows Delivery Optimization Downloading status trigger fast-network demand. Other applications, including Epic/GOG/browser transfers, use two15-second receive samples over256KiB/s. This is sustained-transfer detection rather than proven app-by-app download classification, and can include other heavy traffic. Continued receiving over64KiB/s keeps the download window alive. Return requires120seconds quiet and a five-minute minimum fast-network residence, preventing reconnection churn. A short prelaunch lease protects stream startup. Resume events7/18 plus a long-sample-gap fallback reset the Automatic startup preference. Manual Gaming/Download override lasts2hours; Pause persists until resumed.
+
+Desktop controls: C:\Users\Muzi\Desktop\Wi-Fi modes (Gaming Wi-Fi, Download Wi-Fi, Automatic Wi-Fi, Pause automatic switching, Read me.txt).
+
+Verification:
+-16/16policy cases passed in Windows PowerShell5.1; zero parser errors, including wake default, stream protection, manual override, foreign/disconnected network protection and cooldown.
+-3/3focused browser regressions passed (Steam password/Guard handling and G1 display preset); frontend typecheck/production build and full WindowsMSVC release cross-build succeeded.
+-Remote/local/installed executable SHA256 matched. App running, onboarding retained, settings/moonlight_profiles/geforce_profiles/custom_data files unchanged byte-for-byte.
+-NativeWLAN fresh scan returned0 and found both home SSIDs. Initial cached listing showed only Extra; helper now scans/rechecks when a requested target is missing. No location/security setting was changed and no WLAN keys exported.
+-Live final test moved Extra→FibreE433, verified Steam HTTPS200 and Microsoft connectivity HTTP200, then PrepareGaming moved back to Extra, ending Automatic with no override. No throughput benchmark or actual Epic/GOG/Xbox download session was performed.
+-Earlier six-second association timeout failed on one attempt; final helper waits up to12seconds and requires connected state. Final test passed. A transient executable file lock during final update was retried successfully; previous executable backup retained.
+-Current status: Hyperoptic_Extra, idle-gaming-default, Automatic/unpaused, WMI power notifications registered; both profiles visible. Extra remained first in Windows saved-profile preference order, already the original ordering.
+
+No unattended reboot/hibernate, game/stream launch, router, DNS, driver, OneXConsole, Buddy or SSH changes. No account credentials copied. Existing empty optionalSGDBkey build limitation retained. No push/PR. Canonical Obsidian vault absent; pending-sync journal saved.
+
+Evidence: WiFi-smart-install.json (helper/startup), WiFi-smart-app-install.json, WiFi-smart-native-app-verification.json, WiFi-smart-verification.json, WiFi-policy-tests.json, WiFi-scan-check.json, WiFi-live-final-test.json and work/wifi-build-completed.log. WiFi-live-roundtrip.json is an earlier failed attempt, not the final result.
+Implementation references: Microsoft netsh wlan commands https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/netsh-wlan ; power-event identifiers https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-powermanagementevent ; Windows Delivery Optimization status https://learn.microsoft.com/en-us/windows/deployment/do/waas-delivery-optimization-monitor .
+
+Pause/rollback: choose Pause automatic switching to leave the current connection alone. To disable startup, disable the CreteOS WiFi Smart task. For app rollback, close CreteOS and restore the backed-up executable. No profile re-import is needed.
