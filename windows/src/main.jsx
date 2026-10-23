@@ -6,8 +6,7 @@ import "./styles/input-mode.css";
 import "./theme/crete.css";
 import "./crete/crete.css";
 import App from "./App";
-import { StreamArtworkWindow } from "./StreamArtworkWindow";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-    new URLSearchParams(location.search).has("stream_artwork") ? <StreamArtworkWindow /> : <App />
+    <App />
 );

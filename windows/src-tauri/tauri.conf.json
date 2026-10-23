@@ -26,7 +26,7 @@
       {
         "label": "stream-artwork",
         "title": "CreteOS streaming artwork",
-        "url": "index.html?stream_artwork=1",
+        "url": "stream-artwork.html",
         "visible": false,
         "focus": false,
         "decorations": false,

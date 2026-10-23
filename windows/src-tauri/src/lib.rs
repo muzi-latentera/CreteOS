@@ -10544,6 +10544,13 @@ pub fn run() {
             get_xcloud_games
         ])
         .on_window_event(|window, event| {
+            if window.label()=="stream-artwork" {
+                match event {
+                    tauri::WindowEvent::Destroyed=>fse_watcher::log_stream_transition(window.app_handle(),"artwork-destroyed"),
+                    tauri::WindowEvent::CloseRequested{..}=>fse_watcher::log_stream_transition(window.app_handle(),"artwork-close-requested"),
+                    _=>{}
+                }
+            }
             // Tauri/WebView2 already transfers input on ordinary activation.
             // Calling MoveFocus again for every Focused(true) notification can
             // feed WebView child activation back into another focus transfer.
