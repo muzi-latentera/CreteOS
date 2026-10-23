@@ -61,6 +61,7 @@ mod stream_readiness;
 mod luna;
 mod luna_session;
 mod stream_artwork;
+mod native_artwork;
 mod stream_wifi;
 mod moondeck;
 mod crete_news;

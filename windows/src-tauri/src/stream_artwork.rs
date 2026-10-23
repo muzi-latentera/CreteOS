@@ -6,6 +6,8 @@ use tauri::{Emitter,Manager};
 pub struct Artwork { art:String, message:String }
 static ART:Mutex<Artwork>=Mutex::new(Artwork{art:String::new(),message:String::new()});
 static PAINTED:AtomicBool=AtomicBool::new(false);
+static NATIVE_READY:AtomicBool=AtomicBool::new(false);
+static NATIVE_SHOWN:AtomicBool=AtomicBool::new(false);
 // Startup diagnostics describe only our own surface, not browser windows or
 // content. They distinguish missing native creation from failed painting.
 pub fn diagnose_startup(app:tauri::AppHandle) {
@@ -17,6 +19,7 @@ pub fn diagnose_startup(app:tauri::AppHandle) {
             "managed":cover.is_some(),
             "handle_available":cover.as_ref().is_some_and(|w|w.hwnd().is_ok()),
             "painted":PAINTED.load(Ordering::SeqCst)
+            ,"native_handle_available":crate::native_artwork::prepare().is_ok()
         });
         let folder=crate::liftoff_dir().join("logs");let _=std::fs::create_dir_all(&folder);
         let _=std::fs::write(folder.join("artwork-startup.json"),diagnostic.to_string());
@@ -29,11 +32,15 @@ pub fn stream_artwork_painted(){PAINTED.store(true,Ordering::SeqCst);}
 #[tauri::command]
 pub fn update_stream_artwork(window:tauri::Window,art:String,message:String)->Result<(),String>{
     if art.len()>12*1024*1024 || message.len()>300{return Err("Invalid stream artwork".into());}
+    let ready=crate::native_artwork::update(&art,&message).is_ok();
+    NATIVE_READY.store(ready,Ordering::SeqCst);
+    if !ready && NATIVE_SHOWN.swap(false,Ordering::SeqCst){let _=crate::native_artwork::visible(false,0,0,0,0);}
     if let Ok(mut s)=ART.lock(){if s.art!=art {PAINTED.store(false,Ordering::SeqCst);}*s=Artwork{art,message};}
     if let Some(cover)=window.app_handle().get_webview_window("stream-artwork"){let _=cover.emit("stream-artwork",get_stream_artwork());}
     Ok(())
 }
 pub fn message(window:&tauri::Window,message:&str){
+    crate::native_artwork::message(message);
     if let Ok(mut state)=ART.lock(){state.message=message.into();}
     if let Some(cover)=window.app_handle().get_webview_window("stream-artwork"){let _=cover.emit("stream-artwork",get_stream_artwork());}
 }
@@ -57,6 +64,15 @@ fn owned_hwnd()->Result<windows::Win32::Foundation::HWND,String>{
     Ok(HWND(found[0] as _))
 }
 pub fn visible(window:&tauri::Window,show:bool)->Result<(),String>{
+    if !show && NATIVE_SHOWN.swap(false,Ordering::SeqCst){return crate::native_artwork::visible(false,0,0,0,0);}
+    if show && NATIVE_READY.load(Ordering::SeqCst) {
+        if let Some(monitor)=window.current_monitor().map_err(|_|"Artwork monitor unavailable")?{
+            let p=monitor.position();let size=monitor.size();
+            if crate::native_artwork::visible(true,p.x,p.y,size.width as i32,size.height as i32).is_ok(){
+                NATIVE_SHOWN.store(true,Ordering::SeqCst);return Ok(());
+            }
+        }
+    }
     use windows::Win32::UI::WindowsAndMessaging::{ShowWindow,SetWindowPos,GetWindowLongPtrW,SetWindowLongPtrW,GWL_EXSTYLE,WS_EX_NOACTIVATE,WS_EX_TOOLWINDOW,SW_SHOWNOACTIVATE,SW_HIDE,HWND_TOPMOST,SWP_NOACTIVATE};
     let hwnd=owned_hwnd()?;
     if !show {unsafe{let _=ShowWindow(hwnd,SW_HIDE);}return Ok(());}
