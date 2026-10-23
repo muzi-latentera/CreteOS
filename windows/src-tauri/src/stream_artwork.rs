@@ -24,19 +24,11 @@ pub fn message(window:&tauri::Window,message:&str){
 pub fn visible(window:&tauri::Window,show:bool)->Result<(),String>{
     let app=window.app_handle();
     if !show {if let Some(cover)=app.get_webview_window("stream-artwork"){let _=cover.hide();}return Ok(());}
-    let cover=if let Some(cover)=app.get_webview_window("stream-artwork"){cover}else{
-        let monitor=window.current_monitor().map_err(|e|e.to_string())?.ok_or("No streaming monitor")?;
-        let scale=monitor.scale_factor();let size=monitor.size();let position=monitor.position();
-        PAINTED.store(false,Ordering::SeqCst);
-        let cover=tauri::WebviewWindowBuilder::new(app,"stream-artwork",tauri::WebviewUrl::App("index.html?stream_artwork=1".into()))
-            .title("CreteOS streaming artwork").decorations(false).resizable(false).skip_taskbar(true).always_on_top(true)
-            .focused(false).visible(false).position(position.x as f64/scale,position.y as f64/scale)
-            .inner_size(size.width as f64/scale,size.height as f64/scale).build().map_err(|e|e.to_string())?;
-        use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongPtrW,SetWindowLongPtrW,GWL_EXSTYLE,WS_EX_NOACTIVATE,WS_EX_TOOLWINDOW};
-        if let Ok(hwnd)=cover.hwnd(){unsafe{let style=GetWindowLongPtrW(hwnd,GWL_EXSTYLE);SetWindowLongPtrW(hwnd,GWL_EXSTYLE,style|WS_EX_NOACTIVATE.0 as isize|WS_EX_TOOLWINDOW.0 as isize);}}
-        cover
-    };
-    if let Some(monitor)=window.current_monitor().map_err(|e|e.to_string())? {
+    let cover=app.get_webview_window("stream-artwork").ok_or("Streaming artwork window was not initialized")?;
+    use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongPtrW,SetWindowLongPtrW,GWL_EXSTYLE,WS_EX_NOACTIVATE,WS_EX_TOOLWINDOW};
+    let hwnd=cover.hwnd().map_err(|e|format!("Streaming artwork handle: {e}"))?;
+    unsafe{let style=GetWindowLongPtrW(hwnd,GWL_EXSTYLE);SetWindowLongPtrW(hwnd,GWL_EXSTYLE,style|WS_EX_NOACTIVATE.0 as isize|WS_EX_TOOLWINDOW.0 as isize);}
+    if let Some(monitor)=window.current_monitor().map_err(|e|format!("Streaming monitor: {e}"))? {
         let _=cover.set_position(tauri::Position::Physical(*monitor.position()));
         let _=cover.set_size(tauri::Size::Physical(*monitor.size()));
     }

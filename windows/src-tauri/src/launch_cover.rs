@@ -26,7 +26,7 @@ fn topmost_without_activation(raw: isize, topmost: bool) -> Result<(), String> {
 #[tauri::command(async)]
 pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focus: Option<bool>, stream_provider: Option<String>) -> Result<(), String> {
     if stream_provider.as_deref().is_some_and(|p| !matches!(p, "moonlight" | "geforceNow" | "luna")) { return Err("Unknown streaming client".into()); }
-    let hwnd = window.hwnd().map_err(|e| e.to_string())?.0 as isize;
+    let hwnd = window.hwnd().map_err(|e| format!("Launcher handle: {e}"))?.0 as isize;
     let _z_order = Z_ORDER.lock().map_err(|_| "Launch cover state unavailable")?;
     let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     // Slow host launches need the same cover throughout game-window readiness.
@@ -38,7 +38,11 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
     if !active { let _=crate::stream_artwork::visible(&window,false); }
     if let Some(provider)=stream_provider.clone().filter(|_|active && !allow_external_focus.unwrap_or(false)) {
         topmost_without_activation(hwnd,false)?;
-        crate::stream_artwork::visible(&window,true)?;
+        // A presentation failure must not prevent a working client from launching.
+        // Keep the established main-window fallback and retain the cause in logs.
+        let cover=crate::stream_artwork::visible(&window,true);
+        if let Err(error)=&cover {let _=crate::streaming::record_stream_issue(provider.clone(),"artwork".into(),error.clone());}
+        if cover.is_ok() {
         std::thread::spawn(move||{
             let mut cancel_was_down=true;
             let mut shown=true;
@@ -57,6 +61,7 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
             if GENERATION.load(Ordering::SeqCst)==generation {let _=crate::stream_artwork::visible(&window,false);}
         });
         return Ok(());
+        }
     }
 
     topmost_without_activation(hwnd, active && !allow_external_focus.unwrap_or(false))?;

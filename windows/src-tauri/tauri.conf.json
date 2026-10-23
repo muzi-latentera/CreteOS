@@ -22,6 +22,20 @@
         "height": 600,
         "backgroundColor": "#08090B",
         "additionalBrowserArgs": "--disable-gpu-memory-buffer-video-frames --enable-zero-copy --num-raster-threads=2 --autoplay-policy=no-user-gesture-required"
+      },
+      {
+        "label": "stream-artwork",
+        "title": "CreteOS streaming artwork",
+        "url": "index.html?stream_artwork=1",
+        "visible": false,
+        "focus": false,
+        "decorations": false,
+        "resizable": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "width": 800,
+        "height": 600,
+        "backgroundColor": "#08090B"
       }
     ],
     "security": {
