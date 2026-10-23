@@ -32,7 +32,7 @@ def main():
     original = path.read_bytes()
     entries = vdf.binary_loads(original)['shortcuts']
     entries = list(entries.values()) if isinstance(entries, dict) else []
-    updated, registered = [], []
+    updated, registered, previous = [], [], {}
     names = {str(ident): name for ident, name in games}
     for entry in entries:
         options = str(entry.get('LaunchOptions', ''))
@@ -40,6 +40,8 @@ def main():
         managed = entry.get('Exe') in ('"/usr/bin/dbus-run-session"', '"lutris"', '"/usr/bin/lutris"')
         if not (managed and match and match[1] in names):
             updated.append(entry)
+        else:
+            previous[match[1]] = entry
     for ident, name in games:
         exe = '"/usr/bin/dbus-run-session"'
         appid = binascii.crc32((exe + name).encode()) | 0x80000000
@@ -50,6 +52,10 @@ def main():
                  'LaunchOptions': '-- /usr/bin/lutris lutris:rungameid/' + str(ident),
                  'icon': '', 'IsHidden': 0, 'AllowDesktopConfig': 1, 'AllowOverlay': 1,
                  'OpenVR': 0, 'Devkit': 0, 'DevkitOverrideAppID': 0, 'LastPlayTime': 0, 'tags': {}}
+        # Re-registering a library must retain user art, tags and Steam's last-played value.
+        for field in ('icon', 'IsHidden', 'AllowDesktopConfig', 'AllowOverlay', 'LastPlayTime', 'tags'):
+            if field in previous.get(str(ident), {}):
+                entry[field] = previous[str(ident)][field]
         updated.append(entry)
         registered.append({'lutrisId': str(ident), 'name': name, 'shortcutId': str(appid)})
     data = vdf.binary_dumps({'shortcuts': {str(i): e for i, e in enumerate(updated)}})

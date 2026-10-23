@@ -31,6 +31,11 @@ def main():
         for file in steam.glob('userdata/*/config/shortcuts.vdf'):
             if file.stat().st_size>4*1024*1024:raise RuntimeError('Unexpected large shortcut file')
             payloads['steam/'+file.relative_to(steam).as_posix()]=file.read_bytes()
+            for art in (file.parent/'grid').glob('*'):
+                if art.is_file() and art.suffix.lower() in ('.png', '.jpg', '.jpeg', '.webp', '.json'):
+                    if art.stat().st_size > 16*1024*1024:
+                        raise RuntimeError('Unexpected large Steam artwork file')
+                    payloads['steam/'+art.relative_to(steam).as_posix()]=art.read_bytes()
     for name in ['reset-resolution.sh','set-resolution.sh']:
         file=home/'.config/sway-sunshine'/name
         if file.is_file():payloads['sway-sunshine/'+name]=file.read_bytes()

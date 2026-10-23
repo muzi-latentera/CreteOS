@@ -10,6 +10,7 @@ const hookState = vi.hoisted(() => ({
     controllerSupport?: "full" | "partial" | "none";
     screenshots?: Array<{ thumb: string; full: string }>;
     shortDescription?: string;
+    movies?: Array<{ id: string; name: string; thumbnail: string; mp4: string }>;
   },
 }));
 
@@ -364,6 +365,19 @@ describe("Game Details modal", () => {
       expect(label.style.color).toBe("var(--test-theme-text)");
       expect(label.style.opacity).toBe("0.78");
     }
+  });
+
+  it("shows descriptions and playable trailers for remote Lutris games", () => {
+    hookState.storeData = {
+      shortDescription: "A remote game's description",
+      movies: [{ id: "trailer1", name: "Launch trailer", thumbnail: "https://example.com/thumb.jpg", mp4: "https://example.com/trailer.mp4" }],
+    };
+    act(() => root.render(
+      <GameDetailsModal {...baseProps()} app={{ id: "lutris:bosgame:1", name: "Mouse", source: "lutris", store_id: "1" }} canXboxInstall={false} />,
+    ));
+    expect(container.textContent).toContain("A remote game's description");
+    expect(container.querySelector('[aria-label="Launch trailer"]')).not.toBeNull();
+    expect(container.textContent).not.toContain("Run as Administrator");
   });
 
   it("shows a chosen static hero instead of a leftover animation", () => {
