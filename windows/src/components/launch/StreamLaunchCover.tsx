@@ -4,11 +4,11 @@ import { listen } from "@tauri-apps/api/event";
 import type { App } from "../../types";
 import { useTranslation } from "react-i18next";
 import { getBestGamepad, readGpState } from "../../utils/gamepad";
-import { LaunchMessages } from "./LaunchMessages";
 
-type Provider = "moonlight" | "geforceNow";
+type Provider = "moonlight" | "geforceNow" | "luna";
 type Cover = { app: App; returning?: boolean } | null;
 type ReturnPhase = { provider: Provider; phase: "ending" | "ended"; session: number };
+let artworkFor: (app: App) => string = () => "";
 let lastStream: { app: App; provider: Provider } | null = null;
 let dismissed = false;
 let generation = 0;
@@ -22,7 +22,7 @@ function cancelLaunch(notifyNative = true) {
   window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: null }));
   if (notifyNative) void invoke("cancel_stream_launch").catch(() => {});
 }
-export async function withStreamCover(app: App, provider: "moonlight" | "geforceNow", launch: () => Promise<unknown>, beforeHandoff?: () => void) {
+export async function withStreamCover(app: App, provider: "moonlight" | "geforceNow" | "luna", launch: () => Promise<unknown>, beforeHandoff?: () => void) {
   if (cancelActive) throw new Error("A stream launch is already in progress. Cancel it before trying again.");
   const current = ++generation;
   const cancelled = Symbol("cancelled");
@@ -32,6 +32,7 @@ export async function withStreamCover(app: App, provider: "moonlight" | "geforce
   const shownAt = performance.now();
   dismissed = false;
   let handedOff = false;
+  let failure: string | undefined;
   let releaseAttention: (() => void) | undefined;
   lastStream = { app, provider };
   window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: { app } }));
@@ -48,6 +49,7 @@ export async function withStreamCover(app: App, provider: "moonlight" | "geforce
         window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: null }));
       }));
     });
+    await invoke("update_stream_artwork",{art:artworkFor(app),message:"Preparing stream…"});
     await invoke("set_launch_cover", { active: true, streamProvider: provider });
     // Give the artwork two paint opportunities before another client can
     // create a foreground/topmost connection window.
@@ -75,6 +77,10 @@ export async function withStreamCover(app: App, provider: "moonlight" | "geforce
       await invoke("focus_stream_window", { provider });
       handedOff = true;
     }
+  } catch (reason) {
+    failure=String(reason);
+    await invoke("record_stream_issue",{provider,gameId:app.id,message:String(reason)}).catch(()=>{});
+    throw reason;
   } finally {
     releaseAttention?.();
     if (cancelActive === cancel) cancelActive = undefined;
@@ -83,13 +89,30 @@ export async function withStreamCover(app: App, provider: "moonlight" | "geforce
       // Native handoff has already released the cover. No window changes after
       // it confirms foreground: late cleanup can disturb shell composition.
       if (!handedOff) await invoke("set_launch_cover", { active: false }).catch(() => {});
+      if (failure) {
+        window.dispatchEvent(new CustomEvent("crete-stream-failure",{detail:failure}));
+        void invoke("present_stream_failure",{provider}).catch(()=>{});
+      }
     }
   }
 }
 
 export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<string, string>; customHeroArt: Record<string, string> }) {
   const { t } = useTranslation();
+  artworkFor=app=>customHeroArt[app.id] || heroArt[app.id] || "";
   const [cover, setCover] = useState<Cover>(null);
+  const [progress,setProgress]=useState("Preparing stream…");
+  const [failure,setFailure]=useState<string|null>(null);
+  useEffect(()=>{
+    const failed=(event:Event)=>{setFailure(String((event as CustomEvent).detail));if(lastStream)setCover({app:lastStream.app});};
+    window.addEventListener("crete-stream-failure",failed);
+    let remove:(()=>void)|undefined;
+    void listen<{message:string}>("stream-progress",e=>setProgress(e.payload.message)).then(off=>{remove=off;});
+    return()=>{window.removeEventListener("crete-stream-failure",failed);remove?.();};
+  },[]);
+  useEffect(()=>{if(!cover)return;const art=customHeroArt[cover.app.id] || heroArt[cover.app.id] || "";
+    void invoke("update_stream_artwork",{art,message:cover.returning?"":progress}).catch(()=>{});
+  },[cover,progress,customHeroArt,heroArt]);
   const returnTicket = useRef(0);
   const returnSession = useRef<number | null>(null);
   const dismiss = (notifyNative = true) => {
@@ -107,7 +130,7 @@ export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<
   useEffect(() => {
     const change = (event: Event) => {
       const detail = (event as CustomEvent<Cover>).detail;
-      if (detail) { ++returnTicket.current; returnSession.current = null; setCover(detail); }
+      if (detail) { setFailure(null);setProgress("Preparing stream…");++returnTicket.current; returnSession.current = null; setCover(detail); }
       else setCover(previous => previous?.returning ? previous : null);
     };
     window.addEventListener("crete-stream-cover", change);
@@ -155,6 +178,6 @@ export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<
   if (!cover) return null;
   const art = customHeroArt[cover.app.id] || heroArt[cover.app.id];
   return <div data-stream-launch-cover="" role="status" aria-label={t("launch.launching")} style={{ position: "fixed", inset: 0, zIndex: 10000, display: "grid", placeContent: "center", background: art ? `linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.4)),url(${JSON.stringify(art)}) center/cover` : "rgba(10,13,16,.92)" }}>
-    {!cover.returning && <LaunchMessages />}
+    {!cover.returning && <span role={failure?"alert":"status"} style={{maxWidth:"75vw",textAlign:"center"}}>{failure || progress}</span>}
   </div>;
 }

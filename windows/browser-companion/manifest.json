@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "CreteOS Luna Companion",
+  "version": "0.1.0",
+  "description": "Reports Luna stream start/end to CreteOS on this device. No account or cookie access.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwxE9IsAxdnoSzrNIStH+pRvlp9cA3srhaRQJC68N+IRaNEkFHo1200CpUsuP16qZzVILLm459GjAXqu/PFjAgSBuiDEkJyRG5wnG7+lXbDRbFoqn1rrl0DnCVvvrNjNE2WpEOkRjZ6S7xJwok0c2jKbK9CvBm/vXZCufklvHI/j45LR74JwBVOuGvblquObq+EOk7I3QpA4QF1vyq1xF15RJq59lbabuMKNTQA6fcHReNBYM3qULO65T3SnLmn4uGAEzeEXPPtBN6ZeBmGcYT4w6jh6DdU51N1HdVXPV2RAeHZynIVcDQQ54N/YxQvk1aI2LRbXW8VQciVLuVZoH1QIDAQAB",
+  "host_permissions": [
+    "http://127.0.0.1:59265/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://luna.amazon.co.uk/*",
+        "https://luna.amazon.com/*"
+      ],
+      "js": [
+        "observer.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ]
+}

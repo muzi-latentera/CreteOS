@@ -1,8 +1,15 @@
 import unittest
-from host_window_watch import WindowPresence, has_game_window
+from host_window_watch import WindowPresence, has_game_window, preparation_phase
 
 
 class HostWindowLifecycleTests(unittest.TestCase):
+    def test_progress_is_exact_game_and_reports_no_log_content(self):
+        self.assertEqual(preparation_phase("2638890", "Still replaying 2638890: 50%", ""), "compiling")
+        self.assertIsNone(preparation_phase("263889", "Still replaying 2638890: 50%", ""))
+        self.assertEqual(preparation_phase("2638890", "", "AppID 2638890 update started"), "updating")
+        self.assertIsNone(preparation_phase("263889", "", "AppID 2638890 update started"))
+        self.assertEqual(preparation_phase("2638890", "Destroyed compile job 2638890", ""), "starting")
+
     def test_never_closes_without_observing_a_stable_game_window(self):
         tracker = WindowPresence()
         self.assertIsNone(tracker.sample(False, 0))

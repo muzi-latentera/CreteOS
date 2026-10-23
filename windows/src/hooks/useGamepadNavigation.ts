@@ -1,3 +1,4 @@
+import { withStreamCover } from "../components/launch/StreamLaunchCover";
 import { useEffect, useRef, useState } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { TFunction } from "i18next";
@@ -517,6 +518,11 @@ export function useGamepadNavigation(
     lastLaunchTime.current = now;
     launchedAppSessionRef.current = true;
     playSoundGameStart();
+    if (app.source === "cloud" && /^https:\/\/luna\.amazon\.(co\.uk|com)(?:\/|$)/.test(app.launch_path)) {
+      void withStreamCover(app, "luna", () => invoke("launch_luna_session", {gameId:app.id, gameName:app.name, url:app.launch_path}))
+        .catch(() => {});
+      return;
+    }
     pendingLaunchRef.current = app;
     setLaunchingApp(app); launchingAppRef.current = app;
     haptic("confirm");

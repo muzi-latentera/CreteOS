@@ -1,0 +1,13 @@
+# CreteOS Luna Companion
+
+Prepared extension ID: gmneapkhejdngoenacdnamaddbfcihab. Installation is optional and requires the user's action-time confirmation. It is not installed merely by copying this folder.
+
+What it does: notices advancing frames in Luna's live video MediaStream, reports waiting/buffering/playing/attention/ended to CreteOS at 127.0.0.1:59265. CreteOS uses that boundary for launch artwork, return from the Luna homepage after quitting, and per-game local playtime. Stops counting if video stalls, the bridge disappears, the session is cancelled, or the window closes. Queues, trailers, sign-in and homepage time are excluded. This does not import historical Amazon playtime.
+
+Data: the requested game ASIN identifies the intended tab initially. After that only a per-launch nonce, local tab/frame/document identifiers, a sequence counter and the phase enum are posted. No page text, cookies, credentials, account identifiers, pixels, video or audio are collected/transmitted. Only Luna's .co.uk/.com pages and the fixed loopback endpoint are in the manifest. The endpoint rejects unrelated origins, stale sessions, another tab/frame, invalid enums and extra fields.
+
+Deployment after approval: copy manifest.json, observer.js and background.js together to a permanent folder; load that folder as an unpacked extension in Chrome's profile used by the Amazon Luna app. Keep the manifest key unchanged so the endpoint's origin check matches. Refresh/reopen Luna once. Do not grant extra website permissions or disable browser security.
+
+Verification still required: real launch -> waiting -> advancing game frames -> quit -> ended -> CreteOS return; local playtime persistence; browser reload/reconnect; authentication prompt; B/Escape cancel and deliberate Alt-Tab. Synthetic detector/session tests passed, and the published Luna client code confirms video.srcObject is used and cleared on teardown. An exact device end-to-end companion test has not yet been performed.
+
+Lossless Scaling: a separate Amazon Luna G1 profile exists on this device with LS1, Auto/Aspect ratio, frame generation off and Draw FPS off. The attempted 1.333333 resize-before-scaling mode failed: Chrome remained 2560x1600 when LS requested 1920x1200. That mode was restored to Auto and resize disabled. No automatic true 1080p upscaling integration is enabled. Do not present a 1x filter on an already enlarged browser surface as verified 1080p upscaling. Preserve the 16:9 image; full 16:10 would crop or stretch it.

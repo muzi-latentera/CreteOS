@@ -35,7 +35,8 @@ describe("stream artwork handoff", () => {
     const result = expect(withStreamCover({ id: "re2", name: "Resident Evil 2" }, "moonlight", async () => { throw new Error("Host unavailable"); })).rejects.toThrow("Host unavailable");
     await vi.advanceTimersByTimeAsync(50);
     await result;
-    expect(invoke).toHaveBeenLastCalledWith("set_launch_cover", { active: false });
+    expect(invoke).toHaveBeenCalledWith("set_launch_cover", { active: false });
+    expect(invoke).toHaveBeenLastCalledWith("present_stream_failure", {provider:"moonlight"});
     expect(invoke).not.toHaveBeenCalledWith("focus_stream_window", expect.anything());
     expect(invoke).not.toHaveBeenCalledWith("record_stream_launch", expect.anything());
   });
@@ -110,4 +111,16 @@ describe("stream artwork handoff", () => {
     finish(); await pending;
     expect(callbacks.has("host-launch-attention")).toBe(false);
   });
+  it("waits for Luna media readiness rather than the PWA launch promise", async () => {
+    let ready!: (value:boolean)=>void;
+    invoke.mockImplementation(async command => command === "wait_stream_window" ? new Promise<boolean>(resolve=>{ready=resolve;}) : undefined);
+    const launch=vi.fn(async()=>undefined);
+    const pending=withStreamCover({id:"luna:test",name:"Luna game"},"luna",launch);
+    await vi.advanceTimersByTimeAsync(12_000);
+    expect(launch).toHaveBeenCalledOnce();
+    expect(invoke).not.toHaveBeenCalledWith("focus_stream_window",expect.anything());
+    ready(true);await vi.advanceTimersByTimeAsync(100);await pending;
+    expect(invoke).toHaveBeenLastCalledWith("focus_stream_window",{provider:"luna"});
+  });
+
 });

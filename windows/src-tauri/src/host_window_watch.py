@@ -6,6 +6,7 @@ credentials, input or commands that close a host application.
 import json
 import os
 import pathlib
+import re
 import socket
 import struct
 import sys
@@ -34,6 +35,38 @@ class WindowPresence:
                 elif now - self.gone >= 0.75:
                     return "closed"
         return None
+
+
+def preparation_phase(app_id, shader, content):
+    """Only exact-app, newly appended host log lines become progress enums."""
+    matching = [line for line in shader.splitlines() if re.search(r"(?<!\d)" + re.escape(app_id) + r"(?!\d)", line)]
+    if matching:
+        last = matching[-1]
+        if "Still replaying " + app_id in last or "processing job for app " + app_id in last:
+            return "compiling"
+        if "completed" in last or "Destroyed compile job " + app_id in last:
+            return "starting"
+    marker = "AppID " + app_id
+    matching = [line for line in content.splitlines() if re.search(re.escape(marker) + r"(?!\d)", line)]
+    if matching:
+        if any(word in matching[-1] for word in ("Downloading", "Staging", "update started", "Preallocating")):
+            return "updating"
+        if "Fully Installed" in matching[-1] or "finished" in matching[-1]:
+            return "starting"
+    return None
+
+
+def read_new(path, offsets):
+    try:
+        size = path.stat().st_size
+        offset = offsets.setdefault(path, size)
+        with path.open("rb") as stream:
+            stream.seek(offset if size >= offset else 0)
+            data = stream.read(65536)
+            offsets[path] = stream.tell()
+        return data.decode("utf-8", errors="replace")
+    except OSError:
+        return ""
 
 
 def has_game_window(node, app_id, pid_matches):
@@ -106,8 +139,18 @@ def main():
     heartbeat = started
     get_tree(paths[0])  # Establish capability before delaying client handoff.
     emit("ready")
+    logs = pathlib.Path.home() / ".local/share/Steam/logs"
+    offsets = {}
+    for name in ("shader_log.txt", "content_log.txt"):
+        read_new(logs / name, offsets)
+    progress = None
     while time.monotonic() - started < 86400:
         now = time.monotonic()
+        if not tracker.seen:
+            phase = preparation_phase(app_id, read_new(logs / "shader_log.txt", offsets), read_new(logs / "content_log.txt", offsets))
+            if phase and phase != progress:
+                emit(phase)
+                progress = phase
         if presentation and presentation.is_dir():
             (presentation / "lease").touch()
             try:

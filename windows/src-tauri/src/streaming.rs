@@ -8,6 +8,31 @@ static SESSION_GENERATION: AtomicU64 = AtomicU64::new(0);
 static LAUNCH_EPOCH: AtomicU64 = AtomicU64::new(0);
 type OwnedClient = std::sync::Arc<std::sync::Mutex<std::process::Child>>;
 static PENDING_MOONLIGHT: std::sync::Mutex<Option<(u64, OwnedClient)>> = std::sync::Mutex::new(None);
+pub(crate) fn progress(window:&tauri::Window,message:&str) {
+    use tauri::Emitter;
+    super::stream_artwork::message(window,message);
+    let _=window.emit("stream-progress",serde_json::json!({"message":message}));
+}
+#[tauri::command(async)]
+pub fn present_stream_failure(window:tauri::Window,provider:String)->Result<(),String>{
+    if !matches!(provider.as_str(),"moonlight"|"geforceNow"|"luna"){return Err("Unknown streaming client".into());}
+    if super::can_return_from_stream(&window,&provider){
+        super::fse_watcher::prepare_stream_return(window.app_handle());
+        super::show_stream_return(&window)?;
+    }
+    Ok(())
+}
+#[tauri::command]
+pub fn record_stream_issue(provider:String,game_id:String,message:String)->Result<(),String>{
+    use std::io::Write;
+    if !matches!(provider.as_str(),"moonlight"|"geforceNow"|"luna") || game_id.len()>1024{return Err("Invalid stream issue".into());}
+    // Omit URL/header-bearing errors rather than retaining credentials in logs.
+    let message=if ["http:","https:","Authorization","Bearer "].iter().any(|v|message.contains(v)){"Provider request failed (details omitted)".into()}else{message.chars().take(500).filter(|c|!c.is_control()).collect::<String>()};
+    let folder=super::liftoff_dir().join("logs");std::fs::create_dir_all(&folder).map_err(|e|e.to_string())?;
+    let file=folder.join("stream-issues.jsonl");if std::fs::metadata(&file).is_ok_and(|m|m.len()>256*1024){let _=std::fs::rename(&file,file.with_extension("previous.jsonl"));}
+    let mut file=std::fs::OpenOptions::new().create(true).append(true).open(file).map_err(|e|e.to_string())?;
+    writeln!(file,"{}",serde_json::json!({"at":super::unix_now_i64(),"provider":provider,"game":game_id,"message":message})).map_err(|e|e.to_string())
+}
 pub(crate) fn launch_epoch() -> u64 { LAUNCH_EPOCH.load(Ordering::SeqCst) }
 pub(crate) fn launch_current(epoch: u64) -> bool { launch_epoch() == epoch }
 fn check_launch(epoch: u64) -> Result<(), String> {
@@ -58,6 +83,47 @@ fn next_session() -> u64 {
     RETURN_COVER.store(0, Ordering::SeqCst); RETURN_PAINTED.store(0, Ordering::SeqCst); HOST_GAME_WINDOW.store(generation << 3, Ordering::SeqCst);
     generation
 }
+
+#[tauri::command]
+pub async fn launch_luna_session(window:tauri::Window, game_id:String, game_name:String, url:String) -> Result<(),String> {
+    if !super::luna::luna_url(&url) || game_id.is_empty() || game_id.len()>1024 {return Err("Invalid Luna game".into());}
+    tauri::async_runtime::spawn_blocking(move||{
+        let wifi=super::stream_wifi::prepare("luna");
+        let nonce=super::luna_session::begin(&game_id,&url)?;
+        let epoch=launch_epoch();
+        let generation=next_session();
+        if let Err(error)=super::luna::launch(&url).ok_or("Invalid Luna launch")? {super::luna_session::finish(&nonce);return Err(error);}
+        std::thread::spawn(move||{
+            let _wifi=wifi;let started=std::time::Instant::now();let mut found=0isize;let mut owner=0u32;let mut observed=false;let mut previous=None;
+            while session_current(generation) && launch_current(epoch) {
+                if found==0 {if let Some((target,_))=super::best_launch_window(&game_name,&url,"cloud"){found=target.hwnd;owner=target.pid;}}
+                let phase=super::luna_session::phase();
+                if previous!=Some(phase) {
+                    progress(&window,match phase {super::luna_session::Phase::Waiting=>"Connecting to Amazon Luna…",super::luna_session::Phase::Buffering=>"Waiting for Luna video…",super::luna_session::Phase::Playing=>"Luna stream ready",super::luna_session::Phase::Attention=>"Amazon Luna needs your attention",super::luna_session::Phase::Ended=>"Returning to CreteOS…"});previous=Some(phase);
+                }
+                if phase==super::luna_session::Phase::Playing {observed=true;}
+                let closed=found!=0 && !super::collect_launch_windows().iter().any(|w|w.hwnd==found && w.pid==owner);
+                if phase==super::luna_session::Phase::Ended || closed || (!observed && started.elapsed()>std::time::Duration::from_secs(300)) {
+                    super::luna_session::finish(&nonce);
+                    if observed && session_current(generation) {
+                        begin_return(&window,"luna",generation);
+                        // Close only this tracked PWA, after artwork is painted.
+                        if found!=0 && super::can_return_from_stream(&window,"luna") && super::collect_launch_windows().iter().any(|w|w.hwnd==found && w.pid==owner) {
+                            use windows::Win32::{Foundation::{HWND,WPARAM,LPARAM},UI::WindowsAndMessaging::{PostMessageW,WM_CLOSE}};
+                            unsafe {let _=PostMessageW(Some(HWND(found as _)),WM_CLOSE,WPARAM(0),LPARAM(0));}
+                            std::thread::sleep(std::time::Duration::from_millis(500));
+                        }
+                        end_return(&window,"luna",generation);
+                    }
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
+            super::luna_session::finish(&nonce);
+        });
+        Ok(())
+    }).await.map_err(|e|e.to_string())?
+}
 fn session_current(generation: u64) -> bool { SESSION_GENERATION.load(Ordering::SeqCst) == generation }
 
 fn begin_return(window: &tauri::Window, provider: &str, generation: u64) {
@@ -98,7 +164,7 @@ pub(crate) fn end_return(window: &tauri::Window, provider: &str, generation: u64
 // guard, which itself needs the UI message pump to remain responsive.
 #[tauri::command(async)]
 pub fn present_stream_return_cover(window: tauri::Window, provider: String, session: u64) -> Result<bool, String> {
-    if !matches!(provider.as_str(), "moonlight" | "geforceNow") { return Err("Unknown streaming client".into()); }
+    if !matches!(provider.as_str(), "moonlight" | "geforceNow" | "luna") { return Err("Unknown streaming client".into()); }
     let _presentation = RETURN_PRESENTATION.lock().map_err(|_| "Return presentation unavailable")?;
     if !session_current(session) || RETURN_COVER.load(Ordering::SeqCst) != session { return Ok(false); }
     // The client may close between the ending event and the paint ack. Only a
@@ -121,17 +187,18 @@ fn nvidia_console() -> PathBuf {
 }
 
 #[derive(Default)]
-struct NvidiaSession { started: bool, ended: bool }
+struct NvidiaSession { started: bool, ending: bool, ended: bool }
 impl NvidiaSession {
     fn observe(&mut self, line: &str) {
         let line = line.split_whitespace().collect::<Vec<_>>().join(" ");
         if line.contains("NvCameraService streaming state change: Streaming") || line.contains("got onStreamingFirstFrame event") {
-            self.started = true; self.ended = false;
+            self.started = true; self.ending=false; self.ended = false;
+        } else if self.started && (line.contains("NvCameraService streaming state change: PostSessionConnection") || line.contains("NvCameraService streaming state change: PostStreaming")) { self.ending=true;
         } else if self.started && line.contains("NvCameraService streaming state change: Done") { self.ended = true; }
         else if self.ended && line.contains("NvCameraService streaming state change:") {
             // A new native session can start without CreteOS. Stop cleanup as
             // soon as NVIDIA leaves Done, before it reaches Streaming again.
-            self.ended = false;
+            self.ended = false; self.ending=false;
         }
     }
 }
@@ -140,9 +207,16 @@ fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::L
     std::thread::spawn(move || {
         let _wifi = wifi;
         let mut session = NvidiaSession::default();
+        let mut returning=false;
         let start = std::time::Instant::now();
         while session_current(generation) && start.elapsed() < std::time::Duration::from_secs(86400) {
             for line in log.lines() { session.observe(&line); }
+            if returning && !session.ending && !session.ended {
+                // A new provider session superseded the one returning. Release
+                // artwork without closing either provider window.
+                end_return(&window,"geforceNow",generation);return;
+            }
+            if session.ending && !returning {begin_return(&window,"geforceNow",generation);returning=true;}
             if session.ended {
                 begin_return(&window, "geforceNow", generation);
                 super::finish_stream_session(window.clone(), "geforceNow", || {
@@ -157,7 +231,7 @@ fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::L
             // its selected network while the native streamer is still open.
             if !session.started && start.elapsed() > std::time::Duration::from_secs(180)
                 && !super::is_process_running("GeForceNOWStreamer.exe") { return; }
-            std::thread::sleep(std::time::Duration::from_millis(500));
+            std::thread::sleep(std::time::Duration::from_millis(100));
         }
     });
 }
@@ -556,6 +630,9 @@ fn watch_host_game_window(window: tauri::Window, host: String, id: String, prese
                         last_message = std::time::Instant::now();
                         if !session_current(generation) || !active.load(Ordering::SeqCst) { break; }
                         match event.as_str() {
+                            "compiling" => progress(&window,"Steam is preparing shaders…"),
+                            "updating" => progress(&window,"Steam is downloading or updating game files…"),
+                            "starting" => progress(&window,"Starting the game on Bosgame…"),
                             "ready" => super::fse_watcher::log_stream_transition(window.app_handle(), "host-game-window-ready"),
                             "visible" => {
                                 set_host_window_state(generation, 2);
@@ -696,7 +773,10 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         let launch_result = if let Some(id) = &steam_id {
             super::moondeck::launch(&profile.host, id,
                 || launch_current(epoch) && session_current(generation) && client.lock().is_ok_and(|mut child| child.try_wait().ok().flatten().is_none()),
-                |phase| super::fse_watcher::log_stream_transition(window.app_handle(), phase))
+                |phase| {
+                    super::fse_watcher::log_stream_transition(window.app_handle(), phase);
+                    progress(&window,match phase {"buddy-game-running"=>"Waiting for the game window…","buddy-game-launch-requested"=>"Steam is preparing the game…",_=>"Connecting to Bosgame…"});
+                })
         } else { Ok(()) };
         if !launch_current(epoch) {
             monitor_active.store(false, Ordering::SeqCst);

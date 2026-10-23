@@ -25,7 +25,7 @@ fn topmost_without_activation(raw: isize, topmost: bool) -> Result<(), String> {
 // thread wait for Z_ORDER while the guard holds it for a window operation.
 #[tauri::command(async)]
 pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focus: Option<bool>, stream_provider: Option<String>) -> Result<(), String> {
-    if stream_provider.as_deref().is_some_and(|p| !matches!(p, "moonlight" | "geforceNow")) { return Err("Unknown streaming client".into()); }
+    if stream_provider.as_deref().is_some_and(|p| !matches!(p, "moonlight" | "geforceNow" | "luna")) { return Err("Unknown streaming client".into()); }
     let hwnd = window.hwnd().map_err(|e| e.to_string())?.0 as isize;
     let _z_order = Z_ORDER.lock().map_err(|_| "Launch cover state unavailable")?;
     let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
@@ -35,6 +35,30 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
     let until = if active { now() + cover_seconds } else { 0 };
     UNTIL.store(until, Ordering::SeqCst);
     if active { crate::stream_readiness::begin(); }
+    if !active { let _=crate::stream_artwork::visible(&window,false); }
+    if let Some(provider)=stream_provider.clone().filter(|_|active && !allow_external_focus.unwrap_or(false)) {
+        topmost_without_activation(hwnd,false)?;
+        crate::stream_artwork::visible(&window,true)?;
+        std::thread::spawn(move||{
+            let mut cancel_was_down=true;
+            let mut shown=true;
+            while GENERATION.load(Ordering::SeqCst)==generation && self::active() {
+                use windows::Win32::UI::{WindowsAndMessaging::GetForegroundWindow,Input::{KeyboardAndMouse::{GetAsyncKeyState,VK_ESCAPE},XboxController::{XInputGetState,XINPUT_STATE}}};
+                let ours=unsafe{GetForegroundWindow()}.0 as isize==hwnd;
+                let eligible=ours || crate::can_return_from_stream(&window,&provider);
+                if shown!=eligible {let _=crate::stream_artwork::visible(&window,eligible);shown=eligible;}
+                let mut down=unsafe{GetAsyncKeyState(VK_ESCAPE.0 as i32)}<0;
+                for index in 0..4 {let mut state=XINPUT_STATE::default();if unsafe{XInputGetState(index,&mut state)}==0{down|=state.Gamepad.wButtons.0 & 0x2000!=0;}}
+                if eligible && down && !cancel_was_down {use tauri::Emitter;let _=window.emit("stream-launch-cancel",());let _=crate::streaming::cancel_stream_launch(window.clone());return;}
+                cancel_was_down=down;
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            // Do not let a stale guard hide a newer launch/return cover.
+            if GENERATION.load(Ordering::SeqCst)==generation {let _=crate::stream_artwork::visible(&window,false);}
+        });
+        return Ok(());
+    }
+
     topmost_without_activation(hwnd, active && !allow_external_focus.unwrap_or(false))?;
     if active {
         // The launching window is already visible. A late ShowWindow can
@@ -103,6 +127,7 @@ pub(crate) fn stream_process(provider: &str, path: &str) -> bool {
     let name = path.rsplit(['\\', '/']).next().unwrap_or_default();
     match provider {
         "moonlight" => name.eq_ignore_ascii_case("Moonlight.exe"),
+        "luna" => name.eq_ignore_ascii_case("chrome.exe"),
         "geforceNow" => ["GeForceNOW.exe", "GeForceNOWStreamer.exe"].iter().any(|exe| name.eq_ignore_ascii_case(exe)),
         _ => false,
     }

@@ -59,6 +59,8 @@ mod gfn_catalog;
 mod launch_cover;
 mod stream_readiness;
 mod luna;
+mod luna_session;
+mod stream_artwork;
 mod stream_wifi;
 mod moondeck;
 mod crete_news;
@@ -8362,6 +8364,7 @@ fn get_apps_inner(app: tauri::AppHandle) -> Vec<AppEntry> {
 
     drop_shadowed_xbox_duplicates(&mut apps);
 
+    luna_session::merge(&mut apps);
     save_icon_cache(&icon_cache);
     scan_timing.push(format!(
         "icon_extraction: {}ms ({} fresh)",
@@ -8560,6 +8563,7 @@ fn get_all_apps_inner(app: tauri::AppHandle) -> Vec<AppEntry> {
 
     drop_shadowed_xbox_duplicates(&mut apps);
 
+    luna_session::merge(&mut apps);
     save_icon_cache(&icon_cache);
     scan_timing.push(format!(
         "icon_extraction: {}ms ({} fresh)",
@@ -9398,8 +9402,8 @@ fn check_launch_focus(name: String, launch_path: String, source: String) -> Laun
 }
 
 fn stream_window(provider: &str) -> Option<LaunchWindowCandidate> {
-    let executables: &[&str] = match provider { "moonlight" => &["Moonlight.exe"], "geforceNow" => &["GeForceNOWStreamer.exe", "GeForceNOW.exe"], _ => return None };
-    collect_launch_windows().into_iter().filter(|window| window.exe_path.as_deref().and_then(|path| std::path::Path::new(path).file_name()).is_some_and(|name| executables.iter().any(|exe| name.to_string_lossy().eq_ignore_ascii_case(exe))))
+    let executables: &[&str] = match provider { "moonlight" => &["Moonlight.exe"], "geforceNow" => &["GeForceNOWStreamer.exe", "GeForceNOW.exe"], "luna" => &["chrome.exe"], _ => return None };
+    collect_launch_windows().into_iter().filter(|window| provider != "luna" || window.title.to_ascii_lowercase().contains("amazon luna")).filter(|window| window.exe_path.as_deref().and_then(|path| std::path::Path::new(path).file_name()).is_some_and(|name| executables.iter().any(|exe| name.to_string_lossy().eq_ignore_ascii_case(exe))))
         .find(|window| unsafe {
             let mut rect = windows::Win32::Foundation::RECT::default();
             windows::Win32::UI::WindowsAndMessaging::GetClientRect(windows::Win32::Foundation::HWND(window.hwnd as _), &mut rect).is_ok() && rect.right >= 640 && rect.bottom >= 360
@@ -9410,6 +9414,7 @@ pub(crate) fn can_return_from_stream(window: &tauri::Window, provider: &str) -> 
     let Ok(ours) = window.hwnd() else { return false; };
     let foreground = unsafe { GetForegroundWindow() };
     if foreground.0 == ours.0 { return true; }
+    if provider == "luna" { return stream_window(provider).is_some_and(|w|w.hwnd==foreground.0 as isize); }
     let mut pid = 0;
     unsafe { GetWindowThreadProcessId(foreground, Some(&mut pid)); }
     process_exe_path(pid).is_some_and(|path| launch_cover::stream_process(provider, &path))
@@ -9483,15 +9488,28 @@ pub(crate) fn finish_stream_session(window: tauri::Window, provider: &str, mut c
 
 #[tauri::command]
 async fn wait_stream_window(provider: String) -> Result<bool, String> {
-    if !matches!(provider.as_str(), "moonlight" | "geforceNow") { return Err("Unknown streaming client".into()); }
+    if !matches!(provider.as_str(), "moonlight" | "geforceNow" | "luna") { return Err("Unknown streaming client".into()); }
     tauri::async_runtime::spawn_blocking(move || {
         let start = Instant::now(); let mut candidate: Option<(isize, Instant)> = None;
         let mut log = stream_readiness::take();
         let mut stream_ready = false;
-        let budget = if provider == "moonlight" { 180 } else { 45 };
+        let budget = if matches!(provider.as_str(),"moonlight"|"luna") { 180 } else { 45 };
         while start.elapsed() < Duration::from_secs(budget) {
             if provider == "moonlight" && streaming::moonlight_game_closed() { return Ok(false); }
             if !launch_cover::active() { return Ok(false); }
+            if provider == "luna" {
+                match luna_session::phase() {
+                    luna_session::Phase::Playing => stream_ready=true,
+                    luna_session::Phase::Attention => return Ok(false),
+                    luna_session::Phase::Ended => return Err("Luna session ended before a live stream appeared".into()),
+                    _ => {},
+                }
+                if start.elapsed()>Duration::from_secs(3) && !luna_session::connected() {
+                    // Preserve normal Luna access before the optional companion
+                    // is installed. Never invent playtime or game-end events.
+                    return Ok(false);
+                }
+            }
             if provider == "geforceNow" {
                 match log.poll() {
                     stream_readiness::Signal::FirstFrame => stream_ready = true,
@@ -9502,7 +9520,7 @@ async fn wait_stream_window(provider: String) -> Result<bool, String> {
             if let Some(window) = stream_window(&provider) {
                 let ready = candidate.get_or_insert((window.hwnd, Instant::now()));
                 if ready.0 != window.hwnd { *ready = (window.hwnd, Instant::now()); }
-                if ready.1.elapsed() >= Duration::from_secs(2) && (provider != "geforceNow" || stream_ready)
+                if ready.1.elapsed() >= Duration::from_secs(2) && (!matches!(provider.as_str(),"geforceNow"|"luna") || stream_ready)
                     && (provider != "moonlight" || !streaming::moonlight_game_waiting()) { return Ok(true); }
             } else { candidate = None; }
             std::thread::sleep(Duration::from_millis(250));
@@ -9533,7 +9551,6 @@ async fn focus_stream_window(window: tauri::Window, provider: String) -> Result<
         fse_watcher::prepare_stream_return(window.app_handle());
         window.set_decorations(false).map_err(|e| e.to_string())?;
         fse_watcher::keep_main_borderless(window.app_handle());
-        launch_cover::set_launch_cover(window.clone(), false, None, None)?;
         fse_watcher::log_stream_transition(window.app_handle(), "handoff-start");
         let foreground = unsafe { GetForegroundWindow() }.0 as isize;
         if foreground != ours && foreground != 0 && !can_return_from_stream(&window, &provider) && !foreground_is_desktop() {
@@ -9561,6 +9578,8 @@ async fn focus_stream_window(window: tauri::Window, provider: String) -> Result<
                 let stable = stable_since.get_or_insert_with(Instant::now);
                 if stable.elapsed() >= Duration::from_millis(500) {
                     fse_watcher::log_stream_transition(window.app_handle(), "handoff-stable");
+                    if provider=="luna" {let _=luna::request_fullscreen(target.hwnd);}
+                    launch_cover::set_launch_cover(window.clone(),false,None,None)?;
                     return Ok(());
                 }
             } else {
@@ -10387,6 +10406,9 @@ pub fn run() {
             streaming::get_geforce_profile,
             gfn_catalog::get_geforce_catalog,
             launch_cover::set_launch_cover,
+            stream_artwork::get_stream_artwork,
+            stream_artwork::stream_artwork_painted,
+            stream_artwork::update_stream_artwork,
             wait_stream_window,
             focus_stream_window,
             streaming::start_geforce_game,
@@ -10394,6 +10416,9 @@ pub fn run() {
             streaming::get_host_installed_games,
             streaming::get_moonlight_profile,
             streaming::launch_moonlight,
+            streaming::launch_luna_session,
+            streaming::record_stream_issue,
+            streaming::present_stream_failure,
             streaming::cancel_stream_launch,
             record_stream_launch,
             moondeck::get_moondeck_status,

@@ -885,7 +885,7 @@ export function GameDetailsModal({
 
   const metaItems = [
     { label: t("details.lastPlayed"), value: lastPlayedAt ? formatRelativeTime(lastPlayedAt, t("details.never")) : t("details.never") },
-    ...(typeof playtimeMinutes === "number" ? [{ label: t("details.playtime"), value: formatPlaytime(playtimeMinutes) }] : []),
+    ...(typeof playtimeMinutes === "number" ? [{ label: app.source === "cloud" && /^https:\/\/luna\.amazon\.(co\.uk|com)\//.test(app.launch_path || "") ? `${t("details.playtime")} (this device)` : t("details.playtime"), value: formatPlaytime(playtimeMinutes) }] : []),
     ...(installed && sizeBytes !== undefined ? [{
       label: t("details.sizeOnDisk"),
       value: sizeBytes === "loading" ? t("common.loading", { defaultValue: "Loading..." }) : formatBytes(sizeBytes),
