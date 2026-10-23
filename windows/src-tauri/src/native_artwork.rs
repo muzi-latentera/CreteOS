@@ -5,6 +5,7 @@ struct Image {width:i32,height:i32,pixels:Vec<u8>}
 struct State {key:String,image:Option<Image>,message:String}
 static STATE:Mutex<State>=Mutex::new(State{key:String::new(),image:None,message:String::new()});
 static HANDLE:OnceLock<Result<isize,String>>=OnceLock::new();
+fn owned(raw:isize)->bool{unsafe{let hwnd=HWND(raw as _);let mut pid=0;GetWindowThreadProcessId(hwnd,Some(&mut pid));IsWindow(Some(hwnd)).as_bool()&&pid==std::process::id()}}
 pub fn cover_rect(iw:i32,ih:i32,w:i32,h:i32)->(i32,i32,i32,i32){
     let scale=(w as f64/iw.max(1) as f64).max(h as f64/ih.max(1) as f64);
     let dw=(iw as f64*scale).ceil() as i32;let dh=(ih as f64*scale).ceil() as i32;
@@ -44,10 +45,10 @@ pub fn update(art:&str,message:&str)->Result<(),String>{
     let mut state=STATE.lock().map_err(|_|"Artwork state unavailable")?;
     if state.key!=art {let image=if art.is_empty(){None}else{let mut image=decode(&bytes(art)?)?;for pixel in image.pixels.chunks_exact_mut(4){for color in &mut pixel[..3]{*color=(*color as u16*7/10)as u8;}}Some(image)};state.image=image;state.key=art.into();}
     state.message=message.into();drop(state);
-    if let Some(Ok(raw))=HANDLE.get(){unsafe{let _=InvalidateRect(Some(HWND(*raw as _)),None,false);}}
+    if let Some(Ok(raw))=HANDLE.get().filter(|h|h.as_ref().is_ok_and(|raw|owned(*raw))){unsafe{let _=InvalidateRect(Some(HWND(*raw as _)),None,false);}}
     Ok(())
 }
-pub fn message(text:&str){if let Ok(mut state)=STATE.lock(){state.message=text.into();}if let Some(Ok(raw))=HANDLE.get(){unsafe{let _=InvalidateRect(Some(HWND(*raw as _)),None,false);}}}
+pub fn message(text:&str){if let Ok(mut state)=STATE.lock(){state.message=text.into();}if let Some(Ok(raw))=HANDLE.get().filter(|h|h.as_ref().is_ok_and(|raw|owned(*raw))){unsafe{let _=InvalidateRect(Some(HWND(*raw as _)),None,false);}}}
 unsafe extern "system" fn procedure(hwnd:HWND,msg:u32,wp:WPARAM,lp:LPARAM)->LRESULT{
     if msg==WM_ERASEBKGND{return LRESULT(1);}
     if msg==WM_MOUSEACTIVATE{return LRESULT(MA_NOACTIVATE as isize);}
@@ -86,7 +87,7 @@ pub fn prepare()->Result<isize,String>{HANDLE.get_or_init(||{
         match result{Ok(hwnd)=>{let _=tx.send(Ok(hwnd.0 as isize));let mut msg=MSG::default();while GetMessageW(&mut msg,None,0,0).0>0{let _=TranslateMessage(&msg);DispatchMessageW(&msg);}},Err(_)=>{let _=tx.send(Err("Native artwork window could not be created".into()));}}
     });
     rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap_or(Err("Native artwork initialization timed out".into()))
-}).clone()}
+}).clone().and_then(|raw|if owned(raw){Ok(raw)}else{Err("Native artwork handle is no longer owned by CreteOS".into())})}
 pub fn visible(show:bool,x:i32,y:i32,width:i32,height:i32)->Result<(),String>{
     let hwnd=HWND(prepare()? as _);unsafe{
         if show{SetWindowPos(hwnd,Some(HWND_TOPMOST),x,y,width,height,SWP_NOACTIVATE).map_err(|_|"Native artwork positioning failed")?;let _=InvalidateRect(Some(hwnd),None,false);let _=ShowWindow(hwnd,SW_SHOWNOACTIVATE);let _=UpdateWindow(hwnd);}
