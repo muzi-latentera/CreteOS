@@ -4,6 +4,12 @@ Canonical app: **creteos**. Worktrees use the same app records and identify thei
 
 G1 setup, recovery and replacement-device entry point: [G1_SETUP_AND_RECOVERY.md](G1_SETUP_AND_RECOVERY.md). Keep its deployed state current alongside the dated journal; detailed older records remain historical.
 
+## Lasting setup and backup maintenance rule — 23 October 2026
+
+Muzi explicitly requests continuity for replacement-device reuse in approximately two months. As part of every meaningful subsequent code/setup/configuration/deployment change, update the maintained guide's current state, reasoning, verification, restore procedure and remaining issues, plus the dated journal. When deployed profile/settings data, helper/companion files, recovery executable or other backed-up inputs change, create a new timestamped private backup, verify its per-file hashes and archived payloads, retain the previous verified backup, and update the latest-backup locator and guide's actual archive identity. If no refresh can be completed, record the stale backup and blocker prominently rather than implying coverage. Pure documentation changes need no new personal-data archive.
+
+Keep personal archives outside Git. Preserve fresh-device authentication/pairing and hardware-specific restore requirements. Refresh the offline source bundle after source/documentation synchronization when available. This is a persistent instruction for future work, not an installed automatic backup hook or a calendar reminder. Workspace-level AGENTS.md also points future sessions to this rule. Canonical vault synchronization remains a separate step when that vault becomes available.
+
 ## Locate the Obsidian vault
 
 Use `CRETE_VAULT_ROOT` if configured, or the Obsidian vault named **Crete**. On Muzi's current Mac it is:

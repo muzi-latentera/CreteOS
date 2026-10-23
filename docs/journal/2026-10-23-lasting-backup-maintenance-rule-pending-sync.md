@@ -1,0 +1,7 @@
+# 23 October 2026 — lasting setup/recovery maintenance instruction (pending vault sync)
+
+Muzi requests persistent memory that the setup may be reused in roughly two months, and all subsequent changes must keep the setup/recovery record current. Persisted this as an explicit completion rule in repository AGENTS.md, docs/APP_JOURNAL.md and the maintained guide; added a workspace-root AGENTS.md pointing future sessions to the checkout, latest private backup locator, native-AppData trap and lasting rule.
+
+Meaningful code/setup/configuration/deployment changes must update the guide and dated journal. Changes to backed-up live profiles/settings/helper/companion/recovery inputs require a new timestamped private backup with per-file/archive verification, retaining the previous verified backup and refreshing its locator/guide identity. Blocked refresh must be marked stale, with reason. Documentation-only edits do not require recopying personal data. Personal payloads/secrets stay out of Git. No scheduled automation or background backup hook was created; future work must follow the persisted instruction.
+
+This task changes documentation/instructions only. Current executable and verified private profile ZIP are unchanged. Source/docs will be committed and synchronized on the existing G1 branch, with offline source bundle refreshed and verified. Canonical Obsidian vault remains unavailable; pending sync. This provides file-based project continuity, not a claim of a separate global chat-memory service.
