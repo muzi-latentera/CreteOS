@@ -1,6 +1,6 @@
 # Bosgame Lutris integration
 
-Current as of 23 October 2026. Five games are registered in Steam and discovered in CreteOS: Mouse: P.I. For Hire, Metal Gear Solid V: The Phantom Pain, Mortal Shell II, Stellar Blade, and LEGO Batman: Legacy of the Dark Knight. The user authorized launch tests only for the first three. Stellar Blade and LEGO must not be launched during this task.
+Original five-game state as of 23 October 2026. Five games are registered in Steam and discovered in CreteOS: Mouse: P.I. For Hire, Metal Gear Solid V: The Phantom Pain, Mortal Shell II, Stellar Blade, and LEGO Batman: Legacy of the Dark Knight. The user authorized launch tests only for the first three. Stellar Blade and LEGO must not be launched during this task.
 
 CreteOS uses stable `lutris:bosgame:<id>` library identities, the actual registered non-Steam shortcut for launching, and separate public Store matches for metadata. Covers, hero artwork, descriptions and trailer/review entries are available. This does not grant Steam ownership, achievements or cloud saves. Standard non-Steam Steam entries support custom artwork but do not become full Steam Store records with imported descriptions.
 
@@ -65,3 +65,9 @@ Confirm Mortal Shell II installation and correct executable first. Test Mouse or
 - [MoonDeck Buddy releases](https://github.com/FrogTheFrog/moondeck-buddy/releases): v1.10.0 non-Steam start-directory/custom-AppId process tracking.
 - [Lutris game lifecycle source](https://github.com/lutris/lutris/blob/master/lutris/game.py): process lifecycle and cumulative playtime. Installed0.5.22 source was also inspected for the actual unit conversion.
 - Original task workspace: `work/lutris-audit-result.txt`, `work/lutris-detail-audit-result.txt`, `work/lutris-install-check-result.txt`. These contain private host paths; they were retained locally rather than added to source. Audit scripts were sent over SSH stdin and not installed on Bosgame.
+
+## Sixth game — Ground Zeroes, 24 October
+
+Lutris ID 6 is registered as shortcut32 `4139357587`, Buddy64 `17778405462648029184`; metadata ID `311340` is separate. Its existing custom Wine runner/prefix is preserved. CreteOS details, media and hero visibly populated; host Steam has public artwork with an explicitly documented header-as-hero fallback. Host launch and playtime smoke test passed. The full stream test encountered the existing connection/Buddy error; do not claim seamless acceptance. See the current recovery guide and Ground Zeroes continuation journal for final test and backup results.
+
+Ground Zeroes follow-up: 20 Mbps full stream launch/title screen/exit passed with 0.00% network loss and 2 ms mean network latency. Original 80 Mbps profiles restored and verified; that rate failed with 21.28% network loss. No permanent bitrate or Wi-Fi change.

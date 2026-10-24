@@ -45,7 +45,7 @@ def main():
     game=home/'Games/MGS V - THE PHANTOM PAIN'
     references={
         'mgsv-mods/records/'+name:tools/name
-        for name in ['deployment.json','baseline.json','packages.json','startup-validation.json']
+        for name in ['deployment.json','baseline.json','packages.json','startup-validation.json','gz-packages.json','gz-stage-status.json','gz-integration.json']
     }
     references.update({'mgsv-mods/settings/'+name:game/name
         for name in ['snakebite.xml','ihhook_config.lua','mod/guiStyles/CurrentStyle.ini','mod/saves/ih_save.lua']})
