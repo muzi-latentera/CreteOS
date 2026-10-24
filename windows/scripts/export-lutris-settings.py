@@ -39,6 +39,26 @@ def main():
     for name in ['reset-resolution.sh','set-resolution.sh']:
         file=home/'.config/sway-sunshine'/name
         if file.is_file():payloads['sway-sunshine/'+name]=file.read_bytes()
+    # Mod records/settings are reference data for the existing host. Patched
+    # game archives, DLLs, Wine prefixes and saves remain outside this export.
+    tools=home/'.local/share/creteos-host/mod-tools/mgsv'
+    game=home/'Games/MGS V - THE PHANTOM PAIN'
+    references={
+        'mgsv-mods/records/'+name:tools/name
+        for name in ['deployment.json','baseline.json','packages.json','startup-validation.json']
+    }
+    references.update({'mgsv-mods/settings/'+name:game/name
+        for name in ['snakebite.xml','ihhook_config.lua','mod/guiStyles/CurrentStyle.ini','mod/saves/ih_save.lua']})
+    profiles=game/'mod/profiles'
+    if profiles.is_dir():
+        for file in profiles.rglob('*'):
+            if file.is_file() and file.suffix.lower() in ['.lua','.json','.ini']:
+                references['mgsv-mods/settings/mod/profiles/'+file.relative_to(profiles).as_posix()]=file
+    for name,file in references.items():
+        if file.is_file():
+            if file.is_symlink() or file.stat().st_size>16*1024*1024:
+                raise RuntimeError('Unexpected mod reference file')
+            payloads[name]=file.read_bytes()
     records=[{'path':name,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()} for name,data in payloads.items()]
     payloads['manifest.json']=json.dumps({'sourceHome':str(home),'sqliteIntegrity':'ok','files':records,
         'excluded':['game downloads','Wine prefixes','game saves','SSH keys','Buddy pairing credentials','browser/Steam login sessions'],
