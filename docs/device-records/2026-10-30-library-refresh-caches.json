@@ -1,0 +1,25 @@
+﻿{
+    "geforceFetchedAt":  1793318698,
+    "steamCount":  148,
+    "refreshExitCode":  2,
+    "time":  "2026-10-30T00:04:59.3129602+00:00",
+    "geforcePhantomBlade":  [
+                                {
+                                    "id":  "abebad03-46e0-4ab3-ae49-f7360621a4f0",
+                                    "title":  "Phantom Blade Zero",
+                                    "variants":  [
+                                                     {
+                                                         "appStore":  "STEAM",
+                                                         "id":  "107018152",
+                                                         "shortName":  ""
+                                                     }
+                                                 ]
+                                }
+                            ],
+    "steamPhantomBlade":  [
+
+                          ],
+    "geforceCount":  6214,
+    "gamesLaunched":  false,
+    "nativeProfile":  "C:\\Users\\Muzi\\AppData\\Local\\CreteOS"
+}

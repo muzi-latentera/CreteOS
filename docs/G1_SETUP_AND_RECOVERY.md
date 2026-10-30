@@ -12,10 +12,10 @@ Maintained device record, updated 30 October 2026 (Europe/London). Covers this G
 | Personal data | `%LOCALAPPDATA%\CreteOS`; preserve this directory during updates |
 | Bootstrap/helpers/backups | `%LOCALAPPDATA%\CreteOS-Bootstrap` |
 | Source branch | `codex/g1-smart-wifi`; contains the G1 display and Steam password-login changes too |
-| Installed executable source | `aca475c4d87fda4ac55ac5f7206aecb52ee6d59d` (Lutris / UMU window handoff verified) |
-| Installed executable SHA-256 | `8338C036964A8A8200785DD719BD2F2B4722B8E52C3E0651418BEBB70D18EC46` |
-| Build / install | Built locally on OXPG1 23 October 23:53:57–23:58:33 BST; installed 23:59:29 BST |
-| Previous executable | `CreteOS-Bootstrap\app-updates\Provider-lifecycle-20261023-235921` |
+| Installed executable source | `c7723e99386474cb461b21a97e1635fc1f25f3c8` (Steam / GFN refresh repair) |
+| Installed executable SHA-256 | `9E22BFB1A00A5BDF54D8427B5CBCF293E3B9DA0FED9D6AF1768B90804AA65C6F` |
+| Build / install | Built locally on OXPG1 30 October 00:00:58–00:04:23 GMT; installed 00:05:00 GMT |
+| Previous executable | `CreteOS-Bootstrap\app-updates\Library-refresh-20261030-000450` |
 | Luna Companion | 0.1.2, Chrome extension `gmneapkhejdngoenacdnamaddbfcihab`, permanent folder `CreteOS\LunaCompanion` |
 | Latest live acceptance | 24 October: Mouse, MGS V and Mortal Shell stream handoff, close/return and Lutris playtime/last-played refresh; prior Luna acceptance retained below |
 
@@ -25,9 +25,9 @@ The app version remains 0.1.0 across multiple builds. Identify an artifact by so
 
 Manual Refresh Library now requests fresh Steam owned games and forces the NVIDIA catalogue request before rescanning installed/saved games. Automatic NVIDIA checks retain daily successful freshness, with a five-minute retry delay after failure. Refresh reports which sources failed, retains their saved lists, and bounds remote requests and the local scan. Incomplete Steam responses and cache-save failures no longer silently replace a valid list or imply success.
 
-This source change is awaiting a local G1 build/install and live cache verification; the installed identity in the table above remains the previous verified build until a deployment receipt is recorded. No games are to be launched for verification. A native `--refresh-library-data` maintenance mode exercises the same Steam/NVIDIA refresh paths without opening games or login windows. It prints sanitized counts/errors and exits 2 if either source fails. Normal interactive use remains Refresh Library; reconnect Steam only if its refresh reports an authorization failure.
+Installed and hash-verified locally on the G1; see the 30 October build/install/service/cache receipts under docs/device-records. All six checked profiles were unchanged. The running app visibly reports the Steam failure without losing its saved library. No games are to be launched for verification. A native `--refresh-library-data` maintenance mode exercises the same Steam/NVIDIA refresh paths without opening games or login windows. It prints sanitized counts/errors and exits 2 if either source fails. Normal interactive use remains Refresh Library; reconnect Steam only if its refresh reports an authorization failure.
 
-Initial verification: 19 focused frontend tests and TypeScript passed; 135 native release tests passed. The first full frontend run under concurrent compilation had three failures (two timeouts and a subsequent navigation assertion); the lower-concurrency rerun passed all 256 tests in 56 files. Canonical vault unavailable; dated repo journal remains pending sync.
+Verification: 19 focused frontend tests and TypeScript passed; 135 native release tests passed. The first full frontend run under concurrent compilation had three failures (two timeouts and a subsequent navigation assertion); the lower-concurrency rerun passed all 256 tests in 56 files. Live source check: NVIDIA refreshed 6,214 entries and contains Phantom Blade Zero (Steam variant 107018152, parent abebad03-46e0-4ab3-ae49-f7360621a4f0). Steam token renewal returned EResult 15 (access denied); its old 148-game list was retained and Phantom Blade Zero is still absent from that owned list. Reconnect Steam in CreteOS, then Refresh Library; do not claim a successful fresh Steam sync before that. Maintenance exit 2 correctly indicates partial failure. No games launched. Canonical vault unavailable; dated repo journal remains pending sync.
 
 ## Latest log review — 23 October
 
@@ -203,7 +203,7 @@ Git contains source and these sanitized records. It is **not** a backup of Windo
 
 ### Actual private profile backup — 24 October, verified 02:59 BST
 
-Current archive: `outputs/CreteOS-G1-profile-backup-20261024-025718.zip`, with extracted copy and `.zip.sha256` sidecar. **1,325 payload files**, 734,402,221 uncompressed bytes; ZIP 713,019,856 bytes. SHA-256: `6b66e65793f4cda4328506153340cfd8ec979bb9d269c818e5f1be30e383da46`. Every payload was decompressed and hash-checked; no requested input was missing. SQLite integrity checks passed. Coverage readback confirms the final 8338C036… G1 executable, restored 80 Mbps profiles, six-game Lutris configuration/shortcuts/artwork, Ground Zeroes integration and staged-mod status receipts, existing live Rock Climb settings, and console helper source. Ground Zeroes/Prison mods remain staged pending MGO texture0.dat; do not treat staging references as an installed location.
+Current archive: `outputs/CreteOS-G1-profile-backup-20261030-000613.zip`, with extracted copy and `.zip.sha256` sidecar. **1344 payload files**, 737064806 uncompressed bytes; ZIP 715618516 bytes. SHA-256: `759e762921763b779006fa0ae0900295b5229522a44839c0bb33d8f4653406a9`. Every payload was decompressed and hash-checked; no requested input was missing. SQLite integrity passed. Includes the installed 9E22BFB1… refresh build, refreshed NVIDIA catalogue, unchanged streaming profiles and current host configuration export. The retained Steam ownership cache is the previous 148-game list because Steam authorization was rejected; reconnect Steam after restore. Authentication secrets remain excluded. Previous verified 20261024-025718 snapshot is preserved. Documentation-only completion below postdates the snapshot; installed/profile/cache payloads are current.
 
 Previous verified snapshots are preserved, including `CreteOS-G1-profile-backup-20261024-012155.zip` (SHA-256 `2e9a75e2eac06bfdf9f4baf36ff1dec107bb26ec5085238946e254dfaa999d5b`), `CreteOS-G1-profile-backup-20261024-001018.zip` (`bdc9da20d75d14019649d223bb4357c52c9ccda19444b52d2d7b208232bc6ecd`) and `CreteOS-G1-profile-backup-20261023-165259.zip` (`c8e9c02b67f68ab67bccf555b11f64929c4ace070ca120e8a4b5bc47983faf02`). Locator: `outputs/CreteOS-G1-profile-backup-latest.json`. The guide inside the ZIP predates the final hash; use the maintained guide and locator for final identity. Documentation-only completion updates do not require recopying personal data. Full game archives, mod DLLs, prefixes and game saves remain excluded. The archive exists on G1 only; no off-device copy is claimed.
 
