@@ -2,6 +2,7 @@
 
 use base64::{engine::general_purpose, Engine as _};
 mod bundle_validation;
+mod steam_web_token;
 use serde::{Deserialize, Serialize};
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
@@ -1785,6 +1786,12 @@ fn jwt_steamid(access_token: &str) -> Result<String, String> {
 fn generate_steam_access_token(account: &str, steamid: &str) -> Result<SteamSession, String> {
     let refresh_token = load_steam_refresh_token(account)
         .ok_or_else(|| "Steam refresh token unavailable".to_string())?;
+    if steam_web_token::is_browser_token(&refresh_token) {
+        return Ok(SteamSession {
+            account_name: account.to_string(), steamid: steamid.to_string(),
+            access_token: steam_web_token::access_token(&refresh_token, steamid)?,
+        });
+    }
     let steamid_u64 = steamid
         .parse::<u64>()
         .map_err(|_| "Steam account id invalid".to_string())?;

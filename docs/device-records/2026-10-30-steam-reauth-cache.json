@@ -1,0 +1,27 @@
+﻿{
+    "time":  "2026-10-30T00:11:27.2325508+00:00",
+    "steamCount":  149,
+    "installedHash":  "9E22BFB1A00A5BDF54D8427B5CBCF293E3B9DA0FED9D6AF1768B90804AA65C6F",
+    "steamUpdated":  "2026-10-30T00:10:50.1797107+00:00",
+    "geforcePhantomBlade":  [
+                                {
+                                    "id":  "abebad03-46e0-4ab3-ae49-f7360621a4f0",
+                                    "title":  "Phantom Blade Zero",
+                                    "variants":  [
+                                                     {
+                                                         "appStore":  "STEAM",
+                                                         "id":  "107018152",
+                                                         "shortName":  ""
+                                                     }
+                                                 ]
+                                }
+                            ],
+    "steamPhantomBlade":  [
+                              {
+                                  "appid":  4115450,
+                                  "name":  "Phantom Blade Zero"
+                              }
+                          ],
+    "geforceCount":  6214,
+    "gamesLaunched":  false
+}
