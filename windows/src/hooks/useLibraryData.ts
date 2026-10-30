@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { App } from "../types";
+import { withRefreshDeadline } from "../utils/libraryRefresh";
 
 export const LIBRARY_SCAN_TIMEOUT_MS = 60_000;
 
 type LibraryRefreshStatus = "scanning" | "done" | null;
-export interface LibraryRefreshOptions { background?: boolean }
+export interface LibraryRefreshOptions { background?: boolean; reportErrors?: boolean }
 
 interface IconColor {
   r: number;
@@ -140,7 +141,7 @@ export function useLibraryData({ fetchGameArt, onLoaded, onLoadError }: UseLibra
       setLibraryRefreshStatus("scanning");
       libraryRefreshStatusRef.current = "scanning";
     }
-    const refresh = Promise.all([invoke<App[]>("get_all_apps"), invoke<string[]>("get_hidden")]).then(([all, loadedHidden]) => {
+    const refresh = withRefreshDeadline(Promise.all([invoke<App[]>("get_all_apps"), invoke<string[]>("get_hidden")]), LIBRARY_SCAN_TIMEOUT_MS).then(([all, loadedHidden]) => {
       allAppsRef.current = all;
       setHidden(loadedHidden);
       hiddenRef.current = loadedHidden;
@@ -157,11 +158,12 @@ export function useLibraryData({ fetchGameArt, onLoaded, onLoadError }: UseLibra
           libraryRefreshStatusRef.current = null;
         }, 2500);
       }
-    }).catch(() => {
+    }).catch((error) => {
       if (foreground) {
         setLibraryRefreshStatus(null);
         libraryRefreshStatusRef.current = null;
       }
+      if (options.reportErrors) throw error;
     }).finally(() => { refreshPending.current = null; });
     refreshPending.current = refresh;
     return refresh;

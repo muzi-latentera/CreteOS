@@ -26,25 +26,42 @@ pub fn route(game_id: &str, source: Option<&str>) -> Option<String> {
 }
 
 #[tauri::command]
-pub async fn get_geforce_catalog(offline: Option<bool>) -> Result<Value, String> {
-    // The UI renders the bundled/saved catalogue immediately. Refresh is daily,
-    // background-only and never part of opening or launching a game.
+pub async fn get_geforce_catalog(offline: Option<bool>, force: Option<bool>) -> Result<Value, String> {
     static LOCK: std::sync::OnceLock<tauri::async_runtime::Mutex<()>> = std::sync::OnceLock::new();
     let _guard = LOCK.get_or_init(|| tauri::async_runtime::Mutex::new(())).lock().await;
     let old = saved();
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
-    let stamp = old["attemptedAt"].as_u64().or_else(|| old["fetchedAt"].as_u64()).or_else(|| old["fetchedAtUtc"].as_str().and_then(|stamp| chrono::DateTime::parse_from_rfc3339(stamp).ok()).map(|date| date.timestamp().max(0) as u64)).unwrap_or(0);
-    if offline.unwrap_or(false) || now.saturating_sub(stamp) < 86400 { return Ok(old["games"].clone()); }
+    let force = force.unwrap_or(false);
+    if offline.unwrap_or(false) {
+        return if force { Err("GeForce NOW could not refresh while offline. Saved catalogue retained.".into()) } else { Ok(old["games"].clone()) };
+    }
+    if !should_fetch(&old, now, force) { return Ok(old["games"].clone()); }
     let refreshed = fetch().await;
-    let mut next = refreshed.unwrap_or(old);
+    let failed = refreshed.is_err();
+    let mut next = refreshed.unwrap_or_else(|_| old.clone());
     next["attemptedAt"] = json!(now);
-    if let Ok(bytes) = serde_json::to_vec(&next) { let _ = std::fs::write(path(), bytes); }
+    let saved = serde_json::to_vec(&next).map_err(|_| ()).and_then(|bytes| {
+        let temp = path().with_extension("json.tmp");
+        std::fs::write(&temp, bytes).and_then(|_| std::fs::rename(temp, path())).map_err(|_| ())
+    });
+    if force && failed { return Err("GeForce NOW catalogue request failed. Saved catalogue retained; try Refresh Library again.".into()); }
+    if saved.is_err() {
+        return if force { Err("GeForce NOW could not save the refreshed catalogue. Saved catalogue retained.".into()) } else { Ok(old["games"].clone()) };
+    }
     Ok(next["games"].clone())
+}
+fn should_fetch(old: &Value, now: u64, force: bool) -> bool {
+    let fetched = old["fetchedAt"].as_u64().or_else(|| old["fetchedAtUtc"].as_str()
+        .and_then(|stamp| chrono::DateTime::parse_from_rfc3339(stamp).ok()).map(|date| date.timestamp().max(0) as u64)).unwrap_or(0);
+    let attempted = old["attemptedAt"].as_u64().unwrap_or(0);
+    force || (now.saturating_sub(fetched) >= 86400 && now.saturating_sub(attempted) >= 300)
 }
 async fn fetch() -> Result<Value, String> {
     let client = reqwest::Client::builder().timeout(Duration::from_secs(12)).redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())?;
+    let started = std::time::Instant::now();
     let mut cursor = String::new(); let mut games = Vec::new();
     for _ in 0..20 {
+        if started.elapsed() >= Duration::from_secs(75) { return Err("Catalogue refresh timed out".into()); }
         let query = format!("{{ apps(country:\"GB\" language:\"en_GB\" orderBy:\"sortName:ASC\" after:{}) {{ numberReturned pageInfo {{endCursor hasNextPage}} items {{id title gfn {{playType minimumMembershipTierLabel}} variants {{id appStore shortName}}}} }} }}", serde_json::to_string(&cursor).unwrap());
         let response = client.post("https://api-prod.nvidia.com/services/gfngames/v1/gameList").header("Content-Type", "application/json").header("Origin", "https://www.nvidia.com").body(query).send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?;
         let mut response = response; let mut bytes = Vec::new();
@@ -62,6 +79,16 @@ async fn fetch() -> Result<Value, String> {
 }
 
 #[cfg(test)] mod tests {
+    #[test] fn manual_refresh_bypasses_success_and_failure_throttles() {
+        let now = 200_000;
+        let old = serde_json::json!({"fetchedAt":now-10,"attemptedAt":now-5});
+        assert!(!super::should_fetch(&old, now, false));
+        assert!(super::should_fetch(&old, now, true));
+        let failed = serde_json::json!({"fetchedAt":now-90_000,"attemptedAt":now-10});
+        assert!(!super::should_fetch(&failed, now, false));
+        assert!(super::should_fetch(&failed, now, true));
+        assert!(super::should_fetch(&failed, now+300, false));
+    }
     #[test] fn native_variant_matches_nvidia_desktop_shortcut() {
         assert_eq!(super::route("5aa78bb8-6af4-49d9-b678-4b7c3685a98c", Some("xbox")).unwrap(), "#?cmsId=102396411&launchSource=External&shortName=a_plague_tale_requiem_xbox_app&parentGameId=5aa78bb8-6af4-49d9-b678-4b7c3685a98c");
         assert!(super::route("invalid", Some("xbox")).is_none());

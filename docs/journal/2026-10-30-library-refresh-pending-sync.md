@@ -1,0 +1,9 @@
+# 30 October 2026 — manual Steam / GeForce NOW refresh (pending vault sync)
+
+User requested both refresh faults fixed, with no games launched. Branch: codex/g1-smart-wifi. Old installed executable remains source aca475c4d87fda4ac55ac5f7206aecb52ee6d59d / SHA256 8338C036964A8A8200785DD719BD2F2B4722B8E52C3E0651418BEBB70D18EC46 until an explicit receipt below.
+
+Changes: manual refresh forces NVIDIA fetch rather than accepting daily cache; background failed attempts retry after five minutes instead of suppressing a whole day. Steam/NVIDIA errors are surfaced by source; saved lists are retained. Steam rejects incomplete API payloads and reports cache-write errors. Remote waits and manual local scans are bounded, late scan results ignored, retry supported. Steam and NVIDIA refresh in parallel before the installed-library scan. Optional other-account refresh is bounded separately. Added native --refresh-library-data for real cache verification without UI/game/auth launch.
+
+Verification so far: 19 focused frontend tests passed; TypeScript passed; 135 native release tests passed. Initial full frontend run: 253/256 passed, three failures during concurrent compilation (two five-second timeouts; following cloud navigation assertion). Lower-worker-count rerun passed all 256 tests / 56 files. NVIDIA raw GraphQL request returned a valid first page; JSON-enveloped GraphQL is invalid for this endpoint and was not adopted.
+
+No install or new private backup yet. Existing snapshot is still the previous deployed build. Next: finish tests, commit, build locally on OXPG1, install with rollback, exercise native refresh, record actual errors/counts and inspect resulting entries without launching a game; refresh private backup and source bundle and push branch. Vault environment is unavailable; this record awaits canonical sync.

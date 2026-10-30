@@ -1,6 +1,6 @@
 # CreteOS on OneXPlayer G1 — setup, history and recovery
 
-Maintained device record, updated 24 October 2026 (Europe/London). Covers this G1 installation from 17 October onward. Use this as the entry point for another Windows handheld; use the dated journals for detailed evidence. Earlier GPD results and the USB's pre-17-October history are references, not acceptance results for this G1.
+Maintained device record, updated 30 October 2026 (Europe/London). Covers this G1 installation from 17 October onward. Use this as the entry point for another Windows handheld; use the dated journals for detailed evidence. Earlier GPD results and the USB's pre-17-October history are references, not acceptance results for this G1.
 
 ## Current state
 
@@ -20,6 +20,14 @@ Maintained device record, updated 24 October 2026 (Europe/London). Covers this G
 | Latest live acceptance | 24 October: Mouse, MGS V and Mortal Shell stream handoff, close/return and Lutris playtime/last-played refresh; prior Luna acceptance retained below |
 
 The app version remains 0.1.0 across multiple builds. Identify an artifact by source commit and executable hash, never by version or file date alone. Documentation commits after the executable's source commit do not imply a newer executable was installed.
+
+## Library refresh repair — 30 October 2026
+
+Manual Refresh Library now requests fresh Steam owned games and forces the NVIDIA catalogue request before rescanning installed/saved games. Automatic NVIDIA checks retain daily successful freshness, with a five-minute retry delay after failure. Refresh reports which sources failed, retains their saved lists, and bounds remote requests and the local scan. Incomplete Steam responses and cache-save failures no longer silently replace a valid list or imply success.
+
+This source change is awaiting a local G1 build/install and live cache verification; the installed identity in the table above remains the previous verified build until a deployment receipt is recorded. No games are to be launched for verification. A native `--refresh-library-data` maintenance mode exercises the same Steam/NVIDIA refresh paths without opening games or login windows. It prints sanitized counts/errors and exits 2 if either source fails. Normal interactive use remains Refresh Library; reconnect Steam only if its refresh reports an authorization failure.
+
+Initial verification: 19 focused frontend tests and TypeScript passed; 135 native release tests passed. The first full frontend run under concurrent compilation had three failures (two timeouts and a subsequent navigation assertion); the lower-concurrency rerun passed all 256 tests in 56 files. Canonical vault unavailable; dated repo journal remains pending sync.
 
 ## Latest log review — 23 October
 

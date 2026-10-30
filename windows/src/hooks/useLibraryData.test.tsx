@@ -61,3 +61,16 @@ it("retains progress for an explicit manual refresh", async () => {
   await act(async () => { release([original]); await pending; });
   expect(library.libraryRefreshStatus).toBe("done");
 });
+
+it("times out a stuck manual scan, keeps the displayed library, and allows a retry", async () => {
+  let pending!: Promise<void>;
+  act(() => { pending = library.refreshLibrary({ reportErrors: true }); });
+  const failed = pending.catch(error => error); const late = release;
+  await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+  expect(await failed).toBeInstanceOf(Error); expect(library.libraryRefreshStatus).toBeNull(); expect(host.textContent).toBe("First game");
+  await act(async () => { late([{ ...original, name: "Late stale result" }]); await Promise.resolve(); });
+  expect(host.textContent).toBe("First game");
+  act(() => { pending = library.refreshLibrary({ reportErrors: true }); });
+  await act(async () => { release([{ ...original, name: "Fresh retry" }]); await pending; });
+  expect(host.textContent).toBe("Fresh retry"); expect(library.libraryRefreshStatus).toBe("done");
+});

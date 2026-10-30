@@ -1415,14 +1415,15 @@ fn load_owned_steam_games() -> Vec<SteamOwnedGameCache> {
         .unwrap_or_default()
 }
 
-fn save_owned_steam_games(games: &[SteamOwnedGameCache]) {
+fn save_owned_steam_games(games: &[SteamOwnedGameCache]) -> Result<(), String> {
     let path = steam_owned_path();
     if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
+        std::fs::create_dir_all(parent).map_err(|_| "Steam library folder could not be created")?;
     }
-    if let Ok(json) = serde_json::to_string_pretty(games) {
-        let _ = std::fs::write(path, json);
-    }
+    let json = serde_json::to_vec_pretty(games).map_err(|_| "Steam library could not be saved")?;
+    let temp = path.with_extension("json.tmp");
+    std::fs::write(&temp, json).and_then(|_| std::fs::rename(temp, path))
+        .map_err(|_| "Steam library could not be saved; previous list retained".to_string())
 }
 
 fn load_xbox_account_meta() -> Option<XboxAccountMeta> {
@@ -1805,6 +1806,22 @@ fn generate_steam_access_token(account: &str, steamid: &str) -> Result<SteamSess
     })
 }
 
+fn steam_owned_response_complete(value: &serde_json::Value) -> bool {
+    let response = &value["response"];
+    match response["games"].as_array() {
+        Some(games) => !games.is_empty() || response["game_count"].as_u64() == Some(0),
+        None => response["game_count"].as_u64() == Some(0),
+    }
+}
+
+#[test]
+fn steam_owned_refresh_rejects_missing_or_partial_results() {
+    assert!(!steam_owned_response_complete(&serde_json::json!({"response":{}})));
+    assert!(!steam_owned_response_complete(&serde_json::json!({"response":{"game_count":148,"games":[]}})));
+    assert!(steam_owned_response_complete(&serde_json::json!({"response":{"game_count":0}})));
+    assert!(steam_owned_response_complete(&serde_json::json!({"response":{"games":[{"appid":4115450,"name":"Phantom Blade Zero"}]}})));
+}
+
 fn fetch_owned_games_for_session(
     session: &SteamSession,
 ) -> Result<Vec<SteamOwnedGameCache>, String> {
@@ -1850,8 +1867,12 @@ fn fetch_owned_games_for_session(
             response.status().as_u16()
         ));
     }
-    let parsed = response
-        .json::<OwnedResponse>()
+    let value = response.json::<serde_json::Value>()
+        .map_err(|_| "Steam owned-games response parse failed".to_string())?;
+    if !steam_owned_response_complete(&value) {
+        return Err("Steam returned an incomplete library. Previous list retained; retry or reconnect Steam.".into());
+    }
+    let parsed = serde_json::from_value::<OwnedResponse>(value)
         .map_err(|_| "Steam owned-games response parse failed".to_string())?;
     Ok(parsed
         .response
@@ -1872,7 +1893,7 @@ fn cache_owned_games_for_session(
     session: &SteamSession,
 ) -> Result<Vec<SteamOwnedGameCache>, String> {
     let games = fetch_owned_games_for_session(session)?;
-    save_owned_steam_games(&games);
+    save_owned_steam_games(&games)?;
     save_steam_account_meta(&SteamAccountMeta {
         account_name: session.account_name.clone(),
         steamid: session.steamid.clone(),
@@ -2313,7 +2334,7 @@ fn finish_steam_login(app: &tauri::AppHandle, session: SteamSession, generation:
         let owned_count = games.as_ref().map(|g|g.len()).unwrap_or_else(|| {
             load_steam_account_meta().filter(|m|m.account_name==session.account_name).map(|m|m.owned_count).unwrap_or(0)
         });
-        if let Some(games) = games { save_owned_steam_games(&games); }
+        if let Some(games) = games { let _ = save_owned_steam_games(&games); }
         save_steam_account_meta(&SteamAccountMeta { account_name: session.account_name.clone(), steamid: session.steamid.clone(), owned_count, updated_at: unix_now_i64() });
         let payload = SteamLoginPayload { account_name: session.account_name, steamid: session.steamid, owned_count };
         let _ = app.emit("steam-login-success", payload);
@@ -2333,19 +2354,8 @@ fn steam_qr_begin(app_handle: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 async fn fetch_steam_owned_games(app_handle: tauri::AppHandle) -> Result<usize, String> {
-    let status = steam_status_inner();
-    let Some(account) = status.account_name else {
-        return Err("Steam account not connected".to_string());
-    };
-    let Some(steamid) = status.steamid else {
-        return Err("Steam account id missing".to_string());
-    };
-    let result = tauri::async_runtime::spawn_blocking(move || {
-        generate_steam_access_token(&account, &steamid)
-            .and_then(|session| cache_owned_games_for_session(&session).map(|games| games.len()))
-    })
-    .await
-    .map_err(|_| "Steam library refresh task failed".to_string())?;
+    let result = tauri::async_runtime::spawn_blocking(refresh_steam_owned_library)
+        .await.map_err(|_| "Steam library refresh task failed".to_string())?;
     match result {
         Ok(count) => {
             let _ = app_handle.emit("steam-owned-refresh", count);
@@ -2357,6 +2367,18 @@ async fn fetch_steam_owned_games(app_handle: tauri::AppHandle) -> Result<usize, 
             Err(error)
         }
     }
+}
+
+fn refresh_steam_owned_library() -> Result<usize, String> {
+    let status = steam_status_inner();
+    let Some(account) = status.account_name else {
+        return Err("Steam account not connected".to_string());
+    };
+    let Some(steamid) = status.steamid else {
+        return Err("Steam account id missing".to_string());
+    };
+    generate_steam_access_token(&account, &steamid)
+        .and_then(|session| cache_owned_games_for_session(&session).map(|games| games.len()))
 }
 
 #[tauri::command]
@@ -10383,6 +10405,21 @@ async fn launch_app(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let context: tauri::Context<tauri::Wry> = tauri::generate_context!();
+    // Native maintenance check: uses the same refresh paths, never opens a game
+    // or an authentication window, and prints only counts or sanitized errors.
+    if std::env::args().any(|arg| arg == "--refresh-library-data") {
+        let steam = refresh_steam_owned_library();
+        let geforce = tauri::async_runtime::block_on(gfn_catalog::get_geforce_catalog(Some(false), Some(true)));
+        let passed = steam.is_ok() && geforce.is_ok();
+        let report = serde_json::json!({
+            "steam": match steam { Ok(count) => serde_json::json!({"refreshed":true,"count":count}), Err(error) => serde_json::json!({"refreshed":false,"error":error}) },
+            "geforceNow": match geforce { Ok(games) => serde_json::json!({"refreshed":true,"count":games.as_array().map(|g|g.len())}), Err(error) => serde_json::json!({"refreshed":false,"error":error}) },
+            "sourceCommit": env!("CRETE_SOURCE_COMMIT"), "gamesLaunched": false
+        });
+        println!("{}", report);
+        if !passed { std::process::exit(2); }
+        return;
+    }
     // Build verification never opens windows, initializes providers or reads profiles.
     if std::env::args().any(|arg| arg == "--verify-bundled-assets") {
         let result = context.assets().get(&"index.html".into())

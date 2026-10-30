@@ -696,7 +696,11 @@
   },
   "library": {
     "refreshing": "Actualizando biblioteca…",
-    "scanning": "Buscando apps y juegos"
+    "scanning": "Buscando apps y juegos",
+    "sourcesRefreshing": "Actualizando Steam, GeForce NOW y tu biblioteca…",
+    "sourcesFailed": "No se pudo actualizar: {{sources}}",
+    "sourcesDone": "Actualización de la biblioteca completada",
+    "sourcesSaved": "Se conservan las listas guardadas. Comprueba la conexión e inténtalo de nuevo. Si Steam sigue fallando, vuelve a conectar tu cuenta de Steam."
   },
   "cache": {
     "clearing": "Vaciando caché",

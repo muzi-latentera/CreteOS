@@ -696,7 +696,11 @@
   },
   "library": {
     "refreshing": "Refreshing library…",
-    "scanning": "Scanning for apps and games"
+    "scanning": "Scanning for apps and games",
+    "sourcesRefreshing": "Refreshing Steam, GeForce NOW and your library…",
+    "sourcesFailed": "Could not refresh: {{sources}}",
+    "sourcesDone": "Library refresh complete",
+    "sourcesSaved": "Saved lists are retained. Check your connection and try again. If Steam keeps failing, reconnect your Steam account."
   },
   "cache": {
     "clearing": "Clearing Cache",

@@ -87,6 +87,7 @@ import { getBottomBarClearance, normalizeBottomBarMode, claimArtBarJob, countLib
 import { scrollElementTo, scrollElementToRetargeted } from "./utils/scrollElement";
 import { getLibraryEntryFocusSection } from "./utils/libraryFocus";
 import { refreshLibrarySources } from "./utils/libraryRefresh";
+import { refreshGeForceCatalog } from "./crete/gfnCatalog";
 import { resolveNativeBackgroundRgb } from "./utils/nativeBackground";
 import { xboxPackageFamilyNameFor, xboxProductIdFor } from "./utils/xboxProductId";
 import {
@@ -266,6 +267,7 @@ export default function App() {
   const steamConnectedRef = useRef(false);
   const steamStartupRefreshRef = useRef(false);
   const librarySourceRefreshRef = useRef(null);
+  const [librarySourceNotice, setLibrarySourceNotice] = useState(null);
   const [xboxStatus, setXboxStatus] = useState({ connected: false, owned_count: 0 });
   const [xboxAuthPhase, setXboxAuthPhase] = useState("idle");
   const [xboxAuthError, setXboxAuthError] = useState("");
@@ -650,16 +652,27 @@ export default function App() {
   }, []);
 
   const refreshLibraryFromSources = useCallback((options = {}) => {
-    if (librarySourceRefreshRef.current) return librarySourceRefreshRef.current;
+    const force = !options.background;
+    if (force) setLibrarySourceNotice({ pending: true, failedSources: [] });
+    const pending = librarySourceRefreshRef.current;
+    if (pending) {
+      if (force && !pending.force) return pending.promise.then(() => refreshLibraryFromSources(options));
+      return pending.promise;
+    }
     const refresh = refreshLibrarySources({
       steamConnected: steamConnectedRef.current,
       refreshSteamOwned: () => invoke("fetch_steam_owned_games"),
       refreshSteamStatus,
-      refreshLocalLibrary: async () => { await storeAccounts.refreshAll(!options.background); await refreshLibrary(options); },
+      refreshGeForceCatalog: () => refreshGeForceCatalog({ force }),
+      refreshStoreAccounts: () => storeAccounts.refreshAll(force),
+      refreshLocalLibrary: () => refreshLibrary({ ...options, reportErrors: true }),
+    }).then(result => {
+      if (force) setLibrarySourceNotice({ pending: false, failedSources: result.failedSources });
+      return result;
     }).finally(() => {
       librarySourceRefreshRef.current = null;
     });
-    librarySourceRefreshRef.current = refresh;
+    librarySourceRefreshRef.current = { promise: refresh, force };
     return refresh;
   }, [refreshLibrary, refreshSteamStatus, storeAccounts.refreshAll]);
 
@@ -3904,6 +3917,15 @@ export default function App() {
           }}
           onClose={() => setEditNameApp(null)}
         />
+      )}
+      {librarySourceNotice && (
+        <div role="status" aria-live="polite" style={{ position: "fixed", bottom: 88, left: "5%", right: "5%", zIndex: 5100, ...glass, padding: "12px 18px", display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: theme.text, fontWeight: 600 }}>{librarySourceNotice.pending ? t("library.sourcesRefreshing") : librarySourceNotice.failedSources.length ? t("library.sourcesFailed", { sources: librarySourceNotice.failedSources.join(", ") }) : t("library.sourcesDone")}</div>
+            {!librarySourceNotice.pending && librarySourceNotice.failedSources.length > 0 && <div style={{ color: theme.textDim, fontSize: 12, marginTop: 4 }}>{t("library.sourcesSaved")}</div>}
+          </div>
+          {!librarySourceNotice.pending && <button type="button" onClick={() => setLibrarySourceNotice(null)}>{t("common.close")}</button>}
+        </div>
       )}
       {libraryRefreshStatus === "scanning" && (
         <div style={modalOverlayStyle(5000)}>
