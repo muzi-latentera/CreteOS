@@ -1,3 +1,4 @@
+import DismissButton from "../DismissButton";
 import { invoke } from "@tauri-apps/api/core";
 import { SteamPasswordForm } from "./SteamPasswordForm";
 import { useEffect, useState, useRef } from "react";
@@ -133,7 +134,7 @@ export function SteamQrModal({
           position: "relative",
         }}
       >
-        <button
+        <DismissButton
           type="button"
           onClick={onClose}
           aria-label={t("common.close", "Close")}
@@ -143,6 +144,7 @@ export function SteamQrModal({
             right: 14,
             width: 34,
             height: 34,
+            padding: 0,
             display: "grid",
             placeItems: "center",
             border: `1px solid ${isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)"}`,
@@ -153,7 +155,7 @@ export function SteamQrModal({
           }}
         >
           <IoClose size={18} />
-        </button>
+        </DismissButton>
 
         <div style={{ paddingRight: 34 }}>
           <div style={{ fontSize: 20, fontWeight: 800, color: theme.text }}>Connect Steam</div>

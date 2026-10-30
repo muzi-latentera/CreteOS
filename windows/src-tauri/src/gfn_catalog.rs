@@ -13,16 +13,21 @@ fn store(source: &str) -> Option<&'static str> {
 }
 pub fn route(game_id: &str, source: Option<&str>) -> Option<String> {
     let catalogue = saved();
+    route_in(&catalogue, game_id, source)
+}
+fn route_in(catalogue: &Value, game_id: &str, source: Option<&str>) -> Option<String> {
     let game = catalogue["games"].as_array()?.iter().find(|game| game["id"] == game_id)?;
     let source = store(source?)?;
     let mut variants = game["variants"].as_array()?.iter().filter(|variant| variant["appStore"] == source);
     let variant = variants.next()?;
     if variants.next().is_some() { return None; }
     let cms = variant["id"].as_str()?;
-    let name = variant["shortName"].as_str().unwrap_or("");
+    // NVIDIA's client uses the parent UUID when new catalogue variants have no
+    // shortName (observed for Phantom Blade Zero). Omitting it opens the shell.
+    let name = variant["shortName"].as_str().filter(|name| !name.is_empty()).unwrap_or(game_id);
     if cms.is_empty() || cms.len() > 12 || !cms.bytes().all(|b| b.is_ascii_digit())
         || name.len() > 160 || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-') { return None; }
-    Some(format!("#?cmsId={cms}&launchSource=External{}&parentGameId={game_id}", if name.is_empty() { String::new() } else { format!("&shortName={name}") }))
+    Some(format!("#?cmsId={cms}&launchSource=External&shortName={name}&parentGameId={game_id}"))
 }
 
 #[tauri::command]
@@ -79,6 +84,12 @@ async fn fetch() -> Result<Value, String> {
 }
 
 #[cfg(test)] mod tests {
+    #[test] fn new_variants_use_the_native_clients_uuid_short_name() {
+        let id="abebad03-46e0-4ab3-ae49-f7360621a4f0";
+        let catalogue=serde_json::json!({"games":[{"id":id,"variants":[{"id":"107018152","appStore":"STEAM","shortName":""}]}]});
+        assert_eq!(super::route_in(&catalogue,id,Some("steam")).unwrap(),format!("#?cmsId=107018152&launchSource=External&shortName={id}&parentGameId={id}"));
+        assert!(super::route_in(&catalogue,id,Some("xbox")).is_none());
+    }
     #[test] fn manual_refresh_bypasses_success_and_failure_throttles() {
         let now = 200_000;
         let old = serde_json::json!({"fetchedAt":now-10,"attemptedAt":now-5});

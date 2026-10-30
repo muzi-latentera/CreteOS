@@ -13,6 +13,7 @@ import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { IoMusicalNotesOutline } from "react-icons/io5";
 import FileBrowser from "./components/FileBrowser";
+import DismissButton from "./components/DismissButton";
 import GamepadKeyboard from "./components/GamepadKeyboard";
 import { GamepadBtn } from "./components/GamepadBtn";
 import { GameDetailsModal } from "./components/GameDetailsModal";
@@ -868,9 +869,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const refreshWhenOnline = () => { void refreshGeForceCatalog(); };
+    window.addEventListener("online", refreshWhenOnline);
+    return () => window.removeEventListener("online", refreshWhenOnline);
+  }, []);
+  useEffect(() => {
     if (!steamStatus.connected || steamStartupRefreshRef.current) return;
     steamStartupRefreshRef.current = true;
-    refreshLibraryFromSources();
+    refreshLibraryFromSources({ background: true });
   }, [steamStatus.connected, refreshLibraryFromSources]);
   const requestClose = (app) => {
     if (!app) return;
@@ -3924,7 +3930,7 @@ export default function App() {
             <div style={{ color: theme.text, fontWeight: 600 }}>{librarySourceNotice.pending ? t("library.sourcesRefreshing") : librarySourceNotice.failedSources.length ? t("library.sourcesFailed", { sources: librarySourceNotice.failedSources.join(", ") }) : t("library.sourcesDone")}</div>
             {!librarySourceNotice.pending && librarySourceNotice.failedSources.length > 0 && <div style={{ color: theme.textDim, fontSize: 12, marginTop: 4 }}>{t("library.sourcesSaved")}</div>}
           </div>
-          {!librarySourceNotice.pending && <button type="button" onClick={() => setLibrarySourceNotice(null)}>{t("common.close")}</button>}
+          {!librarySourceNotice.pending && <DismissButton onClick={() => setLibrarySourceNotice(null)}>{t("common.close")}</DismissButton>}
         </div>
       )}
       {libraryRefreshStatus === "scanning" && (
@@ -3976,12 +3982,7 @@ export default function App() {
                 border: `1px solid ${accent.glow}0.25)` }}>
                 {searchMode === "keyboard" ? t('search.mode.typing') : searchMode === "results" ? t('search.mode.browsing') : t('search.mode.idle')}
               </div>
-              <div onClick={closeSearch}
-                style={{ fontSize: 12, color: theme.textDim, cursor: "pointer", padding: "3px 10px", borderRadius: 6, flexShrink: 0,
-                  background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
-                  border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}` }}>
-                {t('common.close')}
-              </div>
+              <DismissButton onClick={closeSearch} style={{ flexShrink: 0 }}>{t("common.close")}</DismissButton>
             </div>
           </div>
 

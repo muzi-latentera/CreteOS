@@ -21,8 +21,9 @@ export function refreshGeForceCatalog({ force = false }: { force?: boolean } = {
     if (force && !pendingForced) return pending.then(() => refreshGeForceCatalog({ force: true }));
     return pending;
   }
-  if (!force && Date.now() - attemptedAt < 300_000) return Promise.resolve();
-  attemptedAt = Date.now();
+  if (!force && navigator.onLine && Date.now() - attemptedAt < 300_000) return Promise.resolve();
+  // An offline cache read must not suppress the first real request after Wi-Fi joins.
+  if (navigator.onLine) attemptedAt = Date.now();
   pendingForced = force;
   pending = invoke<GeForceGame[]>("get_geforce_catalog", { offline: !navigator.onLine, force }).then(games => {
     if (!Array.isArray(games) || !games.length) throw new Error("GeForce NOW returned an incomplete catalogue");

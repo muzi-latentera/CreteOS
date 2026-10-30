@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../contexts/ThemeContext";
+import DismissButton from "../DismissButton";
 import { getBestGamepad, readGpState } from "../../utils/gamepad";
 import type { useStoreAccounts } from "../../hooks/useStoreAccounts";
 
@@ -58,7 +59,7 @@ export function StoreAccountModal({ accounts }: { accounts: ReturnType<typeof us
         <button disabled={accounts.busy || !navigator.onLine} onClick={() => void accounts.run(status.connected ? "refresh" : "connect")} style={{ ...button, background: accent.primary, color: "#101010" }}>{t(status.connected ? "storeAccounts.refresh" : "storeAccounts.connect")}</button>
         {status.connected && <button disabled={accounts.busy} onClick={() => void accounts.run("disconnect")} style={button}>{t("storeAccounts.disconnect")}</button>}
         {status.connected && <button disabled={accounts.busy || !navigator.onLine} onClick={() => void accounts.run("connect")} style={button}>{t("storeAccounts.reconnect")}</button>}
-        <button onClick={accounts.close} style={button}>{t("storeAccounts.close")}</button>
+        <DismissButton onClick={accounts.close}>{t("storeAccounts.close")}</DismissButton>
       </div>
     </div>
   </div>;
