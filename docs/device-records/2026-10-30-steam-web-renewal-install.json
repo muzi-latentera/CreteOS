@@ -1,0 +1,39 @@
+﻿{
+    "previousHash":  "9E22BFB1A00A5BDF54D8427B5CBCF293E3B9DA0FED9D6AF1768B90804AA65C6F",
+    "losslessScalingAutomatic":  false,
+    "displaySettingsModified":  false,
+    "target":  "C:\\Users\\Muzi\\AppData\\Local\\CreteOS\\creteos.exe",
+    "companionBrowserReloadRequired":  false,
+    "sourceCommit":  "56316e5c945c46aeca1da48630b10bbb69bb3f96",
+    "time":  "2026-10-30T00:18:09.7687890+00:00",
+    "computer":  "OXPG1",
+    "backup":  "C:\\Users\\Muzi\\AppData\\Local\\CreteOS-Bootstrap\\app-updates\\Library-refresh-20261030-001759",
+    "profiles":  [
+                     {
+                         "unchanged":  true,
+                         "name":  "settings.json"
+                     },
+                     {
+                         "unchanged":  true,
+                         "name":  "moonlight_profiles.json"
+                     },
+                     {
+                         "unchanged":  true,
+                         "name":  "geforce_profiles.json"
+                     },
+                     {
+                         "unchanged":  true,
+                         "name":  "custom_data.json"
+                     },
+                     {
+                         "unchanged":  true,
+                         "name":  "stream_wifi_preferences.json"
+                     },
+                     {
+                         "unchanged":  true,
+                         "name":  "recent_games.json"
+                     }
+                 ],
+    "installedHash":  "4F4B36C18D2FA6B1BED06E2B344F477656DB1FBBF127CC363E34479DD9F38D6B",
+    "installed":  true
+}
