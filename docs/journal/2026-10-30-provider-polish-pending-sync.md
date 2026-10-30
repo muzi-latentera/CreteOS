@@ -15,3 +15,17 @@ Tests, build/deploy receipts and backup completion to follow. Previous installed
 ## Pre-build verification
 
 Native release tests: 139 passed. TypeScript passed. Broad frontend run passed 238 tests in 54 files; two unchanged test-file workers failed to start under concurrent native compilation (worker-response timeout, not assertions). Both missing files reran at one worker and passed all 18 tests. The updated catalogue refresh file additionally passed all five tests, including the new offline-to-online retry regression. No unresolved test assertion failure remains. Visual inspection of the downloaded Ground Zeroes portrait confirmed a full-height 600x900 composition. New executable is not yet installed.
+
+## Installed build and initial live verification
+
+Built locally on OXPG1 00:39:51–00:46:08 GMT from 5143c20c9f8dd251c265052ee1441804f0c43b82; embedded assets verified. Installed 00:46:33 GMT. SHA256 1996BB80C3164EF757253531FE076DEFA00FBA72222D09FB5D58C3B6EA6693E9. Rollback: native CreteOS-Bootstrap/app-updates/Library-refresh-20261030-004621. All six checked profiles unchanged; no Windows display setting change. Native source refresh succeeded Steam 149 / NVIDIA 6,214, gamesLaunched=false for that maintenance run (separate from the earlier acknowledged accidental NVIDIA UI launch).
+
+Reviewed portrait installed at native CreteOS/art/grid/reviewed-v1/078c1993dcaa199add4a1b83be1a0c04.jpg, SHA256 FF5FC382FDD3B482FDEF08F7ED0E9CDAF018E4E12F5501C27F14B314BE1DC93F, 600x900. Native cache readback points to that file; UI screenshot inspection confirms full portrait on the Ground Zeroes tile. Restarted app reached Home without a forced-refresh notice. The helper tray manual Refresh Library action was clicked for final notice/dismiss verification; source refresh pending completion. No further game launch used. Actual PC reboot and new CreteOS gameplay launch not tested. Private snapshot marked stale pending replacement. Receipts under docs/device-records/2026-10-30-provider-polish-*.json.
+
+## Final UI check
+
+Manual helper-tray Refresh Library completed successfully. Visually inspected the resulting Library refresh complete banner: Close is now a rounded theme-colored secondary button, rather than a native white browser button. The Ground Zeroes full portrait remains visible. The patched CreteOS was not used to start a game; corrected GFN routing is verified by native route regression and comparison with NVIDIA's observed URL. No claim of a new end-to-end stream test. Private snapshot refresh now starting after successful metadata/UI checks.
+
+## Verified recovery snapshot
+
+CreteOS-G1-profile-backup-20261030-004912.zip: 1368 payload files / 738682985 uncompressed bytes; archive 717156791 bytes; SHA256 b22b6488ba36ce8e90c11d588e5ce1fb0d318e16ddb103a284ac82553f577e0a. Per-file source/staging/ZIP hashes and SQLite integrity passed; no optional input missing. Additional manifest readback confirms the exact installed 1996bb80… binary and FF5fc382… Ground Zeroes portrait. Previous snapshots preserved. Latest locator updated, stale marker cleared by successful backup. Snapshot contains updated optional-custom-art backup tooling; personal archives and secrets remain outside Git. Documentation-only final hash/completion edits postdate archived guide. Dated repo journal still pending canonical vault sync.
