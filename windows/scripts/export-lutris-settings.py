@@ -39,6 +39,19 @@ def main():
     for name in ['reset-resolution.sh','set-resolution.sh']:
         file=home/'.config/sway-sunshine'/name
         if file.is_file():payloads['sway-sunshine/'+name]=file.read_bytes()
+    # GPU routing is scoped to gaming services, not the user's global desktop
+    # or LLM environment. Export only these helpers/settings, never Sunshine
+    # credentials, pairing keys, or model secrets.
+    for name in ['host_game_gpu.py','host_stream_env.py','gpu-deployment.json',
+                 'gpu-verification.json','gpu-sunshine-settings.json']:
+        file=home/'.local/share/creteos-host'/name
+        if file.is_file():payloads['gpu/'+name]=file.read_bytes()
+    for unit, name in [('sway-sunshine','90-creteos-game-gpu.conf'),
+                       ('ds4-coding','90-creteos-igpu.conf'),
+                       ('flashnext-coding','90-creteos-igpu.conf'),
+                       ('llama-swap-manual','90-creteos-igpu.conf')]:
+        file=home/'.config/systemd/user'/(unit+'.service.d')/name
+        if file.is_file():payloads['gpu/systemd/'+unit+'.service.d/'+name]=file.read_bytes()
     # Mod records/settings are reference data for the existing host. Patched
     # game archives, DLLs, Wine prefixes and saves remain outside this export.
     tools=home/'.local/share/creteos-host/mod-tools/mgsv'

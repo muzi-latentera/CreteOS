@@ -14,7 +14,7 @@ import tempfile
 import time
 
 KEYS = ("DISPLAY", "WAYLAND_DISPLAY", "SWAYSOCK", "XAUTHORITY", "XDG_RUNTIME_DIR",
-        "XDG_SESSION_TYPE", "XDG_CURRENT_DESKTOP", "XDG_SEAT", "PULSE_SINK")
+        "XDG_SESSION_TYPE", "XDG_CURRENT_DESKTOP", "XDG_SEAT", "PULSE_SINK", "DRI_PRIME")
 
 
 def validate_environment(values, runtime):
