@@ -1,0 +1,9 @@
+# 1 November — Phantom Blade Zero double launch failure (pending vault sync)
+
+Read-only native G1 and SSH Bosgame audit, around 23:42–23:46 GMT. No games launched or settings/services changed.
+
+Root game-start blocker: Bosgame Steam connection_log reports Request revoked at 20:38:11, logged off at 20:38:12, no auto reconnect. At 23:34:47 Buddy submitted app 4115450; Steam reached SynchronizingCloud at 23:34:58 and waited for user response, syncfailed. cloud_log confirms login=false, offlineMode=false. Retry at 23:36:32 did not reach Running; CreteOS generic startup timeout 23:38:32. Need native Bosgame Steam sign-in and successful cloud sync, not G1 library reauthorization. Do not bypass cloud warnings or choose save overwrite blindly. Unknown why account request was revoked.
+
+Separate connection fault: first Moonlight attempt starts 23:34:42, connects/decodes successfully, terminates -1 around 23:35:39. Windows WLAN security stopped 23:35:31 and re-established Extra 23:35:38. No evidence to attribute this specifically to weak signal or the Wi-Fi policy. Host NetworkManager default route changes at 23:35:10/23:35:52 are concurrent evidence, not established cause. Client before disconnect: 0% network loss, 0.22% jitter loss, 1 ms average RTT. Both requested native 2560x1600/120 HEVC; encoder RX 9070 XT. No game crash evidence; no Running transition.
+
+Source/install untouched. Private collected evidence is work/phantom-fail-g1-private.json, phantom-fail-host-private.json, phantom-fail-extra-private.json, phantom-fail-wlan-private.json, phantom-fail-connection-private.json. Documentation-only audit requires no personal backup refresh; last verified snapshot remains 17:43 GMT and predates later sessions. Guide updated; vault unavailable. Loading-cover limitation remains: host Steam dialog obscured until timeout.
