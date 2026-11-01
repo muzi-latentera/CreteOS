@@ -1,0 +1,112 @@
+{
+  "recordedAtUtc": "2026-11-01T19:01:32.764408+00:00",
+  "sessions": [
+    {
+      "log": "Moonlight-1793556193.log",
+      "startedUtc": "2026-11-01T18:03:13+00:00",
+      "modelState": "off",
+      "stats": {
+        "Incoming frame rate from network": "113.02 FPS",
+        "Decoding frame rate": "113.02 FPS",
+        "Rendering frame rate": "112.85 FPS",
+        "Host processing latency min/max/average": "1.9/46.4/6.2 ms",
+        "Frames dropped by your network connection": "4.07%",
+        "Frames dropped due to network jitter": "0.08%",
+        "Average network latency": "5 ms (variance: 9 ms)",
+        "Average decoding time": "1.15 ms",
+        "Average frame queue delay": "0.12 ms",
+        "Average rendering time (including monitor V-sync latency)": "1.74 ms"
+      },
+      "loggedDropsByMinute": {
+        "0": 334,
+        "1": 15,
+        "2": 248,
+        "3": 323,
+        "4": 208,
+        "10": 8
+      },
+      "terminationError": false,
+      "normalQuit": true,
+      "videoSettings": [
+        "Video stream is 2560x1600x120 (format 0x100)"
+      ],
+      "largestLossMinute": 0
+    },
+    {
+      "log": "Moonlight-1793558328.log",
+      "startedUtc": "2026-11-01T18:38:48+00:00",
+      "modelState": "loaded and intermittent generation",
+      "stats": {
+        "Incoming frame rate from network": "113.43 FPS",
+        "Decoding frame rate": "113.43 FPS",
+        "Rendering frame rate": "113.39 FPS",
+        "Host processing latency min/max/average": "1.9/102.6/6.4 ms",
+        "Frames dropped by your network connection": "1.52%",
+        "Frames dropped due to network jitter": "0.01%",
+        "Average network latency": "2 ms (variance: 6 ms)",
+        "Average decoding time": "1.12 ms",
+        "Average frame queue delay": "0.10 ms",
+        "Average rendering time (including monitor V-sync latency)": "1.72 ms"
+      },
+      "loggedDropsByMinute": {
+        "0": 39,
+        "1": 23,
+        "3": 112,
+        "4": 25,
+        "9": 184,
+        "12": 46,
+        "14": 135,
+        "15": 4
+      },
+      "terminationError": false,
+      "normalQuit": true,
+      "videoSettings": [
+        "Video stream is 2560x1600x120 (format 0x100)"
+      ],
+      "largestLossMinute": 9
+    }
+  ],
+  "modelRequestsDuringSecondStream": [
+    {
+      "finishedUtc": "2026-11-01T18:41:21.045074+00:00",
+      "status": "200",
+      "duration_ms": "10975.6",
+      "generated_tokens": "400",
+      "decode_tps": "36.8"
+    },
+    {
+      "finishedUtc": "2026-11-01T18:44:32.071951+00:00",
+      "status": "200",
+      "duration_ms": "10958.1",
+      "generated_tokens": "400",
+      "decode_tps": "36.6"
+    },
+    {
+      "finishedUtc": "2026-11-01T18:47:43.539051+00:00",
+      "status": "200",
+      "duration_ms": "11396.7",
+      "generated_tokens": "400",
+      "decode_tps": "35.2"
+    },
+    {
+      "finishedUtc": "2026-11-01T18:50:53.676015+00:00",
+      "status": "200",
+      "duration_ms": "10086.5",
+      "generated_tokens": "400",
+      "decode_tps": "39.7"
+    }
+  ],
+  "networkSwitchInsideEitherStream": false,
+  "wifiDuringBoth": "Hyperoptic_Extra",
+  "guardDisabledFromUtc": "18:00:19",
+  "guardRestoredUtc": "18:54:08",
+  "modelLoadCompletedUtc": "18:21:58",
+  "encoder": "HEVC VAAPI on RX 9070 XT",
+  "inferenceLoadWasContinuous": false,
+  "auditOnly": true,
+  "limitations": [
+    "Stream delivery FPS is not an in-game benchmark.",
+    "Current Wi-Fi RSSI was measured on E433 after the stream, not Extra during play.",
+    "No full per-frame time series; peak host latency cannot be correlated precisely with generation."
+  ]
+}

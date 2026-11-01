@@ -35,6 +35,25 @@ Connect the eGPU before starting the dedicated gaming services. Selection/fallba
 
 Rollback originals and the before/existed manifest are under Bosgame ~/.local/share/creteos-host/gpu-backups/20261101-173922. Restore only paths marked previously existing, remove only newly introduced named drop-ins/helpers if undoing, run systemctl --user daemon-reload and restart the idle gaming services in the order above. The Gufo container and its earlier Talos GPU symlinks are not part of this rollback. Deployment/verification JSON receipts under docs/device-records/2026-11-01-bosgame-gpu-*.json retain exact per-file SHA-256. Recovery export now includes the GPU helpers, new service drop-ins and sanitized Sunshine GPU settings inside Supporting/BosgameLutris-host-settings.zip → gpu/. It excludes Sunshine credentials/pairings and model secrets. A replacement handheld uses the existing configured Bosgame; it should not blindly replay host changes. Personal snapshot refresh completed and verified below; canonical vault sync pending.
 
+## Two-session eGPU / model-on comparison — 1 November, 19:01 GMT audit
+
+Read-only G1/Bosgame review confirmed two completed 2560x1600 / 120 FPS HEVC sessions on the RX 9070 XT encoder. First, 18:03–18:17 GMT, Gufo was stopped. Second, 18:38–18:54 GMT, Gufo was loaded and generated four 400-token responses at 35.2–39.7 tokens/s, each around 10–11 seconds. The game guard was temporarily stopped at 18:00:19 for the tests and restored at 18:54:08; this was already in the logs, not changed by this audit. The model loaded fully at 18:21:58.
+
+| Metric | Model off | Model loaded + generation bursts |
+| --- | --- | --- |
+| Incoming stream FPS (not game-engine benchmark) | 113.02 | 113.43 |
+| Rendered stream FPS | 112.85 | 113.39 |
+| Host processing average | 6.2 ms | 6.4 ms |
+| Host processing maximum | 46.4 ms | 102.6 ms |
+| Network latency average | 5 ms | 2 ms |
+| Network frame drops | 4.07% | 1.52% |
+| Network-jitter frame drops | 0.08% | 0.01% |
+| Decoder average | 1.15 ms | 1.12 ms |
+
+No meaningful average streaming penalty was evident with this intermittent inference workload. That does not establish continuous heavy-model performance or explain the second stream's individual latency peak. Both sessions ended with normal Quit, with no connection-termination error. Network delivery remains imperfect and could explain visible stutters, especially in the first stream; loss is not proof of weak radio signal or router distance. Both stayed on Hyperoptic_Extra, with network changes after session end or between tests only. The current strong RSSI was measured on E433 after play and is not evidence of Extra's signal during the sessions.
+
+Sanitized data: docs/device-records/2026-11-01-two-stream-comparison.json. Raw logs stay private in workspace work/. No settings/services/profiles changed by this audit and no new personal snapshot was made. The verified 17:43 snapshot remains its dated capture, predating these play sessions/history; do not present it as a capture of subsequent playtime. Source/journal update is documentation-only; vault sync pending.
+
 ## Library refresh repair — 30 October 2026
 
 Manual Refresh Library now requests fresh Steam owned games and forces the NVIDIA catalogue request before rescanning installed/saved games. Automatic NVIDIA checks retain daily successful freshness, with a five-minute retry delay after failure. Refresh reports which sources failed, retains their saved lists, and bounds remote requests and the local scan. Incomplete Steam responses and cache-save failures no longer silently replace a valid list or imply success.
