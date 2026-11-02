@@ -9,6 +9,14 @@ pub fn new_activity(line:&str)->bool{
     let state=line.split_once("NvCameraService streaming state change:").or_else(||if line.contains("gfn/StreamerManagerService"){line.split_once("Advancing to state:")}else{None});
     state.is_some_and(|(_,s)|!matches!(s.split_whitespace().next().unwrap_or(""),"Done"|"Idle"|"Stopped"))
 }
+pub fn shutdown_complete(log:&str)->bool{
+    let mut complete=false;
+    for line in log.lines(){
+        if new_activity(line){complete=false;}
+        if line.contains("libraries/application-lifetime.service")&&line.contains("OnShutdown work completed, closing"){complete=true;}
+    }
+    complete
+}
 #[cfg(test)] mod tests {
     use super::*;
     #[test] fn allows_only_remaining_original_instances() {
@@ -30,5 +38,15 @@ pub fn new_activity(line:&str)->bool{
     }
     #[test] fn idle_end_states_and_unrelated_logs_do_not_mean_new_play(){
         for line in ["NvCameraService streaming state change: Done","gfn/StreamerManagerService Advancing to state: Idle","NvCameraService streaming state change: Stopped","normal browser cleanup"]{assert!(!new_activity(line));}
+    }
+    #[test] fn completed_nvidia_shutdown_establishes_a_closed_background_client(){
+        assert!(shutdown_complete("NvCameraService streaming state change: Done\nlibraries/application-lifetime.service OnShutdown work completed, closing"));
+        assert!(!shutdown_complete("NvCameraService streaming state change: Done"));
+        assert!(!shutdown_complete("libraries/application-lifetime.service starting pre-shutdown promises"));
+    }
+    #[test] fn new_session_invalidates_an_older_shutdown_receipt(){
+        let closed="libraries/application-lifetime.service OnShutdown work completed, closing\n";
+        assert!(!shutdown_complete(&(closed.to_owned()+"gfn/StreamerManagerService Advancing to state: Loading")));
+        assert!(!shutdown_complete(&(closed.to_owned()+"streamingService onStreamingFirstFrame")));
     }
 }

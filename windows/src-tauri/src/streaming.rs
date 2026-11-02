@@ -346,12 +346,22 @@ fn nvidia_new_activity(line:&str)->bool{
     gfn_process_guard::new_activity(line)
 }
 
-fn close_idle_geforce(window: &tauri::Window) -> Result<(), String> {
+fn close_idle_geforce(note: impl Fn(&str)) -> Result<(), String> {
     if !super::is_process_running("GeForceNOW.exe") && !super::is_process_running("GeForceNOWStreamer.exe") { return Ok(()); }
     let root = dirs::data_local_dir().ok_or("No local data folder")?.join("NVIDIA Corporation/GeForceNOW/CEF/GeForceNOW.exe");
     let candidates = || super::collect_launch_windows().into_iter().filter(|target| target.exe_path.as_deref().is_some_and(|path| root.to_string_lossy().eq_ignore_ascii_case(path))).collect::<Vec<_>>();
+    let closed_background=candidates().is_empty()&&!super::is_process_running("GeForceNOWStreamer.exe")&&gfn_process_guard::shutdown_complete(&nvidia_log_tail());
+    // Window-close can leave NVIDIA's tray/background client alive. Reopen
+    // only its ordinary home UI (no route/game arguments) to establish idle
+    // evidence before touching those background processes.
+    if !closed_background && candidates().is_empty() && !super::is_process_running("GeForceNOWStreamer.exe") {
+        note("Checking the existing NVIDIA background client…");
+        std::process::Command::new(client_path("geforceNow")?).spawn().map_err(|_|"Could not reopen NVIDIA's home window to check whether it is idle")?;
+        let wait=std::time::Instant::now();
+        while candidates().is_empty() && wait.elapsed()<std::time::Duration::from_secs(12){std::thread::sleep(std::time::Duration::from_millis(100));}
+    }
     let idle = || nvidia_idle_evidence(&nvidia_log_tail(), &candidates().iter().map(|w|w.title.clone()).collect::<Vec<_>>(), super::is_process_running("GeForceNOWStreamer.exe"));
-    if !idle() {
+    if !closed_background && !idle() {
         if super::is_process_running("GeForceNOWStreamer.exe") || candidates().iter().any(|w| w.title.to_ascii_lowercase().contains(" on geforce now")) {
             return Err("GeForce NOW is already running or launching a game. Quit that session before applying different streaming settings. CreteOS has left your game running.".into());
         }
@@ -360,7 +370,7 @@ fn close_idle_geforce(window: &tauri::Window) -> Result<(), String> {
     let original=gfn_process_instances()?;
     let roots=candidates().iter().map(|w|w.pid).collect::<Vec<_>>();
     let mut cursor=super::stream_readiness::LogCursor::new(nvidia_console());
-    progress(window, "Restarting idle GeForce NOW to apply your streaming settings…");
+    note("Restarting idle GeForce NOW to apply your streaming settings…");
     for target in candidates() {
         if !idle() { return Err("GeForce NOW started or changed a session while preparing settings. CreteOS stopped the restart to preserve it.".into()); }
         #[cfg(windows)] unsafe {
@@ -381,7 +391,7 @@ fn close_idle_geforce(window: &tauri::Window) -> Result<(), String> {
             // NVIDIA can keep its idle background client alive after normal
             // window closure. Only those exact, creation-time-pinned original
             // processes may be finished, with no new streaming activity.
-            progress(window,"Finishing idle NVIDIA background processes before applying settings…");
+            note("Finishing idle NVIDIA background processes before applying settings…");
             let mut ordered=remaining.into_iter().collect::<Vec<_>>();
             ordered.sort_by_key(|(pid,_)|(!roots.contains(pid),*pid));
             for (pid,created) in ordered {
@@ -402,6 +412,8 @@ fn close_idle_geforce(window: &tauri::Window) -> Result<(), String> {
     }
     Ok(())
 }
+
+pub(crate) fn prepare_idle_geforce_client() -> Result<(),String> { close_idle_geforce(|_|{}) }
 
 pub(crate) fn bounded_output(command: std::process::Command, input: Option<&[u8]>) -> Result<std::process::Output, String> {
     bounded_output_timeout(command, input, 10)
@@ -598,7 +610,7 @@ pub async fn start_geforce_game(window: tauri::Window, game_url: String, display
     if display_key.is_empty() || display_key.len() > 256 { return Err("Invalid display identity".into()); }
     tauri::async_runtime::spawn_blocking(move || {
         let (client, argument) = geforce_launch(&game_url, source.as_deref(), true)?;
-        close_idle_geforce(&window)?;
+        close_idle_geforce(|message|progress(&window,message))?;
         let wifi = super::stream_wifi::prepare("geforceNow");
         let root = dirs::data_local_dir().ok_or("No local data folder")?;
         let path = root.join("NVIDIA Corporation/GeForceNOW/sharedstorage.json");

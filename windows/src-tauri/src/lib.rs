@@ -10412,6 +10412,15 @@ async fn launch_app(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let context: tauri::Context<tauri::Wry> = tauri::generate_context!();
+    // Explicit maintenance/test mode: prepare only an idle NVIDIA client. It
+    // never passes a game route, changes streaming settings or starts a game.
+    if std::env::args().any(|arg| arg == "--prepare-idle-geforce") {
+        let result=streaming::prepare_idle_geforce_client();
+        let prepared=result.is_ok();
+        println!("{}",serde_json::json!({"prepared":prepared,"error":result.err(),"sourceCommit":env!("CRETE_SOURCE_COMMIT"),"gamesLaunched":false}));
+        if !prepared {std::process::exit(2);}
+        return;
+    }
     // Native maintenance check: uses the same refresh paths, never opens a game
     // or an authentication window, and prints only counts or sanitized errors.
     if std::env::args().any(|arg| arg == "--refresh-library-data") {
