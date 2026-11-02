@@ -25,10 +25,13 @@
   },
   "gameplayAcceptance": "pending user test",
   "metadata": {
-    "steamError": "EResult 15",
+    "steamError": null,
     "geforceRefreshed": true,
-    "steamReauthorizationPending": true,
-    "geforceCount": 6221
+    "steamReauthorizationPending": false,
+    "geforceCount": 6221,
+    "steamRefreshed": true,
+    "steamCount": 149,
+    "reauthorizationVerifiedAt": "2026-11-02T01:24:41+00:00"
   },
   "install": {
     "previousHash": "1996BB80C3164EF757253531FE076DEFA00FBA72222D09FB5D58C3B6EA6693E9",
@@ -79,16 +82,16 @@
     "homeVisible": true
   },
   "privateBackup": {
-    "payloadBytes": 740675407,
-    "sqliteIntegrity": "ok",
-    "recoveryExeMatchesInstalled": true,
-    "archiveBytes": 719048950,
-    "archiveName": "CreteOS-G1-profile-backup-20261102-005143.zip",
     "offDeviceCopyMade": false,
-    "archiveSHA256": "475f3374ce46662aac21bc03cd5dc9270def451669740d08f634664246275a04",
-    "created": "2026-11-02T00:52:23.950507+00:00",
+    "archiveSHA256": "64dda08ae05d6af31632a53b31795c227d4f6e3c1b9a8c7bd50ddcfdd759505e",
     "archiveContentsVerified": true,
-    "filesVerified": 1383,
-    "previousVerifiedBackupPreserved": true
+    "payloadBytes": 740679900,
+    "recoveryExeMatchesInstalled": true,
+    "archiveName": "CreteOS-G1-profile-backup-20261102-012541.zip",
+    "created": "2026-11-02T01:26:11.789325+00:00",
+    "sqliteIntegrity": "ok",
+    "filesVerified": 1384,
+    "previousVerifiedBackupPreserved": true,
+    "archiveBytes": 719042607
   }
 }
