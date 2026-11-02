@@ -1,0 +1,94 @@
+{
+  "vaultSync": "pending",
+  "build": {
+    "end": "2026-11-02T00:47:15.0357697+00:00",
+    "embeddedAssetsVerified": true,
+    "start": "2026-11-02T00:43:24.0029644+00:00",
+    "sha256": "E16AAC32A57C9E3089E6780E97E5BB200605A1C16F06D9C3853D9341611F829D"
+  },
+  "computer": "OXPG1",
+  "hostPreflight": {
+    "verified": true,
+    "status": "ready",
+    "migrationRequested": false
+  },
+  "sourceCommit": "27580f0fedf737b47fbb3bd965ae9042c25f463a",
+  "gamesLaunched": false,
+  "checks": {
+    "nativeReleaseTests": 141,
+    "artworkTestsRerun": 7,
+    "pythonTests": 24,
+    "finalIsolatedNativeGuardTests": 8,
+    "productionBuildPassed": true,
+    "typecheckPassed": true,
+    "frontendTests": 21
+  },
+  "gameplayAcceptance": "pending user test",
+  "metadata": {
+    "steamError": "EResult 15",
+    "geforceRefreshed": true,
+    "steamReauthorizationPending": true,
+    "geforceCount": 6221
+  },
+  "install": {
+    "previousHash": "1996BB80C3164EF757253531FE076DEFA00FBA72222D09FB5D58C3B6EA6693E9",
+    "verified": true,
+    "time": "2026-11-02T00:49:06.3405899+00:00",
+    "profiles": [
+      {
+        "unchanged": true,
+        "name": "settings.json"
+      },
+      {
+        "unchanged": true,
+        "name": "moonlight_profiles.json"
+      },
+      {
+        "unchanged": true,
+        "name": "geforce_profiles.json"
+      },
+      {
+        "unchanged": true,
+        "name": "custom_data.json"
+      },
+      {
+        "unchanged": true,
+        "name": "stream_wifi_preferences.json"
+      },
+      {
+        "unchanged": true,
+        "name": "recent_games.json"
+      }
+    ],
+    "rollback": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS-Bootstrap\\app-updates\\Library-refresh-20261102-004857",
+    "hash": "E16AAC32A57C9E3089E6780E97E5BB200605A1C16F06D9C3853D9341611F829D",
+    "displaySettingsModified": false
+  },
+  "date": "2026-11-02",
+  "idleLiveCheck": {
+    "allProfilesUnchanged": true,
+    "prepared": true,
+    "time": "2026-11-02T00:48:25.6257316+00:00",
+    "afterProcessCount": 0,
+    "beforeProcessCount": 5
+  },
+  "ui": {
+    "gamesLaunched": false,
+    "time": "2026-11-02 00:51 GMT (approximate)",
+    "artworkAndLibraryVisible": true,
+    "homeVisible": true
+  },
+  "privateBackup": {
+    "payloadBytes": 740675407,
+    "sqliteIntegrity": "ok",
+    "recoveryExeMatchesInstalled": true,
+    "archiveBytes": 719048950,
+    "archiveName": "CreteOS-G1-profile-backup-20261102-005143.zip",
+    "offDeviceCopyMade": false,
+    "archiveSHA256": "475f3374ce46662aac21bc03cd5dc9270def451669740d08f634664246275a04",
+    "created": "2026-11-02T00:52:23.950507+00:00",
+    "archiveContentsVerified": true,
+    "filesVerified": 1383,
+    "previousVerifiedBackupPreserved": true
+  }
+}
