@@ -1,0 +1,48 @@
+{
+  "time": "2026-11-02T17:28:53+00:00",
+  "readOnly": true,
+  "g1": {
+    "network": "Hyperoptic_Extra",
+    "bandGHz": 5,
+    "channel": 48,
+    "authentication": "WPA3-Personal",
+    "signalPercent": 88,
+    "rssiDbm": -37,
+    "signalIsCurrentNotFailureTime": true,
+    "failureConfirmed": "AX210 Netwtw14 internal failure precedes17:16 disconnect; AP-side trigger still possible, not proven",
+    "automaticSwitchAtFailure": false
+  },
+  "bosgame": {
+    "streamRouteToActualG1": "eno1 Ethernet, source wired address",
+    "ethernetMbps": 1000,
+    "duplex": "full",
+    "ethernetLinkDropInCollectedInterval": false,
+    "ethernetRxErrors": 0,
+    "ethernetTxErrors": 0,
+    "lifetimeRxDrops": 14621,
+    "lifetimeDropsNotCorrelatedWithFailure": true,
+    "wifiConnectedTo": "Hyperoptic Fibre E433",
+    "wifiSignalDbm": -54,
+    "internetDefaultAtSnapshot": "wlan0, metric50; Ethernet100; local /24 pinned Ethernet10",
+    "networkManagerDefaultPreferenceChangesObserved": true,
+    "noDefaultChangeAtExactFailure": true,
+    "ordinaryMinutePingSamples17_10to17_28": "router/public0% loss in each available sample; short samples do not cover every instant; script does not bind ping to named interface",
+    "forcedEthernetGatewayPublicPing": "4/4 each; public mean4.536ms",
+    "forcedEthernetIPv4HTTPS": "HTTP200",
+    "ordinaryHTTPS": "HTTP200",
+    "forcedWifiPing": "0/4 gateway and public",
+    "forcedWifiIPv4HTTPS": "connect timeout",
+    "forcedWifiProbeInterpretation": "Separate unresolved binding/dual-interface path discrepancy; ordinary traffic succeeds. Do not infer a whole-host internet outage or Extra AP failure from these bound probes.",
+    "sunshineRestartedAtFailure": false
+  },
+  "accessPoint": {
+    "controllerLogsAvailable": false,
+    "restartPerformed": false,
+    "recommendation": "Export UniFi events near17:16 first; a single subsequent AP reboot is a reasonable controlled test, not proof of repair. Compare G1 on E433 under similar conditions; if AX210 internal failures recur there, Extra AP is not a necessary trigger. If confined to Extra, investigate AP firmware/security/radio compatibility with one controlled change at a time.",
+    "officialIsolationGuidance": "https://www.intel.com/content/www/us/en/support/articles/000088581.html"
+  },
+  "configurationChanged": false,
+  "privateSnapshotUnchanged": "20261102-164418",
+  "usbRefreshed": false,
+  "vaultSync": "pending"
+}
