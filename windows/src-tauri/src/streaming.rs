@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::Manager;
+#[path = "gfn_process_guard.rs"]
+mod gfn_process_guard;
 
 static SESSION_GENERATION: AtomicU64 = AtomicU64::new(0);
 static LAUNCH_EPOCH: AtomicU64 = AtomicU64::new(0);
@@ -296,6 +298,54 @@ fn nvidia_log_tail() -> String {
     let mut data=String::new(); let _=file.read_to_string(&mut data); data
 }
 
+fn gfn_process_instances() -> Result<std::collections::BTreeMap<u32,u64>,String> {
+    let mut command=std::process::Command::new("tasklist.exe");
+    command.args(["/FO","CSV","/NH","/FI","IMAGENAME eq GeForceNOW.exe"]);
+    let output=bounded_output(command,None)?;
+    if !output.status.success(){return Err("Could not verify GeForce NOW's background processes. Nothing was stopped.".into());}
+    let root=client_path("geforceNow")?;let mut result=std::collections::BTreeMap::new();
+    for line in String::from_utf8_lossy(&output.stdout).lines(){
+        let fields=line.split(',').collect::<Vec<_>>();
+        if fields.first().is_none_or(|s|!s.trim_matches('"').eq_ignore_ascii_case("GeForceNOW.exe")){continue;}
+        let pid=fields.get(1).and_then(|s|s.trim_matches('"').parse::<u32>().ok()).ok_or("Invalid NVIDIA process identity")?;
+        if !super::process_exe_path(pid).is_some_and(|p|root.to_string_lossy().eq_ignore_ascii_case(&p)){return Err("Could not verify a GeForce NOW process path. Nothing was stopped.".into());}
+        result.insert(pid,gfn_process_created(pid)?);
+    }
+    Ok(result)
+}
+
+fn gfn_process_created(pid:u32)->Result<u64,String>{
+    #[cfg(windows)] unsafe {
+        use windows::Win32::{Foundation::{CloseHandle,FILETIME},System::Threading::{OpenProcess,GetProcessTimes,PROCESS_QUERY_LIMITED_INFORMATION}};
+        let handle=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,false,pid).map_err(|_|"Could not verify NVIDIA process age")?;
+        let (mut created,mut exit,mut kernel,mut user)=(FILETIME::default(),FILETIME::default(),FILETIME::default(),FILETIME::default());
+        let result=GetProcessTimes(handle,&mut created,&mut exit,&mut kernel,&mut user);let _=CloseHandle(handle);
+        result.map_err(|_|"Could not verify NVIDIA process age")?;
+        return Ok((u64::from(created.dwHighDateTime)<<32)|u64::from(created.dwLowDateTime));
+    }
+    #[cfg(not(windows))] {let _=pid;Err("NVIDIA process checks need Windows".into())}
+}
+
+fn finish_idle_gfn_process(pid:u32,created:u64)->Result<(),String>{
+    if gfn_process_created(pid)?!=created{return Err("NVIDIA changed processes; restart cancelled to preserve the new session.".into());}
+    #[cfg(windows)] unsafe {
+        use windows::Win32::{Foundation::{CloseHandle,FILETIME},System::Threading::{OpenProcess,GetProcessTimes,TerminateProcess,PROCESS_QUERY_LIMITED_INFORMATION,PROCESS_TERMINATE}};
+        // Pin the handle before rechecking age, so PID reuse cannot redirect
+        // termination between our identity check and the actual operation.
+        let handle=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION|PROCESS_TERMINATE,false,pid).map_err(|_|"Could not finish NVIDIA's idle background client")?;
+        let (mut born,mut exit,mut kernel,mut user)=(FILETIME::default(),FILETIME::default(),FILETIME::default(),FILETIME::default());
+        let check=GetProcessTimes(handle,&mut born,&mut exit,&mut kernel,&mut user);
+        let age=(u64::from(born.dwHighDateTime)<<32)|u64::from(born.dwLowDateTime);
+        let result=if check.is_ok()&&age==created{TerminateProcess(handle,0).map_err(|_|"Could not finish NVIDIA's idle background client")}else{Err("NVIDIA process identity changed; restart cancelled")};
+        let _=CloseHandle(handle);return result.map_err(String::from);
+    }
+    #[cfg(not(windows))] {let _=(pid,created);Err("NVIDIA process checks need Windows".into())}
+}
+
+fn nvidia_new_activity(line:&str)->bool{
+    gfn_process_guard::new_activity(line)
+}
+
 fn close_idle_geforce(window: &tauri::Window) -> Result<(), String> {
     if !super::is_process_running("GeForceNOW.exe") && !super::is_process_running("GeForceNOWStreamer.exe") { return Ok(()); }
     let root = dirs::data_local_dir().ok_or("No local data folder")?.join("NVIDIA Corporation/GeForceNOW/CEF/GeForceNOW.exe");
@@ -307,6 +357,9 @@ fn close_idle_geforce(window: &tauri::Window) -> Result<(), String> {
         }
         return Err("CreteOS cannot confirm GeForce NOW is idle: it may be signing in, queueing or starting a session. Return to its home screen and retry. Nothing has been closed.".into());
     }
+    let original=gfn_process_instances()?;
+    let roots=candidates().iter().map(|w|w.pid).collect::<Vec<_>>();
+    let mut cursor=super::stream_readiness::LogCursor::new(nvidia_console());
     progress(window, "Restarting idle GeForce NOW to apply your streaming settings…");
     for target in candidates() {
         if !idle() { return Err("GeForce NOW started or changed a session while preparing settings. CreteOS stopped the restart to preserve it.".into()); }
@@ -317,7 +370,34 @@ fn close_idle_geforce(window: &tauri::Window) -> Result<(), String> {
     }
     let started = std::time::Instant::now();
     while super::is_process_running("GeForceNOW.exe") || super::is_process_running("GeForceNOWStreamer.exe") {
-        if started.elapsed() > std::time::Duration::from_secs(12) { return Err("GeForce NOW kept its background client open after closing the idle window. Exit GeForce NOW from its tray menu, then retry. No process was forcibly stopped.".into()); }
+        if cursor.lines().iter().any(|line|nvidia_new_activity(line))||super::is_process_running("GeForceNOWStreamer.exe"){
+            return Err("GeForce NOW started a session while closing. CreteOS cancelled its restart and left the new session running.".into());
+        }
+        if started.elapsed() > std::time::Duration::from_secs(12) {
+            let remaining=gfn_process_instances()?;
+            if !candidates().is_empty()||!gfn_process_guard::same_instances(&original,&remaining){
+                return Err("GeForce NOW changed windows or processes while closing. CreteOS left it open to preserve that session. Return to its home screen and retry.".into());
+            }
+            // NVIDIA can keep its idle background client alive after normal
+            // window closure. Only those exact, creation-time-pinned original
+            // processes may be finished, with no new streaming activity.
+            progress(window,"Finishing idle NVIDIA background processes before applying settings…");
+            let mut ordered=remaining.into_iter().collect::<Vec<_>>();
+            ordered.sort_by_key(|(pid,_)|(!roots.contains(pid),*pid));
+            for (pid,created) in ordered {
+                if !candidates().is_empty()||super::is_process_running("GeForceNOWStreamer.exe")||cursor.lines().iter().any(|line|nvidia_new_activity(line))||!gfn_process_guard::same_instances(&original,&gfn_process_instances()?){
+                    return Err("NVIDIA opened a new session; background cleanup cancelled.".into());
+                }
+                if super::process_exe_path(pid).is_none(){continue;}
+                finish_idle_gfn_process(pid,created)?;
+            }
+            let deadline=std::time::Instant::now();
+            while super::is_process_running("GeForceNOW.exe")||super::is_process_running("GeForceNOWStreamer.exe"){
+                if deadline.elapsed()>std::time::Duration::from_secs(5){return Err("NVIDIA is still finishing its background client. Retry after it closes.".into());}
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            break;
+        }
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
     Ok(())
