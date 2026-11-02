@@ -59,3 +59,14 @@ it("recovers from invalid storage and isolates host identities", async () => {
   await cache.refreshHost("Bosgame");
   expect(cache.readHost("OtherPC").snapshot.games).toBeUndefined();
 });
+it("classifies saved remote installs offline without making host requests", async () => {
+  const cache = await import("./hostSnapshot");
+  localStorage.setItem(cache.HOST_SNAPSHOT_KEY, JSON.stringify({ livingroom: {
+    attemptedAt: 1, apps: ["MoonDeckStream", "Standalone Fixture"],
+    games: [{ steamAppId: "883710", name: "Resident Evil 2" }],
+  } }));
+  expect(cache.hasKnownHostGame({id:"steam/883710",name:"Resident Evil 2",source:"steam",steam_appid:883710})).toBe(true);
+  expect(cache.hasKnownHostGame({id:"other",name:"Standalone Fixture",source:"desktop"})).toBe(true);
+  expect(cache.hasKnownHostGame({id:"other",name:"Resident Evil 3",source:"steam",steam_appid:952060})).toBe(false);
+  expect(invoke).not.toHaveBeenCalled();
+});

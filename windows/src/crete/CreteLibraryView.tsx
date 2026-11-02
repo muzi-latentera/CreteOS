@@ -8,6 +8,8 @@ import { useCreteText } from "./text";
 import { StoreBadge } from "../components/ui/StoreBadge";
 import { cancelPaneScroll, scrollPane } from "./smoothScroll";
 import { gameCopies } from "./libraryEditions";
+import { subscribeGeForceCatalog } from "./gfnCatalog";
+import { subscribeHost } from "./hostSnapshot";
 
 export interface CreteLibraryProps {
   tab: "Games" | "Apps";
@@ -37,6 +39,12 @@ export interface CreteLibraryProps {
 export function CreteLibraryView(p: CreteLibraryProps) {
   const text = useCreteText();
   const [availability, setAvailability] = useState<Availability>("all");
+  const [catalogVersion, setCatalogVersion] = useState(0);
+  useEffect(() => {
+    const changed = () => setCatalogVersion(version => version + 1);
+    const releaseCatalog = subscribeGeForceCatalog(changed); const releaseHost = subscribeHost(changed);
+    return () => { releaseCatalog(); releaseHost(); };
+  }, []);
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [searching, setSearching, searchingRef] = useNavigationState(false, `${p.tab}.searching`);
@@ -51,7 +59,7 @@ export function CreteLibraryView(p: CreteLibraryProps) {
   const [cols, setCols] = useState(5);
   const [gridWidth, setGridWidth] = useState(0);
   const appsMode = p.tab === "Apps";
-  const items = useMemo(() => p.filteredApps.filter(app => (appsMode || matchesAvailability(app, availability)) && matchesSearch(app.name, deferredQuery)), [p.filteredApps, availability, deferredQuery, appsMode]);
+  const items = useMemo(() => p.filteredApps.filter(app => (appsMode || matchesAvailability(app, availability)) && matchesSearch(app.name, deferredQuery)), [p.filteredApps, availability, deferredQuery, appsMode, catalogVersion]);
   const index = Math.max(0, items.findIndex(app => app.id === selectedId));
   const selected = items[index];
   const filters = (appsMode ? ["Applications"] : AVAILABILITY_LABELS).map(label => text(label));
@@ -167,7 +175,7 @@ export function CreteLibraryView(p: CreteLibraryProps) {
         onFocus={() => { setSelectedId(app.id); setToolbarIndex(null); }} onClick={() => p.openDetails(app)}
         onContextMenu={event => { event.preventDefault(); p.setContextMenu({ x: event.clientX, y: event.clientY, app }); }}>
         {p.AppIcon ? <p.AppIcon app={app} size={48} /> : <span>{app.name.slice(0, 1)}</span>}<strong>{app.name}</strong>
-        {p.settings.show_store_badges !== false && <StoreBadge source={app.source} inline />}{p.pins.includes(app.id) && <span aria-label={text("Pinned")}>◆</span>}{p.isRunning(app.id) && <span>{text("Running")}</span>}
+        {p.settings.show_store_badges !== false && <StoreBadge app={app} inline />}{p.pins.includes(app.id) && <span aria-label={text("Pinned")}>◆</span>}{p.isRunning(app.id) && <span>{text("Running")}</span>}
       </button> : <CreteGameCard key={app.id} app={app}
       art={p.customArt[app.id] || p.gameArt[app.id]} selected={toolbarIndex === null && selected?.id === app.id}
       pinned={gameCopies(app).some(copy => p.pins.includes(copy.id))} running={p.isRunning(app.id)} showStoreBadge={p.settings.show_store_badges}

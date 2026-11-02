@@ -1,5 +1,5 @@
 import type { App, StoreMetadata } from "../types";
-import { lastPlayed, playtime, epochMs, sourceLabel } from "./model";
+import { lastPlayed, playtime, epochMs, sourceLabel, gamePlatform, availabilityLabel } from "./model";
 import { useCreteText } from "./text";
 import { useXboxProgress } from "./useXboxProgress";
 import { useStoreProgress } from "./useStoreProgress";
@@ -26,8 +26,8 @@ export function CreteDetailsInfo({ app, metadata, lastPlayedAt, minutes, install
       {accountProgress?.xp != null && <><dt>XP</dt><dd>{accountProgress.xp}{accountProgress.total_xp ? ` / ${accountProgress.total_xp}` : ""}</dd></>}
     </dl></section>
     {earned.length > 0 && <section><h3>{text("Recent achievements")}</h3><dl>{earned.map(a => <div className="crete-detail-stat" key={a.id}><dt title={a.description}>{a.name}</dt><dd>{a.unlocked_at ? new Date(a.unlocked_at * 1000).toLocaleDateString() : "✓"}</dd></div>)}</dl></section>}
-    <section><h3>{text("Launch")}</h3><dl><dt>{text("Provider")}</dt><dd>{sourceLabel(app.source)}</dd>
-      <dt>{text("Availability")}</dt><dd>{app.source === "lutris" ? "Bosgame" : text(app.source === "cloud" ? "Cloud" : installed ? "Local" : "Not installed")}</dd>
+    <section><h3>{text("Launch")}</h3><dl><dt>{text("Provider")}</dt><dd>{sourceLabel(gamePlatform(app))}</dd>
+      <dt>{text("Availability")}</dt><dd>{text(availabilityLabel({ ...app, installed }))}</dd>
       {(app.steam_appid || app.xbox_product_id) && <><dt>{text("App ID")}</dt><dd>{app.steam_appid || app.xbox_product_id}</dd></>}
     </dl></section>
   </aside>;

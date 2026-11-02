@@ -628,7 +628,7 @@ function LiftOffHomeView(props: HomeViewProps) {
             </div>
             <PinBadge isPinned={isPinned} small />
             <RunningBadge show={isRunning?.(app.id)} small />
-            {app.app_type === "game" && <StoreBadge source={app.source ?? fullApp.source} small />}
+            {app.app_type === "game" && <StoreBadge app={fullApp} source={app.source ?? fullApp.source} small />}
             {focused && !isOnyx && <div style={{ position: "absolute", inset: 0, border: `2px solid ${surfaceStyle === "material" ? accent.primary : accent.glow + "0.6)"}`, borderRadius: surfaceCardRadius, pointerEvents: "none" }} />}
           </CyberpunkCard>
           <FocusRing focused={focused} variant="spin" elementRadius={surfaceCardRadius} />
@@ -663,7 +663,7 @@ function LiftOffHomeView(props: HomeViewProps) {
               </div>
               <PinBadge isPinned={isPinned} small />
               <RunningBadge show={isRunning?.(app.id)} small />
-              {app.app_type === "game" && <StoreBadge source={app.source ?? fullApp.source} small />}
+              {app.app_type === "game" && <StoreBadge app={fullApp} source={app.source ?? fullApp.source} small />}
               {focused && !isOnyx && <div style={{ position: "absolute", inset: 0, border: `2px solid ${surfaceStyle === "material" ? accent.primary : accent.glow + "0.6)"}`, borderRadius: surfaceCardRadius, pointerEvents: "none" }} />}
             </CyberpunkCard>
             <FocusRing focused={focused} variant="spin" elementRadius={surfaceCardRadius} />
@@ -718,7 +718,7 @@ function LiftOffHomeView(props: HomeViewProps) {
               <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "20px 8px 7px", background: "linear-gradient(transparent, rgba(0,0,0,0.85))" }}>
                 <div style={{ fontSize: 9, fontWeight: 600, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{app.name}</div>
               </div>
-              <StoreBadge source={app.source ?? fullApp.source} small />
+              <StoreBadge app={fullApp} source={app.source ?? fullApp.source} small />
             </div>
             <FocusRing focused={focused} variant="spin" elementRadius={surfaceCardRadius} />
           </div>
@@ -1384,7 +1384,7 @@ function LiftOffHomeView(props: HomeViewProps) {
                         </div>
                         <PinBadge isPinned={isPinned} small />
                         <RunningBadge show={isRunning?.(app.id)} small />
-                        <StoreBadge source={app.source ?? fullApp.source} small />
+                        <StoreBadge app={fullApp} source={app.source ?? fullApp.source} small />
                         {focused && !isOnyx && <div style={{ position: "absolute", inset: 0, border: `2px solid ${surfaceStyle === "material" ? accent.primary : accent.glow + "0.6)"}`, borderRadius: surfaceCardRadius, pointerEvents: "none" }} />}
                       </CyberpunkCard>
                       <FocusRing focused={focused} variant="spin" elementRadius={surfaceCardRadius} />

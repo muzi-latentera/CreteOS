@@ -1130,7 +1130,7 @@ export function GameDetailsModal({
             transition: "gap 360ms cubic-bezier(0.16, 1, 0.3, 1), padding 360ms cubic-bezier(0.16, 1, 0.3, 1)",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-              <StoreBadge source={app.source} inline />
+              <StoreBadge app={app} inline />
               <h2 style={{
                 margin: 0,
                 fontSize: controlsRevealed ? 24 : 30,

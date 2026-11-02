@@ -32,7 +32,7 @@ export function CreteGameCard({ app, art, selected, pinned, running, onSelect, o
       onError={() => setFailedUrls(previous => [...previous, image])} />
       {landscape && <strong className="crete-landscape-title">{app.name}</strong>}</>
       : <span className="crete-cover-fallback"><span aria-hidden="true">{app.name.slice(0, 1)}</span><strong>{app.name}</strong></span>}
-    {showStoreBadge && <span className="crete-card-store"><StoreBadge source={app.source} inline /></span>}
+    {showStoreBadge && <span className="crete-card-store"><StoreBadge app={app} inline /></span>}
     {pinned && <span className="crete-card-pin" aria-label={text("Pinned")}>◆</span>}
     {running && <span className="crete-card-running">{text("Running")}</span>}
   </button>;

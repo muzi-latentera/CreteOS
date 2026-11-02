@@ -1,4 +1,6 @@
-import { FaBattleNet, FaSteam, FaXbox } from "react-icons/fa6";
+import { FaBattleNet, FaSteam, FaXbox, FaPlaystation } from "react-icons/fa6";
+import type { App } from "../../types";
+import { gamePlatform } from "../../crete/model";
 import { SiEpicgames, SiGogdotcom, SiLutris } from "react-icons/si";
 import { useSettings } from "../../contexts/SettingsContext";
 import { useTheme } from "../../contexts/ThemeContext";
@@ -11,6 +13,7 @@ const STORE_ICONS = {
   epic: SiEpicgames,
   cloud: CloudIcon,
   lutris: SiLutris,
+  playstation: FaPlaystation,
 };
 
 const STORE_LABELS: Record<string, string> = {
@@ -21,6 +24,7 @@ const STORE_LABELS: Record<string, string> = {
   epic: "Epic Games",
   cloud: "Cloud",
   lutris: "Lutris on Bosgame",
+  playstation: "PlayStation",
 };
 
 function CloudIcon({ size }: { size: number }) {
@@ -39,11 +43,13 @@ function CloudIcon({ size }: { size: number }) {
 
 interface StoreBadgeProps {
   source?: string;
+  app?: App;
   small?: boolean;
   inline?: boolean;
 }
 
-export function StoreBadge({ source, small = false, inline = false }: StoreBadgeProps) {
+export function StoreBadge({ source, app, small = false, inline = false }: StoreBadgeProps) {
+  source = app ? gamePlatform({ ...app, source: app.source ?? source }) : source?.toLowerCase();
   const { settings } = useSettings();
   const { surfaceStyle, resolvedTheme } = useTheme();
   if (settings.show_store_badges === false || !source) return null;

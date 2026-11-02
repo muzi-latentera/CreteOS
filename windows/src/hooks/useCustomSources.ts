@@ -29,6 +29,7 @@ const BUILTIN_SOURCES = new Set([
   "epic",
   "cloud",
   "lutris",
+  "playstation",
   "other",
   "desktop",
   "uwp",

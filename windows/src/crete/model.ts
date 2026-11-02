@@ -1,16 +1,45 @@
 import type { App } from "../types";
+import { geforceGame } from "./gfnCatalog";
+import { hasKnownHostGame } from "./hostSnapshot";
 
 export type Availability = "all" | "local" | "owned" | "uninstalled" | "cloud";
 export const AVAILABILITY = ["all", "local", "owned", "uninstalled", "cloud"] as const;
 export const AVAILABILITY_LABELS = ["All Games", "Local", "Owned", "Not installed", "Cloud"];
 const OWNED_STORES = new Set(["steam", "xbox", "gog", "epic", "battlenet", "lutris"]);
 
+/** Platform and play location are independent; launch/ownership IDs stay intact. */
+export function gamePlatform(app: App): string {
+  const source = app.source?.toLowerCase() ?? "";
+  if (source === "cloud") {
+    try {
+      const url = new URL(app.launch_path ?? "");
+      if (["xbox.com", "www.xbox.com"].includes(url.hostname) && /\/play(?:\/|$)/.test(url.pathname)) return "xbox";
+    } catch { /* Unknown cloud links keep their neutral identity. */ }
+  }
+  return source;
+}
+const copies = (app: App) => [app, ...(app.library_variants ?? [])];
+export function isLocalGame(app: App) {
+  return !["cloud", "playstation", "lutris"].includes(app.source?.toLowerCase() ?? "") && app.installed === true;
+}
+export function isCloudGame(app: App) {
+  return ["cloud", "playstation", "lutris"].includes(app.source?.toLowerCase() ?? "") || (!isLocalGame(app) && (!!geforceGame(app) || hasKnownHostGame(app)));
+}
+export function matchesGameSource(app: App, source: string) {
+  return source.toLowerCase() === "cloud" ? copies(app).some(isCloudGame) : copies(app).some(copy => gamePlatform(copy) === source.toLowerCase());
+}
+export function availabilityLabel(app: App) {
+  if (copies(app).some(isLocalGame)) return "Local";
+  if (app.source === "lutris") return "Moonlight · Bosgame";
+  if (copies(app).some(isCloudGame)) return "Cloud";
+  return app.installed === false ? "Not installed" : "Unknown";
+}
+
 export function matchesAvailability(app: App, filter: Availability) {
-  const source = app.source?.toLowerCase();
-  if (filter === "cloud") return source === "cloud" || source === "playstation";
-  if (filter === "uninstalled") return source !== "cloud" && source !== "playstation" && app.installed === false;
-  if (filter === "local") return source !== "cloud" && source !== "playstation" && app.installed !== false;
-  if (filter === "owned") return OWNED_STORES.has(source ?? "");
+  if (filter === "cloud") return copies(app).some(isCloudGame);
+  if (filter === "uninstalled") return copies(app).some(copy => !["cloud", "playstation", "lutris"].includes(copy.source?.toLowerCase() ?? "") && copy.installed === false);
+  if (filter === "local") return copies(app).some(isLocalGame);
+  if (filter === "owned") return copies(app).some(copy => OWNED_STORES.has(copy.source?.toLowerCase() ?? ""));
   return true;
 }
 

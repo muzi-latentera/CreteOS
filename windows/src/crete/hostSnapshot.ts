@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { App } from "../types";
 
 export const HOST_SNAPSHOT_KEY = "crete.host-snapshots.v1";
 export const HOST_REFRESH_MS = 24 * 60 * 60 * 1000;
@@ -14,6 +15,21 @@ const states = new Map<string, HostState>();
 const pending = new Map<string, Promise<void>>();
 const listeners = new Set<() => void>();
 const key = (host: string) => host.toLowerCase();
+let availabilityHydrated = false;
+/** Last-known capability only: library filtering must never make host requests. */
+export function hasKnownHostGame(app: App): boolean {
+  if (!availabilityHydrated) {
+    availabilityHydrated = true;
+    try {
+      const saved = JSON.parse(localStorage.getItem(HOST_SNAPSHOT_KEY) ?? "{}");
+      if (saved && typeof saved === "object" && !Array.isArray(saved)) Object.keys(saved).slice(0, 50).forEach(readHost);
+    } catch { /* No known remote capability until a normal host refresh. */ }
+  }
+  const normalize = (name: string) => name.replace(/[™®]/g, "").normalize("NFKC").trim().toLowerCase();
+  return [...states.values()].some(({ snapshot }) =>
+    (app.source === "steam" && !!app.steam_appid && snapshot.apps?.includes("MoonDeckStream") && snapshot.games?.some(game => game.steamAppId === String(app.steam_appid)))
+    || snapshot.apps?.some(name => normalize(name) === normalize(app.name)));
+}
 export function readHost(host: string): HostState {
   const id = key(host);
   if (!states.has(id)) {

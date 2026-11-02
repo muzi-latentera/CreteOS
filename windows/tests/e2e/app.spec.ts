@@ -156,6 +156,15 @@ test.beforeEach(async ({ page }) => {
             ...(params.has("disabledStores") ? { scan_epic: false, scan_gog: false } : {}) };
         }
         if (command === "get_all_apps") {
+          if (params.has("classification")) return [
+            {id:"ps-cloud",name:"PS Cloud Fixture",source:"playstation",installed:true,app_type:"game",launch_path:"asobi://playstationCloud/1"},
+            {id:"ps-remote",name:"PS Remote Fixture",source:"playstation",installed:true,app_type:"game",launch_path:"asobi://ps5RemotePlay/2"},
+            {id:"xcloud-fixture",name:"Game Pass Fixture",source:"cloud",installed:true,app_type:"game",launch_path:"https://www.xbox.com/en-us/play/games/test/PRODUCT"},
+            {id:"xbox-local",name:"Xbox Local Fixture",source:"xbox",installed:true,app_type:"game"},
+            {id:"gfn-fixture",name:"Control Ultimate Edition",source:"steam",steam_appid:870780,installed:false,app_type:"game"},
+            {id:"steam-local",name:"Local Fixture",source:"steam",steam_appid:123456,installed:true,app_type:"game"},
+            {id:"lutris-fixture",name:"Bosgame Fixture",source:"lutris",installed:true,app_type:"game"},
+          ];
           if (params.has("duplicates")) return [
             {id:"steam:8850",name:"BioShock 2",source:"steam",steam_appid:8850,app_type:"game",installed:false},
             {id:"steam:409720",name:"BioShock 2 Remastered",source:"steam",steam_appid:409720,app_type:"game",installed:false},
@@ -1618,4 +1627,38 @@ test("Steam password sign-in errors remain retryable and QR switching cancels th
   await modal.getByRole("button",{name:"Username & password",exact:true}).click();
   await expect(modal.getByLabel("Password",{exact:true})).toHaveValue("");
   await expect.poll(()=>page.evaluate(()=>(window as any).__invokeCounts.steam_auth_cancel??0)).toBe(2);
+});
+
+
+test("platform badges and Xbox/PlayStation/Local/Cloud classification", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/?crete&classification");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  const library = page.locator('[data-tab-pane="games"]');
+  const cards = library.locator(".crete-game-card");
+  await expect(cards).toHaveCount(7);
+  await expect(cards.filter({has:page.locator('[aria-label="PlayStation"]')})).toHaveCount(2);
+  await expect(cards.filter({has:page.locator('[aria-label="Xbox"]')})).toHaveCount(2);
+  let sourceButton = "Sources";
+  const chooseSource = async (name: string) => {
+    await library.getByRole("button", {name:sourceButton,exact:true}).click();
+    await library.getByRole("group", { name:"Library sources" }).getByRole("button", {name,exact:true}).click();
+    sourceButton = name === "All" ? "Sources" : name;
+  };
+  await chooseSource("PlayStation");
+  await expect(cards).toHaveCount(2);
+  await expect(library.locator('[data-game-id="ps-cloud"]')).toBeVisible();
+  await chooseSource("Xbox");
+  await expect(cards).toHaveCount(2);
+  await expect(library.locator('[data-game-id="xcloud-fixture"]')).toBeVisible();
+  await chooseSource("All");
+  await library.getByRole("button", {name:"Local",exact:true}).click();
+  await expect(cards).toHaveCount(2);
+  await expect(library.locator('[data-game-id="steam-local"]')).toBeVisible();
+  await expect(library.locator('[data-game-id="xbox-local"]')).toBeVisible();
+  await library.getByRole("button", {name:"Cloud",exact:true}).click();
+  await expect(cards).toHaveCount(5);
+  await expect(library.locator('[data-game-id="gfn-fixture"]')).toBeVisible();
+  await expect(library.locator('[data-game-id="lutris-fixture"]')).toBeVisible();
+  await page.screenshot({path:info.outputPath("platform-cloud-classification.png")});
 });

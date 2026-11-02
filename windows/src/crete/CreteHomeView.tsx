@@ -13,7 +13,7 @@ import { withStreamCover } from "../components/launch/StreamLaunchCover";
 import { LaunchLoading } from "./LaunchLoading";
 import { scrollPane } from "./smoothScroll";
 import { useNavigationState, useViewNavigation, type NavigationRef } from "./navigation";
-import { playedGames, playtime, lastPlayed, steamId, epochMs, sourceLabel } from "./model";
+import { playedGames, playtime, lastPlayed, steamId, epochMs, sourceLabel, gamePlatform, matchesAvailability } from "./model";
 import { isHeroVideoLayer, resolveHeroType } from "../utils/heroMedia";
 import { useCreteText } from "./text";
 import { invoke } from "@tauri-apps/api/core";
@@ -171,7 +171,7 @@ export function CreteHomeView(p: CreteHomeProps) {
         <button type="button" className="crete-hero-open" aria-label={`${text("Game info")}: ${hero.name}`} onFocus={() => { setSelection(null); setNewsIndex(-1); }} onClick={() => p.onOpenDetails(hero)} />
         <div className="crete-hero-copy"><span className="crete-eyebrow crete-amber">{text("Continue where you stopped")}</span>
           <div className="crete-hero-title"><h1>{hero.name}</h1></div>
-          <div className="crete-hero-tags">{p.settings.show_store_badges !== false && <span>{sourceLabel(hero.source)}</span>}{hero.installed && <span className="crete-local">{text("Local")}</span>}</div>
+          <div className="crete-hero-tags">{p.settings.show_store_badges !== false && <span>{sourceLabel(gamePlatform(hero))}</span>}{matchesAvailability(hero, "local") && <span className="crete-local">{text("Local")}</span>}</div>
           {!p.isRunning(hero.id) && streaming.checking ? <LaunchLoading /> : <button type="button" className="crete-play" data-provider={heroProvider} data-cloud={heroProvider === "moonlight" || heroProvider === "geforceNow" || heroProvider === "luna" || heroProvider === "cloud"}
             title={heroProvider === "moonlight" ? "Moonlight" : heroProvider === "geforceNow" ? "GeForce NOW" : heroProvider === "luna" ? "Amazon Luna" : undefined}
             onFocus={() => { setSelection(null); setNewsIndex(-1); }} onClick={() => open(hero)}><IoPlay />{text("Play")}</button>}

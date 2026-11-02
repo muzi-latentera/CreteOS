@@ -1,6 +1,7 @@
 import { useStoreAccounts } from "./hooks/useStoreAccounts";
 import { StoreAccountModal } from "./components/modals/StoreAccountModal";
 import { preferGameEditions, gameCopies } from "./crete/libraryEditions";
+import { gamePlatform, matchesGameSource, isCloudGame } from "./crete/model";
 //Copyright (C) 2025 Taylor Denby
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
@@ -88,7 +89,8 @@ import { getBottomBarClearance, normalizeBottomBarMode, claimArtBarJob, countLib
 import { scrollElementTo, scrollElementToRetargeted } from "./utils/scrollElement";
 import { getLibraryEntryFocusSection } from "./utils/libraryFocus";
 import { refreshLibrarySources } from "./utils/libraryRefresh";
-import { refreshGeForceCatalog } from "./crete/gfnCatalog";
+import { refreshGeForceCatalog, subscribeGeForceCatalog } from "./crete/gfnCatalog";
+import { subscribeHost } from "./crete/hostSnapshot";
 import { resolveNativeBackgroundRgb } from "./utils/nativeBackground";
 import { xboxPackageFamilyNameFor, xboxProductIdFor } from "./utils/xboxProductId";
 import {
@@ -2312,13 +2314,14 @@ export default function App() {
     && a.source !== "epic"
     && a.source !== "cloud"
     && a.source !== "lutris"
+    && a.source !== "playstation"
     && !customSources.includes(a.source);
 
   const isInstalled = (app) => app?.installed !== false;
   const isVisibleGameForLibrary = (app) =>
-    app?.app_type === "game" && (showUninstalledGames || isInstalled(app));
+    app?.app_type === "game" && (showUninstalledGames || isInstalled(app) || isCloudGame(app));
   const filterByInstallState = (items) => items.filter((app) => {
-    if (!showUninstalledGames) return isInstalled(app);
+    if (!showUninstalledGames) return isInstalled(app) || isCloudGame(app);
     if (installFilter === "installed") return isInstalled(app);
     if (installFilter === "notInstalled") return !isInstalled(app);
     return true;
@@ -2329,7 +2332,7 @@ export default function App() {
       return (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
     }
     if (gamesSort === "store") {
-      const byStore = (a.source || "").localeCompare(b.source || "", undefined, { sensitivity: "base" });
+      const byStore = gamePlatform(a).localeCompare(gamePlatform(b), undefined, { sensitivity: "base" });
       return byStore || (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
     }
     const rank = app => Math.max(0, ...gameCopies(app).map(copy => recentRank.get(copy.id) || 0));
@@ -2337,21 +2340,30 @@ export default function App() {
       || (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
   });
 
+  const [availabilityVersion, setAvailabilityVersion] = useState(0);
+  useEffect(() => {
+    const changed = () => setAvailabilityVersion(version => version + 1);
+    const releaseCatalog = subscribeGeForceCatalog(changed);
+    const releaseHost = subscribeHost(changed);
+    return () => { releaseCatalog(); releaseHost(); };
+  }, []);
+
   const gamesSourceFilteredApps = useMemo(() => apps.filter((a) => {
     if (!isVisibleGameForLibrary(a)) return false;
     if (gameSourceTab === "Steam") return a.source === "steam";
-    if (gameSourceTab === "Xbox")  return a.source === "xbox";
+    if (gameSourceTab === "Xbox") return matchesGameSource(a, "xbox");
+    if (gameSourceTab === "PlayStation") return matchesGameSource(a, "playstation");
     if (gameSourceTab === "Battle.net")  return a.source === "battlenet";
     if (gameSourceTab === "GOG")  return a.source === "gog";
     if (gameSourceTab === "Epic") return a.source === "epic";
-    if (gameSourceTab === "Cloud") return a.source === "cloud";
+    if (gameSourceTab === "Cloud") return isCloudGame(a);
     if (gameSourceTab === "Lutris") return a.source === "lutris";
     if (gameSourceTab === "Other") return isOtherGameSource(a);
     if (customSources.includes(gameSourceTab)) return a.source === gameSourceTab;
     const gameCol = gameCollections.find(c => c.name === gameSourceTab);
     if (gameCol) return (gameMemberships[a.id] || []).includes(gameCol.id);
     return true;
-  }), [apps, customSources, gameCollections, gameMemberships, gameSourceTab, showUninstalledGames]);
+  }), [apps, customSources, gameCollections, gameMemberships, gameSourceTab, showUninstalledGames, availabilityVersion]);
   const gamesFilteredApps = useMemo(
     () => sortGamesForView(preferGameEditions(filterByInstallState(gamesSourceFilteredApps), recent)),
     [gamesSourceFilteredApps, installFilter, gamesSort, recentRank, showUninstalledGames, recent]
@@ -2937,13 +2949,14 @@ export default function App() {
   const batteryBoltStroke = isDark ? "rgba(255,255,255,0.70)" : "rgba(255,255,255,0.82)";
   const batteryWidth = battery > 0 ? `${battery}%` : "72%";
 
-  const _hasSource = (key) => apps.some(a => a.source === key && isVisibleGameForLibrary(a));
+  const _hasSource = (key) => apps.some(a => gamePlatform(a) === key && isVisibleGameForLibrary(a));
   const _showSteam     = settings.scan_steam     !== false && _hasSource("steam");
-  const _showXbox      = settings.scan_xbox      !== false && _hasSource("xbox");
+  const _showXbox      = _hasSource("xbox");
   const _showBattlenet = settings.scan_battlenet !== false && _hasSource("battlenet");
   const _showGog       = settings.scan_gog       !== false && _hasSource("gog");
   const _showEpic      = settings.scan_epic      !== false && _hasSource("epic");
-  const _showCloud     = _hasSource("cloud");
+  const _showCloud     = apps.some(a => isVisibleGameForLibrary(a) && isCloudGame(a));
+  const _showPlayStation = _hasSource("playstation");
   const _showLutris    = _hasSource("lutris");
   const _showOther     = apps.some(a => isVisibleGameForLibrary(a) && isOtherGameSource(a));
   const _hdrSources = [...new Map([
@@ -2954,6 +2967,7 @@ export default function App() {
     ...(_showGog       ? ["GOG"]        : []),
     ...(_showEpic      ? ["Epic"]       : []),
     ...(_showCloud     ? ["Cloud"]      : []),
+    ...(_showPlayStation ? ["PlayStation"] : []),
     ...(_showLutris    ? ["Lutris"]     : []),
     ...(_showOther     ? ["Other"]      : []),
     ...customSources,
@@ -3767,7 +3781,7 @@ export default function App() {
 
             // Single entry: track custom source name unless it's a collection name
             if (isGameType && result.source) {
-              const BUILTIN = new Set(["Steam","Xbox","Battle.net","GOG","Epic","Cloud","Other","steam","xbox","battlenet","gog","epic","cloud","desktop","uwp"]);
+              const BUILTIN = new Set(["Steam","Xbox","Battle.net","GOG","Epic","Cloud","PlayStation","Lutris","Other","steam","xbox","battlenet","gog","epic","cloud","playstation","lutris","desktop","uwp"]);
               const isColName = gameCollectionsRef.current.some(c => c.name === result.source);
               if (!BUILTIN.has(result.source) && !isColName) {
                 setCustomSources(prev => prev.includes(result.source) ? prev : [...prev, result.source]);

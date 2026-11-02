@@ -439,7 +439,7 @@ function LiftOffLibraryViewContent(props: LibraryViewContentProps) {
                             )}
                             <PinBadge isPinned={true} small />
                             <RunningBadge show={isRunning?.(app.id)} small />
-                            <StoreBadge source={app.source} small />
+                            <StoreBadge app={app} source={app.source} small />
                           </CyberpunkCard>
                           {/* Ring — outside overflow:hidden, with gap */}
                           <FocusRing focused={focused} variant="spin" elementRadius={appCardRadius} />
@@ -561,7 +561,7 @@ function LiftOffLibraryViewContent(props: LibraryViewContentProps) {
                         )}
                         <PinBadge isPinned={isPinned} small />
                         <RunningBadge show={isRunning?.(app.id)} small />
-                        <StoreBadge source={app.source} small />
+                        <StoreBadge app={app} source={app.source} small />
                       </CyberpunkCard>
                       {/* Ring — outside overflow:hidden, with gap */}
                       <FocusRing focused={focused} variant="spin" elementRadius={appGridCardRadius} />
