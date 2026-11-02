@@ -9,7 +9,7 @@ Maintained device record, updated 2 November 2026 (Europe/London). Covers this G
 | Item | Recorded state |
 | --- | --- |
 | Device | ONE-NETBOOK ONEXPLAYER G1 A, Windows 11 Home build 26200, computer OXPG1, user Muzi |
-| Panel | 2560 × 1600 landscape, 16:10, 144 Hz; streaming profiles target 120 FPS |
+| Panel | 2560 × 1600 landscape, 16:10, 144 Hz; latest verified Moonlight session requested 90 FPS (older profiles may differ) |
 | Native installation | `%LOCALAPPDATA%\CreteOS\creteos.exe` |
 | Personal data | `%LOCALAPPDATA%\CreteOS`; preserve this directory during updates |
 | Recovery backup | Verified2November: `CreteOS-G1-profile-backup-20261102-164418.zip`; D2 executable/profiles, Auto Wi-Fi, host OptiScaler payload/recovery references; previous snapshots preserved. USB older—refresh required |
