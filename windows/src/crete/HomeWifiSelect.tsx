@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
-export type WifiProvider = "moonlight" | "geforceNow" | "luna";
+export type WifiProvider = "moonlight" | "geforceNow" | "luna" | "ps5RemotePlay" | "playstationCloud";
 type Choice = "automatic" | "gaming" | "download" | "current";
 export function HomeWifiSelect({ provider, saving }: { provider: WifiProvider; saving: (busy: boolean) => void }) {
   const [choice, setChoice] = useState<Choice>("automatic");
@@ -22,12 +22,12 @@ export function HomeWifiSelect({ provider, saving }: { provider: WifiProvider; s
       void invoke("set_stream_wifi_preference", { provider, choice: next }).then(() => setChoice(next))
         .catch(reason => setError(String(reason))).finally(() => { saving(false); setReady(true); });
     }}>
-      <option value="automatic">Automatic · {provider === "moonlight" ? "Extra" : "Fibre E433"}</option>
+      <option value="automatic">Automatic · {provider === "moonlight" || provider === "ps5RemotePlay" ? "Extra" : "Fibre E433"}</option>
       <option value="gaming">Hyperoptic Extra</option>
       <option value="download">Hyperoptic Fibre E433</option>
       <option value="current">Keep current connection</option>
     </select></label>
-    <p>Remembered for {provider === "moonlight" ? "Moonlight" : provider === "luna" ? "Amazon Luna" : "GeForce NOW"}. Held until the session closes, then normal Wi-Fi rules resume. Other networks are left alone.</p>
+    <p>Remembered for {provider === "moonlight" ? "Moonlight" : provider === "luna" ? "Amazon Luna" : provider === "ps5RemotePlay" ? "PS5 Remote Play" : provider === "playstationCloud" ? "PlayStation Cloud" : "GeForce NOW"}. Held until {provider === "ps5RemotePlay" || provider === "playstationCloud" ? "ASOBI closes" : "the session closes"}, then normal Wi-Fi rules resume. Other networks are left alone.</p>
     {error && <p role="alert">Could not save Wi-Fi preference: {error}</p>}
   </>;
 }

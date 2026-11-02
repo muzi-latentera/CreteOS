@@ -6,6 +6,7 @@ import { readHost, refreshHost, subscribeHost } from "./hostSnapshot";
 import { refreshGeForceCatalog, subscribeGeForceCatalog } from "./gfnCatalog";
 import { withStreamCover } from "../components/launch/StreamLaunchCover";
 import { streamErrorMessage } from "./streamErrors";
+import { asobiMatches, type AsobiGame, type AsobiProvider } from "./asobi";
 
 export interface MoonlightProfile { host: string; resolution: string; fps: number; bitrate: number; codec: string }
 export interface DisplayProfile { displayKey: string; profile: MoonlightProfile; nativeResolution?: string; nativeFps?: number; displayLabel?: string }
@@ -14,6 +15,25 @@ export interface LutrisGame { id: string; name: string; launchable: boolean; rea
 export function useStreaming(app: App, enabled: boolean) {
   const [clients, setClients] = useState({ geforceNow: false, moonlight: false });
   const [error, setError] = useState<string | null>(null);
+  const [asobiGames, setAsobiGames] = useState<AsobiGame[]>([]);
+  const [asobiConfigure, setAsobiConfigure] = useState<AsobiProvider | null>(null);
+  const [asobiError, setAsobiError] = useState("");
+  useEffect(() => {
+    let active = true;
+    setAsobiConfigure(null); setAsobiError(""); setAsobiGames([]);
+    if (enabled) void invoke<AsobiGame[]>("get_asobi_games").then(games => { if (active) setAsobiGames(asobiMatches(app, games)); })
+      .catch(reason => { if (active) setAsobiError(String(reason)); });
+    return () => { active = false; };
+  }, [enabled, app.id, app.name, app.source, app.store_id]);
+  const startAsobi = async (shortcutId: string) => {
+    setAsobiError("");
+    try {
+      const game = asobiGames.find(game => game.id === shortcutId);
+      if (!game) throw new Error("Refresh the ASOBI shortcuts before launching.");
+      await withStreamCover(app, game.provider, () => invoke("launch_asobi_game", { shortcutId }), () => setAsobiConfigure(null));
+    }
+    catch (reason) { setAsobiError(String(reason)); }
+  };
   useEffect(() => {
     setError(null);
     const receive = (event: Event) => {
@@ -112,5 +132,5 @@ export function useStreaming(app: App, enabled: boolean) {
     setError(null);
     try { await invoke("pair_moondeck", { host: display.profile.host, pin }); } catch (reason) { setError(String(reason)); }
   };
-  return { isLutris: app.source === "lutris", pcGame, gameUrl, clients, error, hostError: host.error, apps, moonlightGame, provider: defaultProvider(app, moonlightGame, online ? gameUrl : undefined), display, configure, setConfigure, geforceConfigure, setGeforceConfigure, geforceDisplay, geforceStream, checking, refreshing: host.refreshing, refresh, launch, stream, buddy, buddyError: null, pair, steamId: launchId, hostGames, hostInstalled, inventoryError: lutrisError || (app.source === "lutris" ? lutrisGame?.reason || (lutrisGame && !lutrisGame.shortcutId ? "This game needs its CreteOS host shortcut configured." : null) : null), localInstalled: !!app.installed, online };
+  return { asobiGames, asobiConfigure, setAsobiConfigure, asobiError, startAsobi, isLutris: app.source === "lutris", pcGame, gameUrl, clients, error, hostError: host.error, apps, moonlightGame, provider: defaultProvider(app, moonlightGame, online ? gameUrl : undefined), display, configure, setConfigure, geforceConfigure, setGeforceConfigure, geforceDisplay, geforceStream, checking, refreshing: host.refreshing, refresh, launch, stream, buddy, buddyError: null, pair, steamId: launchId, hostGames, hostInstalled, inventoryError: lutrisError || (app.source === "lutris" ? lutrisGame?.reason || (lutrisGame && !lutrisGame.shortcutId ? "This game needs its CreteOS host shortcut configured." : null) : null), localInstalled: !!app.installed, online };
 }

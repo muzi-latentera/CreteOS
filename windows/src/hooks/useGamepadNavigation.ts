@@ -1,3 +1,4 @@
+import { asobiProvider } from "../crete/asobi";
 import { withStreamCover } from "../components/launch/StreamLaunchCover";
 import { useEffect, useRef, useState } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
@@ -521,6 +522,11 @@ export function useGamepadNavigation(
     if (app.source === "cloud" && /^https:\/\/luna\.amazon\.(co\.uk|com)(?:\/|$)/.test(app.launch_path)) {
       void withStreamCover(app, "luna", () => invoke("launch_luna_session", {gameId:app.id, gameName:app.name, url:app.launch_path}))
         .catch(() => {});
+      return;
+    }
+    const psProvider = asobiProvider(app);
+    if (psProvider && app.store_id) {
+      void withStreamCover(app, psProvider, () => invoke("launch_asobi_game", { shortcutId: app.store_id })).catch(() => {});
       return;
     }
     pendingLaunchRef.current = app;

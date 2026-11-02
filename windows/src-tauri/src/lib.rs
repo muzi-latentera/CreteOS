@@ -66,6 +66,8 @@ mod lutris;
 mod stream_artwork;
 mod native_artwork;
 mod stream_wifi;
+mod asobi;
+mod asobi_session;
 mod moondeck;
 mod crete_news;
 mod crete_videos;
@@ -8372,6 +8374,7 @@ fn get_apps_inner(app: tauri::AppHandle) -> Vec<AppEntry> {
     }
     push_scan_timing(&mut scan_timing, "other_launchers", other_phase_started);
 
+    asobi::merge(&mut apps);
     lutris::merge(&mut apps);
     lutris::schedule(app.clone());
     apply_local_play_history(&mut apps, &load_recent_games());
@@ -8531,6 +8534,7 @@ fn get_all_apps_inner(app: tauri::AppHandle) -> Vec<AppEntry> {
     }
     push_scan_timing(&mut scan_timing, "other_launchers", other_phase_started);
 
+    asobi::merge(&mut apps);
     lutris::merge(&mut apps);
     lutris::schedule(app.clone());
     apply_local_play_history(&mut apps, &load_recent_games());
@@ -9438,7 +9442,7 @@ fn check_launch_focus(name: String, launch_path: String, source: String) -> Laun
 }
 
 fn stream_window(provider: &str) -> Option<LaunchWindowCandidate> {
-    let executables: &[&str] = match provider { "moonlight" => &["Moonlight.exe"], "geforceNow" => &["GeForceNOWStreamer.exe", "GeForceNOW.exe"], "luna" => &["chrome.exe"], _ => return None };
+    let executables: &[&str] = match provider { "moonlight" => &["Moonlight.exe"], "geforceNow" => &["GeForceNOWStreamer.exe", "GeForceNOW.exe"], "luna" => &["chrome.exe"], "ps5RemotePlay"|"playstationCloud" => &["asobideck.exe"], _ => return None };
     collect_launch_windows().into_iter().filter(|window| provider != "luna" || window.title.to_ascii_lowercase().contains("amazon luna")).filter(|window| window.exe_path.as_deref().and_then(|path| std::path::Path::new(path).file_name()).is_some_and(|name| executables.iter().any(|exe| name.to_string_lossy().eq_ignore_ascii_case(exe))))
         .find(|window| unsafe {
             let mut rect = windows::Win32::Foundation::RECT::default();
@@ -9524,7 +9528,7 @@ pub(crate) fn finish_stream_session(window: tauri::Window, provider: &str, mut c
 
 #[tauri::command]
 async fn wait_stream_window(provider: String) -> Result<bool, String> {
-    if !matches!(provider.as_str(), "moonlight" | "geforceNow" | "luna") { return Err("Unknown streaming client".into()); }
+    if !matches!(provider.as_str(), "moonlight" | "geforceNow" | "luna" | "ps5RemotePlay" | "playstationCloud") { return Err("Unknown streaming client".into()); }
     tauri::async_runtime::spawn_blocking(move || {
         let start = Instant::now(); let mut candidate: Option<(isize, Instant)> = None;
         let mut log = stream_readiness::take();
@@ -9547,6 +9551,14 @@ async fn wait_stream_window(provider: String) -> Result<bool, String> {
                     return Ok(false);
                 }
             }
+            if matches!(provider.as_str(),"ps5RemotePlay"|"playstationCloud") {
+                match asobi::phase() {
+                    asobi_session::Phase::Playing => stream_ready=true,
+                    asobi_session::Phase::Attention => return Ok(false),
+                    asobi_session::Phase::Ending|asobi_session::Phase::Ended => return Err("The ASOBI stream ended before handoff. Check ASOBI's connection or sign-in message.".into()),
+                    _=>{}
+                }
+            }
             if provider == "geforceNow" {
                 match log.poll() {
                     stream_readiness::Signal::FirstFrame => stream_ready = true,
@@ -9557,7 +9569,7 @@ async fn wait_stream_window(provider: String) -> Result<bool, String> {
             if let Some(window) = stream_window(&provider) {
                 let ready = candidate.get_or_insert((window.hwnd, Instant::now()));
                 if ready.0 != window.hwnd { *ready = (window.hwnd, Instant::now()); }
-                if ready.1.elapsed() >= Duration::from_secs(2) && (!matches!(provider.as_str(),"geforceNow"|"luna") || stream_ready)
+                if ready.1.elapsed() >= Duration::from_secs(2) && (!matches!(provider.as_str(),"geforceNow"|"luna"|"ps5RemotePlay"|"playstationCloud") || stream_ready)
                     && (provider != "moonlight" || !streaming::moonlight_game_waiting()) { return Ok(true); }
             } else { candidate = None; }
             std::thread::sleep(Duration::from_millis(250));
@@ -10412,6 +10424,15 @@ async fn launch_app(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let context: tauri::Context<tauri::Wry> = tauri::generate_context!();
+    // Read-only native verification: registered ASOBI routes, no credentials,
+    // games, account requests, artwork writes or streaming-client launches.
+    if std::env::args().any(|arg|arg=="--verify-asobi-library") {
+        match asobi::get_asobi_games(){
+            Ok(games)=>println!("{}",serde_json::json!({"verified":true,"games":games,"sourceCommit":env!("CRETE_SOURCE_COMMIT"),"gamesLaunched":false})),
+            Err(error)=>{println!("{}",serde_json::json!({"verified":false,"error":error,"gamesLaunched":false}));std::process::exit(2)}
+        }
+        return;
+    }
     // Explicit maintenance/test mode: prepare only an idle NVIDIA client. It
     // never passes a game route, changes streaming settings or starts a game.
     if std::env::args().any(|arg| arg == "--prepare-idle-geforce") {
@@ -10457,6 +10478,9 @@ pub fn run() {
         ))
         .invoke_handler(tauri::generate_handler![
             stream_wifi::get_stream_wifi_preferences,
+            asobi::get_asobi_games,
+            asobi::open_asobi_client,
+            asobi::launch_asobi_game,
             stream_wifi::set_stream_wifi_preference,
             crete_news::get_crete_news_rss,
             crete_news::get_crete_article_thumbnail,

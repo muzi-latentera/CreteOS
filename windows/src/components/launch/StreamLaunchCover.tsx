@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { getBestGamepad, readGpState } from "../../utils/gamepad";
 import { streamErrorMessage } from "../../crete/streamErrors";
 
-type Provider = "moonlight" | "geforceNow" | "luna";
+type Provider = "moonlight" | "geforceNow" | "luna" | "ps5RemotePlay" | "playstationCloud";
 type Cover = { app: App; returning?: boolean } | null;
 type ReturnPhase = { provider: Provider; phase: "ending" | "ended"; session: number };
 let artworkFor: (app: App) => string = () => "";
@@ -23,7 +23,7 @@ function cancelLaunch(notifyNative = true) {
   window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: null }));
   if (notifyNative) void invoke("cancel_stream_launch").catch(() => {});
 }
-export async function withStreamCover(app: App, provider: "moonlight" | "geforceNow" | "luna", launch: () => Promise<unknown>, beforeHandoff?: () => void) {
+export async function withStreamCover(app: App, provider: "moonlight" | "geforceNow" | "luna" | "ps5RemotePlay" | "playstationCloud", launch: () => Promise<unknown>, beforeHandoff?: () => void) {
   if (cancelActive) throw new Error("A stream launch is already in progress. Cancel it before trying again.");
   const current = ++generation;
   const cancelled = Symbol("cancelled");
@@ -64,12 +64,17 @@ export async function withStreamCover(app: App, provider: "moonlight" | "geforce
     if (await Promise.race([launch(), cancellation]) === cancelled) return;
     if (current !== generation) return;
     // Streaming bypasses launch_app, so it must explicitly share its history.
-    const entry = await invoke<App>("record_stream_launch", { id: app.id, name: app.name, launchPath: app.launch_path ?? "" }).catch(() => null);
+    const entry = provider === "ps5RemotePlay" || provider === "playstationCloud" ? null : await invoke<App>("record_stream_launch", { id: app.id, name: app.name, launchPath: app.launch_path ?? "" }).catch(() => null);
     window.dispatchEvent(new CustomEvent("crete-stream-issue", { detail: { gameId: app.id, message: null } }));
     if (dismissed || current !== generation) return;
     if (entry) window.dispatchEvent(new CustomEvent("crete-play-history-changed", { detail: entry }));
     const ready = await Promise.race([invoke<boolean>("wait_stream_window", { provider }), cancellation]);
     if (ready === cancelled || dismissed || current !== generation) return;
+    if (ready === false && (provider === "ps5RemotePlay" || provider === "playstationCloud")) {
+      const message = "ASOBI needs attention. Check its connection, PSN sign-in, subscription or console message.";
+      window.dispatchEvent(new CustomEvent("crete-stream-issue", { detail: { gameId: app.id, message } }));
+      void invoke("record_stream_issue", { provider, gameId: app.id, message }).catch(() => {});
+    }
     // Do not delay the launch itself. Keep artwork visible for at least ten
     // seconds, except when the client reports an error/needs interaction.
     if (ready !== false && !dismissed && current === generation) {

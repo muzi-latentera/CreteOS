@@ -30,7 +30,7 @@ function Current-Profile {
  if($match){return $match.Matches[0].Groups[1].Value.Trim()}
  return ''
 }
-function Is-Streaming([string]$Exclude='') {return ((Test-WifiSessions $sessionFolder $Exclude) -or [bool](Get-Process Moonlight,GeForceNOWStreamer -ErrorAction SilentlyContinue))}
+function Is-Streaming([string]$Exclude='') {return ((Test-WifiSessions $sessionFolder $Exclude) -or [bool](Get-Process Moonlight,GeForceNOWStreamer,asobideck -ErrorAction SilentlyContinue))}
 function Available($Profile) {
  $lines=& "$env:SystemRoot\System32\netsh.exe" wlan show networks "interface=$($config.Interface)"
  return [bool]($lines|Where-Object {$_ -match '^\s*SSID\s+\d+\s*:\s*(.+)$' -and $Matches[1].Trim() -eq $Profile})

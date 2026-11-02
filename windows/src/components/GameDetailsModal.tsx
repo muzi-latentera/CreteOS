@@ -246,7 +246,7 @@ export function GameDetailsModal({
   const xboxConfirmActionsRef = useRef<Array<() => void>>([]);
   const xboxConfirmButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const source = app.source?.toLowerCase() ?? "";
-  const isCloud = source === "cloud";
+  const isCloud = source === "cloud" || source === "playstation";
   const creteText = useCreteText();
   const streaming = useStreaming(app, resolvedTheme === "crete");
   const [launchMenuOpen, setLaunchMenuOpen] = useState(false);
@@ -467,6 +467,7 @@ export function GameDetailsModal({
     }
   }, [storeAccountGame, source, app.store_id, canInstall, canXboxInstall, installed, installing, onCancelInstall, onInstall, onPlay, onXboxCancelInstall, onXboxInstallFallback, uninstalling, xboxInstalling, xboxProductId]);
   const handlePrimaryAction = () => {
+    if (source === "playstation") { streaming.setAsobiConfigure(streaming.provider === "ps5RemotePlay" ? "ps5RemotePlay" : "playstationCloud"); return; }
     if (cloudDefault) streaming.launch(streaming.provider === "moonlight" ? "moonlight" : "geforceNow", true);
     else handleLocalAction();
   };
@@ -885,7 +886,7 @@ export function GameDetailsModal({
 
   const metaItems = [
     { label: t("details.lastPlayed"), value: lastPlayedAt ? formatRelativeTime(lastPlayedAt, t("details.never")) : t("details.never") },
-    ...(typeof playtimeMinutes === "number" ? [{ label: app.source === "cloud" && /^https:\/\/luna\.amazon\.(co\.uk|com)\//.test(app.launch_path || "") ? `${t("details.playtime")} (this device)` : t("details.playtime"), value: formatPlaytime(playtimeMinutes) }] : []),
+    ...(typeof playtimeMinutes === "number" ? [{ label: app.source === "playstation" ? "Stream time (this device)" : app.source === "cloud" && /^https:\/\/luna\.amazon\.(co\.uk|com)\//.test(app.launch_path || "") ? `${t("details.playtime")} (this device)` : t("details.playtime"), value: formatPlaytime(playtimeMinutes) }] : []),
     ...(installed && sizeBytes !== undefined ? [{
       label: t("details.sizeOnDisk"),
       value: sizeBytes === "loading" ? t("common.loading", { defaultValue: "Loading..." }) : formatBytes(sizeBytes),

@@ -1,3 +1,4 @@
+import { asobiProvider } from "./asobi";
 import type { App } from "../types";
 import { geforceGame } from "./gfnCatalog";
 
@@ -26,7 +27,8 @@ export function cloudProvider(app: App): "luna" | "geforceNow" | "cloud" {
   return "cloud";
 }
 
-export function defaultProvider(app: App, moonlightGame?: string, gfnUrl?: string): "local" | "moonlight" | "geforceNow" | "luna" | "cloud" | "install" {
+export function defaultProvider(app: App, moonlightGame?: string, gfnUrl?: string): "local" | "moonlight" | "geforceNow" | "luna" | "cloud" | "install" | "ps5RemotePlay" | "playstationCloud" {
+  const ps = asobiProvider(app); if (ps) return ps;
   if (app.source === "cloud") return cloudProvider(app);
   if (app.source === "lutris") return "moonlight";
   return moonlightGame ? "moonlight" : app.installed ? "local" : gfnUrl ? "geforceNow" : "install";

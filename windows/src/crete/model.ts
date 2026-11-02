@@ -7,9 +7,9 @@ const OWNED_STORES = new Set(["steam", "xbox", "gog", "epic", "battlenet", "lutr
 
 export function matchesAvailability(app: App, filter: Availability) {
   const source = app.source?.toLowerCase();
-  if (filter === "cloud") return source === "cloud";
-  if (filter === "uninstalled") return source !== "cloud" && app.installed === false;
-  if (filter === "local") return source !== "cloud" && app.installed !== false;
+  if (filter === "cloud") return source === "cloud" || source === "playstation";
+  if (filter === "uninstalled") return source !== "cloud" && source !== "playstation" && app.installed === false;
+  if (filter === "local") return source !== "cloud" && source !== "playstation" && app.installed !== false;
   if (filter === "owned") return OWNED_STORES.has(source ?? "");
   return true;
 }
@@ -55,5 +55,5 @@ export function steamId(app?: App) {
 }
 
 export function sourceLabel(source?: string) {
-  return ({ steam: "Steam", xbox: "Xbox", gog: "GOG", epic: "Epic Games", battlenet: "Battle.net", cloud: "Cloud", lutris: "Lutris · Bosgame" } as Record<string, string>)[source ?? ""] ?? source ?? "Local";
+  return ({ steam: "Steam", xbox: "Xbox", gog: "GOG", epic: "Epic Games", battlenet: "Battle.net", cloud: "Cloud", playstation: "PlayStation", lutris: "Lutris · Bosgame" } as Record<string, string>)[source ?? ""] ?? source ?? "Local";
 }

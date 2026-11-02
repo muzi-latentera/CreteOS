@@ -77,7 +77,7 @@ export function CreteHomeView(p: CreteHomeProps) {
   const showArtwork = p.settings.home_mode === "normal" || p.settings.show_immersive_hero_art !== false;
   const heroProvider = hero ? p.isRunning(hero.id) && hero.source !== "cloud" ? "local" : streaming.provider : "install";
   const open = (app: App) => {
-    if (!p.settings.home_launch_games_directly) { p.onOpenDetails(app); return; }
+    if (app.source === "playstation" || !p.settings.home_launch_games_directly) { p.onOpenDetails(app); return; }
     const host = streaming.online && streaming.clients.moonlight ? moonlightTarget(app, streaming.apps, streaming.hostGames?.map(game => game.steamAppId) ?? []) : undefined;
     if (!p.isRunning(app.id) && (streaming.checking || host)) { p.onOpenDetails(app); return; }
     setLaunchError(null);

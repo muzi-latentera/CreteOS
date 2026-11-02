@@ -35,6 +35,7 @@ export function gameEdition(name: string) {
 
 const stores: Record<string, number> = { steam: 0, gog: 1, epic: 2, xbox: 3, cloud: 4 };
 export const gameCopies = (app: App): App[] => [app, ...(app.library_variants ?? [])];
+const editionSource = (app: App) => app.source === "playstation" ? app.launch_path?.split("/")[2] ?? app.source : app.source;
 const clean = ({ library_variants: _, ...app }: App): App => app;
 
 /** Presentation only: every entitlement, installed executable and history ID survives. */
@@ -50,8 +51,8 @@ export function preferGameEditions(apps: App[], recent: App[] = []): App[] {
     // Equal names on the SAME store can denote distinct releases (e.g. Prey).
     // Collapse only cross-store copies or an explicit edition relationship.
     const ranks = new Set(group.map(app => gameEdition(app.name).rank));
-    const sources = new Set(group.map(app => app.source));
-    const ambiguous = ranks.size === 1 && group.some(app => group.filter(other => other.source === app.source).length > 1);
+    const sources = new Set(group.map(editionSource));
+    const ambiguous = ranks.size === 1 && group.some(app => group.filter(other => editionSource(other) === editionSource(app)).length > 1);
     if (group.length === 1 || (sources.size === 1 && ranks.size === 1) || ambiguous) { result.push(...group); continue; }
     const ordered = [...group].sort((a, b) => gameEdition(b.name).rank - gameEdition(a.name).rank
       || (stores[a.source ?? ""] ?? 10) - (stores[b.source ?? ""] ?? 10)

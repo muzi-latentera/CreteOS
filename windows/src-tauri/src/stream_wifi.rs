@@ -8,18 +8,18 @@ use serde::{Deserialize, Serialize};
 pub enum Choice { #[default] Automatic, Gaming, Download, Current }
 #[derive(Default, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase")]
-pub struct Preferences { moonlight: Choice, geforce_now: Choice, luna: Choice }
+pub struct Preferences { moonlight: Choice, geforce_now: Choice, luna: Choice, ps5_remote_play: Choice, playstation_cloud: Choice }
 static PREF_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 fn path() -> PathBuf { crate::liftoff_dir().join("stream_wifi_preferences.json") }
 fn read() -> Preferences {
     std::fs::read(path()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
 }
 fn selection(p: &Preferences, provider: &str) -> Result<Choice, String> {
-    match provider { "moonlight" => Ok(p.moonlight), "geforceNow" => Ok(p.geforce_now), "luna" => Ok(p.luna), _ => Err("Unknown streaming service".into()) }
+    match provider { "moonlight" => Ok(p.moonlight), "geforceNow" => Ok(p.geforce_now), "luna" => Ok(p.luna), "ps5RemotePlay"=>Ok(p.ps5_remote_play), "playstationCloud"=>Ok(p.playstation_cloud), _ => Err("Unknown streaming service".into()) }
 }
 fn mode(choice: Choice, provider: &str) -> &'static str {
     match choice { Choice::Current => "Current", Choice::Gaming => "Gaming", Choice::Download => "Download",
-        Choice::Automatic => if provider == "moonlight" { "Gaming" } else { "Download" } }
+        Choice::Automatic => if matches!(provider,"moonlight"|"ps5RemotePlay") { "Gaming" } else { "Download" } }
 }
 #[tauri::command]
 pub fn get_stream_wifi_preferences() -> Preferences { read() }
@@ -28,7 +28,7 @@ pub fn set_stream_wifi_preference(provider: String, choice: Choice) -> Result<()
     let _lock = PREF_LOCK.lock().map_err(|_| "Wi-Fi preferences busy")?;
     let mut prefs = read();
     selection(&prefs, &provider)?;
-    match provider.as_str() { "moonlight" => prefs.moonlight = choice, "geforceNow" => prefs.geforce_now = choice, _ => prefs.luna = choice }
+    match provider.as_str() { "moonlight" => prefs.moonlight = choice, "geforceNow" => prefs.geforce_now = choice, "luna"=>prefs.luna = choice, "ps5RemotePlay"=>prefs.ps5_remote_play=choice, "playstationCloud"=>prefs.playstation_cloud=choice, _=>unreachable!() }
     std::fs::create_dir_all(crate::liftoff_dir()).map_err(|e| e.to_string())?;
     let temp = path().with_extension("tmp");
     std::fs::write(&temp, serde_json::to_vec_pretty(&prefs).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
@@ -37,10 +37,16 @@ pub fn set_stream_wifi_preference(provider: String, choice: Choice) -> Result<()
 pub struct Session { lease: PathBuf }
 impl Drop for Session { fn drop(&mut self) { let _ = std::fs::remove_file(&self.lease); } }
 pub fn prepare(provider: &str) -> Option<Session> {
+    prepare_choice(provider,selection(&read(),provider).ok()?)
+}
+pub fn prepare_current(provider: &str) -> Option<Session> {
+    selection(&read(),provider).ok()?;
+    prepare_choice(provider,Choice::Current)
+}
+fn prepare_choice(provider:&str,choice:Choice)->Option<Session>{
     let folder = dirs::data_local_dir()?.join("CreteOS-Bootstrap/WiFiSmart");
     let helper = folder.join("WiFiSmart.ps1");
     if !helper.is_file() || !folder.join("config.json").is_file() { return None; }
-    let choice = selection(&read(), provider).ok()?;
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH).ok()?;
     let token = format!("{}-{}", std::process::id(), stamp.as_nanos());
     let leases = folder.join("sessions");
@@ -72,7 +78,8 @@ pub fn prepare(provider: &str) -> Option<Session> {
     use super::*;
     #[test] fn automatic_defaults_and_explicit_overrides() {
         assert_eq!(mode(Choice::Automatic,"moonlight"),"Gaming");
-        for provider in ["geforceNow","luna"] { assert_eq!(mode(Choice::Automatic,provider),"Download"); }
+        assert_eq!(mode(Choice::Automatic,"ps5RemotePlay"),"Gaming");
+        for provider in ["geforceNow","luna","playstationCloud"] { assert_eq!(mode(Choice::Automatic,provider),"Download"); }
         assert_eq!(mode(Choice::Gaming,"luna"),"Gaming");
         assert_eq!(mode(Choice::Download,"moonlight"),"Download");
         assert_eq!(mode(Choice::Current,"moonlight"),"Current");

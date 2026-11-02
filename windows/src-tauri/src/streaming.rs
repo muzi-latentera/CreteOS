@@ -17,7 +17,7 @@ pub(crate) fn progress(window:&tauri::Window,message:&str) {
 }
 #[tauri::command(async)]
 pub fn present_stream_failure(window:tauri::Window,provider:String)->Result<(),String>{
-    if !matches!(provider.as_str(),"moonlight"|"geforceNow"|"luna"){return Err("Unknown streaming client".into());}
+    if !matches!(provider.as_str(),"moonlight"|"geforceNow"|"luna"|"ps5RemotePlay"|"playstationCloud"){return Err("Unknown streaming client".into());}
     if super::can_return_from_stream(&window,&provider){
         super::fse_watcher::prepare_stream_return(window.app_handle());
         super::show_stream_return(&window)?;
@@ -27,7 +27,7 @@ pub fn present_stream_failure(window:tauri::Window,provider:String)->Result<(),S
 #[tauri::command]
 pub fn record_stream_issue(provider:String,game_id:String,message:String)->Result<(),String>{
     use std::io::Write;
-    if !matches!(provider.as_str(),"moonlight"|"geforceNow"|"luna") || game_id.len()>1024{return Err("Invalid stream issue".into());}
+    if !matches!(provider.as_str(),"moonlight"|"geforceNow"|"luna"|"ps5RemotePlay"|"playstationCloud") || game_id.len()>1024{return Err("Invalid stream issue".into());}
     // Omit URL/header-bearing errors rather than retaining credentials in logs.
     let message=if ["http:","https:","Authorization","Bearer "].iter().any(|v|message.contains(v)){"Provider request failed (details omitted)".into()}else{message.chars().take(500).filter(|c|!c.is_control()).collect::<String>()};
     let folder=super::liftoff_dir().join("logs");std::fs::create_dir_all(&folder).map_err(|e|e.to_string())?;
@@ -131,9 +131,10 @@ pub async fn launch_luna_session(window:tauri::Window, game_id:String, game_name
         Ok(())
     }).await.map_err(|e|e.to_string())?
 }
-fn session_current(generation: u64) -> bool { SESSION_GENERATION.load(Ordering::SeqCst) == generation }
+pub(crate) fn new_session_generation()->u64 { SESSION_GENERATION.fetch_add(1,Ordering::SeqCst)+1 }
+pub(crate) fn session_current(generation: u64) -> bool { SESSION_GENERATION.load(Ordering::SeqCst) == generation }
 
-fn begin_return(window: &tauri::Window, provider: &str, generation: u64) {
+pub(crate) fn begin_return(window: &tauri::Window, provider: &str, generation: u64) {
     if !session_current(generation) || !super::can_return_from_stream(window, provider) { return; }
     if RETURN_COVER.compare_exchange(0, generation, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
         use tauri::Emitter;
@@ -179,7 +180,7 @@ pub(crate) fn end_return(window: &tauri::Window, provider: &str, generation: u64
 // guard, which itself needs the UI message pump to remain responsive.
 #[tauri::command(async)]
 pub fn present_stream_return_cover(window: tauri::Window, provider: String, session: u64) -> Result<bool, String> {
-    if !matches!(provider.as_str(), "moonlight" | "geforceNow" | "luna") { return Err("Unknown streaming client".into()); }
+    if !matches!(provider.as_str(), "moonlight" | "geforceNow" | "luna" | "ps5RemotePlay" | "playstationCloud") { return Err("Unknown streaming client".into()); }
     let _presentation = RETURN_PRESENTATION.lock().map_err(|_| "Return presentation unavailable")?;
     if !session_current(session) || RETURN_COVER.load(Ordering::SeqCst) != session { return Ok(false); }
     // The client may close between the ending event and the paint ack. Only a
