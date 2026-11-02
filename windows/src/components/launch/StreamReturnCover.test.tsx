@@ -40,6 +40,7 @@ it("keeps painted return artwork until client cleanup finishes", async () => {
 it("clears failed-launch artwork after the error has been readable", async () => {
   await act(async()=>window.dispatchEvent(new CustomEvent("crete-stream-failure",{detail:"Host unavailable"})));
   expect(container.querySelector('[role="alert"]')?.textContent).toBe("Host unavailable");
+  expect(invoke).toHaveBeenCalledWith("update_stream_artwork", { art: "https://fixture.test/re2.jpg", message: "Host unavailable" });
   await act(async()=>{await vi.advanceTimersByTimeAsync(12_050);});
   expect(container.querySelector("[data-stream-launch-cover]")).toBeNull();
 });

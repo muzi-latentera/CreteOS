@@ -3,10 +3,27 @@ from unittest.mock import patch
 import tempfile
 from pathlib import Path
 import json
-from host_presentation import conceal_library, game_window, needs_attention, restore_saved, steam_library, steam_on_other_display, windows
+from host_presentation import conceal_library, game_window, needs_attention, restore_saved, steam_library, steam_on_other_display, windows, launch_blocker, login_blocker
 
 
 class PresentationIsolationTests(unittest.TestCase):
+    def test_embedded_cloud_warning_is_revealed_without_a_separate_dialog(self):
+        line = 'GameAction [AppID 4115450, ActionID 3] : LaunchApp waiting for user response to SynchronizingCloud "syncfailed"'
+        self.assertEqual(launch_blocker('4115450', line), 'cloud-sync')
+        self.assertIsNone(launch_blocker('411545', line))
+        self.assertIsNone(launch_blocker('4115450', line.replace('waiting for user response', 'changed task')))
+        self.assertEqual(launch_blocker('4115450', line.replace('syncfailed', 'conflict')), 'cloud-conflict')
+        self.assertTrue(needs_attention('cloud-sync', 0, 2, []))
+        self.assertTrue(needs_attention('cloud-conflict', 0, 2, []))
+        self.assertFalse(needs_attention('cloud-sync', 0, .5, []))
+        self.assertFalse(needs_attention('ShowInterstitials', 0, 90, []))
+
+    def test_revoked_login_clears_only_after_successful_login(self):
+        revoked = "[Logged On] RecvMsgClientLoggedOff('Request revoked')\nnot auto reconnecting due to Request revoked\n"
+        self.assertTrue(login_blocker(revoked))
+        self.assertTrue(login_blocker(revoked + '[Logging On] connecting\n'))
+        self.assertFalse(login_blocker(revoked + "RecvMsgClientLogOnResponse() : 'OK'\n"))
+        self.assertFalse(login_blocker('unrelated network error'))
     def test_nonsteam_64bit_identity_can_match_without_a_steam_window_class(self):
         ident='3137199813'
         values=('SteamGameId='+str((int(ident)<<32)|0x02000000)).encode()+b'\0'

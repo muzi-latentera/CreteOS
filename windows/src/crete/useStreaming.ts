@@ -5,6 +5,7 @@ import { defaultProvider, geforceNowUrl, isPcGame, moonlightTarget } from "./str
 import { readHost, refreshHost, subscribeHost } from "./hostSnapshot";
 import { refreshGeForceCatalog, subscribeGeForceCatalog } from "./gfnCatalog";
 import { withStreamCover } from "../components/launch/StreamLaunchCover";
+import { streamErrorMessage } from "./streamErrors";
 
 export interface MoonlightProfile { host: string; resolution: string; fps: number; bitrate: number; codec: string }
 export interface DisplayProfile { displayKey: string; profile: MoonlightProfile; nativeResolution?: string; nativeFps?: number; displayLabel?: string }
@@ -13,6 +14,15 @@ export interface LutrisGame { id: string; name: string; launchable: boolean; rea
 export function useStreaming(app: App, enabled: boolean) {
   const [clients, setClients] = useState({ geforceNow: false, moonlight: false });
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    setError(null);
+    const receive = (event: Event) => {
+      const detail = (event as CustomEvent<{gameId: string; message: string | null}>).detail;
+      if (detail?.gameId === app.id) setError(detail.message ? streamErrorMessage(detail.message) : null);
+    };
+    window.addEventListener("crete-stream-issue", receive);
+    return () => window.removeEventListener("crete-stream-issue", receive);
+  }, [app.id]);
   const [display, setDisplay] = useState(fallback);
   const [configure, setConfigure] = useState(false);
   const [geforceConfigure, setGeforceConfigure] = useState(false);
@@ -89,14 +99,14 @@ export function useStreaming(app: App, enabled: boolean) {
     setError(null);
     try {
       await withStreamCover(app, "geforceNow", () => invoke("start_geforce_game", { gameUrl, source: app.source, displayKey: geforceDisplay.displayKey, profile }), () => setGeforceConfigure(false));
-    } catch (reason) { setError(String(reason)); }
+    } catch (reason) { setError(streamErrorMessage(reason)); }
   };
   const stream = async (appName: string, profile: MoonlightProfile) => {
     setError(null);
     try {
       const steamId = appName === "MoonDeckStream" && app.source === "steam" && app.steam_appid ? String(app.steam_appid) : null;
       await withStreamCover(app, "moonlight", () => invoke("launch_moonlight", { appName, displayKey: display.displayKey, profile, steamId, gameId: app.id, gameName: app.name, lutrisId: app.source === "lutris" ? app.store_id : null }), () => setConfigure(false));
-    } catch (reason) { setError(`Could not start Moonlight on ${profile.host}. ${String(reason)}`); }
+    } catch (reason) { setError(streamErrorMessage(reason)); }
   };
   const pair = async (pin: number) => {
     setError(null);

@@ -186,9 +186,12 @@ def main():
         if presentation and presentation.is_dir():
             (presentation / "lease").touch()
             try:
-                if not attention_sent and json.loads((presentation / "state.json").read_text())["phase"] == "attention":
-                    emit("attention")
-                    attention_sent = True
+                state = json.loads((presentation / "state.json").read_text())
+                reason = state.get('reason')
+                event = 'attention-' + reason if reason in ('cloud-sync', 'cloud-conflict', 'signin') else 'attention'
+                if state['phase'] == 'attention' and attention_sent != event:
+                    emit(event)
+                    attention_sent = event
             except (OSError, ValueError, KeyError):
                 pass
         event = tracker.sample(has_game_window(get_tree(paths[0]), app_id, pid_matches), now)

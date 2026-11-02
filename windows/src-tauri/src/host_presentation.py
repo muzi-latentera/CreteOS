@@ -102,6 +102,10 @@ def needs_attention(pending, waiting_at, now, nodes, started=None):
     # visible Steam dialog and a pending interaction before exposing the host.
     if not pending or waiting_at is None:
         return False
+    # Steam's web UI can put a cloud warning inside its ordinary library
+    # window. These explicit blockers do not require an X11 dialog window.
+    if pending in ('cloud-sync', 'cloud-conflict', 'signin'):
+        return now - waiting_at > 1
     dialogs = [n for n, _ in nodes if n.get("visible") and
                str((n.get("window_properties") or {}).get("class", "")).lower() == "steam" and
                ((n.get("window_properties") or {}).get("transient_for") or
@@ -109,9 +113,37 @@ def needs_attention(pending, waiting_at, now, nodes, started=None):
     return bool(dialogs and now - waiting_at > 1)
 
 
-def write_state(folder, phase):
+def launch_blocker(app_id, line):
+    if f'AppID {app_id},' not in line or 'waiting for user response' not in line:
+        return None
+    if 'SynchronizingCloud' in line:
+        return 'cloud-conflict' if 'conflict' in line.lower() else 'cloud-sync'
+    return 'prompt'
+
+
+def login_blocker(text):
+    """Use only explicit final account states, never raw account details."""
+    result = False
+    for line in text.splitlines():
+        if "RecvMsgClientLogOnResponse()" in line and "'OK'" in line:
+            result = False
+        elif "RecvMsgClientLoggedOff(" in line or 'not auto reconnecting due to' in line:
+            result = True
+    return result
+
+
+def log_tail(path, limit=65536):
+    try:
+        with path.open('rb') as stream:
+            stream.seek(max(0, path.stat().st_size - limit))
+            return stream.read(limit).decode(errors='replace')
+    except OSError:
+        return ''
+
+
+def write_state(folder, phase, reason=None):
     temporary = folder / "state.tmp"
-    temporary.write_text(json.dumps({"phase": phase, "pid": os.getpid()}))
+    temporary.write_text(json.dumps({"phase": phase, "pid": os.getpid(), "reason": reason}))
     temporary.replace(folder / "state.json")
 
 
@@ -273,6 +305,7 @@ def present(token):
     seen = False
     positioned = False
     attention = False
+    attention_reason = None
     closed_at = None
     began = time.monotonic()
     log = Path.home() / ".local/share/Steam/logs/console_log.txt"
@@ -336,7 +369,7 @@ def present(token):
                 Gtk.main_quit()
 
     def tick():
-        nonlocal seen, positioned, attention, closed_at, log_offset, pending, waiting_at, last_output_check
+        nonlocal seen, positioned, attention, attention_reason, closed_at, log_offset, pending, waiting_at, last_output_check
         try:
             now = time.monotonic()
             if (folder / "finish").exists() or now - began > 86400:
@@ -349,6 +382,8 @@ def present(token):
                 return False
             if log.exists() and not seen:
                 with log.open() as stream:
+                    if log.stat().st_size < log_offset:
+                        log_offset = 0
                     stream.seek(log_offset)
                     lines = stream.read(65536)
                     log_offset = stream.tell()
@@ -356,7 +391,7 @@ def present(token):
                     if f"AppID {config['appId']}," not in line:
                         continue
                     if "waiting for user response" in line:
-                        pending = line.split("response to ")[-1].split()[0]
+                        pending = launch_blocker(config['appId'], line) or 'prompt'
                         waiting_at = now
                     elif "continues with user response" in line or "changed task" in line:
                         pending = waiting_at = None
@@ -370,6 +405,10 @@ def present(token):
             # launch, not a normal background app-details lookup.
             if needs_attention(pending, waiting_at, now, nodes, began):
                 attention = True
+                attention_reason = pending
+            if not seen and now - began > 2 and login_blocker(log_tail(log.parent / 'connection_log.txt')):
+                attention = True
+                attention_reason = 'signin'
             games = [node for node, _ in nodes if game_window(node, config["appId"])]
             if games:
                 if not seen:
@@ -390,7 +429,7 @@ def present(token):
             if attention and not seen:
                 window.hide()
                 restore()
-                write_state(folder, "attention")
+                write_state(folder, "attention", attention_reason)
             else:
                 for node, workspace in nodes:
                     if steam_library(node) and workspace != "__i3_scratch":

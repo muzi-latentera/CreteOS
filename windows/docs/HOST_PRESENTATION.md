@@ -34,7 +34,10 @@ mitigation for a suspected background-UI trigger, not proof the intermittent
 Steam delay is eliminated; a repeat using scratchpad also took only11 seconds.
 If Steam logs a launch waiting for interaction and a real dialog appears, the
 host restores the library and asks the handheld cover to reveal Moonlight.
-Thirty seconds without progress also fails open. Steam's `ShowInterstitials`
+Explicit cloud-sync failures/conflicts and revoked sign-ins also reveal the
+library, including prompts embedded inside its ordinary web UI. Their fixed
+reason enums become specific handheld messages; raw log/account data is not
+transmitted. Steam's `ShowInterstitials`
 step can include asynchronous UI preparation, so its log line alone does not
 prove a dialog is visible. No dialog is automatically accepted.
 
@@ -56,8 +59,15 @@ flash acceptance still require the GPD user test; mocked checks do not prove it.
 Steam's existing singleton must belong to the dedicated streaming desktop. A
 client on the physical login desktop can accept Buddy's launch request while
 opening the game somewhere Sunshine cannot capture. The presenter now checks
-the existing Steam process from inside Sway and blocks a known display mismatch
-before the client or game starts. It does not stop or move Steam automatically.
+the existing Steam process from inside Sway. Before staging artwork, the new
+`host_steam_preflight.py` checks the actual compositor environment using the
+installed `host_stream_env.py`. An idle singleton on a different desktop is
+closed normally with `steam -shutdown`; Buddy starts it on the streaming
+desktop later. No game is launched by preflight, and no process is killed.
+Steam-related game processes, a connected stream, an unknown protected process,
+or a shutdown that does not finish block migration with a specific explanation.
+Known protected Linux session infrastructure is excluded from game-process
+inspection; unreadable Steam or unknown process state still fails closed.
 
 On the configured Bosgame host, `host_stream_env.py` is explicitly installed as
 a wrapper for the Sunshine and MoonDeck Buddy user services. It obtains the
@@ -65,10 +75,16 @@ actual display environment by running a short probe through the dedicated Sway
 socket, validates the returned display names, and execs the original service.
 It does not change systemd's global user environment. Keep the original units
 and back up any drop-ins before installation. Steam already running on the
-physical desktop must be closed normally after any game is finished; the
-wrapper cannot relocate that existing process. Preserve Buddy pairing data.
+physical desktop cannot be relocated in place. The preflight closes only an idle
+singleton before Buddy recreates it; it does not move windows or change the
+physical desktop's display settings. Preserve Buddy pairing data.
 
 The wrapper is host setup code, not an automatically installed Windows service.
 Its path and original executables must be checked on each new host. Observe a
 real Steam/game window in the dedicated compositor before accepting routing;
 service activity alone is insufficient.
+
+Cloud retry/continue and save-conflict decisions remain in Steam's native UI.
+No keystroke, default-button click or unconditional save overwrite is used.
+After a host prompt is exposed, a launch timeout must not cover it again.
+The game page retains the same specific explanation as the loading screen.

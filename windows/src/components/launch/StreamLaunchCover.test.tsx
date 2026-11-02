@@ -111,6 +111,24 @@ describe("stream artwork handoff", () => {
     finish(); await pending;
     expect(callbacks.has("host-launch-attention")).toBe(false);
   });
+  it("does not put an error cover back over a Steam prompt after its timeout", async () => {
+    let fail!: (reason: unknown) => void;
+    const failure = vi.fn(); const issue = vi.fn();
+    window.addEventListener("crete-stream-failure", failure);
+    window.addEventListener("crete-stream-issue", issue);
+    const pending = withStreamCover({ id: "pbz", name: "Phantom Blade Zero" }, "moonlight", () => new Promise<void>((_, reject) => { fail = reject; }));
+    const rejected = expect(pending).rejects.toThrow("Steam could not sync");
+    await vi.advanceTimersByTimeAsync(100);
+    callbacks.get("host-launch-attention")?.();
+    await vi.advanceTimersByTimeAsync(50);
+    fail("Steam could not sync this game's cloud saves on Bosgame.");
+    await rejected;
+    expect(failure).not.toHaveBeenCalled();
+    expect(issue).toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalledWith("present_stream_failure", expect.anything());
+    window.removeEventListener("crete-stream-failure", failure);
+    window.removeEventListener("crete-stream-issue", issue);
+  });
   it("waits for Luna media readiness rather than the PWA launch promise", async () => {
     let ready!: (value:boolean)=>void;
     invoke.mockImplementation(async command => command === "wait_stream_window" ? new Promise<boolean>(resolve=>{ready=resolve;}) : undefined);

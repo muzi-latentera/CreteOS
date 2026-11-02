@@ -68,6 +68,10 @@ static RETURN_PRESENTATION: std::sync::Mutex<()> = std::sync::Mutex::new(());
 static ENDED_SESSION_GENERATION: AtomicU64 = AtomicU64::new(0);
 // 0 unavailable/fallback, 1 waiting for the exact game, 2 visible, 3 closed.
 static HOST_GAME_WINDOW: AtomicU64 = AtomicU64::new(0);
+static HOST_ATTENTION: std::sync::Mutex<Option<(u64, String)>> = std::sync::Mutex::new(None);
+fn host_attention(generation: u64) -> Option<String> {
+    HOST_ATTENTION.lock().ok().and_then(|value| value.as_ref().filter(|(session, _)| *session == generation).map(|(_, message)| message.clone()))
+}
 fn host_window_state() -> u64 {
     let value = HOST_GAME_WINDOW.load(Ordering::SeqCst);
     if value >> 3 == SESSION_GENERATION.load(Ordering::SeqCst) { value & 7 } else { 0 }
@@ -264,7 +268,65 @@ fn warm_geforce_client() -> Result<(), String> {
     Err("NVIDIA has not finished loading its settings. No game was started. Open its Settings screen, then retry.".into())
 }
 
-pub(crate) fn bounded_output(mut command: std::process::Command, input: Option<&[u8]>) -> Result<std::process::Output, String> {
+fn nvidia_idle_evidence(log: &str, titles: &[String], streamer: bool) -> bool {
+    if streamer || titles.is_empty() || log.trim().is_empty() { return false; }
+    let mut idle = None;
+    for line in log.lines() {
+        let line = line.split_whitespace().collect::<Vec<_>>().join(" ");
+        let state = line.split_once("NvCameraService streaming state change:")
+            .or_else(|| if line.contains("gfn/StreamerManagerService") { line.split_once("Advancing to state:") } else { None });
+        if let Some((_, value)) = state {
+            let value = value.split_whitespace().next().unwrap_or("");
+            idle = Some(matches!(value, "Done" | "Idle" | "Stopped"));
+        }
+        if line.contains("got onStreamingFirstFrame event") || line.contains("streamingService onStreamingFirstFrame") { idle = Some(false); }
+    }
+    // A game title is stronger evidence than an old idle log entry. Unknown
+    // windows (login, queue, errors) are kept open for the user to review.
+    let known_home = titles.iter().all(|title| matches!(title.trim().to_ascii_lowercase().as_str(),
+        "geforce now" | "nvidia geforce now" | "nvidia geforcenow" | "geforcenow"));
+    known_home && idle != Some(false)
+}
+
+fn nvidia_log_tail() -> String {
+    use std::io::{Seek, SeekFrom};
+    let Ok(mut file) = std::fs::File::open(nvidia_console()) else { return String::new(); };
+    let Ok(size) = file.metadata().map(|m|m.len()) else { return String::new(); };
+    if file.seek(SeekFrom::Start(size.saturating_sub(2*1024*1024))).is_err() { return String::new(); }
+    let mut data=String::new(); let _=file.read_to_string(&mut data); data
+}
+
+fn close_idle_geforce(window: &tauri::Window) -> Result<(), String> {
+    if !super::is_process_running("GeForceNOW.exe") && !super::is_process_running("GeForceNOWStreamer.exe") { return Ok(()); }
+    let root = dirs::data_local_dir().ok_or("No local data folder")?.join("NVIDIA Corporation/GeForceNOW/CEF/GeForceNOW.exe");
+    let candidates = || super::collect_launch_windows().into_iter().filter(|target| target.exe_path.as_deref().is_some_and(|path| root.to_string_lossy().eq_ignore_ascii_case(path))).collect::<Vec<_>>();
+    let idle = || nvidia_idle_evidence(&nvidia_log_tail(), &candidates().iter().map(|w|w.title.clone()).collect::<Vec<_>>(), super::is_process_running("GeForceNOWStreamer.exe"));
+    if !idle() {
+        if super::is_process_running("GeForceNOWStreamer.exe") || candidates().iter().any(|w| w.title.to_ascii_lowercase().contains(" on geforce now")) {
+            return Err("GeForce NOW is already running or launching a game. Quit that session before applying different streaming settings. CreteOS has left your game running.".into());
+        }
+        return Err("CreteOS cannot confirm GeForce NOW is idle: it may be signing in, queueing or starting a session. Return to its home screen and retry. Nothing has been closed.".into());
+    }
+    progress(window, "Restarting idle GeForce NOW to apply your streaming settings…");
+    for target in candidates() {
+        if !idle() { return Err("GeForce NOW started or changed a session while preparing settings. CreteOS stopped the restart to preserve it.".into()); }
+        #[cfg(windows)] unsafe {
+            use windows::Win32::{Foundation::{HWND, WPARAM, LPARAM}, UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE}};
+            PostMessageW(Some(HWND(target.hwnd as _)), WM_CLOSE, WPARAM(0), LPARAM(0)).map_err(|_| "Could not close the idle GeForce NOW window. Exit it from its tray menu and retry.")?;
+        }
+    }
+    let started = std::time::Instant::now();
+    while super::is_process_running("GeForceNOW.exe") || super::is_process_running("GeForceNOWStreamer.exe") {
+        if started.elapsed() > std::time::Duration::from_secs(12) { return Err("GeForce NOW kept its background client open after closing the idle window. Exit GeForce NOW from its tray menu, then retry. No process was forcibly stopped.".into()); }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    Ok(())
+}
+
+pub(crate) fn bounded_output(command: std::process::Command, input: Option<&[u8]>) -> Result<std::process::Output, String> {
+    bounded_output_timeout(command, input, 10)
+}
+fn bounded_output_timeout(mut command: std::process::Command, input: Option<&[u8]>, timeout: u64) -> Result<std::process::Output, String> {
     command.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
     if input.is_some() { command.stdin(std::process::Stdio::piped()); }
     #[cfg(windows)] { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
@@ -279,7 +341,7 @@ pub(crate) fn bounded_output(mut command: std::process::Command, input: Option<&
     let start = std::time::Instant::now();
     let status = loop {
         if let Some(status) = child.try_wait().map_err(|e| e.to_string())? { break status; }
-        if start.elapsed() > std::time::Duration::from_secs(10) {
+        if start.elapsed() > std::time::Duration::from_secs(timeout) {
             let _ = child.kill(); let _ = child.wait(); return Err("Host query timed out. Check Bosgame's connection.".into());
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
@@ -456,12 +518,7 @@ pub async fn start_geforce_game(window: tauri::Window, game_url: String, display
     if display_key.is_empty() || display_key.len() > 256 { return Err("Invalid display identity".into()); }
     tauri::async_runtime::spawn_blocking(move || {
         let (client, argument) = geforce_launch(&game_url, source.as_deref(), true)?;
-        let mut command = std::process::Command::new("tasklist.exe");
-        command.args(["/FO", "CSV", "/NH"]);
-        let output = bounded_output(command, None)?;
-        if !output.status.success() { return Err("Could not check whether GeForce NOW is running".into()); }
-        let processes = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
-        if processes.contains("geforcenow.exe") || processes.contains("geforcenowstreamer.exe") { return Err("Close GeForce NOW before pressing Play so your chosen settings can be applied.".into()); }
+        close_idle_geforce(&window)?;
         let wifi = super::stream_wifi::prepare("geforceNow");
         let root = dirs::data_local_dir().ok_or("No local data folder")?;
         let path = root.join("NVIDIA Corporation/GeForceNOW/sharedstorage.json");
@@ -567,6 +624,30 @@ fn host_games(host: &str) -> Result<Vec<HostGame>, String> {
 
 const STEAM_WRONG_DESKTOP: &str = "Steam is open on Bosgame's regular desktop. Finish any running game and restart Steam on its streaming desktop before starting Moonlight.";
 
+fn prepare_host_steam(host: &str) -> Result<(), String> {
+    let mut command = host_command(host)?;
+    command.arg("python3 -");
+    let output = bounded_output_timeout(command, Some(include_bytes!("host_steam_preflight.py")), 45)?;
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).map_err(|_| "Could not check Steam's desktop on Bosgame. Check SSH access, then retry.")?;
+    match result["status"].as_str() {
+        Some("ready" | "moved") if output.status.success() => Ok(()),
+        Some("gameRunning") => Err("A game is running on Bosgame's regular desktop. Quit it before starting this Moonlight game; CreteOS has left it running.".into()),
+        Some("streamActive") => Err("Another Moonlight stream is connected to Bosgame. End that session before moving Steam to the streaming desktop.".into()),
+        Some("shutdownPending") => Err("Steam is waiting to close on Bosgame, possibly for a download or save-sync prompt. Finish that prompt and retry. Nothing was forcibly stopped.".into()),
+        _ => Err("CreteOS could not safely check or move Steam on Bosgame. Check SSH and the streaming desktop helper, then retry; Steam was not forcibly stopped.".into()),
+    }
+}
+
+fn host_attention_message(event: &str) -> Option<&'static str> {
+    match event {
+        "attention-signin" => Some("Steam on Bosgame is signed out. Sign in to the Steam screen shown in Moonlight, let cloud saves sync, then continue. Signing into CreteOS alone does not sign in Bosgame."),
+        "attention-cloud-sync" => Some("Steam could not sync this game's cloud saves on Bosgame. The Steam prompt is open in Moonlight. Check Steam is signed in, then choose Retry. Your saves have not been overwritten."),
+        "attention-cloud-conflict" => Some("Steam found conflicting local and cloud saves on Bosgame. Review their dates in the Steam prompt shown in Moonlight and choose which progress to keep. CreteOS will not overwrite a save automatically."),
+        "attention" => Some("Steam needs a response before starting this game. The Steam prompt is shown in Moonlight; complete it to continue."),
+        _ => None,
+    }
+}
+
 fn stage_host_presentation(host: &str, id: &str, resolution: &str, game_id: Option<&str>, game_name: Option<&str>, generation: u64) -> Result<String, String> {
     use base64::Engine;
     let custom = game_id.and_then(|id| super::load_custom_art_inner().get(&format!("hero:{id}")).cloned());
@@ -656,11 +737,14 @@ fn watch_host_game_window(window: tauri::Window, host: String, id: String, prese
                                 break;
                             }
                             "alive" => {},
-                            "attention" => {
+                            event if host_attention_message(event).is_some() => {
                                 set_host_window_state(generation, 0);
+                                let message = host_attention_message(event).unwrap();
+                                if let Ok(mut saved) = HOST_ATTENTION.lock() { *saved = Some((generation, message.into())); }
+                                progress(&window, message);
                                 super::fse_watcher::log_stream_transition(window.app_handle(), "host-launch-attention");
                                 use tauri::Emitter;
-                                let _ = window.emit("host-launch-attention", serde_json::json!({"session":generation}));
+                                let _ = window.emit("host-launch-attention", serde_json::json!({"session":generation,"message":message}));
                             },
                             _ => break,
                         }
@@ -752,6 +836,11 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
                 return Err("This game is not installed on Bosgame. Choose local install or GeForce NOW.".into());
             }
         }
+        if steam_id.is_some() {
+            progress(&window, "Checking Steam on Bosgame and preparing the streaming desktop…");
+            prepare_host_steam(&profile.host)?;
+            check_launch(epoch)?;
+        }
         let path = super::liftoff_dir().join("moonlight_profiles.json");
         let mut profiles: serde_json::Value = std::fs::read(&path).ok().and_then(|bytes| serde_json::from_slice(&bytes).ok()).unwrap_or(serde_json::json!({}));
         profiles[display_key] = serde_json::to_value(&profile).map_err(|e| e.to_string())?;
@@ -800,6 +889,9 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
             if let Some(token) = &presentation { finish_host_presentation(&profile.host, token); }
             return Err("Stream launch cancelled".into());
         }
+        let launch_result = launch_result.map_err(|error| {
+            if error.starts_with("Game startup is taking longer") { host_attention(generation).unwrap_or(error) } else { error }
+        });
         let started = launch_result.is_ok() || matches!(host_window_state(), 2 | 3);
         // Always attach the owned session lifecycle, including after a slow
         // startup error. A late-starting game must not become an orphan stream.
@@ -844,6 +936,28 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn idle_nvidia_restart_requires_home_without_an_active_session() {
+        let home = vec!["NVIDIA GeForce NOW".to_string()];
+        assert!(!super::nvidia_idle_evidence("", &home, false));
+        assert!(super::nvidia_idle_evidence("native client ready", &home, false));
+        assert!(super::nvidia_idle_evidence("NvCameraService streaming state change: Done", &home, false));
+        for log in ["NvCameraService streaming state change: Streaming", "gfn/StreamerManagerService Advancing to state: Loading", "streamingService onStreamingFirstFrame"] {
+            assert!(!super::nvidia_idle_evidence(log, &home, false));
+        }
+        assert!(!super::nvidia_idle_evidence("", &home, true));
+        assert!(!super::nvidia_idle_evidence("", &[], false));
+        assert!(!super::nvidia_idle_evidence("NvCameraService streaming state change: Done", &["Phantom Blade Zero on GeForce NOW".into()], false));
+        assert!(!super::nvidia_idle_evidence("", &["Sign in".into()], false));
+        assert!(super::nvidia_idle_evidence("NvCameraService streaming state change: Streaming\nNvCameraService streaming state change: Done", &home, false));
+    }
+    #[test]
+    fn host_blockers_have_specific_save_preserving_actions() {
+        assert!(super::host_attention_message("attention-signin").unwrap().contains("signed out"));
+        assert!(super::host_attention_message("attention-cloud-sync").unwrap().contains("Retry"));
+        assert!(super::host_attention_message("attention-cloud-conflict").unwrap().contains("will not overwrite"));
+        assert!(super::host_attention_message("visible").is_none());
+    }
     #[test]
     fn nvidia_raw_route_matches_desktop_shortcut_quoting() {
         assert_eq!(super::geforce_raw_route("--url-route=#?cmsId=107016426&launchSource=External").unwrap(), "--url-route=\"#?cmsId=107016426&launchSource=External\"");

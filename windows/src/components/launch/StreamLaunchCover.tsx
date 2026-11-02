@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import type { App } from "../../types";
 import { useTranslation } from "react-i18next";
 import { getBestGamepad, readGpState } from "../../utils/gamepad";
+import { streamErrorMessage } from "../../crete/streamErrors";
 
 type Provider = "moonlight" | "geforceNow" | "luna";
 type Cover = { app: App; returning?: boolean } | null;
@@ -32,16 +33,21 @@ export async function withStreamCover(app: App, provider: "moonlight" | "geforce
   const shownAt = performance.now();
   dismissed = false;
   let handedOff = false;
+  let attentionShown = false;
   let failure: string | undefined;
   let releaseAttention: (() => void) | undefined;
   lastStream = { app, provider };
   window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: { app } }));
   try {
-    if (provider === "moonlight") releaseAttention = await listen("host-launch-attention", () => {
+    if (provider === "moonlight") releaseAttention = await listen<{ message?: string }>("host-launch-attention", event => {
       if (current !== generation || dismissed) return;
       // A real Steam launch dialog must be accessible rather than concealed
       // indefinitely by either device's artwork. Do not approve it ourselves.
       dismissed = true;
+      attentionShown = true;
+      const message = event?.payload?.message ?? "Steam needs a response on Bosgame. Complete its prompt in Moonlight to continue.";
+      window.dispatchEvent(new CustomEvent("crete-stream-issue", { detail: { gameId: app.id, message } }));
+      void invoke("record_stream_issue", { provider, gameId: app.id, message }).catch(() => {});
       beforeHandoff?.();
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (current !== generation) return;
@@ -59,6 +65,7 @@ export async function withStreamCover(app: App, provider: "moonlight" | "geforce
     if (current !== generation) return;
     // Streaming bypasses launch_app, so it must explicitly share its history.
     const entry = await invoke<App>("record_stream_launch", { id: app.id, name: app.name, launchPath: app.launch_path ?? "" }).catch(() => null);
+    window.dispatchEvent(new CustomEvent("crete-stream-issue", { detail: { gameId: app.id, message: null } }));
     if (dismissed || current !== generation) return;
     if (entry) window.dispatchEvent(new CustomEvent("crete-play-history-changed", { detail: entry }));
     const ready = await Promise.race([invoke<boolean>("wait_stream_window", { provider }), cancellation]);
@@ -78,9 +85,11 @@ export async function withStreamCover(app: App, provider: "moonlight" | "geforce
       handedOff = true;
     }
   } catch (reason) {
-    failure=String(reason);
-    await invoke("record_stream_issue",{provider,gameId:app.id,message:String(reason)}).catch(()=>{});
-    throw reason;
+    const message = streamErrorMessage(reason);
+    if (!attentionShown) failure=message;
+    window.dispatchEvent(new CustomEvent("crete-stream-issue", { detail: { gameId: app.id, message } }));
+    await invoke("record_stream_issue",{provider,gameId:app.id,message}).catch(()=>{});
+    throw new Error(message);
   } finally {
     releaseAttention?.();
     if (cancelActive === cancel) cancelActive = undefined;
@@ -111,8 +120,8 @@ export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<
     return()=>{window.removeEventListener("crete-stream-failure",failed);remove?.();};
   },[]);
   useEffect(()=>{if(!cover)return;const art=customHeroArt[cover.app.id] || heroArt[cover.app.id] || "";
-    void invoke("update_stream_artwork",{art,message:cover.returning?"":progress}).catch(()=>{});
-  },[cover,progress,customHeroArt,heroArt]);
+    void invoke("update_stream_artwork",{art,message:cover.returning?"":failure || progress}).catch(()=>{});
+  },[cover,progress,failure,customHeroArt,heroArt]);
   const returnTicket = useRef(0);
   const returnSession = useRef<number | null>(null);
   const dismiss = (notifyNative = true) => {

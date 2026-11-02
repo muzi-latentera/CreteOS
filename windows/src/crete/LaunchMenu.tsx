@@ -136,7 +136,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       <h2>{wifiOnly ? "Amazon Luna" : gfn ? "GeForce NOW" : <>{text("Play on")} {profile.host}</>}</h2>
       <HomeWifiSelect provider={wifiOnly ? "luna" : gfn ? "geforceNow" : "moonlight"} saving={setBusy} />
       {!wifiOnly && <>
-      {gfn && <p>{text("Close GeForce NOW before applying settings. NVIDIA may limit quality according to your membership and device. Codec is managed in the NVIDIA app.")}</p>}
+      {gfn && <p>{text("CreteOS restarts an idle GeForce NOW client to apply these settings. Active or unconfirmed sessions stay open. NVIDIA may limit quality according to your membership and device. Codec is managed in the NVIDIA app.")}</p>}
       {!gfn && <p>{s.isLutris ? s.hostInstalled ? "Installed in Lutris on Bosgame. Launch through MoonDeck Buddy." : s.inventoryError || "Checking the Lutris game and host shortcut…" : text(target === "MoonDeckStream" && s.steamId ? s.hostInstalled ? "Installed on Bosgame. Launch this game directly through MoonDeck Buddy." : s.hostGames ? "This game is not installed on Bosgame. Choose another host app, local install or GeForce NOW." : "Checking whether this game is installed on Bosgame…" : s.moonlightGame ? "Game available on the host." : "Choose a host app. Its advertised apps do not confirm this game is installed.")}</p>}
       {!gfn && s.inventoryError && <p role="status">{s.inventoryError}</p>}
       {!gfn && target === "MoonDeckStream" && s.steamId && <div className="crete-buddy-pair">
