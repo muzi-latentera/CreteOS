@@ -1,0 +1,71 @@
+{
+  "observedAt": "2026-11-02T17:18:32+00:00",
+  "readOnlyAudit": true,
+  "session": {
+    "start": "2026-11-02T17:11:59+00:00",
+    "hostDisconnect": "2026-11-02T17:16:32.633670+00:00",
+    "clientError": -1,
+    "resolution": [
+      2560,
+      1600
+    ],
+    "requestedFps": 120,
+    "codec": "AV1",
+    "requestedBitrateMbps": 80,
+    "incomingFps": 117.62,
+    "renderedFps": 116.82,
+    "networkDroppedPercent": 0.08,
+    "jitterDroppedPercent": 0.5,
+    "meanNetworkLatencyMs": 1,
+    "network": "Hyperoptic_Extra"
+  },
+  "disconnect": {
+    "driver": "AX210 23.150.0.4",
+    "internalFailureEvents": [
+      "2026-11-02T17:16:27.6735178+00:00",
+      "2026-11-02T17:16:27.9379174+00:00"
+    ],
+    "eventId": 5005,
+    "wirelessSecurityStopped": "2026-11-02T17:16:27.9389192+00:00",
+    "wirelessSecuritySucceeded": "2026-11-02T17:16:35.8724016+00:00",
+    "helperSwitchDuringSession": false,
+    "gameSurvived": true,
+    "hostServicesRestarted": false,
+    "conclusion": "G1 adapter internal failure interrupted Extra connection and streaming control channel; recurring adapter/driver fault, underlying trigger not isolated. No evidence of upscaler/game/host service crash causing disconnect."
+  },
+  "upscaler": {
+    "OptiScalerLoaded": true,
+    "dllVersion": "4.1.2.4555",
+    "loadedFrom": "PBZ/platform/steam/OptiScaler/amd_fidelityfx_upscaler_dx12.dll",
+    "loadedInLiveGameProcess": true,
+    "fsr4InitializationEvidence": "FSR4-only auto-exposure branch logged at17:12:36.868381 and17:12:58.072116; contexts then created successfully",
+    "versionInference": "4.x backend confirmed by exact source branch;4.1.2 from verified installed/mapped DLL identity. Info log does not print selected provider version string. No FPS improvement benchmark claimed.",
+    "renderResolution": [
+      1623,
+      1014
+    ],
+    "displayResolution": [
+      2432,
+      1520
+    ],
+    "warning": "amdxcffx64.dll driver-provider load failed; packaged SDK upscaler loaded and FSR4 path initialized, so warning alone is not evidence of fallback. Generic FSR3.X feature/API3.1.6 lines do not identify selected output version.",
+    "primarySource": "https://raw.githubusercontent.com/optiscaler/OptiScaler/ab379b25/OptiScaler/upscalers/ffx/FFXFeature_Dx12.cpp"
+  },
+  "userRequestedGameClose": {
+    "closeSent": [
+      {
+        "pid": 2530170,
+        "name": "PBZ.exe"
+      },
+      {
+        "pid": 2530177,
+        "name": "GameThread"
+      }
+    ],
+    "remaining": []
+  },
+  "configurationChanges": false,
+  "newPrivateBackupRequired": false,
+  "usbUpdated": false,
+  "vaultSync": "pending"
+}
