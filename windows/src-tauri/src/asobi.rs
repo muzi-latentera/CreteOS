@@ -203,6 +203,18 @@ pub async fn launch_asobi_game(window:tauri::Window,shortcut_id:String)->Result<
             while super::streaming::session_current(generation){
                 let open=super::is_process_running("asobideck.exe");seen_client|=open;
                 for line in log.lines(){state.observe(&line);}
+                if state.replaced {
+                    if returning {super::streaming::end_return(&window,&game.provider,generation);}
+                    publish(Phase::Attention);break;
+                }
+                if !super::streaming::launch_current(epoch){
+                    if let Some(last)=last_credit {let _=credit(&game.id,last.elapsed().as_secs_f64(),played_at);}
+                    if !was_open || state.ever_played {
+                        if targets.is_empty(){targets=windows().into_iter().filter_map(|w|process_created(w.pid).map(|born|(w.pid,born))).collect();}
+                        close_idle(&targets);
+                    }
+                    publish(Phase::Ended);break;
+                }
                 publish(state.phase);
                 if last_credit.is_none() && state.phase==Phase::Playing {
                     played_at=super::unix_now_i64();last_credit=Some(std::time::Instant::now());
@@ -214,7 +226,7 @@ pub async fn launch_asobi_game(window:tauri::Window,shortcut_id:String)->Result<
                 }
                 if let Some(last)=last_credit {
                     if last.elapsed().as_secs()>=15 || matches!(state.phase,Phase::Ending|Phase::Ended) || !open {
-                        if credit(&game.id,last.elapsed().as_secs_f64(),played_at).is_ok(){last_credit=Some(std::time::Instant::now());}
+                        if credit(&game.id,last.elapsed().as_secs_f64(),played_at).is_ok(){last_credit=if matches!(state.phase,Phase::Ending|Phase::Ended)||!open{None}else{Some(std::time::Instant::now())};}
                     }
                 }
                 if state.ever_played && matches!(state.phase,Phase::Ending|Phase::Ended) && !returning {
@@ -231,7 +243,7 @@ pub async fn launch_asobi_game(window:tauri::Window,shortcut_id:String)->Result<
                         // Recheck the fresh log before closing only the exact process
                         // instances that rendered this stream. No forced termination.
                         let mut new_session=false;
-                        for line in log.lines(){if line.contains("Takion connected, streaming active")||line.contains("CloudLaunch: Starting cloud stream"){new_session=true;}}
+                        for line in log.lines(){if super::asobi_session::new_activity(&line){new_session=true;}}
                         if !new_session {
                             close_idle(&targets);
                             super::finish_stream_session(window.clone(),&game.provider,||super::streaming::session_current(generation));
@@ -242,12 +254,7 @@ pub async fn launch_asobi_game(window:tauri::Window,shortcut_id:String)->Result<
                     }
                     break;
                 }
-                if !state.ever_played && !super::streaming::launch_current(epoch){
-                    // A controller cancel requests normal close of a newly opened
-                    // client only. Existing/shared clients are never stopped here.
-                    if !was_open {let pending=windows().into_iter().filter_map(|w|process_created(w.pid).map(|born|(w.pid,born))).collect::<Vec<_>>();close_idle(&pending);}
-                    publish(Phase::Attention);break;
-                }
+                if !state.ever_played && !open && started.elapsed().as_secs()>45 {publish(Phase::Attention);break;}
                 if !state.ever_played && started.elapsed().as_secs()>180 {
                     // Missing log readiness is not proof of an idle client.
                     // Expose ASOBI and keep watching; never close it on timeout.

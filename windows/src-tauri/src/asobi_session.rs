@@ -3,11 +3,15 @@
 #[derive(Clone,Copy,Debug,Default,PartialEq)]
 pub enum Phase { #[default] Waiting, Playing, Attention, Ending, Ended }
 #[derive(Default)]
-pub struct State { pub phase:Phase, pub ever_played:bool, transport:bool }
+pub struct State { pub phase:Phase, pub ever_played:bool, pub replaced:bool, transport:bool }
+pub fn new_activity(line:&str)->bool{
+    ["Takion connected, streaming active","CloudLaunch: Starting cloud stream","StreamConn: Initializing session","StreamConn: Cloud connect to","StreamConn: Internet connect to","StreamConn: Starting"].iter().any(|marker|line.contains(marker))
+}
 impl State {
     pub fn observe(&mut self,line:&str){
+        if matches!(self.phase,Phase::Ending|Phase::Ended) && new_activity(line){self.replaced=true;self.phase=Phase::Waiting;}
         if line.contains("Takion connected, streaming active") {self.transport=true;}
-        if self.transport && line.contains("render_frame[") && line.split_once("submitted, result=")
+        if self.transport && !matches!(self.phase,Phase::Ending|Phase::Ended) && line.contains("render_frame[") && line.split_once("submitted, result=")
             .is_some_and(|(_,value)|matches!(value.trim(),"0"|"VK_SUCCESS"|"SUCCESS"|"Success")) {
             self.phase=Phase::Playing;self.ever_played=true;
         }
@@ -28,4 +32,5 @@ impl State {
     }
     #[test]fn frame_without_current_transport_is_ignored(){let mut s=State::default();s.observe("render_frame[1]: submitted, result=0");assert_eq!(s.phase,Phase::Waiting);}
     #[test]fn quit_precedes_home_return(){let mut s=State::default();s.observe("StreamConn: Takion connected, streaming active");s.observe("render_frame[1]: submitted, result=VK_SUCCESS");s.observe("Overlay action: Stop pressed - tearing down stream");assert_eq!(s.phase,Phase::Ending);s.observe("Stream ended (render_frame returned false), returning to UI");assert_eq!(s.phase,Phase::Ended);}
+    #[test]fn replacement_connect_invalidates_old_cleanup_before_first_video(){let mut s=State::default();s.observe("StreamConn: Takion connected, streaming active");s.observe("render_frame[1]: submitted, result=0");s.observe("Stream ended (render_frame returned false), returning to UI");s.observe("StreamConn: Initializing session with host");assert!(s.replaced);assert_eq!(s.phase,Phase::Waiting);}
 }
