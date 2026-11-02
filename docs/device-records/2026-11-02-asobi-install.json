@@ -1,0 +1,33 @@
+{
+  "installPath": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Asobi",
+  "depot": "4505444",
+  "buildId": "26336345",
+  "depotManifest": "1888644453853557893",
+  "computer": "OXPG1",
+  "steamAppId": "4505440",
+  "executables": [
+    {
+      "fileVersion": null,
+      "sha256": "7363D5D4787D2C79B154E2ED964B829314C5A428BA9A184B2905FFA01E03472C",
+      "name": "asobideck.exe",
+      "bytes": 19657728
+    },
+    {
+      "fileVersion": null,
+      "sha256": "3579D75C0C686057F1FAA82168C3CDF42884EDAD94665F1E93155756ED380D2F",
+      "name": "asobi-tile.exe",
+      "bytes": 135168
+    }
+  ],
+  "observedAt": "2026-11-02T02:43:13.8337425+00:00",
+  "baseAppOnly": true,
+  "premiumPurchased": false,
+  "installVerified": true,
+  "firstLaunchObserved": true,
+  "remotePlayObserved": "No consoles found; no stream started",
+  "psnAuthorizationVerified": false,
+  "ps5PairingVerified": false,
+  "creteosIntegration": "Pending verified exported shortcuts and lifecycle; no PlayStation buttons deployed",
+  "profileBackupPolicy": "Do not copy roaming asobi profile, creds.bin or consoles.json; require fresh PSN sign-in and PS5 pairing on replacement device",
+  "cloudObserved": "PSN Sign-in Required: Sign in with PSN to access PS Cloud streaming."
+}
