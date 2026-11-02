@@ -1,0 +1,27 @@
+{
+  "observedAt": "2026-11-02T13:21:55+00:00",
+  "driverVersion": "24.80.0.2",
+  "firstRepeatInternalError": "2026-11-02T13:13:56.7451501+00:00",
+  "fatalNdisError": "2026-11-02T13:14:10.7638252+00:00",
+  "failedStart": "2026-11-02T13:17:21+00:00",
+  "driverRecovered": "2026-11-02T13:17:47+00:00",
+  "connectionRecovered": "2026-11-02T13:17:51+00:00",
+  "latestHelperSuccessfulSwitch": "2026-11-02T13:04:06+00:00",
+  "helperDisconnectedObservation": "2026-11-02T13:14:19+00:00",
+  "additionalDriverErrorsDuringMonitorGap": [
+    "2026-11-02T11:36:34+00:00",
+    "2026-11-02T11:52:14+00:00"
+  ],
+  "monitorEvidence": "Task Ready/stopped at 11:20; previous process ended/status stale; new current process created 13:03:58, helper log has no activity between 11:08 and 13:04. Earlier error times weaken a switch-only explanation; no continuous process audit available.",
+  "currentDeviceCode": 0,
+  "currentDeviceStatus": "OK/Up",
+  "biosVersion": "1.01",
+  "availableMatchingPreviousPackage": "oem106.inf/netwtw6e.inf 23.150.0.4 present in driver store; not installed by this review",
+  "changesApplied": [],
+  "conclusion": "Repeated adapter/driver internal failure confirmed during established connection. No helper connect command recorded immediately before failure. Exact firmware/driver/OS/power/hardware trigger not proven; no claim switching is impossible as a contributing trigger. Weak signal alone does not explain failed device initialization.",
+  "nextDiagnostic": "Controlled observation with switching paused, followed by reviewed OEM/previous compatible driver clean reinstall or rollback if failure persists; stage offline drivers and restore path before disruptive change. No repeated automatic device resets installed.",
+  "sources": [
+    "https://www.intel.com/content/www/us/en/support/articles/000031150/wireless.html",
+    "https://www.intel.com/content/www/us/en/support/articles/000089544/wireless.html"
+  ]
+}

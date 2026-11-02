@@ -1,0 +1,111 @@
+{
+  "installed": {
+    "previousHash": "E16AAC32A57C9E3089E6780E97E5BB200605A1C16F06D9C3853D9341611F829D",
+    "losslessScalingAutomatic": false,
+    "displaySettingsModified": false,
+    "target": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS\\creteos.exe",
+    "companionBrowserReloadRequired": false,
+    "sourceCommit": "1faa909ff3776d241aded2c78e51af7d0670009e",
+    "time": "2026-11-02T13:03:02.6728646+00:00",
+    "computer": "OXPG1",
+    "backup": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS-Bootstrap\\app-updates\\Library-refresh-20261102-130250",
+    "profiles": [
+      {
+        "unchanged": true,
+        "name": "settings.json"
+      },
+      {
+        "unchanged": true,
+        "name": "moonlight_profiles.json"
+      },
+      {
+        "unchanged": true,
+        "name": "geforce_profiles.json"
+      },
+      {
+        "unchanged": true,
+        "name": "custom_data.json"
+      },
+      {
+        "unchanged": true,
+        "name": "stream_wifi_preferences.json"
+      },
+      {
+        "unchanged": true,
+        "name": "recent_games.json"
+      }
+    ],
+    "installedHash": "D2C4C3109193B19DF88ACAA3515B3817FE8D673981BDEF4439BA0F26579A4FD6",
+    "installed": true
+  },
+  "build": {
+    "start": "2026-11-02T12:23:40.6253684+00:00",
+    "sourceCommit": "1faa909ff3776d241aded2c78e51af7d0670009e",
+    "exitCode": 0,
+    "assetVerificationExitCode": 0,
+    "end": "2026-11-02T13:02:36.1469754+00:00",
+    "artifact": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\work\\g1-display-update\\windows\\src-tauri\\target\\release\\creteos.exe",
+    "computer": "OXPG1",
+    "sha256": "D2C4C3109193B19DF88ACAA3515B3817FE8D673981BDEF4439BA0F26579A4FD6"
+  },
+  "wifiHelper": {
+    "time": "2026-11-02T13:04:01.2237751+00:00",
+    "installed": true,
+    "files": [
+      {
+        "name": "WiFiSmart.ps1",
+        "installed": "DE336B76D35A82F0C147BCD145F8422383595A93DE17A4AA8A9A3DE4FAD27CE4",
+        "previous": "1DAA9D5A2FF621C904BF5FD22F87AED29A647FE0B494DBBEBC3E9EA5427CE7C2"
+      },
+      {
+        "name": "Policy.ps1",
+        "installed": "FFF2C6DB5552E479FD21A057951F3CCDEC2E2CCD63B4AF8C0549B64DDB3DAA5B",
+        "previous": "FFF2C6DB5552E479FD21A057951F3CCDEC2E2CCD63B4AF8C0549B64DDB3DAA5B"
+      },
+      {
+        "name": "Sessions.ps1",
+        "installed": "2D57D2AB2DA014545E4CE5DC139E04638A83F112A783AC58480638544AC59576",
+        "previous": "2D57D2AB2DA014545E4CE5DC139E04638A83F112A783AC58480638544AC59576"
+      }
+    ],
+    "adapterDriverChanged": false,
+    "backup": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS-Bootstrap\\app-updates\\ASOBI-WiFi-20261102-130356",
+    "adapterReset": false,
+    "taskState": "Running",
+    "previousTaskState": "Ready"
+  },
+  "library": {
+    "cloud": 31,
+    "remotePlay": 1,
+    "total": 32,
+    "gamesLaunched": false
+  },
+  "verification": {
+    "nativeSerialTests": 155,
+    "frontendFocusedTests": 20,
+    "lifecycleFinalTests": 5,
+    "routeParserFinalTests": 1,
+    "wifiPolicyChecks": 16,
+    "visibleRemoteDialog": "Returnal; Automatic Extra; PC identity retained",
+    "liveGameplayAcceptance": "Pending user launch/quit tests; no game launched by agent",
+    "visibleCloudDialog": "Banishers: Ghosts of New Eden; Automatic Fibre E433; actual Cloud shortcut; metadata/review videos/trailers populated"
+  },
+  "profileFollowup": "Moved ASOBI utility to Apps; optional custom_categories.json included in refreshed backup",
+  "limitations": [
+    "ASOBI controls quality/controller preferences",
+    "Playtime is device stream time, not PSN lifetime time",
+    "PSN authentication and console pairing must be repeated on replacement device"
+  ],
+  "vaultSync": "pending",
+  "privateBackup": {
+    "created": "2026-11-02T13:26:16.348522+00:00",
+    "archiveSHA256": "57cf702a0b18ba3210e2c9f150725b3bd51c66f13d7554c3e2bfc27cd1da56c4",
+    "archiveBytes": 759449631,
+    "filesVerified": 1462,
+    "payloadBytes": 782015103,
+    "sqliteIntegrity": "ok",
+    "archiveContentsVerified": true,
+    "archiveName": "CreteOS-G1-profile-backup-20261102-132532.zip",
+    "independentRecoveryAndAsobiReferenceChecks": true
+  }
+}
