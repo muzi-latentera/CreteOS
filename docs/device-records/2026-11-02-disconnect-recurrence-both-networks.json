@@ -1,0 +1,62 @@
+{
+  "collectedAt": "2026-11-02T18:12:50+00:00",
+  "readOnlyDiagnostic": true,
+  "userReportedRestart": true,
+  "restartTargetNotSpecified": "Do not infer whether AP, G1 or another device was restarted",
+  "latestClientLog": "Moonlight-1793643047.log",
+  "latestError": "Control stream received unexpected disconnect event; Connection terminated: -1",
+  "latestSession": {
+    "network": "Hyperoptic_Extra",
+    "hostConnected": "18:10:53.348663",
+    "adapterFailure": [
+      "18:11:40.7115441",
+      "18:11:40.9876761"
+    ],
+    "hostDisconnected": "18:11:45.623853",
+    "wirelessSecurityRecovered": "18:11:50.0582067",
+    "driverEventId": 5005,
+    "incomingFps": 115.07,
+    "renderedFps": 111.43,
+    "networkDropPercent": 0.17,
+    "jitterDropPercent": 2.55,
+    "meanNetworkLatencyMs": 6,
+    "varianceMs": 8
+  },
+  "earlierFailureOnOtherNetwork": {
+    "network": "Hyperoptic Fibre E433",
+    "adapterFailure": [
+      "18:02:31.6835446",
+      "18:02:31.9602063"
+    ],
+    "wirelessSecurityStopped": "18:02:31.9643532",
+    "wirelessSecurityRecovered": "18:02:36.0840203",
+    "helper": "Extra unavailable; E433 fallback/session held from18:01:51, protect-stream18:01:59",
+    "sameNetworkAtFailureVerifiedByWlan": true,
+    "note": "E433 session continued until18:04; do not claim its final stop was the same -1 event"
+  },
+  "conclusion": "Recurring G1 AX210 internal error occurs on both Extra and E433. Extra/U6 Pro is not a necessary or exclusive trigger; common driver/adapter/device/power/thermal/security-protocol factor still unisolated. Both networks report WPA3, but this alone does not establish a WPA3 fault.",
+  "sunshineService": {
+    "stillRunning": true,
+    "restartCount": 0,
+    "samePidSince": "2026-11-01 17:39:25 GMT"
+  },
+  "gameAfterDisconnect": {
+    "stillRunning": true,
+    "closedOnUserRequest": {
+      "closeSent": [
+        {
+          "pid": 2698272,
+          "name": "PBZ.exe"
+        },
+        {
+          "pid": 2698285,
+          "name": "GameThread"
+        }
+      ],
+      "remaining": []
+    }
+  },
+  "configurationChanges": false,
+  "privateSnapshotUnchanged": "20261102-164418",
+  "vaultSync": "pending"
+}

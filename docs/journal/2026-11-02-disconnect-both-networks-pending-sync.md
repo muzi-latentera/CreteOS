@@ -1,0 +1,10 @@
+# 2 November — AX210 failure on both networks (pending vault sync)
+
+
+## AX210 recurrence on both home networks — 2 November,18:02 and18:11 GMT
+
+User reported restarting a device; target was not specified, so do not claim a verified AP/G1 reboot. Latest stream host connected18:10:53.349, Extra held from18:10:42/protect-stream18:10:51. AX210 Netwtw14 event5005 internal failures18:11:40.712/40.988; Extra wireless security stopped40.992; Sunshine disconnected18:11:45.624; WLAN recovered18:11:50.058. Moonlight-1793643047.log reports unexpected control disconnect/Connection terminated:-1 after~62seconds. Incoming115.07/rendered111.43FPS, network drop0.17%, jitter2.55%, mean network latency6ms/variance8ms. No WiFiSmart switch at failure. Sunshine same PID active/zero restarts; PBZ remained alive. At user's request sent SIGTERM only to current PBZ.exe/GameThread for app4115450; both gone after5seconds, no other app/service stopped.
+
+Important isolation evidence: previous attempt fell back to E433 because Extra unavailable18:01:51. WLAN identifies Hyperoptic Fibre E433 at its own AX210 internal failures18:02:31.684/31.960, security stopped31.964 and recovered18:02:36.084. Thus the same adapter failure occurs on BOTH access networks; Extra/U6 Pro is not a necessary/exclusive trigger. The E433 session later ended18:04 after PBZ stopped, so do not label its final exit as the latest -1. E433's session had much worse network/jitter loss15.61%/9.76%, distinct from adapter-root-cause attribution. Both SSIDs report WPA3; common protocol/driver/hardware/power/thermal factors remain hypotheses, not a diagnosis. Next investigation should focus on the common G1 adapter stack with controlled testing rather than treating an AP reboot as a demonstrated repair.
+
+[Sanitized recurrence receipt](device-records/2026-11-02-disconnect-recurrence-both-networks.json). No driver/AP/network/power/upscaler settings changed; no new game launched.164418 remains the verified configuration backup; diagnostic-only documentation requires no personal-data refresh. USB still older than OptiScaler addition. Vault unavailable; pending sync.
