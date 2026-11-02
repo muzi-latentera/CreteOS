@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::Manager;
 #[path = "gfn_process_guard.rs"]
-mod gfn_process_guard;
+pub(crate) mod gfn_process_guard;
 
 static SESSION_GENERATION: AtomicU64 = AtomicU64::new(0);
 static LAUNCH_EPOCH: AtomicU64 = AtomicU64::new(0);
@@ -308,7 +308,7 @@ fn gfn_process_instances() -> Result<std::collections::BTreeMap<u32,u64>,String>
         let fields=line.split(',').collect::<Vec<_>>();
         if fields.first().is_none_or(|s|!s.trim_matches('"').eq_ignore_ascii_case("GeForceNOW.exe")){continue;}
         let pid=fields.get(1).and_then(|s|s.trim_matches('"').parse::<u32>().ok()).ok_or("Invalid NVIDIA process identity")?;
-        if !super::process_exe_path(pid).is_some_and(|p|root.to_string_lossy().eq_ignore_ascii_case(&p)){return Err("Could not verify a GeForce NOW process path. Nothing was stopped.".into());}
+        if !super::process_exe_path(pid).is_some_and(|p|gfn_process_guard::same_path(&root.to_string_lossy(),&p)){return Err("Could not verify a GeForce NOW process path. Nothing was stopped.".into());}
         result.insert(pid,gfn_process_created(pid)?);
     }
     Ok(result)
@@ -349,7 +349,7 @@ fn nvidia_new_activity(line:&str)->bool{
 fn close_idle_geforce(note: impl Fn(&str)) -> Result<(), String> {
     if !super::is_process_running("GeForceNOW.exe") && !super::is_process_running("GeForceNOWStreamer.exe") { return Ok(()); }
     let root = dirs::data_local_dir().ok_or("No local data folder")?.join("NVIDIA Corporation/GeForceNOW/CEF/GeForceNOW.exe");
-    let candidates = || super::collect_launch_windows().into_iter().filter(|target| target.exe_path.as_deref().is_some_and(|path| root.to_string_lossy().eq_ignore_ascii_case(path))).collect::<Vec<_>>();
+    let candidates = || super::collect_launch_windows().into_iter().filter(|target| target.exe_path.as_deref().is_some_and(|path| gfn_process_guard::same_path(&root.to_string_lossy(),path))).collect::<Vec<_>>();
     let closed_background=candidates().is_empty()&&!super::is_process_running("GeForceNOWStreamer.exe")&&gfn_process_guard::shutdown_complete(&nvidia_log_tail());
     // Window-close can leave NVIDIA's tray/background client alive. Reopen
     // only its ordinary home UI (no route/game arguments) to establish idle

@@ -9479,7 +9479,7 @@ pub(crate) fn finish_stream_session(window: tauri::Window, provider: &str, mut c
         let Some(root) = dirs::data_local_dir() else { return Vec::new(); };
         let directory = root.join("NVIDIA Corporation/GeForceNOW/CEF");
         collect_launch_windows().into_iter().filter(|target| target.exe_path.as_deref().is_some_and(|path| {
-            ["GeForceNOW.exe", "GeForceNOWStreamer.exe"].iter().any(|name| directory.join(name).to_string_lossy().eq_ignore_ascii_case(path))
+            ["GeForceNOW.exe", "GeForceNOWStreamer.exe"].iter().any(|name| streaming::gfn_process_guard::same_path(&directory.join(name).to_string_lossy(),path))
         })).collect::<Vec<_>>()
     };
     let mut foreground_pid = 0;

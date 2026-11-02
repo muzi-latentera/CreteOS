@@ -1,5 +1,9 @@
 //! Identity fence for an already-closed, previously confirmed idle client.
 use std::collections::BTreeMap;
+pub fn same_path(left:&str,right:&str)->bool{
+    fn normal(path:&str)->String{path.replace('/',"\\").trim_start_matches("\\\\?\\").to_ascii_lowercase()}
+    normal(left)==normal(right)
+}
 pub fn same_instances(original: &BTreeMap<u32, u64>, remaining: &BTreeMap<u32, u64>) -> bool {
     !original.is_empty() && remaining.iter().all(|(pid, created)| original.get(pid) == Some(created))
 }
@@ -48,5 +52,13 @@ pub fn shutdown_complete(log:&str)->bool{
         let closed="libraries/application-lifetime.service OnShutdown work completed, closing\n";
         assert!(!shutdown_complete(&(closed.to_owned()+"gfn/StreamerManagerService Advancing to state: Loading")));
         assert!(!shutdown_complete(&(closed.to_owned()+"streamingService onStreamingFirstFrame")));
+    }
+    #[test] fn windows_path_identity_accepts_native_and_configured_separators(){
+        assert!(same_path("C:\\Users\\Muzi\\AppData\\Local\\NVIDIA Corporation/GeForceNOW/CEF/GeForceNOW.exe",r"C:\Users\Muzi\AppData\Local\NVIDIA Corporation\GeForceNOW\CEF\GeForceNOW.exe"));
+        assert!(same_path(r"\\?\C:\Apps\GeForceNOW.exe","c:/apps/geforcenow.EXE"));
+    }
+    #[test] fn process_basename_alone_is_not_identity(){
+        assert!(!same_path("C:/NVIDIA/GeForceNOW.exe","C:/Other/GeForceNOW.exe"));
+        assert!(!same_path("C:/NVIDIA/GeForceNOW.exe","C:/NVIDIA/GeForceNOWStreamer.exe"));
     }
 }
