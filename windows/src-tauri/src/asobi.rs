@@ -39,6 +39,13 @@ impl Reader<'_> {
 }
 fn text<'a>(row:&'a HashMap<String,Value>,key:&str)->Option<&'a str>{match row.get(key)?{Value::Text(v)=>Some(v),_=>None}}
 fn digits(s:&str)->bool{!s.is_empty() && s.len()<=20 && s.bytes().all(|c|c.is_ascii_digit())}
+fn cloud_id(s:&str)->bool{
+    if digits(s){return true}
+    let bytes=s.as_bytes();
+    (20..=64).contains(&bytes.len()) && bytes[..2].iter().all(u8::is_ascii_uppercase)
+        && bytes[2..6].iter().all(u8::is_ascii_digit) && bytes[6]==b'-'
+        && bytes.iter().all(|b|b.is_ascii_uppercase()||b.is_ascii_digit()||matches!(b,b'_'|b'-'))
+}
 fn provider(args:&str)->Option<&'static str>{
     let mut fields=HashMap::new();
     for token in args.split_whitespace(){
@@ -47,7 +54,7 @@ fn provider(args:&str)->Option<&'static str>{
         if !["--cloud","--console","--account","--game"].contains(&key) || fields.insert(key,value).is_some(){return None}
     }
     if fields.get("tile")!=Some(&"true") || !digits(fields.get("--account")?){return None}
-    if let Some(id)=fields.get("--cloud") {return (fields.len()==3 && digits(id)).then_some("playstationCloud")}
+    if let Some(id)=fields.get("--cloud") {return (fields.len()==3 && cloud_id(id)).then_some("playstationCloud")}
     let console=fields.get("--console")?;let game=fields.get("--game")?;
     (fields.len()==4 && console.len()==12 && console.bytes().all(|b|b.is_ascii_hexdigit()) && game.len()<=32 && game.len()>=9 && game.bytes().all(|b|b.is_ascii_uppercase()||b.is_ascii_digit()||b==b'_')).then_some("ps5RemotePlay")
 }
@@ -273,6 +280,7 @@ pub async fn launch_asobi_game(window:tauri::Window,shortcut_id:String)->Result<
     use super::*;
     #[test]fn accepts_only_exported_routes(){
         assert_eq!(provider("--steam-tile --cloud=10016190 --account=123456"),Some("playstationCloud"));
+        for id in ["EP4382-CUSA16761_00-DELIVERUSTHEMOON","EP0149-CUSA05667_00-RAINWORLDEU00000","EP0102-CUSA18008_00-VILLAGEFULLGAMEX","EP9000-CUSA08809_00-SOTC0000000000EU","EP0001-CUSA05526_00-STEEPGAMEEEFIGS1"]{assert_eq!(provider(&format!("--steam-tile --cloud={id} --account=123456")),Some("playstationCloud"));}
         assert_eq!(provider("--steam-tile --console=012345abcdef --account=123456 --game=PPSA01285_00"),Some("ps5RemotePlay"));
         for bad in ["--cloud=1 --account=2","--steam-tile --cloud=1 --account=2 --game=X","--steam-tile --cloud=1 --account=2 --cloud=3","--steam-tile --cloud=1 --account=2 --exec=evil","--steam-tile --console=bad --account=2 --game=PPSA01285_00"]{assert_eq!(provider(bad),None,"{bad}")}
     }
