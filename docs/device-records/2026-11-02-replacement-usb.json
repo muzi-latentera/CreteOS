@@ -1,0 +1,33 @@
+{
+  "initialVerifiedUsbCopy": {
+    "verified": true,
+    "time": "2026-11-02T14:02:00.201340+00:00",
+    "folder": "D:\\CreteOS-Recovery-20261102",
+    "filesVerified": 95,
+    "manifestSHA256": "f53e4536b32897878def1b74403b872ac2c3dc76c002040e0202a95aab0cb1ce",
+    "profileArchiveSHA256": "7a6a16adcca25f818e7583b5ce942673af3d753962fe4e0a768c277dcc1b7282",
+    "executableSHA256": "d2c4c3109193b19df88acaa3515b3817fe8d673981bdef4439ba0f26579a4fd6",
+    "sourceBundleCommit": "1927d3ffb63e06e9e6b85e1807b82ba885d03136",
+    "method": "Each source and destination file SHA-256 checked, USB bytes read back after copy",
+    "legacyPreserved": "D:\\CreteOS-G1",
+    "freshWindowsInstallTested": false
+  },
+  "nativeChecks": {
+    "realPackHashesPassed": true,
+    "nativePowerShell": "5.1.26100.9711",
+    "freshWindowsInstallTested": false,
+    "time": "2026-11-02T13:58:39.8121765+00:00",
+    "whatIfPassed": true,
+    "installedExecutableUnchanged": true,
+    "verified": true,
+    "corruptHashRejected": true,
+    "gamesLaunched": false,
+    "unsafePathRejected": true
+  },
+  "originalUsbPack": "16October2026/source d17320c, preserved intact",
+  "finalRefresh": "After completion commit, refresh source bundle/snapshot/docs to HEAD, regenerate manifest and repeat USB readback. Definitive final identities are in USB-COPY-RECEIPT.json and PACKAGE.json on the USB; no self-referential bundle hash is embedded here.",
+  "profileArchive": "CreteOS-G1-profile-backup-20261102-135343.zip",
+  "currentInstalledAppSource": "1faa909ff3776d241aded2c78e51af7d0670009e",
+  "wifi": "Unresolved; automatic policy paused for observation, driver rollback did not resolve recurrence",
+  "vaultSync": "pending"
+}
