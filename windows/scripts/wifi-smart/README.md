@@ -17,3 +17,7 @@ In Automatic mode, startup and Windows resume notifications select the gaming pr
 
 Windows' cached available-network list can contain only the current AP even while both home networks are in range. When a requested target is missing, the helper requests a native WLAN scan and rechecks visibility before connecting. It rechecks stream protection immediately before the connect call. Pre-launch preparation has a bounded20-second wait for scanning, association and profile confirmation.
 
+# Optional G1 AX210 driver recovery
+
+`Repair-Ax210Driver.ps1` is a manual, device-specific troubleshooting helper. It defaults to read-only `Inspect`. It requires an exported package folder with its per-file `manifest.json`, valid signed catalogs and the exact AX210 hardware match. Explicit `Previous` selects the preserved 23.150.0.4 package; `Current` selects preserved 24.80.0.2. Applying requires Windows administrator approval and refuses an open streaming client. It pauses/restores a running monitor during installation, retains both driver packages and never restarts Windows automatically. Check live PnP/adapter version after applying: the signed-driver inventory can lag. This helper is not a startup task or a claim that a driver rollback proves the root cause. Review the device recovery guide before use on another machine.
+

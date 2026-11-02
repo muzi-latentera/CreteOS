@@ -1,0 +1,68 @@
+{
+  "appliedAt": "2026-11-02T13:36:38.2243155+00:00",
+  "completedAt": "2026-11-02T13:37:01.1588328+00:00",
+  "device": "G1 AX210; exact hardware and signed catalog verified",
+  "beforeVersion": "24.80.0.2",
+  "selectedVersion": "23.150.0.4",
+  "selectedInf": "oem106.inf",
+  "apiSucceeded": true,
+  "rebootRequired": false,
+  "rebootRequested": false,
+  "infSHA256": "0211B0F89692CDE8B7A932DD00F5BD946B16052C7ED5F7DADE1582D1762A2F26",
+  "catalogSHA256": "2F48B087B18E59D0AA8B9B58FC99D245AC2226671EC83305F2E136F77C60CDEC",
+  "packageManifestSHA256": "C28B59B8BB5CDBC0F3CF798444A3A6B813185DCB32097DCD7BEF3848AF08AB7A",
+  "taskRestored": true,
+  "verificationAt": "2026-11-02T13:39:36.8913404+00:00",
+  "liveAdapter": [
+    {
+      "Name": "Wi-Fi 2",
+      "Status": "Up",
+      "DriverInformation": "Driver Date 2025-06-12 Version 23.150.0.4 NDIS 6.60",
+      "DriverFileName": "Netwtw14.sys",
+      "DriverVersion": "23.150.0.4",
+      "DriverDate": "2025-06-12",
+      "LinkSpeed": "574 Mbps"
+    }
+  ],
+  "newFatalErrorsSinceTrial": 0,
+  "connectivity": {
+    "bosgameSsh": {
+      "exitCode": 0,
+      "command": "true",
+      "milliseconds": 443,
+      "gamesLaunched": false
+    },
+    "time": "2026-11-02T13:41:20.1829863+00:00",
+    "https": [
+      {
+        "ok": true,
+        "status": 200,
+        "url": "https://www.microsoft.com",
+        "milliseconds": 739
+      },
+      {
+        "ok": true,
+        "status": 200,
+        "url": "https://github.com",
+        "milliseconds": 74
+      }
+    ]
+  },
+  "verificationCaveat": "Initial 12-second signed-driver inventory still reported old version; later live adapter/PnP and refreshed signed inventory all confirm23.150.0.4. Original raw receipt preserved.",
+  "longTermAcceptance": "Pending normal use, reboot/resume and stream sessions; no claim exact root cause proven",
+  "otherChanges": "No router, BIOS, power, display, wireless credential or Windows Update policy change; no automatic reset task",
+  "sourceScript": "windows/scripts/wifi-smart/Repair-Ax210Driver.ps1",
+  "rollback": "Use explicit Current mode with preserved signed24.80.0.2 package only if reviewed/needed; requires elevation, refuses streaming clients. Do not apply to unrelated hardware.",
+  "subsequentRecurrence": {
+    "firstNewInternalError": "2026-11-02T13:46:55+00:00",
+    "repeatedFatalErrors": "13:48\u201313:49 GMT",
+    "activeVersion": "23.150.0.4",
+    "conclusion": "Rollback did not resolve recurrence; driver-version-only explanation weakened",
+    "userObservation": "Device sitting on blanket; heat/blocked vents possible but not confirmed",
+    "thermalEvidence": "No NIC-temperature data; standard ACPI query access denied and would not establish AX210 temperature anyway",
+    "observationPauseAt": "2026-11-02T13:51:48.5449190+00:00",
+    "wifiAutomaticPaused": true,
+    "automaticConnectionOperationDuringPause": false,
+    "resume": "Run installed WiFiSmart.ps1 -Mode Auto only after reviewed controlled observation; this trial pause is not a replacement-device default."
+  }
+}
