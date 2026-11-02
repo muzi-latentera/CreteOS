@@ -52,8 +52,38 @@ def main():
                        ('llama-swap-manual','90-creteos-igpu.conf')]:
         file=home/'.config/systemd/user'/(unit+'.service.d')/name
         if file.is_file():payloads['gpu/systemd/'+unit+'.service.d/'+name]=file.read_bytes()
-    # Mod records/settings are reference data for the existing host. Patched
-    # game archives, DLLs, Wine prefixes and saves remain outside this export.
+    # PBZ's explicitly installed OptiScaler payload is portable recovery data.
+    # Never include its private full-registry backup or any other prefix data.
+    opti=home/'.local/share/creteos-host/pbz-optiscaler'
+    if (opti/'deployment.json').is_file():
+        deployment=json.loads((opti/'deployment.json').read_text())
+        if deployment['archiveSHA256']!='7465483deac95ccc93cf05efc9e883e00c03d3186ea79304c076c800bc399501':
+            raise RuntimeError('Unexpected PBZ OptiScaler deployment; review backup allowlist')
+        binary=pathlib.Path('/mnt/games/Games/Steam/steamapps/common/PBZ/platform/steam')
+        total=0
+        for item in deployment['files']:
+            relative=pathlib.PurePosixPath(item['path'])
+            allowed=(str(relative) in ['dxgi.dll','OptiScaler.ini','OptiScaler/Streamlined_fetcher_windows.bat'] or
+                     (relative.parts[0]=='OptiScaler' and relative.suffix=='.dll') or
+                     (relative.parts[0]=='Licenses' and relative.suffix in ['.txt','.md']))
+            if relative.is_absolute() or '..' in relative.parts or not allowed:
+                raise RuntimeError('Unexpected PBZ OptiScaler payload path')
+            file=binary/relative
+            if file.is_symlink() or not file.resolve().is_relative_to(binary.resolve()):
+                raise RuntimeError('Linked PBZ OptiScaler payload')
+            data=file.read_bytes();total+=len(data)
+            if len(data)>256*1024*1024 or total>768*1024*1024:
+                raise RuntimeError('Unexpected PBZ OptiScaler payload size')
+            if hashlib.sha256(data).hexdigest()!=item['sha256']:
+                raise RuntimeError('PBZ OptiScaler changed; review and update deployment before backup')
+            payloads['pbz-optiscaler/payload/'+str(relative)]=data
+        for name in ['deployment.json','verification.json','pbz-optiscaler.py']:
+            file=opti/name
+            if not file.is_file() or file.is_symlink() or file.stat().st_size>1024*1024:
+                raise RuntimeError('Missing/unexpected PBZ OptiScaler recovery record')
+            payloads['pbz-optiscaler/'+name]=file.read_bytes()
+    # Other mod records/settings are references for the existing host. Patched
+    # game archives, other DLLs, Wine prefixes and saves remain excluded.
     tools=home/'.local/share/creteos-host/mod-tools/mgsv'
     game=home/'Games/MGS V - THE PHANTOM PAIN'
     references={

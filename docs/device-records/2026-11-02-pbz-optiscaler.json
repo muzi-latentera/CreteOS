@@ -1,0 +1,136 @@
+{
+  "time": "2026-11-02T16:41:49.297964+00:00",
+  "release": "OptiScaler_v10.0.0-pre1_20261102.7z",
+  "url": "https://github.com/optiscaler/OptiScaler-nightly/releases/download/nightly-20261102/OptiScaler_v10.0.0-pre1_20261102.7z",
+  "archiveSHA256": "7465483deac95ccc93cf05efc9e883e00c03d3186ea79304c076c800bc399501",
+  "gameAppId": 4115450,
+  "binaryDirectory": "/mnt/games/Games/Steam/steamapps/common/PBZ/platform/steam",
+  "fsrPayloadVersion": "4.1.2.4555",
+  "settings": {
+    "Dx12Upscaler": "ffx",
+    "UpscalerIndex": "0",
+    "Fsr4Model": "0",
+    "EnableFfxInputs": "true",
+    "UseFfxInputs": "true",
+    "Dxgi": "false",
+    "LogToFile": "true",
+    "LogLevel": "2",
+    "TargetProcessName": "PBZ.exe",
+    "DisableOverlays": "false"
+  },
+  "registrySection": "[Software\\\\Wine\\\\AppDefaults\\\\PBZ.exe\\\\DllOverrides] 1793637709\n\"dxgi\"=\"native,builtin\"\n\n",
+  "runtimeTested": false,
+  "gameLaunched": false,
+  "files": [
+    {
+      "path": "dxgi.dll",
+      "bytes": 26737152,
+      "sha256": "c7986a8feebbd78891ca66f3efb887c5e07d2b3266fd0c4373dbfa4bbe004f11"
+    },
+    {
+      "path": "OptiScaler.ini",
+      "bytes": 58786,
+      "sha256": "d3774a6eb33916d2b834ac40c4208ce2dfdda4f7e82ed4eda81d5f1a92d8cdb7"
+    },
+    {
+      "path": "OptiScaler/Streamlined_fetcher_windows.bat",
+      "bytes": 3330,
+      "sha256": "4052e172f464235c9b33bcefd63965250a592f11129d0dee032942db3453cae3"
+    },
+    {
+      "path": "OptiScaler/amd_fidelityfx_framegeneration_dx12.dll",
+      "bytes": 29679376,
+      "sha256": "e6843252f58b0341a0d80f6a20bc0d840643ee95bc48c22cac08745344577bb6"
+    },
+    {
+      "path": "OptiScaler/amd_fidelityfx_framegeneration_vk.dll",
+      "bytes": 36806928,
+      "sha256": "d002dabff8c5e71eaa715fc99438cd4dc81230262a7897b16bc402efec3498b4"
+    },
+    {
+      "path": "OptiScaler/amd_fidelityfx_loader_dx12.dll",
+      "bytes": 39184,
+      "sha256": "e2191d3c0828be45eb8affd4e3ec0378f2293adc345b772a7170edcf3b021ecb"
+    },
+    {
+      "path": "OptiScaler/amd_fidelityfx_loader_vk.dll",
+      "bytes": 39184,
+      "sha256": "38a56a01fb3565c0757d9f5c1e4e69de4b65e5f2e5769b323b200dc1f142bab9"
+    },
+    {
+      "path": "OptiScaler/amd_fidelityfx_upscaler_dx12.dll",
+      "bytes": 57664272,
+      "sha256": "aad4fccccb29084a655f9a4f9f613bd22c8c03fb4a0f8840148cc6543b4ccace"
+    },
+    {
+      "path": "OptiScaler/amd_fidelityfx_upscaler_vk.dll",
+      "bytes": 36135696,
+      "sha256": "4a7e895af6e0b615d40a84d59eb8c2b1054ad91cdd0c739567940270d51bdab7"
+    },
+    {
+      "path": "OptiScaler/dlssg_to_fsr3_amd_is_better.dll",
+      "bytes": 3041792,
+      "sha256": "14e83096f4e7648b89a724208c6219508b44563ce8c44967c60a5fa46a9221e2"
+    },
+    {
+      "path": "OptiScaler/libxell.dll",
+      "bytes": 415368,
+      "sha256": "d2030dcd694fda8f2ec7e044b13e6db8f0b56d4ba9113a5efad334e3f3ded8c7"
+    },
+    {
+      "path": "OptiScaler/libxess.dll",
+      "bytes": 77795704,
+      "sha256": "251659dd84a3e84de67c886a4186e01f3eca49b00641906fe38bb6b807e5d5b7"
+    },
+    {
+      "path": "OptiScaler/libxess_dx11.dll",
+      "bytes": 156016,
+      "sha256": "c7cfe86f0c9d94e4fb3696d3cd5035e2bbb6a8b1b0572f8b7395a4cdfd0c625e"
+    },
+    {
+      "path": "OptiScaler/libxess_fg.dll",
+      "bytes": 22957432,
+      "sha256": "ec5e0c65e075570c6ede72618bb666d0be0c2e10b2ea9762c0fe8cb8e375ab27"
+    },
+    {
+      "path": "OptiScaler/D3D12_OptiScaler/D3D12Core.dll",
+      "bytes": 3351064,
+      "sha256": "07d286c306f8117321422affd9e6388c12d0fb4be1c7fc689d9e899324feeb24"
+    },
+    {
+      "path": "Licenses/DirectX_LICENSE.txt",
+      "bytes": 13147,
+      "sha256": "5239850894610071566f7ecee0b751fde43c862032d92b99d7d0f596b3433ebd"
+    },
+    {
+      "path": "Licenses/FidelityFX_v2_LICENSE.md",
+      "bytes": 66649,
+      "sha256": "faeb8ef30681785235183e6393c920ad070955c2d2cae6c4b3a91b6a712767b7"
+    },
+    {
+      "path": "Licenses/XeSS_LICENSE.txt",
+      "bytes": 4194,
+      "sha256": "784be42c39a4a4d03cf85d88e15e59d75828fca773ce45b8dbfffbd7eaf208df"
+    }
+  ],
+  "verification": {
+    "verified": true,
+    "files": 18,
+    "fsrPayloadVersion": "4.1.2.4555",
+    "runtimeTested": false,
+    "gameLaunched": false
+  },
+  "nativeFsrStillOriginal": true,
+  "independentPackageComparison": true,
+  "rollbackTestsPassed": 3,
+  "runtimeAcceptance": "Pending user launch; no game started",
+  "helperSHA256": "d65cc88cc532fa9a1068fdc293fb4ea9f63c60b8826a3a8fffd5b43860c0638a",
+  "privateBackup": {
+    "archiveSHA256": "eac746cff8b83bf64f29c6340d0fcdd7c7b3338d6de3e1335d2beb6cfe43d0f6",
+    "filesVerified": 1505,
+    "archiveContentsVerified": true,
+    "sqliteIntegrity": "ok",
+    "name": "CreteOS-G1-profile-backup-20261102-164418.zip"
+  },
+  "usbUpdated": false
+}
