@@ -1,0 +1,100 @@
+{
+  "purpose": "PlayStation identity, Xbox/Game Pass membership, local/cloud capability and matching edition selection",
+  "build": {
+    "start": "2026-11-02T19:17:00.3041784+00:00",
+    "sourceCommit": "2ae6c9b3010634f27528be5916b6faf490cdb7dc",
+    "exitCode": 0,
+    "assetVerificationExitCode": 0,
+    "end": "2026-11-02T19:21:25.2574933+00:00",
+    "artifact": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\work\\g1-display-update\\windows\\src-tauri\\target\\release\\creteos.exe",
+    "computer": "OXPG1",
+    "sha256": "88745D2EBA5A3ACEBC67A6641B63993208673F5EE6C5B0952536B64C024C4F5D"
+  },
+  "install": {
+    "artifact": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\work\\..\\outputs\\CreteOS-G1-platform-availability.exe",
+    "sourceCommit": "2ae6c9b3010634f27528be5916b6faf490cdb7dc",
+    "time": "2026-11-02T19:21:32.4543375+00:00",
+    "installedHash": "88745D2EBA5A3ACEBC67A6641B63993208673F5EE6C5B0952536B64C024C4F5D",
+    "bundledAssetsVerified": true,
+    "installed": true,
+    "backup": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS-Bootstrap\\app-updates\\Platform-availability-20261102-192128",
+    "profiles": [
+      {
+        "unchanged": true,
+        "name": "settings.json"
+      },
+      {
+        "unchanged": true,
+        "name": "moonlight_profiles.json"
+      },
+      {
+        "unchanged": true,
+        "name": "geforce_profiles.json"
+      },
+      {
+        "unchanged": true,
+        "name": "custom_data.json"
+      },
+      {
+        "unchanged": true,
+        "name": "stream_wifi_preferences.json"
+      },
+      {
+        "unchanged": true,
+        "name": "recent_games.json"
+      },
+      {
+        "unchanged": true,
+        "name": "luna_playtime.json"
+      }
+    ],
+    "target": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS\\creteos.exe",
+    "networkSettingsChanged": false,
+    "gamesLaunched": false,
+    "previousHash": "D2C4C3109193B19DF88ACAA3515B3817FE8D673981BDEF4439BA0F26579A4FD6",
+    "computer": "OXPG1"
+  },
+  "tests": {
+    "unitSuite": {
+      "files": 59,
+      "tests": 270,
+      "passed": true
+    },
+    "affectedClassificationTestsRerun": 6,
+    "chromiumDistinctTestsPassed": 3,
+    "typecheck": true,
+    "bundledAssetsVerified": true,
+    "mockedNativeFixtures": true,
+    "gamesLaunched": false
+  },
+  "liveUiVerification": {
+    "installedNativeApp": true,
+    "allGames": 377,
+    "playStationAll": 32,
+    "playStationCloud": 32,
+    "playStationLocal": 0,
+    "xboxCloud": 32,
+    "xboxLocal": 0,
+    "allCloud": 205,
+    "platformBadgesObserved": [
+      "PlayStation",
+      "Xbox"
+    ],
+    "gamesLaunched": false
+  },
+  "backupStatus": "Fresh archive independently verified; previous 182329 snapshot preserved",
+  "usbUpdated": false,
+  "vaultSync": "pending",
+  "backup": {
+    "created": "2026-11-02T19:29:56.095397+00:00",
+    "archive": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\outputs\\CreteOS-G1-profile-backup-20261102-192904.zip",
+    "archiveBytes": 1033657828,
+    "archiveSHA256": "eb93b004b2813edc419f84b4972c4a8fa076cf69e97a99afbde22c0e81269529",
+    "filesVerified": 1522,
+    "payloadBytes": 1190401807,
+    "sqliteIntegrity": "ok",
+    "optionalMissing": [],
+    "archiveContentsVerified": true,
+    "recoveryExecutableSHA256": "88745D2EBA5A3ACEBC67A6641B63993208673F5EE6C5B0952536B64C024C4F5D"
+  }
+}

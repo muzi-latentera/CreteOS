@@ -4,7 +4,9 @@ Maintained device record, updated 2 November 2026 (Europe/London). Covers this G
 
 ## Current state
 
-**18:20 PCIe ASPM trial: Off on AC/DC; long-stream acceptance pending.** Verified private snapshot `CreteOS-G1-profile-backup-20261102-182329.zip`: 1519 payload files, 1190242528 uncompressed bytes, 1033491332 ZIP bytes; SHA256 `54ef79f0ee5f7bfa610c54387b8e844124dfdc6e23880b849dd7664848e14685`. Per-file staged/decompressed verification and SQLite integrity passed, no optional inputs missing. Native power reference confirms0/0; original plan/values, exact trial helper and result verified inside archive. Previous164418 and143255 snapshots preserved.
+**Platform/classification update installed19:21 and verified in the native UI. Current private recovery archive: `CreteOS-G1-profile-backup-20261102-192904.zip`; SHA256 `eb93b004b2813edc419f84b4972c4a8fa076cf69e97a99afbde22c0e81269529`. Previous snapshots preserved. USB copy is older and not current.**
+
+**18:20 PCIe ASPM trial: Off on AC/DC; long-stream acceptance pending.** Historical trial snapshot `CreteOS-G1-profile-backup-20261102-182329.zip`: 1519 payload files, 1190242528 uncompressed bytes, 1033491332 ZIP bytes; SHA256 `54ef79f0ee5f7bfa610c54387b8e844124dfdc6e23880b849dd7664848e14685`. Per-file staged/decompressed verification and SQLite integrity passed, no optional inputs missing. Native power reference confirms0/0; original plan/values, exact trial helper and result verified inside archive. Previous164418 and143255 snapshots preserved.
 
 **PBZ OptiScaler/FSR4.1.2 runtime initialized; AX210 recurrence remains unresolved.** Latest recovery snapshot is recorded above; USB copy predates OptiScaler and the PCIe trial.
 
@@ -14,16 +16,16 @@ Maintained device record, updated 2 November 2026 (Europe/London). Covers this G
 | Panel | 2560 × 1600 landscape,16:10,144Hz; latest captured streams requested120FPS, earlier15:13 session90FPS; no profile change in this audit |
 | Native installation | `%LOCALAPPDATA%\CreteOS\creteos.exe` |
 | Personal data | `%LOCALAPPDATA%\CreteOS`; preserve this directory during updates |
-| Recovery backup | `CreteOS-G1-profile-backup-20261102-182329.zip` verified; PCIe trial0/0, before-plan/rollback helper, profiles and host OptiScaler recovery files; previous snapshots preserved; USB older |
+| Recovery backup | `CreteOS-G1-profile-backup-20261102-192904.zip`; 1522 payloads, SHA256 `eb93b004b2813edc419f84b4972c4a8fa076cf69e97a99afbde22c0e81269529`; new executable, profiles, PCIe trial and host recovery inputs verified; prior snapshots preserved; USB older |
 | Wi-Fi driver | AX210 23.150.0.4 selected 2 November 13:36 GMT; failure recurred, so rollback is not a verified fix. Automatic Wi-Fi policy restored 14:30 at user request; fault remains unresolved |
 | Bootstrap/helpers/backups | `%LOCALAPPDATA%\CreteOS-Bootstrap` |
 | Source branch | `codex/g1-smart-wifi`; contains the G1 display and Steam password-login changes too |
-| Installed executable source | `1faa909ff3776d241aded2c78e51af7d0670009e` (PlayStation integration; retains earlier streaming fixes) |
-| Installed executable SHA-256 | `D2C4C3109193B19DF88ACAA3515B3817FE8D673981BDEF4439BA0F26579A4FD6` |
-| Build / install | Built locally on OXPG1 2 November 12:23:40–13:02:36 GMT; installed 13:03:02 GMT |
-| Previous executable | `CreteOS-Bootstrap\app-updates\Library-refresh-20261102-130250` (previous E16AAC32… artifact) |
+| Installed executable source | `2ae6c9b3010634f27528be5916b6faf490cdb7dc` (platform badges and Local/Cloud classification) |
+| Installed executable SHA-256 | `88745D2EBA5A3ACEBC67A6641B63993208673F5EE6C5B0952536B64C024C4F5D` |
+| Build / install | Built locally on OXPG1 `2026-11-02T19:17:00.3041784+00:00` to `2026-11-02T19:21:25.2574933+00:00`; installed `2026-11-02T19:21:32.4543375+00:00`; assets/hash verified |
+| Previous executable | D2 (`D2C4C3109193B19DF88ACAA3515B3817FE8D673981BDEF4439BA0F26579A4FD6`), retained in `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Platform-availability-20261102-192128` |
 | Luna Companion | 0.1.2, Chrome extension `gmneapkhejdngoenacdnamaddbfcihab`, permanent folder `CreteOS\LunaCompanion` |
-| Latest live acceptance | 2 November: 32 PlayStation routes verified; Remote Play/Cloud settings and populated Banishers media observed; six installer profile checks preserved. Live PS gameplay/launch/quit acceptance pending. |
+| Latest live acceptance | 2 November19:24–19:26: native PS32 Cloud/0 Local and Xbox32 Cloud/0 Local, correct badges, all-source Cloud205. No games launched; live PS launch/quit and Wi-Fi streaming acceptance remain pending. |
 
 The app version remains 0.1.0 across multiple builds. Identify an artifact by source commit and executable hash, never by version or file date alone. Documentation commits after the executable's source commit do not imply a newer executable was installed.
 
@@ -591,3 +593,9 @@ Local requires an explicit install on this handheld; cloud/PlayStation shortcuts
 Verification so far: TypeScript check passed; focused model/edition/streaming/classification and cached-host tests passed (32 distinct tests). Two Chromium UI tests passed: existing1280x800 library/details layout and the new seven-entry PlayStation/Xbox/GFN/Lutris/Local fixture. Screenshot visually confirms PlayStation and Xbox marks while Cloud displays remote-only entries. Entire unit suite/local production build and native install verification recorded below after completion; source changes alone are not an install. No game launch performed. Recovery executable/private archive must be refreshed after actual install;182329 remains the verified previous snapshot until then. USB absent/older; no copy claimed. Vault unavailable; dated journal pending sync.
 
 Merged editions: selecting Cloud or Local now presents/opens an edition matching that location, retaining the alternatives and last-played time. Three distinct browser checks cover source/badge membership, Local/Cloud copy selection and the existing1280x800 library/details layout;270 unit tests passed, with the affected6 classification tests rerun after the edition-selection correction. Intermediate5a7750d local build passed but was not installed; final deployment is recorded separately.
+
+Platform update deployment: source `2ae6c9b3010634f27528be5916b6faf490cdb7dc`, SHA256 `88745D2EBA5A3ACEBC67A6641B63993208673F5EE6C5B0952536B64C024C4F5D`, installed19:21:32 GMT on native OXPG1. Previous D2 backed up; all7 checked profile files preserved byte-for-byte before GUI startup. Source launch IDs/pairings and network/power policy unchanged. Native asset verifier passed. Full270 tests and3 distinct browser tests passed, affected6 classification tests rerun after final edition-selection change. Initial native library scan still pending at this checkpoint; no games launched. New archive required; old182329 retained.
+
+Native installed UI verified after initial scan: 377 total games; PlayStation filter 32, Cloud 32, Local 0, with PlayStation badges; Xbox + Cloud 32 with Xbox badges and Local 0; all-source Cloud 205. Filters restored to All Sources/All Games. No games launched. Wi-Fi/power settings unchanged; streaming acceptance remains for Muzi. Fresh private backup is being prepared; USB absent, older USB copy is stale; vault sync pending.
+
+Platform update backup complete: `CreteOS-G1-profile-backup-20261102-192904.zip`, 1522 payload files / 1190401807 uncompressed bytes / 1033657828 ZIP bytes, SHA256 `eb93b004b2813edc419f84b4972c4a8fa076cf69e97a99afbde22c0e81269529`. All staged/decompressed payload hashes and SQLite integrity passed, no missing optional inputs. Independent archive hash and recovery executable SHA88745 verified; native power reference still AC/DC0, Auto Wi-Fi unpaused, ASOBI credential-free reference valid, nested host manifest hashes verified. Previous182329 snapshot preserved. Restore using the guide/verified archive, with fresh account authorization and hardware review as documented; do not replay the experimental PCIe setting automatically on a replacement. USB absent/older, not updated. Vault journal pending sync.
