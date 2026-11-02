@@ -1,0 +1,34 @@
+{
+  "autoRestoredAt": "2026-11-02T14:30:52.9124037+00:00",
+  "paused": false,
+  "overridesCleared": true,
+  "driverChanged": false,
+  "adapterReset": false,
+  "streamsAtDispatch": [],
+  "observedAt": "2026-11-02T14:33:50.1707095+00:00",
+  "monitor": {
+    "time": "2026-11-02T14:33:46.5645734Z",
+    "mode": "Monitor",
+    "current": "Hyperoptic_Extra",
+    "target": "Hyperoptic_Extra",
+    "reason": "idle-gaming-default",
+    "receiveMbps": 0.15,
+    "steamDownload": false,
+    "windowsDownload": false,
+    "streamGuard": false,
+    "paused": false,
+    "override": "",
+    "startupOrResume": false,
+    "powerEvents": true
+  },
+  "profileBackup": {
+    "archiveSHA256": "00fa25febc34321a0e6bfbf57cd8fbede4d66e1fd2f64a97a0c7bc4249077453",
+    "filesVerified": 1499,
+    "payloadBytes": 1003028758,
+    "archiveContentsVerified": true,
+    "sqliteIntegrity": "ok"
+  },
+  "profileArchive": "CreteOS-G1-profile-backup-20261102-143255.zip",
+  "hostFps": "Read-only inspection only; no Steam preferences changed or game launched. Enable FPS-only overlay in host Steam In Game settings; visual acceptance pending.",
+  "vaultSync": "pending"
+}

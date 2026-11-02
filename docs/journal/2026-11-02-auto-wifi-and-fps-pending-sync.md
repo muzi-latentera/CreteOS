@@ -1,0 +1,7 @@
+# 2 November — automatic Wi-Fi and FPS (pending vault sync)
+
+Explicit user reply: turn automatic Wi-Fi switching back on. Native Auto14:30:52 changed Paused true to false, cleared temporary overrides; no local Moonlight/GeForceNOWStreamer/ASOBI processes, no driver/reset/forced connect operation. Normal idle/download/provider/session protection rules resume. Driver23.150.0.4 retained; recurrence unresolved.
+
+Read-only Bosgame SSH inspected sanitized numeric overlay/FPS preferences and game processes; no confirmed stored FPS switch and no running game processes found. No host config edits or Steam/game restart. Explain Steam host FPS-only performance counter via Settings/In Game, distinct from Moonlight transport FPS; visual counter acceptance pending user GUI enablement. Fresh private backup and USB/source sync follow control change. Canonical vault unavailable.
+
+Fresh snapshot CreteOS-G1-profile-backup-20261102-143255.zip: verified14:34:59, SHA256 00fa25febc34321a0e6bfbf57cd8fbede4d66e1fd2f64a97a0c7bc4249077453, 1499 files / 1003028758 payload bytes, ZIP 847114911; full decompressed hashes/SQLite and independent executable/control=false checks passed. Native status14:33:50 Auto/Extra/idle, override empty. No further driver or host Steam preference change. Final source/docs/USB refresh follows completion commit; final external receipt records exact copy identities. Prior private archives preserved. No fresh Windows/game-FPS visual acceptance claimed.

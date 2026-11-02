@@ -21,7 +21,7 @@ receipt={'verified':True,'time':datetime.datetime.now().astimezone().isoformat()
 index=drive/'START-HERE.txt'
 if index.exists():
  old=dest/'Legacy-entry-points'/('START-HERE-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S')+'.txt');old.parent.mkdir(exist_ok=True);shutil.copy2(index,old)
-index.write_text('LATEST CRETEOS REPLACEMENT WINDOWS SETUP\n\nOpen '+pack.name+'\\START-HERE.txt first.\nThe older CreteOS-G1 folder is preserved October history.\nThe current pack contains the current executable, verified private profiles, source and setup/recovery instructions.\nRead the documented account/pairing and hardware-specific steps before setup.\nWi-Fi fault on the original G1 remains unresolved; its diagnostic pause/driver must not be blindly applied to a replacement.\n',encoding='utf-8')
+index.write_text('LATEST CRETEOS REPLACEMENT WINDOWS SETUP\n\nOpen '+pack.name+'\\START-HERE.txt first.\nThe older CreteOS-G1 folder is preserved October history.\nThe current pack contains the current executable, verified private profiles, source and setup/recovery instructions.\nRead the documented account/pairing and hardware-specific steps before setup.\nWi-Fi fault on the original G1 remains unresolved; review current diagnosis and never apply its driver/adapter settings blindly to a replacement.\n',encoding='utf-8')
 (pack/'USB-COPY-RECEIPT.json').write_text(json.dumps(receipt,indent=2)+'\n',encoding='utf-8')
 (pack.parent/'CreteOS-G1-USB-copy-latest.json').write_text(json.dumps(receipt,indent=2)+'\n',encoding='utf-8')
 print(json.dumps(receipt))
