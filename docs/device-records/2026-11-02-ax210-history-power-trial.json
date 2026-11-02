@@ -1,0 +1,84 @@
+{
+  "auditDate": "2026-11-02",
+  "device": "ONEXPLAYER G1 A",
+  "windowsBuild": "26200",
+  "currentDriver": "23.150.0.4",
+  "latestIntelDriver": "24.80.0.2",
+  "latestIntelAlreadyFailedOnDevice": true,
+  "publishedMatchingBios": "1.01",
+  "installedBios": "1.01",
+  "newerMatchingBiosVerified": false,
+  "pendingWindowsReboot": false,
+  "oldestRetainedInternalError": {
+    "time": "2026-10-17T15:13:42.3592149+01:00",
+    "provider": "Netwtw12",
+    "id": 5005,
+    "message": "Intel(R) Wi-Fi 6E AX210 160MHz #2 : Has encountered an internal error and has failed."
+  },
+  "internalErrorDates": {
+    "2026-10-17": 2,
+    "2026-10-19": 16,
+    "2026-10-20": 14,
+    "2026-10-22": 16,
+    "2026-10-23": 6,
+    "2026-10-26": 6,
+    "2026-11-01": 14,
+    "2026-11-02": 90
+  },
+  "driverTimeline": [
+    "18October21:20 Windows Update installed23.150.0.4 (SetupAPI)",
+    "21October00:24 Intel24.80.0.2 installed (SetupAPI)",
+    "2November13:36 rollback23.150.0.4; internal failures recur"
+  ],
+  "interpretation": "Oldest retained error17October15:13:42BST predates18October Windows driver update,21October manual Intel update, later auto-WiFi, ASOBI and OptiScaler. It overlaps initial CreteOS/profile/client setup; causation not established. Retention does not prove it was the first-ever fault. Errors are not equivalent to every session being unusable.",
+  "initialSetup17October": {
+    "portableImport": "14:52:49BST,643 profile/art files",
+    "homeSetupBackup": "15:16:23BST",
+    "activities": "CreteOS import/install, Moonlight/GFN client setup and home/controller startup configuration",
+    "networkDriverChangeAtFirstErrorVerified": false,
+    "powerPlanChangeAtFirstErrorVerified": false
+  },
+  "trial": {
+    "time": "2026-11-02T18:20:05.4144876+00:00",
+    "mode": "Apply",
+    "scheme": "381b4222-f694-41f0-9685-ff5bb260df2e",
+    "before": {
+      "dc": 2,
+      "ac": 2
+    },
+    "changed": true,
+    "trialOnly": true,
+    "gameLaunched": false,
+    "adapterReset": false,
+    "after": {
+      "dc": 0,
+      "ac": 0
+    }
+  },
+  "trialScope": "Only Balanced plan PCIe ASPM AC/DC2->0; plan-wide PCIe links, not WiFi-only; no adapter reset, driver, TDP, CPU, display, Windows reboot or game launch. More power consumption possible. Trial, not confirmed fix.",
+  "beforePowerPlanSHA256": "18195B98C19B1ABC412F24DA62E6276B7ED3150E537B175BC0C9BE10156C178A",
+  "firstApplyAttempt": "Unprivileged power-plan export failed0x522 before any write; elevated application then verified2->0",
+  "sources": [
+    "https://onexplayerstore.com/pages/drivers-and-faqs",
+    "https://www.intel.com/content/www/us/en/download/19351/intel-wireless-wi-fi-drivers-for-windows-10-and-windows-11.html",
+    "https://learn.microsoft.com/en-us/windows-hardware/design/component-guidelines/power-management-for-storage-hardware-devices-nvme",
+    "https://www.intel.com/content/www/us/en/support/articles/000046272.html"
+  ],
+  "backupStatus": "verified",
+  "usbUpdated": false,
+  "vaultSync": "pending",
+  "privateBackup": {
+    "name": "CreteOS-G1-profile-backup-20261102-182329.zip",
+    "sha256": "54ef79f0ee5f7bfa610c54387b8e844124dfdc6e23880b849dd7664848e14685",
+    "files": 1519,
+    "archiveContentsVerified": true
+  },
+  "shortObservation": {
+    "time": "2026-11-02T18:23:08+00:00",
+    "powerAc": 0,
+    "powerDc": 0,
+    "newFatalEvents": 0,
+    "adapter": "Up",
+    "streamTested": false
+  }
+}
