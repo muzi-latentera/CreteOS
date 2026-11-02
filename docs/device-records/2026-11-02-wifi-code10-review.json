@@ -1,0 +1,28 @@
+{
+  "observedAt": "2026-11-02T11:18:58.6730380+00:00",
+  "device": "Intel Wi-Fi 6E AX210 160MHz",
+  "driverVersion": "24.80.0.2",
+  "currentDeviceProblemCode": 0,
+  "currentStatus": "OK/connected",
+  "latestFailure": {
+    "firstInternalError": "2026-11-02T10:46:07+00:00",
+    "repeatedFatalErrors": "2026-11-02T10:57:25\u201310:58:06+00:00",
+    "restart": "2026-11-02T11:08:04+00:00",
+    "failedStartEvents": [
+      "5001 resources unavailable",
+      "5010 invalid value returned by adapter",
+      "5006 version-number error"
+    ],
+    "recoveryDriverEnabled": "2026-11-02T11:14:16+00:00",
+    "connectionRecovered": "2026-11-02T11:14:20+00:00"
+  },
+  "driverErrorCountsByDate": {
+    "2026-11-01": 14,
+    "2026-11-02": 39
+  },
+  "switchingCorrelation": "No successful helper connection switch immediately precedes failure. First current-morning driver error at 10:46; helper target-unavailable at 10:53; disconnected/backoff at 10:57. Windows own auto-connect to E433 briefly succeeded 10:57:57 then driver disconnected it.",
+  "monitorState": "Ready/not running at 11:20; last result 1073807364 (0x40010004), status last updated 11:13:32; task history had no matching events",
+  "conclusion": "Adapter/driver internal fault and failed initialization confirmed; exact driver/firmware/power/hardware trigger not proven. Weak signal alone does not explain failed device start. Version event alone does not prove wrong installed package.",
+  "changesMade": "None: no driver, power, router, adapter, Wi-Fi profile or monitor changes",
+  "limits": "Current signal is post-recovery only. Code 10 itself user-observed; captured post-recovery device problem code is 0. Not a trace of firmware execution."
+}
