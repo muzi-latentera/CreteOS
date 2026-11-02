@@ -1,0 +1,93 @@
+{
+  "reviewedAt": "2026-11-02T16:07:04.842191+00:00",
+  "readOnly": true,
+  "session": {
+    "clientStart": "2026-11-02T15:13:37+00:00",
+    "hostConnected": "2026-11-02T15:13:41+00:00",
+    "gameRunning": "2026-11-02T15:13:49+00:00",
+    "gameStopped": "2026-11-02T16:03:28+00:00",
+    "clientQuit": "2026-11-02T16:03:28+00:00",
+    "requested": "2560x1600/90FPS/HEVC/SDR",
+    "requestedBitrateKbps": 80000,
+    "hostEncoderBitrate": 62988000,
+    "hostEncoderGpu": "RX9070XT",
+    "hostCaptureHz": 90,
+    "stats": [
+      "Incoming frame rate from network: 88.72 FPS",
+      "Decoding frame rate: 88.72 FPS",
+      "Rendering frame rate: 88.71 FPS",
+      "Host processing latency min/max/average: 2.0/676.0/3.1 ms",
+      "Frames dropped by your network connection: 0.00%",
+      "Frames dropped due to network jitter: 0.01%",
+      "Average network latency: 1 ms (variance: 2 ms)",
+      "Average decoding time: 0.88 ms",
+      "Average frame queue delay: 0.04 ms",
+      "Average rendering time (including monitor V-sync latency): 1.34 ms"
+    ],
+    "network": "Extra held throughout; changed to E433 only16:03:44 after quit",
+    "clientRefreshNote": "Moonlight logged pacing disabled with144Hz display/90FPS stream; no display change made",
+    "hostWarnings": "32 skipped-FEC-for-large-frame warnings; no corresponding sustained client network loss. Capture failed only after game exit/reset to1920x1080, not a mid-session crash."
+  },
+  "previousShortAttempt": {
+    "start": "14:58:21",
+    "duration": "about90seconds",
+    "network": "Extra unavailable fallbackE433",
+    "lossPercent": 6.97,
+    "jitterLossPercent": 0.67,
+    "latencyMs": 16
+  },
+  "fsr": {
+    "nativeFiles": [
+      {
+        "path": "ProjectPBZ/Plugins/FSR/Source/fidelityfx-sdk/Kits/FidelityFX/signedbin/amd_fidelityfx_framegeneration_dx12.dll",
+        "bytes": 40085776,
+        "modified": "2026-10-29T02:04:45.838578+00:00",
+        "sha256": "02297beedd285e822d3a64f314cf00faf378dcec0edc47ff0c4dd71b3a8c2f18",
+        "fileVersionCandidate": "4.0.1.2740"
+      },
+      {
+        "path": "ProjectPBZ/Plugins/FSR/Source/fidelityfx-sdk/Kits/FidelityFX/signedbin/amd_fidelityfx_loader_dx12.dll",
+        "bytes": 26376,
+        "modified": "2026-10-29T02:02:19.618348+00:00",
+        "sha256": "e2d85aa05a9bd9ed8b38935fdf5199372cca6f74c12015143bb6f945ee1608aa",
+        "fileVersionCandidate": "2.3.0.2740"
+      },
+      {
+        "path": "ProjectPBZ/Plugins/FSR/Source/fidelityfx-sdk/Kits/FidelityFX/signedbin/amd_fidelityfx_upscaler_dx12.dll",
+        "bytes": 28761864,
+        "modified": "2026-10-29T02:04:47.888497+00:00",
+        "sha256": "d0dcccc74a43c44ba435b7a369b456e0970d8a4464e4bd683119b374f2c9fb46",
+        "fileVersionCandidate": "4.1.1.2740"
+      }
+    ],
+    "prefixDlls": [
+      {
+        "name": "amdxc64.dll",
+        "resolved": "/home/muzidube/.local/share/Steam/steamapps/common/Proton - Experimental/files/lib/wine/x86_64-windows/amdxc64.dll",
+        "sha256": "b8c91c12ecf31489af015818ad6e12b6091ce4d5779d6646ef04de796cf24742",
+        "bytes": 120286,
+        "versionStrings": []
+      },
+      {
+        "name": "amdxcffx64.dll",
+        "resolved": "/mnt/games/Games/Steam/steamapps/compatdata/4115450/pfx/drive_c/windows/system32/amdxcffx64.dll",
+        "sha256": "4e7dc37aebea3a90e3d3cc43e24cb2b54176b2535315f20dbe63b3b7cfc56b1e",
+        "bytes": 65657608,
+        "fileVersionCandidate": "2.3.0.2913",
+        "versionStrings": []
+      }
+    ],
+    "runtimeProcessesPresent": false,
+    "gameLog": "No readable trustworthy runtime FSR version report; one log appears binary/obfuscated, random string matches not treated as evidence",
+    "savedGameResolution": "3840x2160 borderless; saved setting is not proof of actual runtime backbuffer",
+    "frameLimit": 0,
+    "conclusion": "Bundled upscaler file version4.1.1.2740; active4.1.2 not confirmed. No detected OptiScaler install in PBZ; no live-game module/context query possible after game exit. Generic FSR menu text does not identify active effect version.",
+    "nextProof": "On a user-started game session, inspect loaded upscaler/provider and runtime selected-version/debug report; do not infer from wrapper/SDK version alone."
+  },
+  "changes": "No launch/restart/configuration/mod/DLL/driver/network changes. First SSH timed out; light probe/retry succeeded without changing endpoint/config.",
+  "sources": [
+    "https://gpuopen.com/learn/amd-fsr-sdk-2-4-rx-6000-ryzen-apus/",
+    "https://gpuopen.com/learn/ue-fsr/"
+  ],
+  "vaultSync": "pending"
+}
