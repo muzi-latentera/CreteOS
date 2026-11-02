@@ -83,7 +83,7 @@
     "gamesLaunched": false
   },
   "backupStatus": "Fresh archive independently verified; previous 182329 snapshot preserved",
-  "usbUpdated": false,
+  "usbUpdated": true,
   "vaultSync": "pending",
   "backup": {
     "created": "2026-11-02T19:29:56.095397+00:00",
@@ -96,5 +96,7 @@
     "optionalMissing": [],
     "archiveContentsVerified": true,
     "recoveryExecutableSHA256": "88745D2EBA5A3ACEBC67A6641B63993208673F5EE6C5B0952536B64C024C4F5D"
-  }
+  },
+  "usbCopyReceipt": "outputs/CreteOS-G1-USB-copy-latest.json (external final receipt)",
+  "usbFolder": "D:\\CreteOS-Recovery-20261102-1938"
 }

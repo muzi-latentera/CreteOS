@@ -4,11 +4,11 @@ Maintained device record, updated 2 November 2026 (Europe/London). Covers this G
 
 ## Current state
 
-**Platform/classification update installed19:21 and verified in the native UI. Current private recovery archive: `CreteOS-G1-profile-backup-20261102-192904.zip`; SHA256 `eb93b004b2813edc419f84b4972c4a8fa076cf69e97a99afbde22c0e81269529`. Previous snapshots preserved. USB copy is older and not current.**
+**Platform/classification update installed19:21 and verified in the native UI. Current private recovery archive: `CreteOS-G1-profile-backup-20261102-192904.zip`; SHA256 `eb93b004b2813edc419f84b4972c4a8fa076cf69e97a99afbde22c0e81269529`. Previous snapshots preserved. USB refreshed and hash-verified at19:34 GMT in `D:\CreteOS-Recovery-20261102-1938`; open the root `START-HERE.txt`. The final copy receipt identifies its exact source/docs HEAD.**
 
 **18:20 PCIe ASPM trial: Off on AC/DC; long-stream acceptance pending.** Historical trial snapshot `CreteOS-G1-profile-backup-20261102-182329.zip`: 1519 payload files, 1190242528 uncompressed bytes, 1033491332 ZIP bytes; SHA256 `54ef79f0ee5f7bfa610c54387b8e844124dfdc6e23880b849dd7664848e14685`. Per-file staged/decompressed verification and SQLite integrity passed, no optional inputs missing. Native power reference confirms0/0; original plan/values, exact trial helper and result verified inside archive. Previous164418 and143255 snapshots preserved.
 
-**PBZ OptiScaler/FSR4.1.2 runtime initialized; AX210 recurrence remains unresolved.** Latest recovery snapshot is recorded above; USB copy predates OptiScaler and the PCIe trial.
+**PBZ OptiScaler/FSR4.1.2 runtime initialized; AX210 recurrence remains unresolved.** Latest recovery snapshot is recorded above; the evening USB pack includes OptiScaler host recovery inputs and the PCIe trial record. The experimental power setting is not automatically applied on a replacement.
 
 | Item | Recorded state |
 | --- | --- |
@@ -16,7 +16,7 @@ Maintained device record, updated 2 November 2026 (Europe/London). Covers this G
 | Panel | 2560 × 1600 landscape,16:10,144Hz; latest captured streams requested120FPS, earlier15:13 session90FPS; no profile change in this audit |
 | Native installation | `%LOCALAPPDATA%\CreteOS\creteos.exe` |
 | Personal data | `%LOCALAPPDATA%\CreteOS`; preserve this directory during updates |
-| Recovery backup | `CreteOS-G1-profile-backup-20261102-192904.zip`; 1522 payloads, SHA256 `eb93b004b2813edc419f84b4972c4a8fa076cf69e97a99afbde22c0e81269529`; new executable, profiles, PCIe trial and host recovery inputs verified; prior snapshots preserved; USB older |
+| Recovery backup | `CreteOS-G1-profile-backup-20261102-192904.zip`; 1522 payloads, SHA256 `eb93b004b2813edc419f84b4972c4a8fa076cf69e97a99afbde22c0e81269529`; new executable, profiles, PCIe trial and host recovery inputs verified; prior snapshots preserved; evening USB copy verified |
 | Wi-Fi driver | AX210 23.150.0.4 selected 2 November 13:36 GMT; failure recurred, so rollback is not a verified fix. Automatic Wi-Fi policy restored 14:30 at user request; fault remains unresolved |
 | Bootstrap/helpers/backups | `%LOCALAPPDATA%\CreteOS-Bootstrap` |
 | Source branch | `codex/g1-smart-wifi`; contains the G1 display and Steam password-login changes too |
@@ -599,3 +599,9 @@ Platform update deployment: source `2ae6c9b3010634f27528be5916b6faf490cdb7dc`, S
 Native installed UI verified after initial scan: 377 total games; PlayStation filter 32, Cloud 32, Local 0, with PlayStation badges; Xbox + Cloud 32 with Xbox badges and Local 0; all-source Cloud 205. Filters restored to All Sources/All Games. No games launched. Wi-Fi/power settings unchanged; streaming acceptance remains for Muzi. Fresh private backup is being prepared; USB absent, older USB copy is stale; vault sync pending.
 
 Platform update backup complete: `CreteOS-G1-profile-backup-20261102-192904.zip`, 1522 payload files / 1190401807 uncompressed bytes / 1033657828 ZIP bytes, SHA256 `eb93b004b2813edc419f84b4972c4a8fa076cf69e97a99afbde22c0e81269529`. All staged/decompressed payload hashes and SQLite integrity passed, no missing optional inputs. Independent archive hash and recovery executable SHA88745 verified; native power reference still AC/DC0, Auto Wi-Fi unpaused, ASOBI credential-free reference valid, nested host manifest hashes verified. Previous182329 snapshot preserved. Restore using the guide/verified archive, with fresh account authorization and hardware review as documented; do not replay the experimental PCIe setting automatically on a replacement. USB absent/older, not updated. Vault journal pending sync.
+
+## SanDisk recovery refresh — 2 November evening
+
+User reconnected SanDisk D: (removable123GB, approximately121GB free). Preserved both D:\CreteOS-G1 and the previous D:\CreteOS-Recovery-20261102. Created D:\CreteOS-Recovery-20261102-1938; root START-HERE.txt directs to this current folder. First copy completed19:34:44 GMT with113 manifest files hash-checked at source and destination. Current app SHA25688745D2E… and verified192904 private archive SHA256eb93b004… match installed/recovery records. Full per-file identities and the final source/docs bundle HEAD are in PACKAGE.json, MANIFEST.json, USB-COPY-RECEIPT.json and workspace outputs/CreteOS-G1-USB-copy-latest.json. Source/docs and bundle are refreshed after this completion record, then the pack is recopied and verified to that exact HEAD; the final external receipt is authoritative.
+
+No live profiles/settings changed, so the verified192904 archive remains current and no redundant private snapshot is needed for documentation-only maintenance. USB includes core installer/restore script, exact executable, private profiles/art/history, reviewed companion/helper references, strict host settings/OptiScaler export and offline source. Fresh store authorization, Moonlight/Buddy/PS5 pairing, replacement hardware/display paths and supported client installs remain required. This is verified recovery media, not a tested clean-Windows installation or game-save/disk image. G1 Wi-Fi/PCIe trial and ASOBI gameplay acceptance remain pending. No games started, no adapter/driver/power change. Canonical Obsidian vault unavailable; journal pending sync.
