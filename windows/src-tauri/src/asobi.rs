@@ -198,7 +198,7 @@ pub async fn launch_asobi_game(window:tauri::Window,shortcut_id:String)->Result<
         std::thread::spawn(move||{
             let _owned=owned;let _lease=lease;
             use super::asobi_session::{Phase,State};
-            let mut state=State::default();let mut last_credit=None;let mut played_at=0;let mut targets=Vec::new();let mut returning=false;let mut attention_shown=false;
+            let mut state=State::default();let mut last_credit:Option<std::time::Instant>=None;let mut played_at=0;let mut targets=Vec::new();let mut returning=false;let mut attention_shown=false;
             let started=std::time::Instant::now();let mut seen_client=was_open;
             while super::streaming::session_current(generation){
                 let open=super::is_process_running("asobideck.exe");seen_client|=open;
