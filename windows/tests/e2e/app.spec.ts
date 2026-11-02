@@ -160,7 +160,7 @@ test.beforeEach(async ({ page }) => {
             {id:"ps-cloud",name:"PS Cloud Fixture",source:"playstation",installed:true,app_type:"game",launch_path:"asobi://playstationCloud/1"},
             {id:"ps-remote",name:"PS Remote Fixture",source:"playstation",installed:true,app_type:"game",launch_path:"asobi://ps5RemotePlay/2"},
             {id:"xcloud-fixture",name:"Game Pass Fixture",source:"cloud",installed:true,app_type:"game",launch_path:"https://www.xbox.com/en-us/play/games/test/PRODUCT"},
-            {id:"xbox-local",name:"Xbox Local Fixture",source:"xbox",installed:true,app_type:"game"},
+            {id:"xbox-local",name:params.has("mergedClassification") ? "Game Pass Fixture" : "Xbox Local Fixture",source:"xbox",installed:true,app_type:"game"},
             {id:"gfn-fixture",name:"Control Ultimate Edition",source:"steam",steam_appid:870780,installed:false,app_type:"game"},
             {id:"steam-local",name:"Local Fixture",source:"steam",steam_appid:123456,installed:true,app_type:"game"},
             {id:"lutris-fixture",name:"Bosgame Fixture",source:"lutris",installed:true,app_type:"game"},
@@ -1661,4 +1661,18 @@ test("platform badges and Xbox/PlayStation/Local/Cloud classification", async ({
   await expect(library.locator('[data-game-id="gfn-fixture"]')).toBeVisible();
   await expect(library.locator('[data-game-id="lutris-fixture"]')).toBeVisible();
   await page.screenshot({path:info.outputPath("platform-cloud-classification.png")});
+});
+
+
+test("merged cloud and local copies select their own launch entries", async ({ page }) => {
+  await page.goto("/?crete&classification&mergedClassification");
+  await page.getByRole("button", {name:"Library",exact:true}).click();
+  const library = page.locator('[data-tab-pane="games"]');
+  await expect(library.locator('.crete-game-card')).toHaveCount(6);
+  await library.getByRole("button", {name:"Cloud",exact:true}).click();
+  await expect(library.locator('[data-game-id="xcloud-fixture"]')).toBeVisible();
+  await expect(library.locator('[data-game-id="xbox-local"]')).toHaveCount(0);
+  await library.getByRole("button", {name:"Local",exact:true}).click();
+  await expect(library.locator('[data-game-id="xbox-local"]')).toBeVisible();
+  await expect(library.locator('[data-game-id="xcloud-fixture"]')).toHaveCount(0);
 });

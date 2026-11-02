@@ -2,7 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState, type RefObject,
 import { IoLayersOutline, IoSearchOutline, IoFilterOutline, IoClose } from "react-icons/io5";
 import type { App, Settings } from "../types";
 import { CreteGameCard } from "./CreteGameCard";
-import { AVAILABILITY, AVAILABILITY_LABELS, matchesAvailability, matchesSearch, type Availability } from "./model";
+import { AVAILABILITY, AVAILABILITY_LABELS, matchesAvailability, availabilityCopy, matchesSearch, type Availability } from "./model";
 import { useNavigationState, useViewNavigation, type NavigationRef } from "./navigation";
 import { useCreteText } from "./text";
 import { StoreBadge } from "../components/ui/StoreBadge";
@@ -59,7 +59,9 @@ export function CreteLibraryView(p: CreteLibraryProps) {
   const [cols, setCols] = useState(5);
   const [gridWidth, setGridWidth] = useState(0);
   const appsMode = p.tab === "Apps";
-  const items = useMemo(() => p.filteredApps.filter(app => (appsMode || matchesAvailability(app, availability)) && matchesSearch(app.name, deferredQuery)), [p.filteredApps, availability, deferredQuery, appsMode, catalogVersion]);
+  const items = useMemo(() => p.filteredApps.filter(app => appsMode || matchesAvailability(app, availability))
+    .map(app => appsMode ? app : availabilityCopy(app, availability))
+    .filter(app => matchesSearch(app.name, deferredQuery)), [p.filteredApps, availability, deferredQuery, appsMode, catalogVersion]);
   const index = Math.max(0, items.findIndex(app => app.id === selectedId));
   const selected = items[index];
   const filters = (appsMode ? ["Applications"] : AVAILABILITY_LABELS).map(label => text(label));

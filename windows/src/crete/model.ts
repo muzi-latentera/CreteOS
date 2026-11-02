@@ -43,6 +43,16 @@ export function matchesAvailability(app: App, filter: Availability) {
   return true;
 }
 
+/** A Cloud/Local result must open the matching copy, not a different edition's route. */
+export function availabilityCopy(app: App, filter: Availability): App {
+  const { library_variants: variants, ...primary } = app;
+  if (matchesAvailability(primary, filter)) return app;
+  const selected = variants?.find(copy => matchesAvailability(copy, filter));
+  if (!selected) return app;
+  return { ...selected, last_played: Math.max(epochMs(app.last_played) ?? 0, epochMs(selected.last_played) ?? 0) || undefined,
+    library_variants: [primary, ...(variants ?? []).filter(copy => copy.id !== selected.id)] };
+}
+
 export function normalizeSearch(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }

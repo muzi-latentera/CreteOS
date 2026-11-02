@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { App } from "../types";
 vi.mock("./gfnCatalog", () => ({ geforceGame: (app: App) => app.name === "GFN title" ? { id: "confirmed" } : undefined }));
 vi.mock("./hostSnapshot", () => ({ hasKnownHostGame: (app: App) => app.id === "host-only" }));
-import { availabilityLabel, gamePlatform, matchesAvailability, matchesGameSource } from "./model";
+import { availabilityLabel, availabilityCopy, gamePlatform, matchesAvailability, matchesGameSource } from "./model";
 const game = (source: string, installed = false, extra: Partial<App> = {}): App => ({ id: source, name: source, source, installed, app_type: "game", ...extra });
 
 describe("platform identity and play location", () => {
@@ -43,5 +43,9 @@ describe("platform identity and play location", () => {
     expect(matchesAvailability(app, "local")).toBe(true);
     expect(matchesAvailability(app, "cloud")).toBe(true);
     expect(matchesGameSource(app, "PlayStation")).toBe(true);
+    expect(availabilityCopy(app, "local").source).toBe("epic");
+    expect(availabilityCopy(app, "cloud").source).toBe("playstation");
+    expect(availabilityCopy(app, "cloud").library_variants?.map(copy => copy.id)).toEqual(["steam", "epic"]);
+    expect(availabilityCopy(app, "all")).toBe(app);
   });
 });
