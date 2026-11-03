@@ -4,7 +4,9 @@ Maintained device record, updated 2 November 2026 (Europe/London). Covers this G
 
 ## Current state
 
-**Platform/classification update installed19:21 and verified in the native UI. Current private recovery archive: `CreteOS-G1-profile-backup-20261102-192904.zip`; SHA256 `eb93b004b2813edc419f84b4972c4a8fa076cf69e97a99afbde22c0e81269529`. Previous snapshots preserved. USB refreshed and hash-verified at19:34 GMT in `D:\CreteOS-Recovery-20261102-1938`; open the root `START-HERE.txt`. The final copy receipt identifies its exact source/docs HEAD.**
+**3 November fun-message build installed and recovery archive verified: `CreteOS-G1-profile-backup-20261103-005030.zip`, SHA256 `770115765d27a55c0aaf32003eac6d803851684717dd38c0c4ba3f0eab1d88bc`. Previous snapshots preserved. Connected SanDisk refresh follows; its final USB-COPY-RECEIPT.json identifies the exact source/docs HEAD.**
+
+Platform badges and Local/Cloud classification remain as verified on2November; current executable/archive identity is recorded above and in the table.
 
 **18:20 PCIe ASPM trial: Off on AC/DC; long-stream acceptance pending.** Historical trial snapshot `CreteOS-G1-profile-backup-20261102-182329.zip`: 1519 payload files, 1190242528 uncompressed bytes, 1033491332 ZIP bytes; SHA256 `54ef79f0ee5f7bfa610c54387b8e844124dfdc6e23880b849dd7664848e14685`. Per-file staged/decompressed verification and SQLite integrity passed, no optional inputs missing. Native power reference confirms0/0; original plan/values, exact trial helper and result verified inside archive. Previous164418 and143255 snapshots preserved.
 
@@ -16,14 +18,14 @@ Maintained device record, updated 2 November 2026 (Europe/London). Covers this G
 | Panel | 2560 × 1600 landscape,16:10,144Hz; latest captured streams requested120FPS, earlier15:13 session90FPS; no profile change in this audit |
 | Native installation | `%LOCALAPPDATA%\CreteOS\creteos.exe` |
 | Personal data | `%LOCALAPPDATA%\CreteOS`; preserve this directory during updates |
-| Recovery backup | `CreteOS-G1-profile-backup-20261102-192904.zip`; 1522 payloads, SHA256 `eb93b004b2813edc419f84b4972c4a8fa076cf69e97a99afbde22c0e81269529`; new executable, profiles, PCIe trial and host recovery inputs verified; prior snapshots preserved; evening USB copy verified |
+| Recovery backup | `CreteOS-G1-profile-backup-20261103-005030.zip`; 1527 payloads; SHA256 `770115765d27a55c0aaf32003eac6d803851684717dd38c0c4ba3f0eab1d88bc`; per-file/archive/SQLite verification passed, previous snapshots retained |
 | Wi-Fi driver | AX210 23.150.0.4 selected 2 November 13:36 GMT; failure recurred, so rollback is not a verified fix. Automatic Wi-Fi policy restored 14:30 at user request; fault remains unresolved |
 | Bootstrap/helpers/backups | `%LOCALAPPDATA%\CreteOS-Bootstrap` |
 | Source branch | `codex/g1-smart-wifi`; contains the G1 display and Steam password-login changes too |
-| Installed executable source | `2ae6c9b3010634f27528be5916b6faf490cdb7dc` (platform badges and Local/Cloud classification) |
-| Installed executable SHA-256 | `88745D2EBA5A3ACEBC67A6641B63993208673F5EE6C5B0952536B64C024C4F5D` |
-| Build / install | Built locally on OXPG1 `2026-11-02T19:17:00.3041784+00:00` to `2026-11-02T19:21:25.2574933+00:00`; installed `2026-11-02T19:21:32.4543375+00:00`; assets/hash verified |
-| Previous executable | D2 (`D2C4C3109193B19DF88ACAA3515B3817FE8D673981BDEF4439BA0F26579A4FD6`), retained in `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Platform-availability-20261102-192128` |
+| Installed executable source | `4542d3565db7f9fed94e99ecb1ceb088c2ead256` (fun streaming-cover messages restored) |
+| Installed executable SHA-256 | `A63CA6C346DEEB4E1973928D13DF2C74903E097C27BF99D3DD10B0D3420CC89E` |
+| Build / install | Built locally on OXPG1 `2026-11-03T00:42:33.8950869+00:00` to `2026-11-03T00:49:13.0628543+00:00`; installed `2026-11-03T00:49:18.5167967+00:00`; assets/hash verified |
+| Previous executable | `88745D2EBA5A3ACEBC67A6641B63993208673F5EE6C5B0952536B64C024C4F5D`, retained in `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Fun-loading-20261103-004914` |
 | Luna Companion | 0.1.2, Chrome extension `gmneapkhejdngoenacdnamaddbfcihab`, permanent folder `CreteOS\LunaCompanion` |
 | Latest live acceptance | 2 November19:24–19:26: native PS32 Cloud/0 Local and Xbox32 Cloud/0 Local, correct badges, all-source Cloud205. No games launched; live PS launch/quit and Wi-Fi streaming acceptance remain pending. |
 
@@ -621,3 +623,7 @@ Detailed sanitized receipt: device-records/2026-11-03-stream-review.json. No gam
 User requested the existing fifteen rotating loading lines back while retaining current transitions. Presentation-only change: normal StreamLaunchCover and auxiliary StreamArtworkWindow mount LaunchMessages; native GDI cover uses the same bundled JSON pool with a3.5-second WM_TIMER so hidden WebView throttling cannot suppress rotation. An explicit optional playful flag defaults false; failure text remains literal and return artwork remains text-free. Backend lifecycle progress still flows for diagnostics. No focus/handoff/launch/cancel/return timing, streaming session, game settings or network/power policy changes. Native timer only repaints the owned visible cover; it does not show/raise/focus any window.
 
 Verification checkpoint: TypeScript and18 focused frontend tests passed, including opaque handoff, two-paint launch guard, error cleanup, cancel/return handling and new rotation/error checks. Native Rust regression tests/local production build/install and archive refresh pending. Installed executable remains88745D2E from2ae6c9b until an actual installation receipt follows. Previous192904 private snapshot and USB media preserved; after executable replacement they need refreshing. No games launched. Canonical vault unavailable; journal pending sync.
+
+Actual fun-message deployment: source `4542d3565db7f9fed94e99ecb1ceb088c2ead256`, executable SHA256 `A63CA6C346DEEB4E1973928D13DF2C74903E097C27BF99D3DD10B0D3420CC89E`, native local build `2026-11-03T00:42:33.8950869+00:00` → `2026-11-03T00:49:13.0628543+00:00`, installed `2026-11-03T00:49:18.5167967+00:00`. Bundled assets/source verified, all7 checked profile files unchanged before GUI startup. TypeScript/18 frontend tests and4 native tests passed (text selection/rotation semantics, empty return, literal error, HWND ownership/nonactivation, decode/cover geometry). No games/streams launched; actual live transition acceptance remains with the user. No network/power/display/helper settings changed. Previous app retained; fresh snapshot required and underway. Exact receipt: device-records/2026-11-03-fun-stream-messages-install.json. Vault sync pending.
+
+3November recovery completion: `CreteOS-G1-profile-backup-20261103-005030.zip`, 1527 payloads, 1190543428 uncompressed bytes, 1033696410 ZIP bytes; SHA256 `770115765d27a55c0aaf32003eac6d803851684717dd38c0c4ba3f0eab1d88bc`. Per-file staged and decompressed hashes, SQLite integrity and independent archive/executable checks passed; no optional inputs missing. Latest locator updated, previous192904 and other snapshots retained. Documentation-only completion updates need no repeated personal snapshot. Source/docs on codex/g1-smart-wifi will be pushed/remote-verified and bundled, then new SanDisk folder `CreteOS-Recovery-20261103` copied/read-back verified with the maintained scripts; final external outputs/CreteOS-G1-USB-copy-latest.json is authoritative for exact final HEAD and hashes. Old USB folders preserved; root START-HERE directs to the new pack after successful copy. Fresh account sign-ins/pairing and reviewed replacement hardware settings remain required; clean-Windows/gameplay acceptance not performed. Vault sync pending.

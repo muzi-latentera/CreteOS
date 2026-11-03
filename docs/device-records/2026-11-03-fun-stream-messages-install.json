@@ -1,0 +1,78 @@
+{
+  "purpose": "Restore fun messages on streaming covers without transition changes",
+  "build": {
+    "start": "2026-11-03T00:42:33.8950869+00:00",
+    "sourceCommit": "4542d3565db7f9fed94e99ecb1ceb088c2ead256",
+    "exitCode": 0,
+    "assetVerificationExitCode": 0,
+    "end": "2026-11-03T00:49:13.0628543+00:00",
+    "artifact": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\work\\g1-display-update\\windows\\src-tauri\\target\\release\\creteos.exe",
+    "computer": "OXPG1",
+    "sha256": "A63CA6C346DEEB4E1973928D13DF2C74903E097C27BF99D3DD10B0D3420CC89E"
+  },
+  "install": {
+    "artifact": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\work\\..\\outputs\\CreteOS-G1-fun-loading.exe",
+    "sourceCommit": "4542d3565db7f9fed94e99ecb1ceb088c2ead256",
+    "time": "2026-11-03T00:49:18.5167967+00:00",
+    "installedHash": "A63CA6C346DEEB4E1973928D13DF2C74903E097C27BF99D3DD10B0D3420CC89E",
+    "bundledAssetsVerified": true,
+    "installed": true,
+    "backup": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS-Bootstrap\\app-updates\\Fun-loading-20261103-004914",
+    "profiles": [
+      {
+        "unchanged": true,
+        "name": "settings.json"
+      },
+      {
+        "unchanged": true,
+        "name": "moonlight_profiles.json"
+      },
+      {
+        "unchanged": true,
+        "name": "geforce_profiles.json"
+      },
+      {
+        "unchanged": true,
+        "name": "custom_data.json"
+      },
+      {
+        "unchanged": true,
+        "name": "stream_wifi_preferences.json"
+      },
+      {
+        "unchanged": true,
+        "name": "recent_games.json"
+      },
+      {
+        "unchanged": true,
+        "name": "luna_playtime.json"
+      }
+    ],
+    "target": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS\\creteos.exe",
+    "networkSettingsChanged": false,
+    "gamesLaunched": false,
+    "previousHash": "88745D2EBA5A3ACEBC67A6641B63993208673F5EE6C5B0952536B64C024C4F5D",
+    "computer": "OXPG1"
+  },
+  "frontendTests": 18,
+  "nativeTests": 4,
+  "testsPassed": true,
+  "networkPowerChanged": false,
+  "gamesLaunched": false,
+  "liveStreamTested": false,
+  "backupStatus": "Fresh verified archive complete; previous snapshots preserved",
+  "usbStatus": "Refresh of connected SanDisk to follow; final external USB copy receipt records exact source/docs HEAD",
+  "vaultSync": "pending",
+  "backup": {
+    "created": "2026-11-03T00:51:15.658153+00:00",
+    "folder": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\outputs\\CreteOS-G1-profile-backup-20261103-005030",
+    "archive": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\outputs\\CreteOS-G1-profile-backup-20261103-005030.zip",
+    "archiveBytes": 1033696410,
+    "archiveSHA256": "770115765d27a55c0aaf32003eac6d803851684717dd38c0c4ba3f0eab1d88bc",
+    "filesVerified": 1527,
+    "payloadBytes": 1190543428,
+    "sqliteIntegrity": "ok",
+    "optionalMissing": [],
+    "archiveContentsVerified": true
+  }
+}
