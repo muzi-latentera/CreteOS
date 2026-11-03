@@ -61,7 +61,7 @@
   "gamesLaunched": false,
   "liveStreamTested": false,
   "backupStatus": "Fresh verified archive complete; previous snapshots preserved",
-  "usbStatus": "Refresh of connected SanDisk to follow; final external USB copy receipt records exact source/docs HEAD",
+  "usbStatus": "Verified current build/profile recovery pack on SanDisk; final external receipt tracks completion-doc source HEAD",
   "vaultSync": "pending",
   "backup": {
     "created": "2026-11-03T00:51:15.658153+00:00",
@@ -74,5 +74,8 @@
     "sqliteIntegrity": "ok",
     "optionalMissing": [],
     "archiveContentsVerified": true
-  }
+  },
+  "usbReceipt": "outputs/CreteOS-G1-USB-copy-latest.json",
+  "usbFolder": "D:\\CreteOS-Recovery-20261103",
+  "usbFirstVerifiedAt": "2026-11-03T00:53:44.592428+00:00"
 }
