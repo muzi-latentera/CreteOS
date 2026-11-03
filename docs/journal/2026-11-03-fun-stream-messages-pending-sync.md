@@ -1,0 +1,6 @@
+# Fun streaming-cover messages — pending vault sync
+## Restore fun streaming-cover messages — 3 November
+
+User requested the existing fifteen rotating loading lines back while retaining current transitions. Presentation-only change: normal StreamLaunchCover and auxiliary StreamArtworkWindow mount LaunchMessages; native GDI cover uses the same bundled JSON pool with a3.5-second WM_TIMER so hidden WebView throttling cannot suppress rotation. An explicit optional playful flag defaults false; failure text remains literal and return artwork remains text-free. Backend lifecycle progress still flows for diagnostics. No focus/handoff/launch/cancel/return timing, streaming session, game settings or network/power policy changes. Native timer only repaints the owned visible cover; it does not show/raise/focus any window.
+
+Verification checkpoint: TypeScript and18 focused frontend tests passed, including opaque handoff, two-paint launch guard, error cleanup, cancel/return handling and new rotation/error checks. Native Rust regression tests/local production build/install and archive refresh pending. Installed executable remains88745D2E from2ae6c9b until an actual installation receipt follows. Previous192904 private snapshot and USB media preserved; after executable replacement they need refreshing. No games launched. Canonical vault unavailable; journal pending sync.

@@ -5,6 +5,7 @@ import type { App } from "../../types";
 import { useTranslation } from "react-i18next";
 import { getBestGamepad, readGpState } from "../../utils/gamepad";
 import { streamErrorMessage } from "../../crete/streamErrors";
+import { LaunchMessages } from "./LaunchMessages";
 
 type Provider = "moonlight" | "geforceNow" | "luna" | "ps5RemotePlay" | "playstationCloud";
 type Cover = { app: App; returning?: boolean } | null;
@@ -55,7 +56,7 @@ export async function withStreamCover(app: App, provider: "moonlight" | "geforce
         window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: null }));
       }));
     });
-    await invoke("update_stream_artwork",{art:artworkFor(app),message:"Preparing stream…"});
+    await invoke("update_stream_artwork",{art:artworkFor(app),message:"Preparing stream…",playful:true});
     await invoke("set_launch_cover", { active: true, streamProvider: provider });
     // Give the artwork two paint opportunities before another client can
     // create a foreground/topmost connection window.
@@ -125,7 +126,7 @@ export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<
     return()=>{window.removeEventListener("crete-stream-failure",failed);remove?.();};
   },[]);
   useEffect(()=>{if(!cover)return;const art=customHeroArt[cover.app.id] || heroArt[cover.app.id] || "";
-    void invoke("update_stream_artwork",{art,message:cover.returning?"":failure || progress}).catch(()=>{});
+    void invoke("update_stream_artwork",{art,message:cover.returning?"":failure || progress,...(!cover.returning && !failure ? {playful:true} : {})}).catch(()=>{});
   },[cover,progress,failure,customHeroArt,heroArt]);
   const returnTicket = useRef(0);
   const returnSession = useRef<number | null>(null);
@@ -199,6 +200,6 @@ export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<
   if (!cover) return null;
   const art = customHeroArt[cover.app.id] || heroArt[cover.app.id];
   return <div data-stream-launch-cover="" role="status" aria-label={t("launch.launching")} style={{ position: "fixed", inset: 0, zIndex: 10000, display: "grid", placeContent: "center", background: art ? `linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.4)),url(${JSON.stringify(art)}) center/cover` : "rgba(10,13,16,.92)" }}>
-    {!cover.returning && <span role={failure?"alert":"status"} style={{maxWidth:"75vw",textAlign:"center"}}>{failure || progress}</span>}
+    {!cover.returning && (failure ? <span role="alert" style={{maxWidth:"75vw",textAlign:"center"}}>{failure}</span> : <LaunchMessages />)}
   </div>;
 }

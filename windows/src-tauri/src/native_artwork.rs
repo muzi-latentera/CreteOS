@@ -2,8 +2,16 @@
 use std::sync::{Mutex,OnceLock};
 use windows::{core::w,Win32::{Foundation::*,Graphics::{Gdi::*,Imaging::*},System::{Com::*,LibraryLoader::GetModuleHandleW},UI::{Shell::SHCreateMemStream,WindowsAndMessaging::*}}};
 struct Image {width:i32,height:i32,pixels:Vec<u8>}
-struct State {key:String,image:Option<Image>,message:String}
-static STATE:Mutex<State>=Mutex::new(State{key:String::new(),image:None,message:String::new()});
+struct State {key:String,image:Option<Image>,message:String,playful:bool,step:usize}
+static STATE:Mutex<State>=Mutex::new(State{key:String::new(),image:None,message:String::new(),playful:false,step:0});
+// The native cover must rotate independently of a cloaked WebView's timers.
+fn playful_lines()-> &'static Vec<String>{
+    static LINES:OnceLock<Vec<String>>=OnceLock::new();
+    LINES.get_or_init(||serde_json::from_str(include_str!("../../src/components/launch/launchMessages.json")).expect("Bundled loading messages"))
+}
+fn display_message(state:&State)->&str{
+    if state.playful && !state.message.is_empty(){&playful_lines()[state.step%playful_lines().len()]}else{&state.message}
+}
 static HANDLE:OnceLock<Result<isize,String>>=OnceLock::new();
 fn owned(raw:isize)->bool{unsafe{let hwnd=HWND(raw as _);let mut pid=0;GetWindowThreadProcessId(hwnd,Some(&mut pid));IsWindow(Some(hwnd)).as_bool()&&pid==std::process::id()}}
 pub fn cover_rect(iw:i32,ih:i32,w:i32,h:i32)->(i32,i32,i32,i32){
@@ -41,17 +49,22 @@ fn decode(data:&[u8])->Result<Image,String>{unsafe{
     })();
     if initialized{CoUninitialize();}result.map_err(|_|"Could not decode cached artwork".into())
 }}
-pub fn update(art:&str,message:&str)->Result<(),String>{
+pub fn update(art:&str,message:&str,playful:bool)->Result<(),String>{
     let mut state=STATE.lock().map_err(|_|"Artwork state unavailable")?;
     if state.key!=art {let image=if art.is_empty(){None}else{let mut image=decode(&bytes(art)?)?;for pixel in image.pixels.chunks_exact_mut(4){for color in &mut pixel[..3]{*color=(*color as u16*7/10)as u8;}}Some(image)};state.image=image;state.key=art.into();}
-    state.message=message.into();drop(state);
+    if playful && !state.playful {state.step=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().subsec_nanos() as usize;}
+    state.playful=playful && !message.is_empty();state.message=message.into();drop(state);
     if let Some(Ok(raw))=HANDLE.get().filter(|h|h.as_ref().is_ok_and(|raw|owned(*raw))){unsafe{let _=InvalidateRect(Some(HWND(*raw as _)),None,false);}}
     Ok(())
 }
-pub fn message(text:&str){if let Ok(mut state)=STATE.lock(){state.message=text.into();}if let Some(Ok(raw))=HANDLE.get().filter(|h|h.as_ref().is_ok_and(|raw|owned(*raw))){unsafe{let _=InvalidateRect(Some(HWND(*raw as _)),None,false);}}}
+pub fn message(text:&str){if let Ok(mut state)=STATE.lock(){state.message=text.into();if text.is_empty(){state.playful=false;}}if let Some(Ok(raw))=HANDLE.get().filter(|h|h.as_ref().is_ok_and(|raw|owned(*raw))){unsafe{let _=InvalidateRect(Some(HWND(*raw as _)),None,false);}}}
 unsafe extern "system" fn procedure(hwnd:HWND,msg:u32,wp:WPARAM,lp:LPARAM)->LRESULT{
     if msg==WM_ERASEBKGND{return LRESULT(1);}
     if msg==WM_MOUSEACTIVATE{return LRESULT(MA_NOACTIVATE as isize);}
+    if msg==WM_TIMER && wp.0==1 {
+        if IsWindowVisible(hwnd).as_bool(){if let Ok(mut state)=STATE.lock(){if state.playful && !state.message.is_empty(){state.step=state.step.wrapping_add(1);let _=InvalidateRect(Some(hwnd),None,false);}}}
+        return LRESULT(0);
+    }
     if msg==WM_PAINT {
         let _=std::panic::catch_unwind(||unsafe{
             let mut paint=PAINTSTRUCT::default();let dc=BeginPaint(hwnd,&mut paint);let mut rect=RECT::default();let _=GetClientRect(hwnd,&mut rect);
@@ -65,7 +78,7 @@ unsafe extern "system" fn procedure(hwnd:HWND,msg:u32,wp:WPARAM,lp:LPARAM)->LRES
                 if !state.message.is_empty(){
                     let font=CreateFontW((rect.right/70).clamp(24,42),0,0,0,400,0,0,0,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,DEFAULT_QUALITY,0,w!("Segoe UI"));
                     let old=SelectObject(dc,font.into());SetBkMode(dc,TRANSPARENT);SetTextColor(dc,COLORREF(0xffffff));
-                    let mut text=state.message.encode_utf16().collect::<Vec<_>>();DrawTextW(dc,&mut text,&mut rect,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+                    let mut text=display_message(&state).encode_utf16().collect::<Vec<_>>();DrawTextW(dc,&mut text,&mut rect,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
                     SelectObject(dc,old);let _=DeleteObject(font.into());
                 }
             }
@@ -84,7 +97,7 @@ pub fn prepare()->Result<isize,String>{HANDLE.get_or_init(||{
             if RegisterClassW(&class)==0{return Err(windows::core::Error::from_win32());}
             CreateWindowExW(WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW|WS_EX_TOPMOST,w!("CreteOSNativeArtwork"),w!("CreteOS native streaming artwork"),WS_POPUP,0,0,800,600,None,None,Some(instance),None)
         })();
-        match result{Ok(hwnd)=>{let _=tx.send(Ok(hwnd.0 as isize));let mut msg=MSG::default();while GetMessageW(&mut msg,None,0,0).0>0{let _=TranslateMessage(&msg);DispatchMessageW(&msg);}},Err(_)=>{let _=tx.send(Err("Native artwork window could not be created".into()));}}
+        match result{Ok(hwnd)=>{SetTimer(Some(hwnd),1,3500,None);let _=tx.send(Ok(hwnd.0 as isize));let mut msg=MSG::default();while GetMessageW(&mut msg,None,0,0).0>0{let _=TranslateMessage(&msg);DispatchMessageW(&msg);}},Err(_)=>{let _=tx.send(Err("Native artwork window could not be created".into()));}}
     });
     rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap_or(Err("Native artwork initialization timed out".into()))
 }).clone().and_then(|raw|if owned(raw){Ok(raw)}else{Err("Native artwork handle is no longer owned by CreteOS".into())})}
@@ -96,6 +109,14 @@ pub fn visible(show:bool,x:i32,y:i32,width:i32,height:i32)->Result<(),String>{
 }
 #[cfg(test)]mod tests{
 use super::*;
+#[test]fn playful_text_rotates_but_never_replaces_errors_or_return_art(){
+    let mut state=State{key:String::new(),image:None,message:"Starting stream".into(),playful:true,step:0};
+    assert_eq!(playful_lines().len(),15);
+    assert_eq!(display_message(&state),playful_lines()[0]);
+    state.step=1;assert_eq!(display_message(&state),playful_lines()[1]);
+    state.message="Host unavailable".into();state.playful=false;assert_eq!(display_message(&state),"Host unavailable");
+    state.message.clear();state.playful=true;assert_eq!(display_message(&state),"");
+}
 #[test]fn hidden_native_surface_has_a_real_owned_nonactivating_handle(){unsafe{
     let before=GetForegroundWindow();let hwnd=HWND(super::prepare().unwrap()as _);let mut pid=0;
     GetWindowThreadProcessId(hwnd,Some(&mut pid));assert_eq!(pid,std::process::id());

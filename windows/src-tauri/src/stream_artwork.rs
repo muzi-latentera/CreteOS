@@ -3,8 +3,8 @@
 use std::sync::{Mutex,atomic::{AtomicBool,Ordering}};
 use tauri::{Emitter,Manager};
 #[derive(Clone,serde::Serialize)]
-pub struct Artwork { art:String, message:String }
-static ART:Mutex<Artwork>=Mutex::new(Artwork{art:String::new(),message:String::new()});
+pub struct Artwork { art:String, message:String, playful:bool }
+static ART:Mutex<Artwork>=Mutex::new(Artwork{art:String::new(),message:String::new(),playful:false});
 static PAINTED:AtomicBool=AtomicBool::new(false);
 static NATIVE_READY:AtomicBool=AtomicBool::new(false);
 static NATIVE_SHOWN:AtomicBool=AtomicBool::new(false);
@@ -27,22 +27,23 @@ pub fn diagnose_startup(app:tauri::AppHandle) {
     });
 }
 #[tauri::command]
-pub fn get_stream_artwork()->Artwork {ART.lock().map(|s|s.clone()).unwrap_or(Artwork{art:String::new(),message:String::new()})}
+pub fn get_stream_artwork()->Artwork {ART.lock().map(|s|s.clone()).unwrap_or(Artwork{art:String::new(),message:String::new(),playful:false})}
 #[tauri::command]
 pub fn stream_artwork_painted(){PAINTED.store(true,Ordering::SeqCst);}
 #[tauri::command]
-pub fn update_stream_artwork(window:tauri::Window,art:String,message:String)->Result<(),String>{
+pub fn update_stream_artwork(window:tauri::Window,art:String,message:String,playful:Option<bool>)->Result<(),String>{
     if art.len()>12*1024*1024 || message.len()>300{return Err("Invalid stream artwork".into());}
-    let ready=crate::native_artwork::update(&art,&message).is_ok();
+    let playful=playful.unwrap_or(false) && !message.is_empty();
+    let ready=crate::native_artwork::update(&art,&message,playful).is_ok();
     NATIVE_READY.store(ready,Ordering::SeqCst);
     if !ready && NATIVE_SHOWN.swap(false,Ordering::SeqCst){let _=crate::native_artwork::visible(false,0,0,0,0);}
-    if let Ok(mut s)=ART.lock(){if s.art!=art {PAINTED.store(false,Ordering::SeqCst);}*s=Artwork{art,message};}
+    if let Ok(mut s)=ART.lock(){if s.art!=art {PAINTED.store(false,Ordering::SeqCst);}*s=Artwork{art,message,playful};}
     if let Some(cover)=window.app_handle().get_webview_window("stream-artwork"){let _=cover.emit("stream-artwork",get_stream_artwork());}
     Ok(())
 }
 pub fn message(window:&tauri::Window,message:&str){
     crate::native_artwork::message(message);
-    if let Ok(mut state)=ART.lock(){state.message=message.into();}
+    if let Ok(mut state)=ART.lock(){state.message=message.into();if message.is_empty(){state.playful=false;}}
     if let Some(cover)=window.app_handle().get_webview_window("stream-artwork"){let _=cover.emit("stream-artwork",get_stream_artwork());}
 }
 // Native HWND lookup stays inside our PID and exact dedicated title. Tauri's

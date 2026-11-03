@@ -44,6 +44,19 @@ it("clears failed-launch artwork after the error has been readable", async () =>
   await act(async()=>{await vi.advanceTimersByTimeAsync(12_050);});
   expect(container.querySelector("[data-stream-launch-cover]")).toBeNull();
 });
+it("rotates playful launch text while errors and return artwork keep their meaning", async () => {
+  vi.spyOn(Math, "random").mockReturnValue(0);
+  await act(async()=>window.dispatchEvent(new CustomEvent("crete-stream-cover",{detail:{app:{id:"re2",name:"Resident Evil 2"}}})));
+  expect(container.querySelector("[data-launch-message]")).not.toBeNull();
+  expect(invoke).toHaveBeenCalledWith("update_stream_artwork",{art:"https://fixture.test/re2.jpg",message:"Preparing stream…",playful:true});
+  const first=container.querySelector(".crete-launch-message")?.textContent;
+  await act(async()=>{await vi.advanceTimersByTimeAsync(3500);});
+  expect(container.querySelector(".crete-launch-message")?.textContent).not.toBe(first);
+  await act(async()=>window.dispatchEvent(new CustomEvent("crete-stream-failure",{detail:"Steam needs attention"})));
+  expect(container.querySelector("[data-launch-message]")).toBeNull();
+  expect(container.querySelector('[role="alert"]')?.textContent).toBe("Steam needs attention");
+  vi.restoreAllMocks();
+});
 it("ignores a stale end event and fails open if the client never completes", async () => {
   invoke.mockImplementation(async command => { if (command === "present_stream_return_cover") await new Promise(() => {}); return true; });
   await phase("ending", 2);
