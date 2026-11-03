@@ -1,0 +1,32 @@
+{
+  "reviewedAt": "2026-11-03T00:29:00+00:00",
+  "readOnly": true,
+  "sshSucceeded": true,
+  "sessionStart": "2026-11-02T23:44:32+00:00",
+  "sessionEnd": "2026-11-03T00:24:57+00:00",
+  "game": "Phantom Blade Zero",
+  "requested": "1920x1200/90FPS/HEVC/SDR",
+  "clientBitrateKbps": 80000,
+  "hostEncoderBitrate": 62988000,
+  "encoderGpu": "RX 9070 XT",
+  "stats": [
+    "Incoming frame rate from network: 87.70 FPS",
+    "Decoding frame rate: 87.70 FPS",
+    "Rendering frame rate: 87.67 FPS",
+    "Host processing latency min/max/average: 1.4/526.1/2.7 ms",
+    "Frames dropped by your network connection: 0.03%",
+    "Frames dropped due to network jitter: 0.02%",
+    "Average network latency: 2 ms (variance: 4 ms)",
+    "Average decoding time: 1.06 ms",
+    "Average frame queue delay: 0.05 ms",
+    "Average rendering time (including monitor V-sync latency): 3.01 ms"
+  ],
+  "network": "Extra held during session; E433 switch 00:25:05 after quit",
+  "clientStartupLoss": "Unrecoverable frames/IDR recovery around first 4seconds; aggregate loss remains low",
+  "exit": "Host game stopped00:24:56, app exit0, Buddy cleanup normal; client Quit event before teardown errors10004/overflow. Capture error after reset-resolution is cleanup, not mid-session failure.",
+  "driver": "No physical AX2105002/5005 recurrence after18:15 in collected last8hours. Wi-Fi Direct virtual adapter10317 at23:43:33 before stream; separate from proven physical fault, cause unresolved. Successful session is encouraging, not proof of permanent ASPM fix.",
+  "host": "Sunshine and Buddy active. Avahi address-republish messages during session, no matching stream interruption; not proof Ethernet dropped.",
+  "messages": "LaunchMessages fun lines remain in legacy LaunchOverlay; StreamLaunchCover/StreamArtworkWindow and native_artwork draw lifecycle status without rotating fun lines. Confirmed rendering-path omission; actual text display is not logged. Not fixed in this read-only review.",
+  "changes": "No games launched/stopped, build/install, profile, driver, network, service or power changes.",
+  "vaultSync": "pending"
+}
