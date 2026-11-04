@@ -4,6 +4,8 @@ Maintained device record, updated 4 November 2026 (Europe/London). Covers this G
 
 ## Current state
 
+**4 November13:05 wired disconnect remains unresolved:** Moonlight error`00002747` is Winsock10055 (socket buffer/queue unavailable), observed while sending an ENet control packet after about2minutes. G1 was on USB Ethernet with Wi-Fi disconnected; Sunshine remained active. No configuration changes were applied. See [diagnostic evidence and next test](journal/2026-11-04-moonlight-10055-pending-sync.md). Post-failure idle checks were healthy and do not establish the transient cause. This read-only investigation does not alter the installed executable or recovery inputs.
+
 **4 November startup-race build installed; current verified private archive `CreteOS-G1-profile-backup-20261104-122159.zip`, SHA256 `f3f71f9cccb677c621716a2a237a44e582f675ad2a24dee8215c99a0761e270a`. Previous snapshots retained. USB is disconnected and its3November copy remains stale.**
 
 Historical3November fun-message deployment is retained in the dated records; current app and archive identities are listed above.
