@@ -134,6 +134,9 @@ test.beforeEach(async ({ page }) => {
         if (command === "get_moondeck_status") return { paired: !params.has("buddyUnpaired"), version: 8 };
         if (command === "get_moonlight_profile") return { displayKey: "DISPLAY1:1920x1080", ...(params.has("g1Display") ? { nativeResolution: "2560x1600", nativeFps: 120, displayLabel: "G1" } : {}), profile: { host: "Bosgame", resolution: "1920x1080", fps: 120, bitrate: 80000, codec: "auto" } };
         if (command === "get_moonlight_apps") { if (params.has("hostOffline")) throw new Error("Host offline"); return params.has("hostGame") ? ["Control Ultimate Edition", "Desktop"] : ["Desktop", "Steam Big Picture", "MoonDeckStream"]; }
+        if (command === "get_stream_network_status") return { wired: params.has("wired") };
+        if (command === "get_stream_wifi_preferences") return { moonlight: "automatic", geforceNow: "automatic", luna: "automatic" };
+        if (command === "set_stream_wifi_preference") { if(params.has("slowWifi")) await new Promise(resolve=>setTimeout(resolve,150)); (window as any).__lastWifiChoice = args; return null; }
         if (command === "get_streaming_clients") return { geforceNow: true, moonlight: true };
         if (command === "wait_stream_window" && params.has("holdStreamWindow")) return new Promise<void>(resolve => { (window as any).__releaseStreamWindow = resolve; });
         if (command === "get_geforce_profile" && params.has("holdGfnProfile")) await new Promise<void>(resolve => { (window as any).__releaseGfnProfile = resolve; });
@@ -150,7 +153,7 @@ test.beforeEach(async ({ page }) => {
           const bottombarMode = new URLSearchParams(window.location.search).get("barMode") || "smart";
           return { ...(responses.get_settings as Record<string, unknown>), bottombar_mode: bottombarMode,
             onboarding_complete: params.get("fresh") !== "true", theme: params.get("theme") || (params.has("crete") ? "crete" : "space"),
-            accent: "crete", surface_style: params.get("surface") || "glass", ui_motion: params.has("motion"), ui_scale: 1, language: params.get("lang") || "en", app_list_view: params.has("listApps"), app_list_cols: 2,
+            accent: "crete", surface_style: params.get("surface") || "glass", ui_motion: params.has("motion"), ui_scale: Number(params.get("uiScale") || 1), language: params.get("lang") || "en", app_list_view: params.has("listApps"), app_list_cols: 2,
             show_home_collections: params.has("parity"), show_home_collection_names: true, home_pinned_pos: params.has("parity") ? "top" : "none", home_mode: params.get("homeMode") || "semi", animated_heroes: params.has("animated") ? "animated" : "static",
             home_launch_games_directly: params.has("direct"), ...(params.has("ownedStores") || params.has("storeSignIn") ? { show_uninstalled_games: true } : {}),
             ...(params.has("disabledStores") ? { scan_epic: false, scan_gog: false } : {}) };
@@ -721,18 +724,19 @@ for (const input of ["keyboard", "controller"]) {
   });
 }
 
-test("GFN has one green Play that applies Auto bitrate and keeps artwork until handoff", async ({ page }) => {
+test("GFN has one primary Play that applies Auto bitrate and keeps artwork until handoff", async ({ page }) => {
   await richCrete(page);
   await page.goto("/?crete&rich&gfn&holdStreamWindow");
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
   await page.locator('[data-crete-details="true"]').getByRole("button", { name: "Play", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "GeForce NOW stream settings" });
-  await expect(dialog.getByRole("button")).toHaveCount(2); // Play and Cancel.
+  await expect(dialog.locator(".crete-stream-buttons button")).toHaveCount(2); // Play and Cancel.
+  await dialog.getByRole("button",{name:"Stream options",exact:true}).click();
   await dialog.getByLabel("Bitrate").selectOption("0");
   await expect(dialog.getByLabel("Bitrate")).toHaveValue("0");
   const play = dialog.getByRole("button", { name: "Play", exact: true });
-  await expect(play).toHaveCSS("background-color", "rgb(124, 171, 0)");
+  await expect(play).toHaveCSS("background-color", "rgb(232, 183, 99)");
   await play.click();
   const cover = page.locator("[data-stream-launch-cover]");
   await expect(cover).toBeVisible();
@@ -758,12 +762,13 @@ test("Uninstalled mapped games offer green GFN Play plus native install and stre
   await expect(details.locator("[data-launch-btn]")).toHaveCSS("background-color", "rgb(124, 171, 0)");
   await expect(details.getByRole("button", { name: "Launch options", exact: true })).toHaveCSS("background-color", "rgb(124, 171, 0)");
   await details.getByRole("button", { name: "Play", exact: true }).click();
-  const gfn = details.getByRole("dialog", { name: "GeForce NOW stream settings" });
+  const gfn = page.getByRole("dialog", { name: "GeForce NOW stream settings" });
   await expect(gfn).toBeVisible();
+  await gfn.getByRole("button",{name:"Stream options",exact:true}).click();
   await gfn.getByLabel("Resolution", { exact: true }).selectOption("1920x1080");
   await gfn.getByLabel("Frame rate", { exact: true }).selectOption("120");
   await gfn.getByLabel("Bitrate").selectOption("20000");
-  await expect(gfn.getByText(/Play uses your settings above/)).toBeVisible();
+  await expect(gfn.locator(".crete-stream-summary")).toContainText("20 Mbps");
   await gfn.getByRole("button", { name: "Play", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.start_geforce_game)).toBe(1);
   expect(await page.evaluate(() => (window as any).__lastGeforce.profile)).toMatchObject({ resolution: "1920x1080", fps: 120, bitrate: 20000 });
@@ -772,8 +777,9 @@ test("Uninstalled mapped games offer green GFN Play plus native install and stre
   await details.getByRole("button", { name: "Launch options", exact: true }).click();
   await expect(details.getByRole("menuitem", { name: "Install locally", exact: true })).toBeVisible();
   await details.getByRole("menuitem", { name: "Moonlight", exact: true }).click();
-  const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
+  const stream = page.getByRole("dialog", { name: "Moonlight stream settings" });
   await expect(stream).toBeVisible();
+  await stream.getByRole("button",{name:"Stream options",exact:true}).click();
   await expect(stream.getByLabel("Host app")).toHaveValue("MoonDeckStream");
   await stream.getByRole("button", { name: "Cancel", exact: true }).click();
 });
@@ -795,7 +801,8 @@ test("Live host game takes priority over GFN and preserves display-specific stre
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
   const details = page.locator('[data-crete-details="true"]');
   await details.getByRole("button", { name: "Play", exact: true }).click();
-  const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
+  const stream = page.getByRole("dialog", { name: "Moonlight stream settings" });
+  await stream.getByRole("button",{name:"Stream options",exact:true}).click();
   await expect(stream.getByLabel("Host app")).toHaveValue("Control Ultimate Edition");
   await stream.getByLabel("Display preset").selectOption("xreal");
   await expect(stream.getByLabel("Resolution")).toHaveValue("1920x1200");
@@ -828,7 +835,8 @@ test("MoonDeckStream passes the selected Steam ID and requires its own pairing",
   const details = page.locator('[data-crete-details="true"]');
   await details.getByRole("button", { name: "Launch options", exact: true }).click();
   await details.getByRole("menuitem", { name: "Moonlight", exact: true }).click();
-  const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
+  const stream = page.getByRole("dialog", { name: "Moonlight stream settings" });
+  await stream.getByRole("button",{name:"Stream options",exact:true}).click();
   await expect(stream.getByLabel("Host app")).toHaveValue("MoonDeckStream");
   await stream.getByRole("button", { name: "Start stream", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__lastStream?.steamId)).toBe("870780");
@@ -878,7 +886,7 @@ test("Controller opens compact launch menu, chooses Moonlight and cancels only t
   await pad(page, 13);
   await expect(details.getByRole("menuitem", { name: "Moonlight", exact: true })).toBeFocused();
   await pad(page, 0);
-  const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
+  const stream = page.getByRole("dialog", { name: "Moonlight stream settings" });
   await expect(stream).toBeVisible();
   await pad(page, 1);
   await expect(stream).not.toBeVisible();
@@ -914,7 +922,8 @@ test("Steam host inventory makes MoonDeck the automatic default, while missing i
   const details = page.locator('[data-crete-details="true"]');
   await expect(details.locator("[data-launch-btn]")).toHaveText("Play");
   await details.locator("[data-launch-btn]").click();
-  await expect(details.getByRole("dialog", { name: "Moonlight stream settings" }).getByLabel("Host app")).toHaveValue("MoonDeckStream");
+  await page.getByRole("dialog", { name: "Moonlight stream settings" }).getByRole("button",{name:"Stream options",exact:true}).click();
+  await expect(page.getByRole("dialog", { name: "Moonlight stream settings" }).getByLabel("Host app")).toHaveValue("MoonDeckStream");
   await page.goto("/?crete&rich&gfn&inventoryOffline");
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
@@ -1018,7 +1027,8 @@ test("Daily host refresh never blocks local Play and keeps purple Play during ma
   await page.evaluate(() => (window as any).__releaseHostCheck());
   await expect(details.locator("[data-launch-btn]")).toHaveAttribute("data-provider", "moonlight");
   await details.locator("[data-launch-btn]").click();
-  const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
+  const stream = page.getByRole("dialog", { name: "Moonlight stream settings" });
+  await stream.getByRole("button",{name:"Host & connection tools",exact:true}).click();
   await stream.getByRole("button", { name: "Refresh host", exact: true }).click();
   await expect(stream.getByRole("button", { name: "Checking…", exact: true })).toBeDisabled();
   await expect(details.locator("[data-launch-btn]")).toHaveCSS("background-color", "rgb(105, 117, 128)");
@@ -1088,7 +1098,7 @@ test("A failed cached Moonlight launch offers explicit local play", async ({ pag
   const details = page.locator('[data-crete-details="true"]');
   await expect(details.locator("[data-launch-btn]")).toHaveAttribute("data-provider", "moonlight");
   await details.locator("[data-launch-btn]").click();
-  const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
+  const stream = page.getByRole("dialog", { name: "Moonlight stream settings" });
   await stream.getByRole("button", { name: "Start stream", exact: true }).click();
   await expect(stream.getByRole("alert")).toContainText("Host unavailable");
   const error = details.locator(".crete-launch-error");
@@ -1157,35 +1167,29 @@ test("Moonlight controller opens dropdown choices and reaches the bottom actions
   await page.goto("/?crete&rich&gfn&hostInstalled");
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
-  const details = page.locator('[data-crete-details="true"]');
-  await details.getByRole("button", { name: "Play", exact: true }).click();
-  const stream = details.getByRole("dialog", { name: "Moonlight stream settings" });
-  await expect(stream).toBeVisible();
-  await frames(page, 10);
-  await stream.getByLabel("Codec").focus();
-  await pad(page, 0);
-  const choices = stream.getByRole("listbox", { name: "Codec" });
+  await page.locator('[data-crete-details="true"]').getByRole("button", { name: "Play", exact: true }).click();
+  const stream = page.getByRole("dialog", { name: "Moonlight stream settings" });
+  const play = stream.getByRole("button", { name: "Start stream", exact: true });
+  await expect(play).toBeFocused();
+  await stream.getByRole("button", { name: "Stream options", exact: true }).click();
+  await stream.getByLabel("Codec", { exact: true }).focus();
+  await frames(page, 10); await pad(page, 0);
+  const choices = page.getByRole("listbox", { name: "Codec" });
   await expect(choices).toBeVisible();
   await pad(page, 13); await pad(page, 0);
   await expect(stream.getByLabel("Codec", { exact: true })).toHaveValue("H.264");
-  await pad(page, 13);
-  await expect(stream.getByRole("button", { name: "Start stream", exact: true })).toBeFocused();
-  await pad(page, 13);
-  await expect(stream.getByRole("button", { name: "Start stream", exact: true })).toBeFocused();
-  await pad(page, 15);
-  await expect(stream.getByRole("button", { name: "Refresh host", exact: true })).toBeFocused();
-  await pad(page, 14);
-  await expect(stream.getByRole("button", { name: "Start stream", exact: true })).toBeFocused();
-  await pad(page, 12);
-  await expect(stream.getByLabel("Codec", { exact: true })).toBeFocused();
-  await pad(page, 13); await pad(page, 15);
-  await pad(page, 15);
+  await stream.getByRole("button", { name: "Host & connection tools" }).click();
   const open = stream.getByRole("button", { name: "Open Moonlight", exact: true });
-  await expect(open).toBeFocused();
-  const bounds = await open.boundingBox(); const dialog = await stream.boundingBox();
-  expect(bounds!.y).toBeGreaterThanOrEqual(dialog!.y); expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(dialog!.y + dialog!.height);
-  await pad(page, 15); await pad(page, 0);
-  await expect(stream).not.toBeVisible();
+  await open.focus(); await page.keyboard.press("ArrowDown");
+  const cancel = stream.getByRole("button", { name: "Cancel", exact: true });
+  await expect(cancel).toBeFocused();
+  await pad(page, 15); await expect(play).toBeFocused();
+  await pad(page, 13); await expect(play).toBeFocused();
+  await pad(page, 14); await expect(cancel).toBeFocused();
+  const bounds = await play.boundingBox(); const dialog = await stream.boundingBox();
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(dialog!.y + dialog!.height);
+  await pad(page, 1); await expect(stream).not.toBeVisible();
+  await expect(page.locator('[data-crete-details="true"]')).toBeVisible();
 });
 
 
@@ -1214,7 +1218,7 @@ test("Streaming menu opens settings before profile hydration and B returns to Pl
   const details = page.locator('[data-crete-details="true"]');
   await details.getByRole("button", { name: "Launch options", exact: true }).click();
   await details.getByRole("menuitem", { name: "GeForce NOW", exact: true }).click();
-  const dialog = details.getByRole("dialog", { name: "GeForce NOW stream settings" });
+  const dialog = page.getByRole("dialog", { name: "GeForce NOW stream settings" });
   await expect(dialog).toBeVisible();
   await expect.poll(() => page.evaluate(() => typeof (window as any).__releaseGfnProfile)).toBe("function");
   await pad(page, 1);
@@ -1224,7 +1228,7 @@ test("Streaming menu opens settings before profile hydration and B returns to Pl
   await expect(dialog).not.toBeVisible();
   await details.getByRole("button", { name: "Launch options", exact: true }).click();
   await details.getByRole("menuitem", { name: "Moonlight", exact: true }).click();
-  await expect(details.getByRole("dialog", { name: "Moonlight stream settings" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Moonlight stream settings" })).toBeVisible();
 });
 
 
@@ -1275,7 +1279,7 @@ test("Pointer-opened provider menu shows D-pad focus and activates the selected 
   await expect(moonlight).toHaveCSS("outline-style", "solid");
   await expect(moonlight).toHaveCSS("outline-width", "2px");
   await pad(page, 0);
-  await expect(details.getByRole("dialog", { name: "Moonlight stream settings" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Moonlight stream settings" })).toBeVisible();
 });
 
 
@@ -1326,7 +1330,6 @@ test("Games article images render from the native scoped cache", async ({ page }
 
 
 test("GFN settings footer uses left and right for controller and keyboard", async ({ page }) => {
-  await richCrete(page);
   await page.goto("/?crete&rich&gfn");
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
@@ -1335,13 +1338,12 @@ test("GFN settings footer uses left and right for controller and keyboard", asyn
   const dialog = page.getByRole("dialog", { name: "GeForce NOW stream settings" });
   const play = dialog.getByRole("button", { name: "Play", exact: true });
   const cancel = dialog.getByRole("button", { name: "Cancel", exact: true });
-  await dialog.getByLabel("Bitrate").focus();
-  await pad(page, 13); await expect(play).toBeFocused();
-  await pad(page, 15); await expect(cancel).toBeFocused();
+  await expect(play).toBeFocused();
+  await pad(page, 14); await expect(cancel).toBeFocused();
   await pad(page, 13); await expect(cancel).toBeFocused();
-  await pad(page, 14); await expect(play).toBeFocused();
-  await page.keyboard.press("ArrowRight"); await expect(cancel).toBeFocused();
-  await page.keyboard.press("ArrowUp"); await expect(dialog.getByLabel("Bitrate")).toBeFocused();
+  await pad(page, 15); await expect(play).toBeFocused();
+  await page.keyboard.press("ArrowLeft"); await expect(cancel).toBeFocused();
+  await page.keyboard.press("ArrowUp"); await expect(dialog.getByRole("button", { name: "About these settings" })).toBeFocused();
 });
 
 
@@ -1566,15 +1568,17 @@ test("G1 native preset uses detected 1600p in both providers and preserves GFN A
   await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
   const details = page.locator('[data-crete-details="true"]');
   await details.getByRole("button", { name: "Play", exact: true }).click();
-  const moonlight = details.getByRole("dialog", { name: "Moonlight stream settings" });
+  const moonlight = page.getByRole("dialog", { name: "Moonlight stream settings" });
   await expect(moonlight.getByRole("option", { name: "G1 · 1600p / 120fps", exact: true })).toHaveCount(1);
+  await moonlight.getByRole("button",{name:"Stream options",exact:true}).click();
   await moonlight.getByLabel("Display preset").selectOption("native");
   await expect(moonlight.getByLabel("Resolution")).toHaveValue("2560x1600");
   await expect(moonlight.getByLabel("Frame rate")).toHaveValue("120");
   await moonlight.getByRole("button", { name: "Cancel", exact: true }).click();
   await details.getByRole("button", { name: "Launch options", exact: true }).click();
   await details.getByRole("menuitem", { name: "GeForce NOW", exact: true }).click();
-  const gfn = details.getByRole("dialog", { name: "GeForce NOW stream settings" });
+  const gfn = page.getByRole("dialog", { name: "GeForce NOW stream settings" });
+  await gfn.getByRole("button",{name:"Stream options",exact:true}).click();
   await expect(gfn.getByLabel("Bitrate")).toHaveValue("0");
   await gfn.getByLabel("Display preset").selectOption("native");
   await expect(gfn.getByLabel("Resolution")).toHaveValue("2560x1600");
@@ -1675,4 +1679,113 @@ test("merged cloud and local copies select their own launch entries", async ({ p
   await library.getByRole("button", {name:"Local",exact:true}).click();
   await expect(library.locator('[data-game-id="xbox-local"]')).toBeVisible();
   await expect(library.locator('[data-game-id="xcloud-fixture"]')).toHaveCount(0);
+});
+
+
+for (const size of [{width:1280,height:800},{width:1280,height:600},{width:1920,height:1080},{width:3840,height:2160},{width:960,height:540}]) {
+  test(`launch menu polish keeps actions visible at ${size.width}x${size.height}`, async ({page}, info) => {
+    await page.setViewportSize(size);
+    await page.goto("/?crete&rich&gfn&hostInstalled&wired");
+    await page.getByRole("button", {name:"Library",exact:true}).click();
+    await page.getByRole("button", {name:"Control Ultimate Edition",exact:true}).click();
+    await page.locator('[data-crete-details="true"]').getByRole("button",{name:"Play",exact:true}).click();
+    const dialog=page.getByRole("dialog",{name:"Moonlight stream settings"});
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("button",{name:"Start stream",exact:true})).toBeFocused();
+    await expect(dialog.getByText(/Ethernet connected/)).toBeVisible();
+    await expect(dialog.getByRole("button",{name:"Refresh host",exact:true})).toHaveCount(0);
+    await page.screenshot({path:info.outputPath("compact-launch.png")});
+    await dialog.getByRole("button",{name:"Stream options",exact:true}).click();
+    await dialog.getByRole("button",{name:"Host & connection tools",exact:true}).click();
+    await dialog.getByLabel("Host app",{exact:true}).focus();
+    await dialog.getByRole("button",{name:"Refresh host",exact:true}).focus();
+    const button=await dialog.getByRole("button",{name:"Start stream",exact:true}).boundingBox();
+    const rect=await dialog.boundingBox();
+    expect(rect!.y).toBeGreaterThanOrEqual(0);
+    expect(rect!.y+rect!.height).toBeLessThanOrEqual(size.height);
+    expect(button!.y).toBeGreaterThanOrEqual(rect!.y);
+    expect(button!.y+button!.height).toBeLessThanOrEqual(rect!.y+rect!.height);
+    await page.screenshot({path:info.outputPath("expanded-launch.png")});
+    expect(await page.evaluate(()=>(window as any).__invokeCounts.launch_moonlight||0)).toBe(0);
+  });
+}
+
+test("launch menu polish highlights controller option without saving until confirmed",async({page},info)=>{
+  await page.setViewportSize({width:1280,height:600});
+  await page.goto("/?crete&rich&gfn&hostInstalled&slowWifi");
+  await page.getByRole("button",{name:"Library",exact:true}).click();
+  await page.getByRole("button",{name:"Control Ultimate Edition",exact:true}).click();
+  await page.locator('[data-crete-details="true"]').getByRole("button",{name:"Play",exact:true}).click();
+  const dialog=page.getByRole("dialog",{name:"Moonlight stream settings"});
+  const network=dialog.getByLabel("Home Wi-Fi",{exact:true});
+  await network.focus();await frames(page,10);await pad(page,0);
+  const list=page.getByRole("listbox",{name:"Home Wi-Fi"});
+  await expect(list).toBeVisible();
+  await pad(page,13);
+  const focused=list.getByRole("option",{name:"Hyperoptic Extra",exact:true});
+  await expect(focused).toBeFocused();
+  await expect(focused).toHaveAttribute("aria-selected","false");
+  expect(await focused.evaluate(el=>getComputedStyle(el).boxShadow)).not.toBe("none");
+  expect(await page.evaluate(()=>(window as any).__invokeCounts.set_stream_wifi_preference||0)).toBe(0);
+  await page.screenshot({path:info.outputPath("controller-network-focus.png")});
+  await pad(page,1);await expect(list).not.toBeVisible();await expect(network).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(list).toBeVisible();
+  await expect(list.getByRole("option",{selected:true})).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(list.getByRole("option",{name:"Keep current connection",exact:true})).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(network).toHaveValue("current");
+  await expect(network).toBeFocused();
+  expect(await page.evaluate(()=>(window as any).__lastWifiChoice)).toEqual({provider:"moonlight",choice:"current"});
+  await page.keyboard.press("Escape");await expect(dialog).not.toBeVisible();
+  await expect(page.locator('[data-crete-details="true"] [data-launch-btn]')).toBeFocused();
+});
+
+test("launch menu settings retain focus and scroll on compact settings pages",async({page},info)=>{
+  await page.setViewportSize({width:1280,height:600});
+  await page.goto("/?crete&rich");
+  await page.getByRole("button",{name:"Settings",exact:true}).click();
+  const settings=page.locator('[data-crete-settings="true"]');
+  await expect(settings.getByRole("heading",{name:"Display & Home",exact:true})).toBeVisible();
+  await frames(page,20);
+  await page.screenshot({path:info.outputPath("settings-appearance.png")});
+  await page.getByText("Storage & troubleshooting",{exact:true}).click();
+  await expect(settings.getByText("Device Storage",{exact:true})).toBeVisible();
+  await frames(page,12);await pad(page,13);await pad(page,13);
+  await expect(settings.locator('.focused').first()).toBeInViewport();
+  await pad(page,12);await pad(page,12);await frames(page,20);
+  const focused=await settings.locator('.focused').first().boundingBox();
+  expect(focused!.y).toBeGreaterThanOrEqual(112);
+  expect(focused!.y+focused!.height).toBeLessThanOrEqual(536);
+  await page.screenshot({path:info.outputPath("settings-data.png")});
+});
+
+test("launch menu polish navigates quality fields without changing them and scrolls long choices",async({page})=>{
+  await page.setViewportSize({width:960,height:540});
+  await page.goto("/?crete&rich&gfn&hostInstalled");
+  await page.getByRole("button",{name:"Library",exact:true}).click();
+  await page.getByRole("button",{name:"Control Ultimate Edition",exact:true}).click();
+  await page.locator('[data-crete-details="true"]').getByRole("button",{name:"Play",exact:true}).click();
+  const dialog=page.getByRole("dialog",{name:"Moonlight stream settings"});
+  await dialog.getByRole("button",{name:"Stream options",exact:true}).click();
+  const resolution=dialog.getByLabel("Resolution",{exact:true});
+  const fps=dialog.getByLabel("Frame rate",{exact:true});
+  await resolution.focus();await frames(page,10);await pad(page,15);
+  await expect(fps).toBeFocused();await expect(resolution).toHaveValue("1920x1080");await expect(fps).toHaveValue("120");
+  await fps.selectOption("90");
+  const preset=dialog.getByLabel("Display preset",{exact:true});
+  await preset.focus();await page.keyboard.press("Enter");
+  const presets=page.getByRole("listbox",{name:"Display preset"});
+  await expect(presets.getByRole("option",{name:"Saved for this display",exact:true})).toBeFocused();
+  await page.keyboard.press("Escape");await expect(preset).toBeFocused();
+  const bitrate=dialog.getByLabel("Bitrate",{exact:true});
+  await bitrate.focus();await page.keyboard.press("Enter");
+  const rates=page.getByRole("listbox",{name:"Bitrate"});
+  await expect(rates.getByRole("option",{selected:true})).toBeFocused();
+  await page.keyboard.press("End");
+  const last=rates.getByRole("option",{name:"150Mbps",exact:true});
+  await expect(last).toBeFocused();await expect(last).toBeInViewport();
+  await page.keyboard.press("Tab");await expect(page.locator('.crete-stream-choice-panel').getByRole("button",{name:"Back",exact:true})).toBeFocused();
+  await page.keyboard.press("Enter");await expect(rates).not.toBeVisible();await expect(bitrate).toHaveValue("80000");
 });

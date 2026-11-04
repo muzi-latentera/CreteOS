@@ -4144,7 +4144,7 @@ export default function App() {
         <div style={{ position: "relative", flex: 1, overflow: (immersiveHomeShellActive || semiHomeShellActive) ? "hidden" : (!(settings.topbar_background ?? true) && tab === "Home") ? "auto" : "hidden" }}>
 
           {tab === "Settings" && (
-            <div ref={tabScrollRef} style={{ position: "absolute", inset: 0, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain", zIndex: 2, paddingTop: "var(--header-height)", paddingBottom: "var(--bottom-bar-height)", boxSizing: "border-box" }}>
+            <div ref={tabScrollRef} data-crete-settings-scroll={resolvedTheme === "crete" ? "true" : undefined} style={{ position: "absolute", inset: 0, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain", zIndex: 2, paddingTop: "var(--header-height)", paddingBottom: "var(--bottom-bar-height)", boxSizing: "border-box" }}>
               <div key={settingsPanelKey} className={settingsMotionClass} style={{ position: "relative", minHeight: 0, paddingBottom: 20, zIndex: 2 }}>
                 {renderSettingsScreen()}
               </div>

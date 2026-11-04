@@ -1,0 +1,53 @@
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { invoke } from "@tauri-apps/api/core";
+import { LaunchMenu } from "./LaunchMenu";
+vi.mock("@tauri-apps/api/core",()=>({invoke:vi.fn(async(command:string)=>command==="get_stream_network_status"?{wired:false}:{moonlight:"automatic",luna:"automatic",ps5RemotePlay:"automatic"})}));
+vi.mock("./text",()=>({useCreteText:()=>(label:string)=>label}));
+vi.mock("../utils/gamepad",()=>({getBestGamepad:()=>null,readGpState:()=>({})}));
+let root:Root; let host:HTMLDivElement;
+beforeEach(()=>{Element.prototype.scrollIntoView=vi.fn();(globalThis as {IS_REACT_ACT_ENVIRONMENT?:boolean}).IS_REACT_ACT_ENVIRONMENT=true;});
+afterEach(async()=>{await act(async()=>root?.unmount());host?.remove();vi.clearAllMocks();});
+async function render(overrides:Record<string,unknown>={}, menuOpen=false) {
+  const profile={host:"Bosgame",resolution:"2560x1600",fps:90,bitrate:80000,codec:"auto"};
+  const streaming={display:{profile},geforceDisplay:{profile},configure:true,geforceConfigure:false,asobiConfigure:null,asobiGames:[],apps:["MoonDeckStream","Desktop"],steamId:"123",moonlightGame:null,buddy:{paired:true},hostInstalled:true,online:true,pcGame:true,clients:{moonlight:true},error:null,hostError:null,checking:false,setConfigure:vi.fn(),setGeforceConfigure:vi.fn(),setAsobiConfigure:vi.fn(),stream:vi.fn(async()=>{}),geforceStream:vi.fn(async()=>{}),startAsobi:vi.fn(async()=>{}),refresh:vi.fn(),...overrides};
+  host=document.createElement("div");document.body.append(host);root=createRoot(host);
+  await act(async()=>root.render(<LaunchMenu streaming={streaming as unknown as Parameters<typeof LaunchMenu>[0]["streaming"]} open={menuOpen} setOpen={()=>{}} local={()=>{}} localLabel="Local" localEnabled manage={()=>{}} manageLabel="Manage" block={()=>{}}/>));
+  return streaming;
+}
+async function click(el:Element|null){expect(el).not.toBeNull();await act(async()=>(el as HTMLElement).click());}
+it("keeps host tools out of the default view and retains the exact launch profile",async()=>{
+  const s=await render();
+  expect(document.querySelector('[aria-label="Moonlight stream settings"]')).not.toBeNull();
+  expect(document.querySelector('[aria-label="Resolution"]')).toBeNull();
+  expect(document.body.textContent).not.toContain("Refresh host");
+  expect(document.body.textContent).toContain("90 fps");
+  await click(document.querySelector('[data-launch-primary]'));
+  expect(s.stream).toHaveBeenCalledWith("MoonDeckStream",s.display.profile);
+  expect(invoke).not.toHaveBeenCalledWith("set_stream_wifi_preference",expect.anything());
+});
+it("opens a pointer choice list and cancels without changing the saved preference",async()=>{
+  const s=await render();const select=document.querySelector<HTMLSelectElement>('[aria-label="Home Wi-Fi"]')!;
+  await act(async()=>select.dispatchEvent(new MouseEvent("pointerdown",{bubbles:true,cancelable:true})));
+  expect(document.querySelector('[role="listbox"]')).not.toBeNull();
+  await act(async()=>window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true})));
+  expect(document.querySelector('[role="listbox"]')).toBeNull();
+  expect(document.activeElement).toBe(select);
+  expect(s.setConfigure).not.toHaveBeenCalledWith(false);
+  expect(invoke).not.toHaveBeenCalledWith("set_stream_wifi_preference",expect.anything());
+});
+it("PlayStation keeps the exported ASOBI route and primary action",async()=>{
+  const s=await render({configure:false,asobiConfigure:"ps5RemotePlay",asobiGames:[{provider:"ps5RemotePlay",id:"actual-shortcut",label:"PS5 game"}]});
+  expect(document.querySelector('[aria-label="PS5 Remote Play settings"]')).not.toBeNull();
+  await click(document.querySelector('[data-launch-primary]'));
+  expect(s.startAsobi).toHaveBeenCalledWith("actual-shortcut");
+  expect(s.stream).not.toHaveBeenCalled();
+});
+it("Luna connection settings never expose or start a host stream",async()=>{
+  await render({configure:false,provider:"luna"},true);
+  await click(Array.from(document.querySelectorAll('[role="menuitem"]')).find(el=>el.textContent?.includes("Amazon Luna Wi-Fi"))!);
+  expect(document.querySelector('[aria-label="Amazon Luna Wi-Fi"]')).not.toBeNull();
+  expect(document.querySelector('[data-launch-primary]')).toBeNull();
+  expect(document.body.textContent).not.toContain("Stream options");
+});

@@ -20,7 +20,7 @@ export function CreteStatus({ time, date, hasBattery, battery, charging }: { tim
 }
 
 export function CreteHeader({ tab, time, date, hasBattery, battery, charging, sections }: { tab: string; time: string; date?: string; hasBattery: boolean; battery: number; charging: boolean; sections?: ReactNode }) {
-  return <header className="crete-header"><span className="crete-header-mark" aria-label="CreteOS"><CreteMark size={26} /></span>
+  return <header className={`crete-header${tab === "Settings" ? " crete-settings-header" : ""}`}><span className="crete-header-mark" aria-label="CreteOS"><CreteMark size={26} /></span>
     <CreteStatus time={time} date={date} hasBattery={hasBattery} battery={battery} charging={charging} />
     {tab === "Settings" && <div className="crete-settings-sections">{sections}</div>}
   </header>;

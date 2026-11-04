@@ -650,7 +650,7 @@ export function SettingsScreen({
 
     if (item.type === "divider") {
       return (
-        <div key={item.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "22px 4px 16px" }}>
+        <div key={item.key} data-settings-divider style={{ display: "flex", alignItems: "center", gap: 10, padding: "22px 4px 16px" }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: theme.textFaint, textTransform: "uppercase", letterSpacing: "0.12em", flexShrink: 0 }}>
             {item.label}
           </span>
@@ -1484,7 +1484,8 @@ export function SettingsScreen({
   };
 
   return (
-    <div style={{ ...(wideLayout ? {} : { maxWidth: 1400, margin: "0 auto" }), width: "100%", boxSizing: "border-box" as const }}>
+    <div data-crete-settings={resolvedTheme === "crete" ? "true" : undefined} style={{ ...(wideLayout ? {} : { maxWidth: 1400, margin: "0 auto" }), width: "100%", boxSizing: "border-box" as const }}>
+      {resolvedTheme === "crete" && <header className="crete-settings-heading"><span>SETTINGS</span><h1>{t(SETTINGS_SECTIONS[settingsSection]?.labelKey ?? "settings.sections.appearance")}</h1></header>}
       <div style={{ padding: `${sectionItems[0]?.type !== "divider" ? "22px" : "0"} 24px 160px` }}>
         {streamingError && <p role="alert">{streamingError}</p>}
       {sectionItems.map(renderItem)}

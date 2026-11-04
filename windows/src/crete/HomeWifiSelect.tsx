@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 export type WifiProvider = "moonlight" | "geforceNow" | "luna" | "ps5RemotePlay" | "playstationCloud";
@@ -7,6 +7,14 @@ export function HomeWifiSelect({ provider, saving }: { provider: WifiProvider; s
   const [choice, setChoice] = useState<Choice>("automatic");
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
+  const field = useRef<HTMLSelectElement>(null);
+  const restoreFocus = useRef(false);
+  useEffect(() => {
+    if (ready && restoreFocus.current) {
+      restoreFocus.current = false;
+      if (document.activeElement === document.body) field.current?.focus({ preventScroll: true });
+    }
+  }, [ready]);
   const [wired,setWired]=useState(false);
   useEffect(()=>{
     let active=true;
@@ -23,10 +31,10 @@ export function HomeWifiSelect({ provider, saving }: { provider: WifiProvider; s
     return () => { active = false; };
   }, [provider]);
   return <>
-    {wired && <p role="status">Ethernet connected · using the wired connection. Your Wi-Fi choice is saved for when you undock.</p>}
-    <label>{wired?"Wi-Fi fallback":"Home Wi-Fi"}<select aria-label="Home Wi-Fi" disabled={!ready} value={choice} onChange={event => {
+    {wired && <p className="crete-stream-wired" role="status">Ethernet connected</p>}
+    <label>{wired?"Wi-Fi fallback":"Home Wi-Fi"}<select ref={field} aria-label="Home Wi-Fi" disabled={!ready} value={choice} onChange={event => {
       const next = event.target.value as Choice;
-      saving(true); setReady(false); setError("");
+      restoreFocus.current = true; saving(true); setReady(false); setError("");
       void invoke("set_stream_wifi_preference", { provider, choice: next }).then(() => setChoice(next))
         .catch(reason => setError(String(reason))).finally(() => { saving(false); setReady(true); });
     }}>
@@ -35,7 +43,7 @@ export function HomeWifiSelect({ provider, saving }: { provider: WifiProvider; s
       <option value="download">Hyperoptic Fibre E433</option>
       <option value="current">Keep current connection</option>
     </select></label>
-    <p>Remembered for {provider === "moonlight" ? "Moonlight" : provider === "luna" ? "Amazon Luna" : provider === "ps5RemotePlay" ? "PS5 Remote Play" : provider === "playstationCloud" ? "PlayStation Cloud" : "GeForce NOW"}. Held until {provider === "ps5RemotePlay" || provider === "playstationCloud" ? "ASOBI closes" : "the session closes"}, then normal Wi-Fi rules resume. Other networks are left alone.</p>
+    <p>{provider === "ps5RemotePlay" || provider === "playstationCloud" ? "Held until ASOBI closes." : "Held during play."} Other networks stay unchanged.</p>
     {error && <p role="alert">Could not save Wi-Fi preference: {error}</p>}
   </>;
 }

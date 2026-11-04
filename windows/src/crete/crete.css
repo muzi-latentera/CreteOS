@@ -9,6 +9,17 @@
 .crete-status > span:last-child { display:flex; align-items:center; gap:5px; }
 .crete-status-divider { height:18px; width:1px; background:var(--crete-border); }
 .crete-settings-sections { position:absolute; left:var(--crete-pad); right:var(--crete-pad); top:60px; pointer-events:auto; }
+.crete-settings-header { height:112px; background:#0b0e11; border-bottom:1px solid #f2eadb12; }
+[data-crete-settings-scroll="true"] { scroll-padding:128px 0 82px; }
+[data-crete-settings="true"] { max-width:1100px!important; margin:0 auto; }
+.crete-settings-heading { padding:28px 24px 0; }
+.crete-settings-heading > span { color:#b7a277; font:600 10px/1.4 ui-monospace,monospace; letter-spacing:2.4px; }
+.crete-settings-heading h1 { margin:7px 0 0; color:#f2eadb; font:650 clamp(25px,2.2vw,34px)/1.2 system-ui,sans-serif; letter-spacing:-.6px; }
+[data-crete-settings="true"] [data-settings-row] { border-radius:12px!important; background:#12191e!important; border:1px solid #f2eadb12!important; box-shadow:none!important; backdrop-filter:none!important; min-height:54px; box-sizing:border-box; scroll-margin-block:18px; transition:background .12s,border-color .12s!important; }
+[data-crete-settings="true"] [data-settings-row].focused { background:#e7b45c12!important; border-color:#e8be75!important; box-shadow:inset 3px 0 #e8be75!important; }
+[data-crete-settings="true"] [data-settings-divider] { padding-top:30px!important; }
+[data-crete-settings="true"] [data-settings-divider] > span { color:#b5b4a8!important; letter-spacing:1.8px!important; }
+[data-crete-settings="true"] [data-settings-row] button:focus-visible { outline:3px solid #efc97f!important; outline-offset:3px; }
 .crete-bottom-nav { position:fixed; z-index:100; bottom:0; left:0; right:0; height:var(--crete-bottom); box-sizing:border-box; padding:0 var(--crete-pad); display:flex; align-items:center; gap:36px; background:#0a0d10; }
 .crete-bottom-nav button { border:0; background:transparent; color:var(--crete-dim); width:40px; height:40px; display:grid; place-items:center; padding:0; }
 .crete-bottom-nav button[aria-current="page"] { color:var(--crete-accent); }
