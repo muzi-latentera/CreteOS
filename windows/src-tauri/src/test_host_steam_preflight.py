@@ -6,6 +6,14 @@ from host_steam_preflight import game_environment, migrate, wrong_desktop, snaps
 
 
 class SteamDesktopTests(unittest.TestCase):
+    def test_normal_shutdown_tolerates_a_dying_process_without_repeating_shutdown(self):
+        inspect=Mock(side_effect=[([(1,{'DISPLAY':':1'})],[]),RuntimeError('processCheckUnavailable'),([],[])])
+        run=Mock()
+        self.assertEqual(migrate({'DISPLAY':':0'},run=run,inspect=inspect,sleep=Mock(),clock=Mock(side_effect=[0,1])),'moved')
+        run.assert_called_once()
+    def test_persistent_uncertainty_after_shutdown_is_reported_as_pending(self):
+        inspect=Mock(side_effect=[([(1,{'DISPLAY':':1'})],[]),RuntimeError('processCheckUnavailable')])
+        self.assertEqual(migrate({'DISPLAY':':0'},run=Mock(),inspect=inspect,clock=Mock(side_effect=[0,26])),'shutdownCheckPending')
     def test_correct_desktop_probe_reads_only_steam_environment(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)

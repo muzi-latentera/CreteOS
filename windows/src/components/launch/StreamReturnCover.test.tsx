@@ -57,6 +57,14 @@ it("rotates playful launch text while errors and return artwork keep their meani
   expect(container.querySelector('[role="alert"]')?.textContent).toBe("Steam needs attention");
   vi.restoreAllMocks();
 });
+it("shows a real game update instead of hiding it behind playful progress",async()=>{
+  await act(async()=>window.dispatchEvent(new CustomEvent("crete-stream-cover",{detail:{app:{id:"re2",name:"Resident Evil 2"}}})));
+  await act(async()=>callbacks.get("stream-progress")?.({payload:{message:"Steam is downloading or updating game files…"}}));
+  expect(container.textContent).toContain("Steam is downloading or updating game files");
+  expect(container.querySelector("[data-launch-message]")).toBeNull();
+  await act(async()=>callbacks.get("stream-progress")?.({payload:{message:"Starting the game on Bosgame…"}}));
+  expect(container.querySelector("[data-launch-message]")).not.toBeNull();
+});
 it("ignores a stale end event and fails open if the client never completes", async () => {
   invoke.mockImplementation(async command => { if (command === "present_stream_return_cover") await new Promise(() => {}); return true; });
   await phase("ending", 2);

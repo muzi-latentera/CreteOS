@@ -10,7 +10,9 @@ fn playful_lines()-> &'static Vec<String>{
     LINES.get_or_init(||serde_json::from_str(include_str!("../../src/components/launch/launchMessages.json")).expect("Bundled loading messages"))
 }
 fn display_message(state:&State)->&str{
-    if state.playful && !state.message.is_empty(){&playful_lines()[state.step%playful_lines().len()]}else{&state.message}
+    static WAITS:OnceLock<Vec<String>>=OnceLock::new();
+    let waiting=WAITS.get_or_init(||serde_json::from_str(include_str!("../../src/components/launch/streamWaitMessages.json")).expect("Bundled wait messages"));
+    if state.playful && !state.message.is_empty() && !waiting.contains(&state.message){&playful_lines()[state.step%playful_lines().len()]}else{&state.message}
 }
 static HANDLE:OnceLock<Result<isize,String>>=OnceLock::new();
 fn owned(raw:isize)->bool{unsafe{let hwnd=HWND(raw as _);let mut pid=0;GetWindowThreadProcessId(hwnd,Some(&mut pid));IsWindow(Some(hwnd)).as_bool()&&pid==std::process::id()}}
@@ -114,6 +116,7 @@ use super::*;
     assert_eq!(playful_lines().len(),15);
     assert_eq!(display_message(&state),playful_lines()[0]);
     state.step=1;assert_eq!(display_message(&state),playful_lines()[1]);
+    state.message="Steam is downloading or updating game files…".into();assert_eq!(display_message(&state),state.message);
     state.message="Host unavailable".into();state.playful=false;assert_eq!(display_message(&state),"Host unavailable");
     state.message.clear();state.playful=true;assert_eq!(display_message(&state),"");
 }

@@ -132,6 +132,11 @@ def login_blocker(text):
     return result
 
 
+def login_window(nodes):
+    return any(node.get('visible') and str((node.get('window_properties') or {}).get('class','')).lower()=='steam'
+               and str(node.get('name','')).strip().lower() in ('sign in to steam','steam login') for node,_ in nodes)
+
+
 def log_tail(path, limit=65536):
     try:
         with path.open('rb') as stream:
@@ -139,6 +144,36 @@ def log_tail(path, limit=65536):
             return stream.read(limit).decode(errors='replace')
     except OSError:
         return ''
+
+
+class LoginLog:
+    """Watch fresh login events, never an old Steam instance's logout."""
+    def __init__(self, path):
+        self.path = path
+        self.offset = path.stat().st_size if path.exists() else 0
+        self.blocked = False
+        self.carry = ''
+
+    def poll(self):
+        try:
+            with self.path.open('rb') as stream:
+                size = self.path.stat().st_size
+                if size < self.offset:
+                    self.blocked = False
+                    self.carry = ''
+                stream.seek(self.offset if size >= self.offset else 0)
+                data = stream.read(65536)
+                self.offset = stream.tell()
+            lines=(self.carry+data.decode(errors='replace')).split('\n')
+            self.carry=lines.pop()[-8192:]
+            for line in lines:
+                if "RecvMsgClientLogOnResponse()" in line and "'OK'" in line:
+                    self.blocked = False
+                elif "RecvMsgClientLoggedOff(" in line or 'not auto reconnecting due to' in line:
+                    self.blocked = True
+        except OSError:
+            pass
+        return self.blocked
 
 
 def write_state(folder, phase, reason=None):
@@ -310,6 +345,8 @@ def present(token):
     began = time.monotonic()
     log = Path.home() / ".local/share/Steam/logs/console_log.txt"
     log_offset = log.stat().st_size if log.exists() else 0
+    login_log = LoginLog(log.parent / 'connection_log.txt')
+    login_waiting_at = None
     pending = None
     waiting_at = None
     finished = False
@@ -369,7 +406,7 @@ def present(token):
                 Gtk.main_quit()
 
     def tick():
-        nonlocal seen, positioned, attention, attention_reason, closed_at, log_offset, pending, waiting_at, last_output_check
+        nonlocal seen, positioned, attention, attention_reason, closed_at, log_offset, pending, waiting_at, last_output_check, login_waiting_at
         try:
             now = time.monotonic()
             if (folder / "finish").exists() or now - began > 86400:
@@ -406,9 +443,16 @@ def present(token):
             if needs_attention(pending, waiting_at, now, nodes, began):
                 attention = True
                 attention_reason = pending
-            if not seen and now - began > 2 and login_blocker(log_tail(log.parent / 'connection_log.txt')):
-                attention = True
-                attention_reason = 'signin'
+            blocked_login = login_log.poll() or login_window(nodes)
+            if not seen and blocked_login:
+                if login_waiting_at is None:
+                    login_waiting_at = now
+                # Automatic sign-in briefly presents a login window too.
+                if now - login_waiting_at >= 8:
+                    attention = True
+                    attention_reason = 'signin'
+            else:
+                login_waiting_at = None
             games = [node for node, _ in nodes if game_window(node, config["appId"])]
             if games:
                 if not seen:

@@ -53,8 +53,13 @@ fn request(host: &str, endpoint: &str, body: Option<Value>) -> Result<Value, Str
     let builder = if let Some(body) = body {
         if endpoint == "appData" { client.get(url).json(&body) } else { client.post(url).json(&body) }
     } else { client.get(url) };
-    let response = builder.header("Authorization", format!("basic {auth}")).send()
-        .map_err(|_| "MoonDeck Buddy is unavailable on this host. Check the host's network connection.".to_owned())?;
+    // Steam initialization/update dialogs can take longer than a status poll.
+    // Send launch commands once; never replay a timed-out launch POST.
+    let timeout=if matches!(endpoint,"launchSteam"|"launchSteamApp"){30}else{5};
+    let response = builder.timeout(std::time::Duration::from_secs(timeout)).header("Authorization", format!("basic {auth}")).send()
+        .map_err(|error| if error.is_timeout() && matches!(endpoint,"launchSteam"|"launchSteamApp") {
+            "MoonDeck Buddy is taking too long to prepare Steam on Bosgame. Steam may still be signing in or updating; check the host screen before retrying.".to_owned()
+        } else {"MoonDeck Buddy is unavailable on this host. Check the host's network connection.".to_owned()})?;
     if !response.status().is_success() {
         // Pairing URLs contain the private client identity; report only the
         // route name, never the URL, authorization header or response body.

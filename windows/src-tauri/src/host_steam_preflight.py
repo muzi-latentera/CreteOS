@@ -95,7 +95,17 @@ def migrate(target, run=subprocess.run, inspect=snapshot, sleep=time.sleep, cloc
     run(['/usr/bin/steam', '-shutdown'], env=environment, capture_output=True, timeout=8, check=True)
     deadline = clock() + 25
     while True:
-        remaining, games = inspect()
+        try:
+            remaining, games = inspect()
+        except RuntimeError as error:
+            # Steam's own shutdown briefly makes dying process environments
+            # unreadable. Wait for completion; never repeat shutdown or kill.
+            if str(error) != 'processCheckUnavailable':
+                raise
+            if clock() >= deadline:
+                return 'shutdownCheckPending'
+            sleep(.25)
+            continue
         if games:
             return 'gameRunning'
         if not remaining:

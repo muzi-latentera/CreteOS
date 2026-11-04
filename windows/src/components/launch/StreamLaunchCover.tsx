@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { getBestGamepad, readGpState } from "../../utils/gamepad";
 import { streamErrorMessage } from "../../crete/streamErrors";
 import { LaunchMessages } from "./LaunchMessages";
+import { isStreamWaitMessage } from "./streamWaitMessages";
 
 type Provider = "moonlight" | "geforceNow" | "luna" | "ps5RemotePlay" | "playstationCloud";
 type Cover = { app: App; returning?: boolean } | null;
@@ -200,6 +201,6 @@ export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<
   if (!cover) return null;
   const art = customHeroArt[cover.app.id] || heroArt[cover.app.id];
   return <div data-stream-launch-cover="" role="status" aria-label={t("launch.launching")} style={{ position: "fixed", inset: 0, zIndex: 10000, display: "grid", placeContent: "center", background: art ? `linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.4)),url(${JSON.stringify(art)}) center/cover` : "rgba(10,13,16,.92)" }}>
-    {!cover.returning && (failure ? <span role="alert" style={{maxWidth:"75vw",textAlign:"center"}}>{failure}</span> : <LaunchMessages />)}
+    {!cover.returning && (failure || isStreamWaitMessage(progress) ? <span role={failure?"alert":"status"} style={{maxWidth:"75vw",textAlign:"center"}}>{failure || progress}</span> : <LaunchMessages />)}
   </div>;
 }

@@ -3,10 +3,26 @@ from unittest.mock import patch
 import tempfile
 from pathlib import Path
 import json
-from host_presentation import conceal_library, game_window, needs_attention, restore_saved, steam_library, steam_on_other_display, windows, launch_blocker, login_blocker
+from host_presentation import conceal_library, game_window, needs_attention, restore_saved, steam_library, steam_on_other_display, windows, launch_blocker, login_blocker, LoginLog, login_window
 
 
 class PresentationIsolationTests(unittest.TestCase):
+    def test_existing_login_dialog_is_distinct_from_the_main_library(self):
+        node={'visible':True,'name':'Sign in to Steam','window_properties':{'class':'Steam'}}
+        self.assertTrue(login_window([(node,None)]))
+        node['name']='Steam';self.assertFalse(login_window([(node,None)]))
+    def test_login_watch_ignores_previous_instance_logout_but_reveals_a_new_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'connection_log.txt'
+            path.write_text("RecvMsgClientLoggedOff('old instance')\n")
+            watch=LoginLog(path)
+            self.assertFalse(watch.poll())
+            with path.open('a') as out:out.write('[Logging On] connecting\n')
+            self.assertFalse(watch.poll())
+            with path.open('a') as out:out.write("RecvMsgClientLoggedOff('Request revoked')\n")
+            self.assertTrue(watch.poll())
+            with path.open('a') as out:out.write("RecvMsgClientLogOnResponse() : 'OK'\n")
+            self.assertFalse(watch.poll())
     def test_embedded_cloud_warning_is_revealed_without_a_separate_dialog(self):
         line = 'GameAction [AppID 4115450, ActionID 3] : LaunchApp waiting for user response to SynchronizingCloud "syncfailed"'
         self.assertEqual(launch_blocker('4115450', line), 'cloud-sync')

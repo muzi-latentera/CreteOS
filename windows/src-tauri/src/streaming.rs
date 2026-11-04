@@ -5,6 +5,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::Manager;
 #[path = "gfn_process_guard.rs"]
 pub(crate) mod gfn_process_guard;
+#[path = "gfn_startup.rs"]
+pub(crate) mod gfn_startup;
 
 static SESSION_GENERATION: AtomicU64 = AtomicU64::new(0);
 static LAUNCH_EPOCH: AtomicU64 = AtomicU64::new(0);
@@ -198,6 +200,8 @@ pub fn present_stream_return_cover(window: tauri::Window, provider: String, sess
     Ok(true)
 }
 
+fn nvidia_streamer_running()->bool{super::is_process_running("GeForceNOWStreamer.exe") || super::is_process_running("GeForceNOWContainer.exe")}
+
 fn nvidia_console() -> PathBuf {
     dirs::data_local_dir().unwrap_or_default().join("NVIDIA Corporation/GeForceNOW/console.log")
 }
@@ -242,33 +246,32 @@ fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::L
                 end_return(&window, "geforceNow", generation);
                 return;
             }
-            if session.started && !super::is_process_running("GeForceNOWStreamer.exe") && !super::is_process_running("GeForceNOW.exe") { return; }
+            if session.started && !nvidia_streamer_running() && !super::is_process_running("GeForceNOW.exe") { return; }
             // A membership queue can legitimately outlast three minutes. Keep
             // its selected network while the native streamer is still open.
             if !session.started && start.elapsed() > std::time::Duration::from_secs(180)
-                && !super::is_process_running("GeForceNOWStreamer.exe") { return; }
+                && !nvidia_streamer_running() { return; }
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
     });
 }
 
-fn warm_geforce_client() -> Result<(), String> {
-    // External Streamer shortcuts can calculate Balanced before the initial
-    // SharedStorage update arrives. Initialize the main client first, then
-    // dispatch the shortcut only after native settings/capabilities are loaded.
-    let mut log = super::stream_readiness::LogCursor::new(nvidia_console());
-    std::process::Command::new(client_path("geforceNow")?).spawn().map_err(|e| e.to_string())?;
-    let start = std::time::Instant::now();
-    let mut capabilities = false; let mut storage = false;
-    while start.elapsed() < std::time::Duration::from_secs(25) {
-        for line in log.lines() {
-            capabilities |= line.contains("prefetchDeviceCapabilities response:") && line.contains("true");
-            storage |= line.contains("shared storage cache updated");
-        }
-        if capabilities && storage && start.elapsed() >= std::time::Duration::from_secs(5) { return Ok(()); }
+fn nvidia_profile_matches(actual:&serde_json::Value,expected:&serde_json::Value)->bool{
+    let actual=&actual["appSettingsConfig"];let expected=&expected["appSettingsConfig"];
+    actual["streamingProfiles"]==expected["streamingProfiles"] && ["width","height","fps","maxBitrate","maxBitrateAuto","name","profile"].iter().all(|key|actual["customProfile"][*key]==expected["customProfile"][*key])
+}
+fn warm_geforce_client(path:&std::path::Path,expected:&serde_json::Value,epoch:u64) -> Result<(), String> {
+    let mut log=super::stream_readiness::LogCursor::new(nvidia_console());
+    std::process::Command::new(client_path("geforceNow")?).spawn().map_err(|e|e.to_string())?;
+    let start=std::time::Instant::now();let mut gate=gfn_startup::WarmGate::default();
+    while start.elapsed()<std::time::Duration::from_secs(60){
+        check_launch(epoch)?;
+        for line in log.lines(){gate.observe(&line);}
+        let matches=std::fs::read(path).ok().and_then(|bytes|serde_json::from_slice::<serde_json::Value>(&bytes).ok()).is_some_and(|actual|nvidia_profile_matches(&actual,expected));
+        if gate.ready(start.elapsed(),matches){return Ok(());}
         std::thread::sleep(std::time::Duration::from_millis(200));
     }
-    Err("NVIDIA has not finished loading its settings. No game was started. Open its Settings screen, then retry.".into())
+    Err("NVIDIA has not confirmed your Custom streaming settings yet. No game was started. Check its sign-in or service connection, then retry.".into())
 }
 
 fn nvidia_idle_evidence(log: &str, titles: &[String], streamer: bool) -> bool {
@@ -348,22 +351,22 @@ fn nvidia_new_activity(line:&str)->bool{
 }
 
 fn close_idle_geforce(note: impl Fn(&str)) -> Result<(), String> {
-    if !super::is_process_running("GeForceNOW.exe") && !super::is_process_running("GeForceNOWStreamer.exe") { return Ok(()); }
+    if !super::is_process_running("GeForceNOW.exe") && !nvidia_streamer_running() { return Ok(()); }
     let root = dirs::data_local_dir().ok_or("No local data folder")?.join("NVIDIA Corporation/GeForceNOW/CEF/GeForceNOW.exe");
     let candidates = || super::collect_launch_windows().into_iter().filter(|target| target.exe_path.as_deref().is_some_and(|path| gfn_process_guard::same_path(&root.to_string_lossy(),path))).collect::<Vec<_>>();
-    let closed_background=candidates().is_empty()&&!super::is_process_running("GeForceNOWStreamer.exe")&&gfn_process_guard::shutdown_complete(&nvidia_log_tail());
+    let closed_background=candidates().is_empty()&&!nvidia_streamer_running()&&gfn_process_guard::shutdown_complete(&nvidia_log_tail());
     // Window-close can leave NVIDIA's tray/background client alive. Reopen
     // only its ordinary home UI (no route/game arguments) to establish idle
     // evidence before touching those background processes.
-    if !closed_background && candidates().is_empty() && !super::is_process_running("GeForceNOWStreamer.exe") {
+    if !closed_background && candidates().is_empty() && !nvidia_streamer_running() {
         note("Checking the existing NVIDIA background client…");
         std::process::Command::new(client_path("geforceNow")?).spawn().map_err(|_|"Could not reopen NVIDIA's home window to check whether it is idle")?;
         let wait=std::time::Instant::now();
         while candidates().is_empty() && wait.elapsed()<std::time::Duration::from_secs(12){std::thread::sleep(std::time::Duration::from_millis(100));}
     }
-    let idle = || nvidia_idle_evidence(&nvidia_log_tail(), &candidates().iter().map(|w|w.title.clone()).collect::<Vec<_>>(), super::is_process_running("GeForceNOWStreamer.exe"));
+    let idle = || nvidia_idle_evidence(&nvidia_log_tail(), &candidates().iter().map(|w|w.title.clone()).collect::<Vec<_>>(), nvidia_streamer_running());
     if !closed_background && !idle() {
-        if super::is_process_running("GeForceNOWStreamer.exe") || candidates().iter().any(|w| w.title.to_ascii_lowercase().contains(" on geforce now")) {
+        if nvidia_streamer_running() || candidates().iter().any(|w| w.title.to_ascii_lowercase().contains(" on geforce now")) {
             return Err("GeForce NOW is already running or launching a game. Quit that session before applying different streaming settings. CreteOS has left your game running.".into());
         }
         return Err("CreteOS cannot confirm GeForce NOW is idle: it may be signing in, queueing or starting a session. Return to its home screen and retry. Nothing has been closed.".into());
@@ -380,8 +383,8 @@ fn close_idle_geforce(note: impl Fn(&str)) -> Result<(), String> {
         }
     }
     let started = std::time::Instant::now();
-    while super::is_process_running("GeForceNOW.exe") || super::is_process_running("GeForceNOWStreamer.exe") {
-        if cursor.lines().iter().any(|line|nvidia_new_activity(line))||super::is_process_running("GeForceNOWStreamer.exe"){
+    while super::is_process_running("GeForceNOW.exe") || nvidia_streamer_running() {
+        if cursor.lines().iter().any(|line|nvidia_new_activity(line))||nvidia_streamer_running(){
             return Err("GeForce NOW started a session while closing. CreteOS cancelled its restart and left the new session running.".into());
         }
         if started.elapsed() > std::time::Duration::from_secs(12) {
@@ -396,14 +399,14 @@ fn close_idle_geforce(note: impl Fn(&str)) -> Result<(), String> {
             let mut ordered=remaining.into_iter().collect::<Vec<_>>();
             ordered.sort_by_key(|(pid,_)|(!roots.contains(pid),*pid));
             for (pid,created) in ordered {
-                if !candidates().is_empty()||super::is_process_running("GeForceNOWStreamer.exe")||cursor.lines().iter().any(|line|nvidia_new_activity(line))||!gfn_process_guard::same_instances(&original,&gfn_process_instances()?){
+                if !candidates().is_empty()||nvidia_streamer_running()||cursor.lines().iter().any(|line|nvidia_new_activity(line))||!gfn_process_guard::same_instances(&original,&gfn_process_instances()?){
                     return Err("NVIDIA opened a new session; background cleanup cancelled.".into());
                 }
                 if super::process_exe_path(pid).is_none(){continue;}
                 finish_idle_gfn_process(pid,created)?;
             }
             let deadline=std::time::Instant::now();
-            while super::is_process_running("GeForceNOW.exe")||super::is_process_running("GeForceNOWStreamer.exe"){
+            while super::is_process_running("GeForceNOW.exe")||nvidia_streamer_running(){
                 if deadline.elapsed()>std::time::Duration::from_secs(5){return Err("NVIDIA is still finishing its background client. Retry after it closes.".into());}
                 std::thread::sleep(std::time::Duration::from_millis(100));
             }
@@ -609,7 +612,9 @@ fn update_geforce_settings(settings: &mut serde_json::Value, profile: &Moonlight
 pub async fn start_geforce_game(window: tauri::Window, game_url: String, display_key: String, profile: MoonlightProfile, source: Option<String>) -> Result<(), String> {
     geforce_native_game_uri(&game_url)?;
     if display_key.is_empty() || display_key.len() > 256 { return Err("Invalid display identity".into()); }
+    let epoch=launch_epoch();
     tauri::async_runtime::spawn_blocking(move || {
+        check_launch(epoch)?;
         let (client, argument) = geforce_launch(&game_url, source.as_deref(), true)?;
         close_idle_geforce(|message|progress(&window,message))?;
         let wifi = super::stream_wifi::prepare("geforceNow");
@@ -625,7 +630,9 @@ pub async fn start_geforce_game(window: tauri::Window, game_url: String, display
         std::fs::write(&temporary, serde_json::to_vec(&settings).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         std::fs::rename(&temporary, &path).map_err(|e| e.to_string())?;
         let generation = next_session();
-        warm_geforce_client()?;
+        progress(&window,"Loading NVIDIA streaming settings…");
+        warm_geforce_client(&path,&settings,epoch)?;
+        check_launch(epoch)?;
         let readback: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         let expected = &settings["appSettingsConfig"];
         let actual = &readback["appSettingsConfig"];
@@ -633,6 +640,7 @@ pub async fn start_geforce_game(window: tauri::Window, game_url: String, display
             return Err("NVIDIA changed the selected profile during startup. No game was started; check its Custom quality settings.".into());
         }
         let log = super::stream_readiness::LogCursor::new(nvidia_console());
+        check_launch(epoch)?;
         let launch = spawn_geforce(&client, &argument);
         if let Err(error) = launch { let _ = std::fs::write(&path, original); return Err(error.to_string()); }
         watch_geforce_exit(window, log, generation, wifi);
@@ -727,7 +735,8 @@ fn prepare_host_steam(host: &str) -> Result<(), String> {
         Some("gameRunning") => Err("A game is running on Bosgame's regular desktop. Quit it before starting this Moonlight game; CreteOS has left it running.".into()),
         Some("streamActive") => Err("Another Moonlight stream is connected to Bosgame. End that session before moving Steam to the streaming desktop.".into()),
         Some("shutdownPending") => Err("Steam is waiting to close on Bosgame, possibly for a download or save-sync prompt. Finish that prompt and retry. Nothing was forcibly stopped.".into()),
-        Some("processCheckUnavailable") => Err("Bosgame would need to move Steam, but a protected process prevents checking whether a game is running. Nothing was stopped. Close any host game and retry.".into()),
+        Some("processCheckUnavailable") => Err("CreteOS could not verify Steam's process state on Bosgame. Nothing was forcibly stopped. Wait for Steam to settle, then retry.".into()),
+        Some("shutdownCheckPending") => Err("Steam is closing on Bosgame, but CreteOS could not yet confirm the desktop change. Wait a moment and retry. Nothing was forcibly stopped.".into()),
         Some("desktopUnknown" | "targetUnavailable") => Err("Bosgame's streaming desktop is not ready or its display identity is unavailable. Check its streaming desktop service, then retry.".into()),
         Some("preflightBusy") => Err("Another launch is already preparing Steam on Bosgame. Wait for it to finish, then retry.".into()),
         Some("commandFailed") => Err("Steam could not close normally on Bosgame. Check its download or save-sync prompts; nothing was forcibly stopped.".into()),
