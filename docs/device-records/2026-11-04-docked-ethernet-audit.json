@@ -1,0 +1,62 @@
+{
+  "readOnly": true,
+  "date": "2026-11-04",
+  "ethernet": {
+    "adapter": "ASIX USB to Gigabit Ethernet Family Adapter",
+    "interface": "Ethernet 2",
+    "link": "1Gbps",
+    "ipv4InterfaceMetric": 25,
+    "defaultRouteMetric": 0,
+    "selectedForBosgame": true,
+    "selectedForInternetProbeAddress": true
+  },
+  "wifi": {
+    "interface": "Wi-Fi 2",
+    "ipv4InterfaceMetric": 45,
+    "defaultRouteMetric": 0
+  },
+  "displays": [
+    {
+      "device": "\\\\.\\DISPLAY1",
+      "adapter": "AMD Radeon(TM) 890M Graphics",
+      "primary": true,
+      "x": 0,
+      "y": 0,
+      "width": 2560,
+      "height": 1600,
+      "hz": 144,
+      "orientation": 1
+    },
+    {
+      "device": "\\\\.\\DISPLAY2",
+      "adapter": "AMD Radeon(TM) 890M Graphics",
+      "primary": false,
+      "x": -605,
+      "y": -2160,
+      "width": 3840,
+      "height": 2160,
+      "hz": 60,
+      "orientation": 0
+    }
+  ],
+  "preferences": {
+    "moonlight": "current",
+    "geforceNow": "automatic",
+    "luna": "automatic",
+    "ps5RemotePlay": "automatic",
+    "playstationCloud": "automatic"
+  },
+  "codeFindings": {
+    "explicitEthernetChoice": false,
+    "ethernetDetectionInWifiHelper": false,
+    "changesRoutesOrMetrics": false,
+    "disablesEthernet": false,
+    "controlsOnlyWifiAssociation": true,
+    "displayProfileUsesCreteOSWindowMonitor": true,
+    "tvPreset": "3840x2160/60fps"
+  },
+  "recommendation": "While docked: TV4K60 preset; Moonlight80Mbps/Auto or supportedAV1; GFN4K60 and about75\u201380Mbps if entitlement/app supports. Keep current connection avoids prelaunch WiFi association changes. Current routing prefers wired, but helper does not guarantee wired priority after future speed/metric changes. Future Ethernet-aware automatic policy should skip home WiFi switching while usable wired routes exist; not implemented in this audit.",
+  "changes": "None: no launch, network metric, adapter, profile, display or build/install changes.",
+  "source": "https://nvidia.custhelp.com/app/answers/detail/a_id/5223/kw/40",
+  "vaultSync": "pending"
+}
