@@ -1,0 +1,53 @@
+{
+  "readOnly": true,
+  "reviewedAt": "2026-11-04T00:37:35+00:00",
+  "sshSucceeded": true,
+  "session": {
+    "game": "Phantom Blade Zero",
+    "start": "2026-11-03T23:28:02+00:00",
+    "end": "2026-11-04T00:32:49+00:00",
+    "request": "2560x1600/120FPS/AV1/SDR",
+    "clientBitrateKbps": 100000,
+    "hostEncoderBitrate": 78988000,
+    "encoder": "RX9070XT VAAPI",
+    "stats": [
+      "Incoming frame rate from network: 119.35 FPS",
+      "Decoding frame rate: 119.35 FPS",
+      "Rendering frame rate: 118.96 FPS",
+      "Host processing latency min/max/average: 2.1/653.2/6.2 ms",
+      "Frames dropped by your network connection: 0.45%",
+      "Frames dropped due to network jitter: 0.20%",
+      "Average network latency: 2 ms (variance: 6 ms)",
+      "Average decoding time: 1.00 ms",
+      "Average frame queue delay: 0.14 ms",
+      "Average rendering time (including monitor V-sync latency): 1.69 ms"
+    ]
+  },
+  "lossBursts": [
+    {
+      "start": "00:25:10",
+      "end": "00:25:15",
+      "loggedNetworkDroppedFrames": 155
+    },
+    {
+      "start": "00:28:04",
+      "end": "00:28:15",
+      "loggedNetworkDroppedFrames": 1123
+    },
+    {
+      "start": "00:31:36",
+      "end": "00:31:39",
+      "loggedNetworkDroppedFrames": 272
+    }
+  ],
+  "lossInterpretation": "1550 of1587 explicitly logged dropped frames in final15minutes; logs are not complete per-frame telemetry and these counts need not reproduce aggregate percentage. Missing frames/IDR recovery proven; exact loss location/source unresolved.",
+  "g1": "Extra held. No mid-stream WLAN disconnect/reassociation or collected AX210 fatal event. ASPM still AC/DC0. Current post-session83%/-56dBm/channel100/516Mbps receive is not historical signal evidence.",
+  "host": "Game process exited/code0 followed normal Buddy/client cleanup. No collected GPU reset or Ethernet carrier failure. Actual post-session route to verified G1 address uses eno1; current counters have0tx errors/carrier errors but are lifetime counters. NetworkManager repeatedly changed internet default between wired/wlan0; not proof the local stream used Wi-Fi or cause of late loss.",
+  "hostCpu": "Kernel #DB bus_lock traps from GameThread, loading/render threads and CHTTPClientThre, including near late degradation. Plausible host latency contributor; causality unmeasured. kernel.split_lock_mitigate already0; no extra10ms mitigation claim or change. Some warnings occur after quit and do not explain earlier faults.",
+  "other": "One skipped-FEC warning00:21:56; capture failed only after resolution reset/quit. Client144Hz vs120 stream pacing note may affect cadence but does not explain new late packet-loss bursts.",
+  "recommendation": "Controlled next test reduce client bitrate100->80Mbps while retaining120FPS/resolution; not applied. If recurrence, collect AP radio/client retry telemetry and synchronized host CPU/network sampling to isolate Wi-Fi versus host-side stalls.",
+  "source": "https://www.kernel.org/doc/html/latest/arch/x86/buslock.html",
+  "changes": "No games launched/stopped, services/network/power/driver/profile changes or build/install.",
+  "backup": "Existing3November005030 remains a verified dated snapshot; this diagnostic audit changed no runtime backup input, no fresh live-profile comparison or USB copy claimed.",
+  "vaultSync": "pending"
+}
