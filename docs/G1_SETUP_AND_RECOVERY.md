@@ -4,9 +4,9 @@ Maintained device record, updated 4 November 2026 (Europe/London). Covers this G
 
 ## Current state
 
-**4 November21:38–22:02 handheld stream:** visible stutter is supported by0.45% network frame loss and0.61% jitter drops at1600p/120FPS/100Mbps/AV1. Extra held throughout; no mid-session adapter reset or Sunshine crash. Decoder was fast. Saved gameINI4K was misleading: actual OptiScaler context output2432x1520, not4K. The largest Steam bus-lock burst followed the quit/shader download. Exact root cause remains unresolved; the previously successful1600p/90FPS/80Mbps/HEVC profile is the proposed comparison, not an applied fix. See [late-session diagnosis](journal/2026-11-04-late-stream-lag-pending-sync.md). No runtime/recovery inputs changed in this read-only audit.
+**Late-stream follow-through:** compared the actual2November smooth handheld log with the laggy4November session and ran a live80/100/80Mbps UDP comparison on Extra. Both80Mbps phases lost zero packets;100Mbps lost300/134698 (~0.223%). Delay spikes persisted at both rates. Applied the earlier1600p/90FPS/80Mbps/HEVC profile to the G1 panel only, restarted CreteOS and verified readback; TV/XREAL/other display profiles preserved. This is an applied mitigation, not a claim of new gameplay acceptance or a proven sole root cause. See [comparison and applied settings](journal/2026-11-04-handheld-comparison-followthrough-pending-sync.md).
 
-**4 November evening menu polish installed; verified private archive `CreteOS-G1-profile-backup-20261104-213143.zip`, SHA256 `f407fd6da363988c0598f1c705217c75e438c05a49de6748aead94d8d47ed9d9`. Prior snapshots retained. USB absent;3November pack remains stale.**
+**4 November handheld profile restore and recovery complete:**1600p/90FPS/80Mbps/HEVC. Verified archive `CreteOS-G1-profile-backup-20261104-222223.zip`, SHA256 `0400d6c235d54b4d5dd30a176470a2702d6c6b4d37de9795446cfcc105d2d8df`; previous213143 retained. USB absent/older; physical gameplay acceptance remains pending.
 
 Launch-menu layout in the evening source: connection and display preset remain on the main screen, with a one-line resolution/FPS/bitrate summary. Open **Stream options** for detailed quality and host-app selection; **Host & connection tools** contains Refresh host and Open Moonlight. Play/Cancel stay outside the scrollable body. A confirms an option; B closes the current picker without applying an unconfirmed option. Confirmed network choices save immediately; quality settings save when starting. D-pad highlights options and the checkmark indicates the saved choice. No network switch occurs from merely moving focus. Ethernet still takes priority, with the saved Wi-Fi fallback governed by the existing policy. Crete settings use a fixed opaque section header and scroll clearance; personal scaling/display settings and the Wide settings preference are preserved. See the dated journal for browser checks versus native physical-controller acceptance.
 
@@ -26,9 +26,10 @@ Platform badges and Local/Cloud classification remain as verified on2November; c
 | --- | --- |
 | Device | ONE-NETBOOK ONEXPLAYER G1 A, Windows 11 Home build 26200, computer OXPG1, user Muzi |
 | Panel | 2560 × 1600 landscape,16:10,144Hz; latest captured streams requested120FPS, earlier15:13 session90FPS; no profile change in this audit |
+| Handheld Moonlight profile | G1 HSX0224 panel:2560x1600 /90FPS /80000kbps /HEVC, restored4November22:20; other displays preserved |
 | Native installation | `%LOCALAPPDATA%\CreteOS\creteos.exe` |
 | Personal data | `%LOCALAPPDATA%\CreteOS`; preserve this directory during updates |
-| Recovery backup | `CreteOS-G1-profile-backup-20261104-213143.zip`; 1546 verified payloads, SHA256 `f407fd6da363988c0598f1c705217c75e438c05a49de6748aead94d8d47ed9d9`; current executable and existing four-file Wi-Fi helper verified; prior retained; USB stale |
+| Recovery backup | `CreteOS-G1-profile-backup-20261104-222223.zip`; 1549 verified payloads; SHA256 `0400d6c235d54b4d5dd30a176470a2702d6c6b4d37de9795446cfcc105d2d8df`; restored G1 profile/other display preservation/current executable/helper hashes independently verified; previous retained; USB stale |
 | Wi-Fi driver | AX210 23.150.0.4 selected 2 November 13:36 GMT; failure recurred, so rollback is not a verified fix. Automatic Wi-Fi policy restored 14:30 at user request; fault remains unresolved |
 | Bootstrap/helpers/backups | `%LOCALAPPDATA%\CreteOS-Bootstrap` |
 | Source branch | `codex/g1-smart-wifi`; contains the G1 display and Steam password-login changes too |

@@ -1,0 +1,115 @@
+{
+  "purpose": "Recorded-session comparison, live UDP load comparison and applied G1 Moonlight mitigation",
+  "applied": {
+    "previousHash": "A1D81DE69305F6C3A10C3697BC26B75AD94F93FA4892A86A07BCF07A9957EA9C",
+    "rollback": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS-Bootstrap\\profile-updates\\Moonlight-G1-20261104-222005",
+    "key": "MONITOR\\HSX0224\\{4d36e96e-e325-11ce-bfc1-08002be10318}\\0000",
+    "otherProfilesUnchanged": true,
+    "time": "2026-11-04T22:20:06.2213103+00:00",
+    "newHash": "C028FE0CFED2D3BFD72A9BAF4F9EE26B2D083F2F02A63833362E80E91156EDE0",
+    "applied": true,
+    "before": {
+      "bitrate": 100000,
+      "codec": "AV1",
+      "fps": 120,
+      "host": "Bosgame",
+      "resolution": "2560x1600"
+    },
+    "networkPolicyChanged": false,
+    "appRestarted": true,
+    "after": {
+      "bitrate": 80000,
+      "codec": "HEVC",
+      "fps": 90,
+      "host": "Bosgame",
+      "resolution": "2560x1600"
+    },
+    "gamesLaunched": false
+  },
+  "historicalBaseline": {
+    "date": "2026-11-02",
+    "profile": "2560x1600/90FPS/80Mbps/HEVC",
+    "duration": "49m51s",
+    "renderedFPS": 88.71,
+    "networkFrameLossPercent": 0,
+    "jitterFrameLossPercent": 0.01,
+    "hostMeanMs": 3.1,
+    "decodeMeanMs": 0.88
+  },
+  "latestBeforeChange": {
+    "date": "2026-11-04",
+    "profile": "2560x1600/120FPS/100Mbps/AV1",
+    "duration": "23m43s",
+    "renderedFPS": 117.91,
+    "networkFrameLossPercent": 0.45,
+    "jitterFrameLossPercent": 0.61,
+    "hostMeanMs": 8.1,
+    "decodeMeanMs": 0.69
+  },
+  "liveNetworkComparison": {
+    "started": "2026-11-04T22:16:37+0000",
+    "finished": "2026-11-04T22:17:24+0000",
+    "phases": [
+      {
+        "phase": 0,
+        "mbps": 80,
+        "fps": 90,
+        "sentPackets": 107758,
+        "elapsed": 14.989808958023787,
+        "actualPayloadMbps": 80.05392806274988,
+        "receivedPackets": 107758,
+        "lostPackets": 0,
+        "packetLossPercent": 0.0,
+        "delayVariationP95Ms": 4.781015992164612,
+        "delayVariationMaxMs": 156.9791299700737
+      },
+      {
+        "phase": 1,
+        "mbps": 100,
+        "fps": 120,
+        "sentPackets": 134698,
+        "elapsed": 14.992088667000644,
+        "actualPayloadMbps": 100.05256514401961,
+        "receivedPackets": 134398,
+        "lostPackets": 300,
+        "packetLossPercent": 0.2227204561314977,
+        "delayVariationP95Ms": 19.23275101184845,
+        "delayVariationMaxMs": 163.43062299489975
+      },
+      {
+        "phase": 2,
+        "mbps": 80,
+        "fps": 90,
+        "sentPackets": 107758,
+        "elapsed": 14.989526733988896,
+        "actualPayloadMbps": 80.05543532465266,
+        "receivedPackets": 107758,
+        "lostPackets": 0,
+        "packetLossPercent": 0.0,
+        "delayVariationP95Ms": 21.121145009994507,
+        "delayVariationMaxMs": 270.28444200754166
+      }
+    ],
+    "hostEgress": "eno1",
+    "network": "Hyperoptic_Extra held throughout",
+    "temporaryLeaseRemoved": true,
+    "gamesLaunched": false,
+    "limits": "15s per phase;1392-byte UDP payload bursts at90/120Hz; Mbps is payload rate, not exact Moonlight traffic. No codec/encoder/FEC/game workload. Receiver delay variation also includes OS scheduling. Returning80Mbps phase had higher delay variation, so jitter remains unresolved. One100Mbps phase with loss is evidence for a conservative mitigation, not proof of sole causality or new gameplay acceptance."
+  },
+  "backupStatus": "New snapshot independently verified: restored profile, other monitor profiles, current executable and4 existing helpers",
+  "installedBinaryChanged": false,
+  "usbStatus": "Absent/old copy stale",
+  "vaultSync": "pending",
+  "backup": {
+    "created": "2026-11-04T22:23:08.507081+00:00",
+    "folder": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\outputs\\CreteOS-G1-profile-backup-20261104-222223",
+    "archive": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\outputs\\CreteOS-G1-profile-backup-20261104-222223.zip",
+    "archiveBytes": 1034292602,
+    "archiveSHA256": "0400d6c235d54b4d5dd30a176470a2702d6c6b4d37de9795446cfcc105d2d8df",
+    "filesVerified": 1549,
+    "payloadBytes": 1191237812,
+    "sqliteIntegrity": "ok",
+    "optionalMissing": [],
+    "archiveContentsVerified": true
+  }
+}
