@@ -4,7 +4,9 @@ Maintained device record, updated 2 November 2026 (Europe/London). Covers this G
 
 ## Current state
 
-**3 November fun-message build installed and recovery archive verified: `CreteOS-G1-profile-backup-20261103-005030.zip`, SHA256 `770115765d27a55c0aaf32003eac6d803851684717dd38c0c4ba3f0eab1d88bc`. Previous snapshots preserved. SanDisk `D:\CreteOS-Recovery-20261103` now copied and hash-verified; root START-HERE.txt directs there. Its final USB-COPY-RECEIPT.json identifies the exact source/docs HEAD, after this documentation-only completion sync.**
+**4 November wired-aware app/helper installed; current verified private archive `CreteOS-G1-profile-backup-20261104-105613.zip`, SHA256 `1e72f87791b61efef10b3238be668dcf19a3a8473ded2d8b275a8e77ecfe180c`. Previous snapshots retained. USB is disconnected and its3November copy is stale for this deployment.**
+
+Historical3November fun-message deployment is retained in the dated records; current app and archive identities are listed above.
 
 Platform badges and Local/Cloud classification remain as verified on2November; current executable/archive identity is recorded above and in the table.
 
@@ -18,14 +20,14 @@ Platform badges and Local/Cloud classification remain as verified on2November; c
 | Panel | 2560 × 1600 landscape,16:10,144Hz; latest captured streams requested120FPS, earlier15:13 session90FPS; no profile change in this audit |
 | Native installation | `%LOCALAPPDATA%\CreteOS\creteos.exe` |
 | Personal data | `%LOCALAPPDATA%\CreteOS`; preserve this directory during updates |
-| Recovery backup | `CreteOS-G1-profile-backup-20261103-005030.zip`; 1527 payloads; SHA256 `770115765d27a55c0aaf32003eac6d803851684717dd38c0c4ba3f0eab1d88bc`; per-file/archive/SQLite verification passed, previous snapshots retained |
+| Recovery backup | `CreteOS-G1-profile-backup-20261104-105613.zip`; 1537 payloads, SHA256 `1e72f87791b61efef10b3238be668dcf19a3a8473ded2d8b275a8e77ecfe180c`; app and four-file wired helper verified; prior copies preserved; USB stale |
 | Wi-Fi driver | AX210 23.150.0.4 selected 2 November 13:36 GMT; failure recurred, so rollback is not a verified fix. Automatic Wi-Fi policy restored 14:30 at user request; fault remains unresolved |
 | Bootstrap/helpers/backups | `%LOCALAPPDATA%\CreteOS-Bootstrap` |
 | Source branch | `codex/g1-smart-wifi`; contains the G1 display and Steam password-login changes too |
-| Installed executable source | `4542d3565db7f9fed94e99ecb1ceb088c2ead256` (fun streaming-cover messages restored) |
-| Installed executable SHA-256 | `A63CA6C346DEEB4E1973928D13DF2C74903E097C27BF99D3DD10B0D3420CC89E` |
-| Build / install | Built locally on OXPG1 `2026-11-03T00:42:33.8950869+00:00` to `2026-11-03T00:49:13.0628543+00:00`; installed `2026-11-03T00:49:18.5167967+00:00`; assets/hash verified |
-| Previous executable | `88745D2EBA5A3ACEBC67A6641B63993208673F5EE6C5B0952536B64C024C4F5D`, retained in `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Fun-loading-20261103-004914` |
+| Installed executable source | `10d058192a9400f18d764d49d4fc5d27296d2525` (wired-aware network and Steam preflight) |
+| Installed executable SHA-256 | `5EE1592EF1E76E24D5484DA86F45C6F63EFEAEE4E73873789DECA0FFAB716E30` |
+| Build / install | Built locally on OXPG1 `2026-11-04T10:47:52.1862224+00:00` to `2026-11-04T10:54:48.2072720+00:00`; installed `2026-11-04T10:54:55.1109404+00:00`; assets/hash verified |
+| Previous executable | `A63CA6C346DEEB4E1973928D13DF2C74903E097C27BF99D3DD10B0D3420CC89E` retained in `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Wired-preflight-20261104-105449` |
 | Luna Companion | 0.1.2, Chrome extension `gmneapkhejdngoenacdnamaddbfcihab`, permanent folder `CreteOS\LunaCompanion` |
 | Latest live acceptance | 2 November19:24–19:26: native PS32 Cloud/0 Local and Xbox32 Cloud/0 Local, correct badges, all-source Cloud205. No games launched; live PS launch/quit and Wi-Fi streaming acceptance remain pending. |
 
@@ -659,3 +661,7 @@ Network.ps1 classifies the OS-selected operational IPv4 Ethernet route, excludin
 Helper four-file deployment completed10:46:10, hashes/old files in work/wired-wifi-helper-result.json; scheduled task remains Running. Actual route checks for Bosgame and internet show Ethernet2/1Gbps. Backup005030 is now stale for Network.ps1/helper changes; fresh snapshot required after app installation. USB absent, its3November copy is stale for these changes. Native backup allowlist now includes Network.ps1. Source/recovery packs include the full helper source folder.
 
 Checks so far: TypeScript passed;20 focused frontend tests passed using one threads worker after initial fork workers timed out before running tests.19 policy fixtures/parser and session lease checks passed.6 Python Steam preflight tests passed, including protected unrelated processes in the ready path versus strict migration safety. Native Rust tests, local production build/install and fresh backup remain pending at this checkpoint. Installed app remains A63CA6C3 from4542d35 until actual install receipt. No live game launched. Canonical Obsidian vault unavailable; journal pending sync.
+
+Actual wired/preflight deployment: source `10d058192a9400f18d764d49d4fc5d27296d2525`, app SHA256 `5EE1592EF1E76E24D5484DA86F45C6F63EFEAEE4E73873789DECA0FFAB716E30`, native G1 build `2026-11-04T10:47:52.1862224+00:00` → `2026-11-04T10:54:48.2072720+00:00`, installed `2026-11-04T10:54:55.1109404+00:00`. Bundled assets/source verified; all7 checked profiles preserved before GUI startup. Helper4-file deployment and old-file rollback verified at10:46:10. Tests: TypeScript,20 frontend,3 native Rust,6 Python,19 network-policy/parser cases and session lease checks. Live helper host/cloud PrepareSession both exit0 without WiFi reassociation; monitor reason ethernet-active. Read-only exact SSH preflight confirms Steam ready without migration. No games/Steam launches or stops, adapter/driver/metric/power/display changes. Physical cable removal/live game acceptance not performed. Public receipt: device-records/2026-11-04-wired-preflight-install.json. New backup required; USB absent. Vault sync pending.
+
+4November wired/preflight backup completion: `CreteOS-G1-profile-backup-20261104-105613.zip`, 1537 payloads, 1190780384 uncompressed bytes, 1033879508 ZIP bytes, SHA256 `1e72f87791b61efef10b3238be668dcf19a3a8473ded2d8b275a8e77ecfe180c`. Staged/decompressed file hashes and SQLite integrity passed, no optional inputs missing. Independent archive hash, recovery executable and all4 installed helper hashes verified inside ZIP. BackupTools/create-profile-backup.py contains the new Network.ps1 allowlist. Previous005030 and earlier snapshots preserved; locator updated. Restore helper files as a matched set and review new device adapter/profile configuration, authorization/pairing and hardware-specific settings. No private credentials copied to Git. Source/docs pushed and offline source bundle refreshed/verified separately. USB absent, old3November pack is stale; no updated USB copy claimed. Documentation-only completion requires no repeated private recopy. Canonical Obsidian vault unavailable; journal pending sync.

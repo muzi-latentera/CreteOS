@@ -1,0 +1,135 @@
+{
+  "purpose": "Wired-aware Wi-Fi fallback and narrow Steam preflight",
+  "build": {
+    "start": "2026-11-04T10:47:52.1862224+00:00",
+    "sourceCommit": "10d058192a9400f18d764d49d4fc5d27296d2525",
+    "exitCode": 0,
+    "assetVerificationExitCode": 0,
+    "end": "2026-11-04T10:54:48.2072720+00:00",
+    "artifact": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\work\\g1-display-update\\windows\\src-tauri\\target\\release\\creteos.exe",
+    "computer": "OXPG1",
+    "sha256": "5EE1592EF1E76E24D5484DA86F45C6F63EFEAEE4E73873789DECA0FFAB716E30"
+  },
+  "install": {
+    "artifact": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\work\\..\\outputs\\CreteOS-G1-wired-preflight.exe",
+    "sourceCommit": "10d058192a9400f18d764d49d4fc5d27296d2525",
+    "time": "2026-11-04T10:54:55.1109404+00:00",
+    "installedHash": "5EE1592EF1E76E24D5484DA86F45C6F63EFEAEE4E73873789DECA0FFAB716E30",
+    "bundledAssetsVerified": true,
+    "installed": true,
+    "backup": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS-Bootstrap\\app-updates\\Wired-preflight-20261104-105449",
+    "profiles": [
+      {
+        "unchanged": true,
+        "name": "settings.json"
+      },
+      {
+        "unchanged": true,
+        "name": "moonlight_profiles.json"
+      },
+      {
+        "unchanged": true,
+        "name": "geforce_profiles.json"
+      },
+      {
+        "unchanged": true,
+        "name": "custom_data.json"
+      },
+      {
+        "unchanged": true,
+        "name": "stream_wifi_preferences.json"
+      },
+      {
+        "unchanged": true,
+        "name": "recent_games.json"
+      },
+      {
+        "unchanged": true,
+        "name": "luna_playtime.json"
+      }
+    ],
+    "target": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS\\creteos.exe",
+    "networkSettingsChanged": false,
+    "gamesLaunched": false,
+    "previousHash": "A63CA6C346DEEB4E1973928D13DF2C74903E097C27BF99D3DD10B0D3420CC89E",
+    "computer": "OXPG1"
+  },
+  "helperInstall": {
+    "time": "2026-11-04T10:46:10.3401338+00:00",
+    "installed": true,
+    "files": [
+      {
+        "name": "WiFiSmart.ps1",
+        "installed": "2BC10E2932F821B0910B99CD1CE273BEFCEC00C7BB5FAC521B60E3282E4AD345",
+        "previous": "DE336B76D35A82F0C147BCD145F8422383595A93DE17A4AA8A9A3DE4FAD27CE4"
+      },
+      {
+        "name": "Policy.ps1",
+        "installed": "2BD7A2DCEF06A696FB2BB12736592CDAB9F7896B30BB7D65DCFFDD8BB8B21E4A",
+        "previous": "FFF2C6DB5552E479FD21A057951F3CCDEC2E2CCD63B4AF8C0549B64DDB3DAA5B"
+      },
+      {
+        "name": "Sessions.ps1",
+        "installed": "2D57D2AB2DA014545E4CE5DC139E04638A83F112A783AC58480638544AC59576",
+        "previous": "2D57D2AB2DA014545E4CE5DC139E04638A83F112A783AC58480638544AC59576"
+      },
+      {
+        "name": "Network.ps1",
+        "installed": "1DA92B58211731431C2A428AE8BC72D4C107AA8833488C0E839F73FDCA862139",
+        "previous": null
+      }
+    ],
+    "adapterDriverChanged": false,
+    "backup": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS-Bootstrap\\app-updates\\Wired-WiFi-20261104-104601",
+    "adapterReset": false,
+    "taskState": "Running",
+    "previousTaskState": "Running"
+  },
+  "verification": {
+    "typecheck": true,
+    "frontendTests": 20,
+    "nativeTests": 3,
+    "pythonPreflightTests": 6,
+    "policyCases": 19,
+    "sessionChecksPassed": true,
+    "liveWiredRoutes": {
+      "bosgame": {
+        "wired": true,
+        "interfaceName": "Ethernet 2",
+        "linkMbps": 1000
+      },
+      "internet": {
+        "wired": true,
+        "interfaceName": "Ethernet 2",
+        "linkMbps": 1000
+      }
+    },
+    "wifiUnchangedDuringHostAndCloudPrepare": true,
+    "monitorReason": "ethernet-active",
+    "hostPreflightReadyWithoutMigration": true,
+    "gamesLaunched": false,
+    "steamStopped": false,
+    "unplugDuringGameplayTested": false
+  },
+  "originalError": {
+    "at": "2026-11-04T10:13:34+00:00",
+    "phase": "Steam preflight before Moonlight process",
+    "status": "generic unavailable; original exception not retained",
+    "causality": "Current check passes; overly broad protected-process scan corrected, but original exact subreason cannot be established"
+  },
+  "backupStatus": "Fresh native snapshot independently verified, previous snapshots preserved",
+  "usbStatus": "Not attached;3November copy stale",
+  "vaultSync": "pending",
+  "backup": {
+    "created": "2026-11-04T10:56:58.685993+00:00",
+    "folder": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\outputs\\CreteOS-G1-profile-backup-20261104-105613",
+    "archive": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\outputs\\CreteOS-G1-profile-backup-20261104-105613.zip",
+    "archiveBytes": 1033879508,
+    "archiveSHA256": "1e72f87791b61efef10b3238be668dcf19a3a8473ded2d8b275a8e77ecfe180c",
+    "filesVerified": 1537,
+    "payloadBytes": 1190780384,
+    "sqliteIntegrity": "ok",
+    "optionalMissing": [],
+    "archiveContentsVerified": true
+  }
+}
