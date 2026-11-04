@@ -11,7 +11,7 @@
 .crete-settings-sections { position:absolute; left:var(--crete-pad); right:var(--crete-pad); top:60px; pointer-events:auto; }
 .crete-settings-header { height:112px; background:#0b0e11; border-bottom:1px solid #f2eadb12; }
 [data-crete-settings-scroll="true"] { scroll-padding:128px 0 82px; }
-[data-crete-settings="true"] { max-width:1100px!important; margin:0 auto; }
+[data-crete-settings="true"]:not([data-settings-wide="true"]) { max-width:1100px!important; margin:0 auto; }
 .crete-settings-heading { padding:28px 24px 0; }
 .crete-settings-heading > span { color:#b7a277; font:600 10px/1.4 ui-monospace,monospace; letter-spacing:2.4px; }
 .crete-settings-heading h1 { margin:7px 0 0; color:#f2eadb; font:650 clamp(25px,2.2vw,34px)/1.2 system-ui,sans-serif; letter-spacing:-.6px; }

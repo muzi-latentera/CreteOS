@@ -1484,7 +1484,7 @@ export function SettingsScreen({
   };
 
   return (
-    <div data-crete-settings={resolvedTheme === "crete" ? "true" : undefined} style={{ ...(wideLayout ? {} : { maxWidth: 1400, margin: "0 auto" }), width: "100%", boxSizing: "border-box" as const }}>
+    <div data-crete-settings={resolvedTheme === "crete" ? "true" : undefined} data-settings-wide={wideLayout ? "true" : undefined} style={{ ...(wideLayout ? {} : { maxWidth: 1400, margin: "0 auto" }), width: "100%", boxSizing: "border-box" as const }}>
       {resolvedTheme === "crete" && <header className="crete-settings-heading"><span>SETTINGS</span><h1>{t(SETTINGS_SECTIONS[settingsSection]?.labelKey ?? "settings.sections.appearance")}</h1></header>}
       <div style={{ padding: `${sectionItems[0]?.type !== "divider" ? "22px" : "0"} 24px 160px` }}>
         {streamingError && <p role="alert">{streamingError}</p>}
