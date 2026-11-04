@@ -48,6 +48,27 @@ def game_environment(env):
     return any(env.get(key, '') not in ('', '0') for key in ('SteamAppId', 'SteamGameId'))
 
 
+def steam_snapshot(proc=Path('/proc')):
+    """Checking an already-correct desktop must not inspect unrelated processes.
+
+    Strict game/protected-process checks remain mandatory before any migration.
+    """
+    steam = []
+    for process in proc.iterdir():
+        if not process.name.isdigit():
+            continue
+        try:
+            if process.stat().st_uid != os.getuid() or (process / 'comm').read_text().strip() != 'steam':
+                continue
+            values = (process / 'environ').read_bytes().split(b'\0')
+            steam.append((int(process.name), dict(v.decode(errors='replace').split('=', 1) for v in values if b'=' in v)))
+        except FileNotFoundError:
+            continue
+        except (PermissionError, OSError):
+            raise RuntimeError('processCheckUnavailable')
+    return steam
+
+
 def wrong_desktop(steam, target):
     for _, env in steam:
         # Steam uses X11 even if it inherited a Wayland display variable.
@@ -94,11 +115,16 @@ def main():
     runtime = '/run/user/' + str(os.getuid())
     with (Path(runtime) / 'creteos-steam-preflight.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        target = stream_environment(runtime)
+        try:
+            target = stream_environment(runtime)
+        except Exception:
+            raise RuntimeError('targetUnavailable')
+        steam = steam_snapshot()
+        if not steam or not wrong_desktop(steam, target):
+            return 'ready'
         # A connected client may belong to another handheld. Never migrate it.
         active = subprocess.run(['ss', '-Htn', 'state', 'established', '(', 'sport', '=', '48010', ')'],
                                 capture_output=True, text=True, timeout=3, check=True).stdout.strip()
-        steam, _ = snapshot()
         if active and wrong_desktop(steam, target):
             return 'streamActive'
         return migrate(target)
@@ -107,6 +133,12 @@ def main():
 if __name__ == '__main__':
     try:
         result = main()
+    except BlockingIOError:
+        result = 'preflightBusy'
+    except subprocess.SubprocessError:
+        result = 'commandFailed'
+    except RuntimeError as error:
+        result = str(error) if str(error) in ('processCheckUnavailable', 'desktopUnknown', 'targetUnavailable') else 'unavailable'
     except Exception:
         result = 'unavailable'
     print(json.dumps({'status': result}), flush=True)

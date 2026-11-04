@@ -10478,6 +10478,7 @@ pub fn run() {
         ))
         .invoke_handler(tauri::generate_handler![
             stream_wifi::get_stream_wifi_preferences,
+            stream_wifi::get_stream_network_status,
             asobi::get_asobi_games,
             asobi::open_asobi_client,
             asobi::launch_asobi_game,

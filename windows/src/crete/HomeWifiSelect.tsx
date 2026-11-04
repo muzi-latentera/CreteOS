@@ -7,6 +7,13 @@ export function HomeWifiSelect({ provider, saving }: { provider: WifiProvider; s
   const [choice, setChoice] = useState<Choice>("automatic");
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
+  const [wired,setWired]=useState(false);
+  useEffect(()=>{
+    let active=true;
+    const refresh=()=>void invoke<{wired?:boolean}>("get_stream_network_status").then(status=>{if(active)setWired(status?.wired===true);}).catch(()=>{});
+    refresh();const timer=window.setInterval(refresh,10_000);
+    return()=>{active=false;window.clearInterval(timer);};
+  },[]);
   useEffect(() => {
     let active = true;
     setReady(false); setError("");
@@ -16,13 +23,14 @@ export function HomeWifiSelect({ provider, saving }: { provider: WifiProvider; s
     return () => { active = false; };
   }, [provider]);
   return <>
-    <label>Home Wi-Fi<select aria-label="Home Wi-Fi" disabled={!ready} value={choice} onChange={event => {
+    {wired && <p role="status">Ethernet connected · using the wired connection. Your Wi-Fi choice is saved for when you undock.</p>}
+    <label>{wired?"Wi-Fi fallback":"Home Wi-Fi"}<select aria-label="Home Wi-Fi" disabled={!ready} value={choice} onChange={event => {
       const next = event.target.value as Choice;
       saving(true); setReady(false); setError("");
       void invoke("set_stream_wifi_preference", { provider, choice: next }).then(() => setChoice(next))
         .catch(reason => setError(String(reason))).finally(() => { saving(false); setReady(true); });
     }}>
-      <option value="automatic">Automatic · {provider === "moonlight" || provider === "ps5RemotePlay" ? "Extra" : "Fibre E433"}</option>
+      <option value="automatic">Automatic · {wired?"Ethernet first · ":""}{provider === "moonlight" || provider === "ps5RemotePlay" ? "Extra" : "Fibre E433"}</option>
       <option value="gaming">Hyperoptic Extra</option>
       <option value="download">Hyperoptic Fibre E433</option>
       <option value="current">Keep current connection</option>

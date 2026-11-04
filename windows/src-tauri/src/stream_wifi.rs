@@ -23,6 +23,19 @@ fn mode(choice: Choice, provider: &str) -> &'static str {
 }
 #[tauri::command]
 pub fn get_stream_wifi_preferences() -> Preferences { read() }
+#[tauri::command(async)]
+pub async fn get_stream_network_status()->Result<serde_json::Value,String>{
+    tauri::async_runtime::spawn_blocking(||{
+        let helper=dirs::data_local_dir().ok_or("No profile folder")?.join("CreteOS-Bootstrap/WiFiSmart/WiFiSmart.ps1");
+        if !helper.is_file(){return Ok(serde_json::json!({"wired":false}));}
+        let system=std::env::var_os("SystemRoot").ok_or("No Windows folder")?;
+        let mut command=std::process::Command::new(PathBuf::from(system).join("System32/WindowsPowerShell/v1.0/powershell.exe"));
+        command.args(["-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-File"]).arg(helper).args(["-Mode","NetworkStatus"]);
+        #[cfg(windows)] {use std::os::windows::process::CommandExt;command.creation_flags(0x08000000);}
+        let output=crate::streaming::bounded_output_timeout(command,None,5)?;
+        serde_json::from_slice(&output.stdout).map_err(|_|"Could not read active network".into())
+    }).await.map_err(|e|e.to_string())?
+}
 #[tauri::command]
 pub fn set_stream_wifi_preference(provider: String, choice: Choice) -> Result<(), String> {
     let _lock = PREF_LOCK.lock().map_err(|_| "Wi-Fi preferences busy")?;
@@ -37,13 +50,14 @@ pub fn set_stream_wifi_preference(provider: String, choice: Choice) -> Result<()
 pub struct Session { lease: PathBuf }
 impl Drop for Session { fn drop(&mut self) { let _ = std::fs::remove_file(&self.lease); } }
 pub fn prepare(provider: &str) -> Option<Session> {
-    prepare_choice(provider,selection(&read(),provider).ok()?)
+    prepare_choice(provider,selection(&read(),provider).ok()?,None)
 }
+pub fn prepare_for_host(provider:&str,host:&str)->Option<Session>{prepare_choice(provider,selection(&read(),provider).ok()?,Some(host))}
 pub fn prepare_current(provider: &str) -> Option<Session> {
     selection(&read(),provider).ok()?;
-    prepare_choice(provider,Choice::Current)
+    prepare_choice(provider,Choice::Current,None)
 }
-fn prepare_choice(provider:&str,choice:Choice)->Option<Session>{
+fn prepare_choice(provider:&str,choice:Choice,route_target:Option<&str>)->Option<Session>{
     let folder = dirs::data_local_dir()?.join("CreteOS-Bootstrap/WiFiSmart");
     let helper = folder.join("WiFiSmart.ps1");
     if !helper.is_file() || !folder.join("config.json").is_file() { return None; }
@@ -61,6 +75,7 @@ fn prepare_choice(provider:&str,choice:Choice)->Option<Session>{
     let mut command = std::process::Command::new(PathBuf::from(system).join("System32/WindowsPowerShell/v1.0/powershell.exe"));
     command.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File"])
         .arg(helper).args(["-Mode", "PrepareSession", "-Preference", mode(choice, provider), "-Token", &token]);
+    if let Some(target)=route_target {command.args(["-RouteTarget",target]);}
     command.stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
     #[cfg(windows)] { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
     // Networking is best effort: unavailable home Wi-Fi must not prevent play.

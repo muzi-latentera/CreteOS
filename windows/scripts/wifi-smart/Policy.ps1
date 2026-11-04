@@ -1,5 +1,6 @@
 ﻿function Get-WifiDecision {
- param([string]$Current,[string]$Gaming,[string]$Download,[bool]$Streaming,[bool]$Paused,[bool]$GamingLease,[string]$Override,[bool]$Demand,[double]$QuietSeconds,[double]$ResidenceSeconds,[bool]$StartupOrResume=$false)
+ param([string]$Current,[string]$Gaming,[string]$Download,[bool]$Streaming,[bool]$Paused,[bool]$GamingLease,[string]$Override,[bool]$Demand,[double]$QuietSeconds,[double]$ResidenceSeconds,[bool]$StartupOrResume=$false,[bool]$Wired=$false)
+ if($Wired){return [pscustomobject]@{Target=$Current;Reason='ethernet-active'}}
  if($Current -ne $Gaming -and $Current -ne $Download){return [pscustomobject]@{Target=$Current;Reason='outside-home-or-disconnected'}}
  if($Paused){return [pscustomobject]@{Target=$Current;Reason='paused'}}
  # Preserve a live client connection. CreteOS performs the pre-launch switch separately.

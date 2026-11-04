@@ -2,10 +2,22 @@ import unittest
 from unittest.mock import Mock, patch
 from pathlib import Path
 import tempfile
-from host_steam_preflight import game_environment, migrate, wrong_desktop, snapshot
+from host_steam_preflight import game_environment, migrate, wrong_desktop, snapshot, steam_snapshot
 
 
 class SteamDesktopTests(unittest.TestCase):
+    def test_correct_desktop_probe_reads_only_steam_environment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            for pid,name in [('1','steam'),('2','protected-worker')]:
+                p=root/pid;p.mkdir();(p/'comm').write_text(name)
+            uid=(root/'1').stat().st_uid
+            def environment(path):
+                if path.parent.name=='2':raise PermissionError()
+                return b'DISPLAY=:0\0'
+            with patch('host_steam_preflight.os.getuid',return_value=uid,create=True),patch('pathlib.Path.read_bytes',autospec=True,side_effect=environment):
+                self.assertFalse(wrong_desktop(steam_snapshot(root),{'DISPLAY':':0'}))
+                with self.assertRaises(RuntimeError):snapshot(root)
     def test_protected_desktop_services_do_not_block_but_unknown_processes_do(self):
         with tempfile.TemporaryDirectory() as directory:
             process = Path(directory) / '123'

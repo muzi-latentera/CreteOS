@@ -419,7 +419,7 @@ pub(crate) fn prepare_idle_geforce_client() -> Result<(),String> { close_idle_ge
 pub(crate) fn bounded_output(command: std::process::Command, input: Option<&[u8]>) -> Result<std::process::Output, String> {
     bounded_output_timeout(command, input, 10)
 }
-fn bounded_output_timeout(mut command: std::process::Command, input: Option<&[u8]>, timeout: u64) -> Result<std::process::Output, String> {
+pub(crate) fn bounded_output_timeout(mut command: std::process::Command, input: Option<&[u8]>, timeout: u64) -> Result<std::process::Output, String> {
     command.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
     if input.is_some() { command.stdin(std::process::Stdio::piped()); }
     #[cfg(windows)] { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
@@ -727,6 +727,10 @@ fn prepare_host_steam(host: &str) -> Result<(), String> {
         Some("gameRunning") => Err("A game is running on Bosgame's regular desktop. Quit it before starting this Moonlight game; CreteOS has left it running.".into()),
         Some("streamActive") => Err("Another Moonlight stream is connected to Bosgame. End that session before moving Steam to the streaming desktop.".into()),
         Some("shutdownPending") => Err("Steam is waiting to close on Bosgame, possibly for a download or save-sync prompt. Finish that prompt and retry. Nothing was forcibly stopped.".into()),
+        Some("processCheckUnavailable") => Err("Bosgame would need to move Steam, but a protected process prevents checking whether a game is running. Nothing was stopped. Close any host game and retry.".into()),
+        Some("desktopUnknown" | "targetUnavailable") => Err("Bosgame's streaming desktop is not ready or its display identity is unavailable. Check its streaming desktop service, then retry.".into()),
+        Some("preflightBusy") => Err("Another launch is already preparing Steam on Bosgame. Wait for it to finish, then retry.".into()),
+        Some("commandFailed") => Err("Steam could not close normally on Bosgame. Check its download or save-sync prompts; nothing was forcibly stopped.".into()),
         _ => Err("CreteOS could not safely check or move Steam on Bosgame. Check SSH and the streaming desktop helper, then retry; Steam was not forcibly stopped.".into()),
     }
 }
@@ -907,7 +911,7 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
     if display_key.len() > 512 { return Err("Invalid display".into()); }
     if app_name.starts_with('-') || app_name.chars().any(char::is_control) { return Err("Invalid host app name".into()); }
     tauri::async_runtime::spawn_blocking(move || {
-        let wifi = super::stream_wifi::prepare("moonlight");
+        let wifi = super::stream_wifi::prepare_for_host("moonlight",&profile.host);
         check_launch(epoch)?;
         if !query_apps(&profile.host)?.contains(&app_name) { return Err("This app is no longer advertised by the host. Refresh the Moonlight list.".into()); }
         check_launch(epoch)?;

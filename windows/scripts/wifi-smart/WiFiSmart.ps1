@@ -1,7 +1,9 @@
-﻿param([ValidateSet('Monitor','Status','DryRun','PrepareSession','PrepareGaming','Gaming','Download','Auto','Pause')][string]$Mode='Monitor', [ValidateSet('Gaming','Download','Current')][string]$Preference='Gaming', [ValidatePattern('^[0-9]+-[0-9]+$')][string]$Token='0-0')
+param([ValidateSet('Monitor','Status','NetworkStatus','DryRun','PrepareSession','PrepareGaming','Gaming','Download','Auto','Pause')][string]$Mode='Monitor', [ValidateSet('Gaming','Download','Current')][string]$Preference='Gaming', [ValidatePattern('^[0-9]+-[0-9]+$')][string]$Token='0-0', [string]$RouteTarget='1.1.1.1')
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Policy.ps1')
 . (Join-Path $PSScriptRoot 'Sessions.ps1')
+. (Join-Path $PSScriptRoot 'Network.ps1')
+if($Mode -eq 'NetworkStatus'){Get-StreamNetwork $RouteTarget|ConvertTo-Json -Compress;exit 0}
 $sessionFolder=Join-Path $PSScriptRoot 'sessions'
 $configPath=Join-Path $PSScriptRoot 'config.json'
 $controlPath=Join-Path $PSScriptRoot 'control.json'
@@ -52,6 +54,7 @@ function Connect-Profile($Target,$Reason,[bool]$Preparing=$false) {
   try {$locked=$connectLock.WaitOne(1000)}catch [Threading.AbandonedMutexException]{$locked=$true}
   if(!$locked){return $false}
   $current=Current-Profile
+  if((Get-StreamNetwork $RouteTarget).wired){Write-Event 'held' 'ethernet-active' $current;return $true}
   if($current -eq $Target){return $true}
   if($homeProfiles -notcontains $current -or (Is-Streaming $(if($Preparing){$Token}else{''}))){Write-Event 'held' 'outside-home-or-active-stream' $current;return $false}
   if(!(Available $Target)){Refresh-VisibleProfiles}
@@ -105,6 +108,7 @@ function Receive-Counter {
 }
 if($Mode -eq 'Status'){if(Test-Path $statePath){Get-Content $statePath -Raw}else{'No monitor status yet'};exit 0}
 if($Mode -eq 'PrepareSession') {
+ if((Get-StreamNetwork $RouteTarget).wired){Write-Event 'session-held' 'ethernet-active' (Current-Profile);exit 0}
  $current=Current-Profile;$control=Read-Control
  if(!$config.Enabled -or $control.Paused -or $homeProfiles -notcontains $current){Write-Event 'session-held' 'paused-or-away' $current;exit 0}
  $target=Get-WifiSessionTarget $Preference $current $config.GamingProfile $config.DownloadProfile
@@ -115,6 +119,7 @@ if($Mode -eq 'PrepareSession') {
  exit 0
 }
 if($Mode -eq 'PrepareGaming') {
+ if((Get-StreamNetwork $RouteTarget).wired){exit 0}
  $current=Current-Profile;$control=Read-Control
  if(!$config.Enabled -or $control.Paused -or $homeProfiles -notcontains $current){exit 0}
  Set-Control @{GamingUntilUtc=[DateTime]::UtcNow.AddMinutes(2).ToString('o')}
@@ -164,7 +169,8 @@ try {
    # Smaller continued transfers keep download mode during variable-speed sections.
    if($demand -or $rate -ge 65536){$lastDemand=$now}
    $override=if(Until-Active $control.OverrideUntilUtc){[string]$control.Override}else{''}
-   $decision=Get-WifiDecision -Current $current -Gaming $config.GamingProfile -Download $config.DownloadProfile -Streaming $streaming -Paused (!$config.Enabled -or [bool]$control.Paused) -GamingLease (Until-Active $control.GamingUntilUtc) -Override $override -Demand $demand -QuietSeconds ($now-$lastDemand).TotalSeconds -ResidenceSeconds ($now-$residence).TotalSeconds -StartupOrResume $startupPending
+   $wired=[bool](Get-StreamNetwork).wired
+   $decision=Get-WifiDecision -Current $current -Gaming $config.GamingProfile -Download $config.DownloadProfile -Streaming $streaming -Paused (!$config.Enabled -or [bool]$control.Paused) -GamingLease (Until-Active $control.GamingUntilUtc) -Override $override -Demand $demand -QuietSeconds ($now-$lastDemand).TotalSeconds -ResidenceSeconds ($now-$residence).TotalSeconds -StartupOrResume $startupPending -Wired $wired
    $state=[ordered]@{time=$now.ToString('o');mode=$Mode;current=$current;target=$decision.Target;reason=$decision.Reason;receiveMbps=[Math]::Round($rate*8/1000000,2);steamDownload=$steam;windowsDownload=$doActive;streamGuard=$streaming;paused=[bool]$control.Paused;override=$override;startupOrResume=$startupPending;powerEvents=$powerEvents}
    if($decision.Reason -eq 'startup-resume-default' -and $decision.Target -eq $current){$startupPending=$false}
    if($Mode -eq 'DryRun'){$state|ConvertTo-Json;break}

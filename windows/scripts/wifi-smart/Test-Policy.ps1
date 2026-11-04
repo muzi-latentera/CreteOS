@@ -1,6 +1,9 @@
 ﻿. (Join-Path $PSScriptRoot 'Policy.ps1')
 $g='Hyperoptic_Extra';$d='Hyperoptic Fibre E433'
 $cases=@(
+ @{Name='wired wins over a home Wi-Fi download preference';Current=$g;Wired=$true;Override='Download';Demand=$true;Expected=$g;Reason='ethernet-active'},
+ @{Name='wired with disconnected Wi-Fi leaves it disconnected';Current='';Wired=$true;Expected='';Reason='ethernet-active'},
+ @{Name='unplugged wired restores normal idle preference';Current=$d;Wired=$false;Expected=$g;Reason='idle-gaming-default'},
  @{Name='startup defaults gaming before resumed transfer';Current=$d;Demand=$true;StartupOrResume=$true;Expected=$g;Reason='startup-resume-default'},
  @{Name='resume protects active stream';Current=$d;Streaming=$true;StartupOrResume=$true;Expected=$d;Reason='protect-stream'},
  @{Name='manual download mode survives automatic startup rule';Current=$d;Override='Download';StartupOrResume=$true;Expected=$d;Reason='manual-download'},
@@ -20,7 +23,7 @@ $cases=@(
 )
 $result=@(foreach($case in $cases){
  $args=@{Current=$case.Current;Gaming=$g;Download=$d;Streaming=$false;Paused=$false;GamingLease=$false;Override='';Demand=$false;QuietSeconds=600;ResidenceSeconds=600}
- foreach($key in @('Streaming','Paused','GamingLease','Override','Demand','QuietSeconds','ResidenceSeconds','StartupOrResume')){if($case.ContainsKey($key)){$args[$key]=$case[$key]}}
+ foreach($key in @('Streaming','Paused','GamingLease','Override','Demand','QuietSeconds','ResidenceSeconds','StartupOrResume','Wired')){if($case.ContainsKey($key)){$args[$key]=$case[$key]}}
  $actual=Get-WifiDecision @args
  if($actual.Target -ne $case.Expected -or $actual.Reason -ne $case.Reason){throw ('FAIL '+$case.Name+': '+($actual|ConvertTo-Json -Compress))}
  @{test=$case.Name;passed=$true}

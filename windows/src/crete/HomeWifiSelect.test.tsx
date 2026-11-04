@@ -21,11 +21,20 @@ it("loads the provider preference and saves an explicit choice to that service",
   expect(saving.mock.calls).toEqual([[true], [false]]);
 });
 it("retains the saved choice when a write fails", async () => {
-  vi.mocked(invoke).mockResolvedValueOnce({ moonlight: "gaming" }).mockRejectedValueOnce("disk unavailable");
+  vi.mocked(invoke).mockImplementation(async command=>{if(command==="get_stream_network_status")return {wired:false};if(command==="get_stream_wifi_preferences")return {moonlight:"gaming"};throw "disk unavailable";});
   host = document.createElement("div"); root = createRoot(host);
   await act(async () => root.render(<HomeWifiSelect provider="moonlight" saving={() => {}} />));
   const select = host.querySelector("select")!;
   await act(async () => { select.value = "current"; select.dispatchEvent(new Event("change", { bubbles: true })); });
   expect(select.value).toBe("gaming");
   expect(host.querySelector('[role="alert"]')?.textContent).toContain("disk unavailable");
+});
+it("shows Ethernet and preserves the saved Wi-Fi fallback without saving on detection",async()=>{
+  vi.mocked(invoke).mockImplementation(async command=>command==="get_stream_network_status"?{wired:true}:{moonlight:"gaming"});
+  host=document.createElement("div");root=createRoot(host);
+  await act(async()=>root.render(<HomeWifiSelect provider="moonlight" saving={()=>{}}/>));
+  expect(host.textContent).toContain("Ethernet connected");
+  expect(host.querySelector("select")!.value).toBe("gaming");
+  expect(host.querySelector("select")!.options[0].text).toContain("Ethernet first");
+  expect(invoke).not.toHaveBeenCalledWith("set_stream_wifi_preference",expect.anything());
 });
