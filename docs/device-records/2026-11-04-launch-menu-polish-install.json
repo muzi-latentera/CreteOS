@@ -1,0 +1,101 @@
+{
+  "purpose": "Launch menu, option focus and Crete settings polish",
+  "build": {
+    "start": "2026-11-04T21:27:48.2556738+00:00",
+    "sourceCommit": "f1c818dd8b781dee383044a97e3d10911c37d1ae",
+    "exitCode": 0,
+    "assetVerificationExitCode": 0,
+    "end": "2026-11-04T21:31:10.4784842+00:00",
+    "artifact": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\work\\g1-display-update\\windows\\src-tauri\\target\\release\\creteos.exe",
+    "computer": "OXPG1",
+    "sha256": "6109CB5787816DFFE3F7602540A7E2631B531AEFEC9E1697802C06FBBBA60F08"
+  },
+  "install": {
+    "artifact": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\work\\..\\outputs\\CreteOS-G1-launch-menu-polish.exe",
+    "sourceCommit": "f1c818dd8b781dee383044a97e3d10911c37d1ae",
+    "time": "2026-11-04T21:31:17.1218090+00:00",
+    "installedHash": "6109CB5787816DFFE3F7602540A7E2631B531AEFEC9E1697802C06FBBBA60F08",
+    "bundledAssetsVerified": true,
+    "installed": true,
+    "backup": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS-Bootstrap\\app-updates\\Launch-menu-polish-20261104-213113",
+    "profiles": [
+      {
+        "unchanged": true,
+        "name": "settings.json"
+      },
+      {
+        "unchanged": true,
+        "name": "moonlight_profiles.json"
+      },
+      {
+        "unchanged": true,
+        "name": "geforce_profiles.json"
+      },
+      {
+        "unchanged": true,
+        "name": "custom_data.json"
+      },
+      {
+        "unchanged": true,
+        "name": "stream_wifi_preferences.json"
+      },
+      {
+        "unchanged": true,
+        "name": "recent_games.json"
+      },
+      {
+        "unchanged": true,
+        "name": "luna_playtime.json"
+      }
+    ],
+    "target": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS\\creteos.exe",
+    "networkSettingsChanged": false,
+    "gamesLaunched": false,
+    "previousHash": "28F246ABDF4A4F44BCC2B44B8AA956E3AF4C4B38BE0A3F3B7BCE5CDB27D3A8B6",
+    "computer": "OXPG1"
+  },
+  "verification": {
+    "typecheck": true,
+    "unitTests": 23,
+    "browserTests": 20,
+    "browser": "Installed Edge, isolated mocked-native test profile",
+    "viewports": [
+      "1280x800",
+      "1280x600",
+      "1920x1080",
+      "3840x2160",
+      "960x540"
+    ],
+    "coverage": [
+      "payload/profile retention",
+      "pairing",
+      "offline/local fallback",
+      "cancellation/return focus",
+      "delayed network save focus",
+      "controller and keyboard option confirmation",
+      "quality field focus without changing values",
+      "long-list scrolling",
+      "disabled selected option",
+      "settings focus/scrolling",
+      "cover handoff"
+    ],
+    "gamesLaunchedOnG1OrBosgame": false,
+    "networkOrPowerOrDisplayChanges": false,
+    "nativePhysicalControllerAcceptance": "Pending user; Windows UI helper reported12x12 window"
+  },
+  "backupStatus": "Fresh native snapshot independently verified; previous snapshots retained",
+  "usbStatus": "Absent;3November pack stale",
+  "vaultSync": "pending",
+  "backup": {
+    "created": "2026-11-04T21:32:24.612201+00:00",
+    "folder": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\outputs\\CreteOS-G1-profile-backup-20261104-213143",
+    "archive": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\outputs\\CreteOS-G1-profile-backup-20261104-213143.zip",
+    "archiveBytes": 1034290740,
+    "archiveSHA256": "f407fd6da363988c0598f1c705217c75e438c05a49de6748aead94d8d47ed9d9",
+    "filesVerified": 1546,
+    "payloadBytes": 1191220620,
+    "sqliteIntegrity": "ok",
+    "optionalMissing": [],
+    "archiveContentsVerified": true
+  }
+}
