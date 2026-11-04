@@ -1,0 +1,25 @@
+# Late handheld stream lag — pending vault sync
+
+4 November2026,22:03–22:11 GMT. Read-only G1 native Windows logs and SSH Bosgame investigation after user reported lag in the next session. No game/client/service stopped or launched, no profile/configuration/driver/power/network changes, and no new build/deployment. Installed sourcef1c818d/hash6109CB57 and verified213143 snapshot retained. Documentation-only update requires no new personal-data archive. USB absent/older; canonical Crete vault unavailable, pending sync.
+
+## Confirmed session and comparison
+
+Moonlight-1793828301 began21:38:21 and quit22:02:04/05 after23m43s. Requested2560x1600/120FPS/AV1/100000kbps; Sunshine confirmed2560x1600 output120Hz,AV1 VAAPI onRX9070XT, encoder bitrate78988000 (distinct from client requested bitrate). Client incoming/decoding119.22FPS, rendering117.91FPS; network frame loss0.45%, jitter drops0.61%; average latency1ms,variance4ms; decode0.69ms,queue0.19ms,render1.24ms. Host processing mean8.1ms,max538.1ms. These stream statistics are not actual game-engine FPS.
+
+Prior smooth86-minute TV stream was3840x2160/60/HEVC,59.95 renderedFPS,0.00% frame loss and0.02% jitter drops. New log has100 Network dropped entries, including groups up to21 frames in one entry, followed by IDR/keyframe waits. Losses cluster in startup/first minutes and again around21:50–22:00. This supports visible delivery stutter despite low mean ping and reasonably high mean streamFPS. It does not locate loss specifically in the AP/radio versus host packet bursts. Larger AV1 frames had FEC skipped during the opening minutes; they cannot alone explain later losses.
+
+Extra held throughout21:38:15–22:02; no helper reassociation or WLAN disconnect during play. Windows association/Intel driver messages were before streaming around21:37; no mid-session Code10/reset observed. Post-session WLAN was5GHz/channel100,signal86%,RSSI−53dBm,reported receive574Mbps/transmit542Mbps (adapter snapshot link-rate325Mbps at another instant). Post-session signal is not a historical per-frame radio measurement. Ethernet adapter was absent on G1. Build/install/backup work ended before this play session, and the menu installer verified the existing stored profiles unchanged.
+
+## Host evidence and exclusions
+
+Sunshine remained samePID3004591, without mid-session fatal encoder, GPU reset or link-down events in the examined kernel log. Buddy trackedPBZ4115450 running21:38:34 until22:02:04; stream ended with normal app exit0. Frame capture failure happened after the quit/resolution reset, not as a mid-game crash. Host NIC dropped/missed counters are cumulative and not a measurement of this session's packet loss.
+
+Bus-lock warnings came from SteamPID456220's CHTTPClientThre/CNet Encrypt threads and ended/inaccessible game threads. About5106 suppressed warnings occurred21:38–21:39 during startup, then almost none through the main play interval. A much larger Steam HTTP storm began22:02:05.87, after the game exited; Steam content log shows a3.07GB shader download began22:02:04. That post-quit storm must not be offered as the explanation for lag throughout the preceding game. Bus locks can interfere with other work in principle ([kernel documentation](https://www.kernel.org/doc/html/latest/arch/x86/buslock.html)), but the timing here only supports a possible startup contribution. No kernel mitigation, Steam or model service was changed.
+
+GameUserSettings.ini saved3840x2160 at22:02:04,fullscreen mode1(borderless),unlimited frame cap. This initially raised a4K-render suspicion, but actual OptiScaler.log from this session records render1216x760/display2432x1520 contexts at21:38:57 and21:39:10. Thus do not claim this game actually rendered/upscaled to4K from the savedINI value. No recent MangoHud CSV in its configuredTALOS folder was available; actual engineFPS/frametime and CPU/GPU utilization during play cannot be reconstructed from these logs. FSR component/version activation is outside this diagnosis; support/hook lines alone are not version proof.
+
+## Conclusion and next controlled comparison
+
+Confirmed problem is bursty frame delivery on the120FPS/100Mbps AV1 handheld session. Exact underlying network/host contribution remains unresolved. Decoder was fast, no network switching or reset during play, and the largest post-quit Steam warning storm is temporally separate. A practical comparison is the already documented successful2November handheld profile2560x1600/90FPS/80Mbps/HEVC onExtra (88.71 renderedFPS,0.00% network loss,0.01% jitter). This was recommended as a baseline test, not applied or declared a fix. Actual gameFPS should be measured if perceptible lag persists with clean transport; investigate120FPS andAV1 separately after establishing that baseline.
+
+Private raw data and bounded read-only collectors: work/stream-lag-20261104-2204,work/lag-host-detail.py,work/lag-game-config.py,work/lag-render-logs.py. Source/docs synchronized on existing branch and offline source bundle refreshed separately. No private raw logs or credentials added to Git.
