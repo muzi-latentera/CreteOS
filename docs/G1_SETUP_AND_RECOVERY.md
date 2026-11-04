@@ -1,10 +1,10 @@
 # CreteOS on OneXPlayer G1 — setup, history and recovery
 
-Maintained device record, updated 2 November 2026 (Europe/London). Covers this G1 installation from 17 October onward. Use this as the entry point for another Windows handheld; use the dated journals for detailed evidence. Earlier GPD results and the USB's pre-17-October history are references, not acceptance results for this G1.
+Maintained device record, updated 4 November 2026 (Europe/London). Covers this G1 installation from 17 October onward. Use this as the entry point for another Windows handheld; use the dated journals for detailed evidence. Earlier GPD results and the USB's pre-17-October history are references, not acceptance results for this G1.
 
 ## Current state
 
-**4 November wired-aware app/helper installed; current verified private archive `CreteOS-G1-profile-backup-20261104-105613.zip`, SHA256 `1e72f87791b61efef10b3238be668dcf19a3a8473ded2d8b275a8e77ecfe180c`. Previous snapshots retained. USB is disconnected and its3November copy is stale for this deployment.**
+**4 November startup-race build installed; current verified private archive `CreteOS-G1-profile-backup-20261104-122159.zip`, SHA256 `f3f71f9cccb677c621716a2a237a44e582f675ad2a24dee8215c99a0761e270a`. Previous snapshots retained. USB is disconnected and its3November copy remains stale.**
 
 Historical3November fun-message deployment is retained in the dated records; current app and archive identities are listed above.
 
@@ -20,14 +20,14 @@ Platform badges and Local/Cloud classification remain as verified on2November; c
 | Panel | 2560 × 1600 landscape,16:10,144Hz; latest captured streams requested120FPS, earlier15:13 session90FPS; no profile change in this audit |
 | Native installation | `%LOCALAPPDATA%\CreteOS\creteos.exe` |
 | Personal data | `%LOCALAPPDATA%\CreteOS`; preserve this directory during updates |
-| Recovery backup | `CreteOS-G1-profile-backup-20261104-105613.zip`; 1537 payloads, SHA256 `1e72f87791b61efef10b3238be668dcf19a3a8473ded2d8b275a8e77ecfe180c`; app and four-file wired helper verified; prior copies preserved; USB stale |
+| Recovery backup | `CreteOS-G1-profile-backup-20261104-122159.zip`; 1539 payloads, SHA256 `f3f71f9cccb677c621716a2a237a44e582f675ad2a24dee8215c99a0761e270a`; current executable and four-file wired helper verified; previous retained; USB stale |
 | Wi-Fi driver | AX210 23.150.0.4 selected 2 November 13:36 GMT; failure recurred, so rollback is not a verified fix. Automatic Wi-Fi policy restored 14:30 at user request; fault remains unresolved |
 | Bootstrap/helpers/backups | `%LOCALAPPDATA%\CreteOS-Bootstrap` |
 | Source branch | `codex/g1-smart-wifi`; contains the G1 display and Steam password-login changes too |
-| Installed executable source | `10d058192a9400f18d764d49d4fc5d27296d2525` (wired-aware network and Steam preflight) |
-| Installed executable SHA-256 | `5EE1592EF1E76E24D5484DA86F45C6F63EFEAEE4E73873789DECA0FFAB716E30` |
-| Build / install | Built locally on OXPG1 `2026-11-04T10:47:52.1862224+00:00` to `2026-11-04T10:54:48.2072720+00:00`; installed `2026-11-04T10:54:55.1109404+00:00`; assets/hash verified |
-| Previous executable | `A63CA6C346DEEB4E1973928D13DF2C74903E097C27BF99D3DD10B0D3420CC89E` retained in `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Wired-preflight-20261104-105449` |
+| Installed executable source | `4c966140f27a68cc02eb7939541f3c3657b93ddc` (Steam/NVIDIA startup races; includes wired awareness) |
+| Installed executable SHA-256 | `28F246ABDF4A4F44BCC2B44B8AA956E3AF4C4B38BE0A3F3B7BCE5CDB27D3A8B6` |
+| Build / install | Built locally on OXPG1 `2026-11-04T12:04:52.7089916+00:00` to `2026-11-04T12:20:47.7656063+00:00`; installed `2026-11-04T12:20:56.7828690+00:00`; assets/hash verified |
+| Previous executable | `5EE1592EF1E76E24D5484DA86F45C6F63EFEAEE4E73873789DECA0FFAB716E30` retained in `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Startup-races-20261104-122051` |
 | Luna Companion | 0.1.2, Chrome extension `gmneapkhejdngoenacdnamaddbfcihab`, permanent folder `CreteOS\LunaCompanion` |
 | Latest live acceptance | 2 November19:24–19:26: native PS32 Cloud/0 Local and Xbox32 Cloud/0 Local, correct badges, all-source Cloud205. No games launched; live PS launch/quit and Wi-Fi streaming acceptance remain pending. |
 
@@ -679,3 +679,7 @@ A video first frame11:30:59/Streaming11:31 establishes NVIDIA VM video, not that
 Normal fun lines remain; known real update/shader/NVIDIA-settings waits now display their actual status on native/WebView/main covers. Error/return-cover behavior preserved. Wired policy unchanged and logs confirm Ethernet held during all attempts. No network/driver/power/display setting changes.
 
 Validation:22 Python tests (8 preflight +14 presentation/login),19 distinct frontend tests (9 launch,9 return,1 messages),33 native tests (20 streaming,4 artwork,9 Buddy) passed; TypeScript passed. Initial native checks caught an encoding error and misplaced cancellation-token capture; both corrected before production build/install. Frontend worker-start timeouts were rerun as separate files; failed batches are not counted as green. Exact success logs retained in work/startup-* files. Local production build/install and fresh private backup pending at this source checkpoint; installed app still5EE1592E/source10d0581. Previous105613 snapshot preserved; new executable requires fresh backup. USB absent/older. Canonical vault unavailable; journal pending sync.
+
+Actual startup-race deployment: source `4c966140f27a68cc02eb7939541f3c3657b93ddc`, executable SHA256 `28F246ABDF4A4F44BCC2B44B8AA956E3AF4C4B38BE0A3F3B7BCE5CDB27D3A8B6`, built locally `2026-11-04T12:04:52.7089916+00:00` to `2026-11-04T12:20:47.7656063+00:00`, installed `2026-11-04T12:20:56.7828690+00:00`. Bundled assets/source verified; all 7 checked profiles preserved. Previous executable retained in `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Startup-races-20261104-122051`. TypeScript,19 distinct frontend,22 Python and33 native Rust checks passed (focused frontend suites run separately after worker timeouts). No fresh game launched. Only the user-authorized stuck NVIDIA session was closed. No network/adapter/driver/power/display changes. NVIDIA remote Steam loading loop remains unverified and needs a user launch test; local video is not proof of gameplay. Rollback: close clients/CreteOS and restore the previous executable from the recorded rollback folder while preserving native AppData profiles. Fresh private backup pending. USB absent/stale; canonical Obsidian vault unavailable, pending sync. Receipt: device-records/2026-11-04-startup-races-install.json.
+
+4November startup-race recovery completion: `CreteOS-G1-profile-backup-20261104-122159.zip`, 1539 verified payloads, 1190796750 uncompressed bytes, 1033886179 archive bytes, SHA256 `f3f71f9cccb677c621716a2a237a44e582f675ad2a24dee8215c99a0761e270a`. Staged/decompressed file verification and SQLite integrity passed with no optional inputs missing. Independently verified ZIP SHA256, current recovery executable and all4 existing Wi-Fi helper hashes. Previous105613 snapshot retained; latest locator updated. Restore using the guide and freshly authorize accounts/pair hosts as required. Completion documentation is newer than the snapshot; no runtime input changed afterward. USB absent,3November pack stale; canonical vault unavailable, journal pending sync. Cloud Steam loop and live transition acceptance still require user testing.

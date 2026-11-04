@@ -1,0 +1,83 @@
+{
+  "purpose": "Steam teardown/login and NVIDIA client startup races",
+  "build": {
+    "start": "2026-11-04T12:04:52.7089916+00:00",
+    "sourceCommit": "4c966140f27a68cc02eb7939541f3c3657b93ddc",
+    "exitCode": 0,
+    "assetVerificationExitCode": 0,
+    "end": "2026-11-04T12:20:47.7656063+00:00",
+    "artifact": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\work\\g1-display-update\\windows\\src-tauri\\target\\release\\creteos.exe",
+    "computer": "OXPG1",
+    "sha256": "28F246ABDF4A4F44BCC2B44B8AA956E3AF4C4B38BE0A3F3B7BCE5CDB27D3A8B6"
+  },
+  "install": {
+    "artifact": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\work\\..\\outputs\\CreteOS-G1-startup-races.exe",
+    "sourceCommit": "4c966140f27a68cc02eb7939541f3c3657b93ddc",
+    "time": "2026-11-04T12:20:56.7828690+00:00",
+    "installedHash": "28F246ABDF4A4F44BCC2B44B8AA956E3AF4C4B38BE0A3F3B7BCE5CDB27D3A8B6",
+    "bundledAssetsVerified": true,
+    "installed": true,
+    "backup": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS-Bootstrap\\app-updates\\Startup-races-20261104-122051",
+    "profiles": [
+      {
+        "unchanged": true,
+        "name": "settings.json"
+      },
+      {
+        "unchanged": true,
+        "name": "moonlight_profiles.json"
+      },
+      {
+        "unchanged": true,
+        "name": "geforce_profiles.json"
+      },
+      {
+        "unchanged": true,
+        "name": "custom_data.json"
+      },
+      {
+        "unchanged": true,
+        "name": "stream_wifi_preferences.json"
+      },
+      {
+        "unchanged": true,
+        "name": "recent_games.json"
+      },
+      {
+        "unchanged": true,
+        "name": "luna_playtime.json"
+      }
+    ],
+    "target": "C:\\Users\\Muzi\\AppData\\Local\\CreteOS\\creteos.exe",
+    "networkSettingsChanged": false,
+    "gamesLaunched": false,
+    "previousHash": "5EE1592EF1E76E24D5484DA86F45C6F63EFEAEE4E73873789DECA0FFAB716E30",
+    "computer": "OXPG1"
+  },
+  "verification": {
+    "typescript": true,
+    "frontendTests": 19,
+    "pythonTests": 22,
+    "nativeRustTests": 33,
+    "gamesLaunched": false,
+    "userAuthorizedStuckNvidiaSessionClosed": true,
+    "networkDriverPowerDisplayChanges": false,
+    "liveLaunchQuitAcceptance": "Pending user test",
+    "cloudSteamLoopCause": "Unverified; first video frame is not gameplay"
+  },
+  "backupStatus": "Fresh native snapshot independently verified; previous retained",
+  "usbStatus": "Absent;3November copy stale",
+  "vaultSync": "pending",
+  "backup": {
+    "created": "2026-11-04T12:22:53.166530+00:00",
+    "folder": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\outputs\\CreteOS-G1-profile-backup-20261104-122159",
+    "archive": "C:\\Users\\Muzi\\Documents\\Codex\\2026-10-17\\set-up-chrome-os-as-shown\\outputs\\CreteOS-G1-profile-backup-20261104-122159.zip",
+    "archiveBytes": 1033886179,
+    "archiveSHA256": "f3f71f9cccb677c621716a2a237a44e582f675ad2a24dee8215c99a0761e270a",
+    "filesVerified": 1539,
+    "payloadBytes": 1190796750,
+    "sqliteIntegrity": "ok",
+    "optionalMissing": [],
+    "archiveContentsVerified": true
+  }
+}
