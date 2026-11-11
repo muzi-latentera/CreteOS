@@ -10027,8 +10027,10 @@ async fn launch_app(
     // already running. Detect this BEFORE dispatching the launch so the spawn does
     // not race the check. If Steam is already up, skip straight to the game phase.
     let is_steam_launch = path.starts_with("steam://");
+    let is_asobi_client = asobi::is_client_uri(&path);
+    let asobi_was_open = is_asobi_client && asobi::client_window().is_some();
     let steam_was_running = is_steam_launch && is_process_running("steam.exe");
-    let mut steam_log_watcher = is_steam_launch
+    let mut steam_log_watcher = (is_steam_launch && !asobi_was_open)
         .then(|| SteamLaunchLogWatcher::new(&path))
         .flatten();
 
@@ -10085,6 +10087,10 @@ async fn launch_app(
         }
         // BNet spawns the game as a separate process; use snapshot-diff approach.
         launch_mode = "battlenet".to_string();
+        child_pid = 0;
+    } else if is_asobi_client {
+        asobi::open_client_in_background()?;
+        launch_mode = "asobi-client".to_string();
         child_pid = 0;
     } else if path.starts_with("steam://") {
         // Submit one request to the registered client, which also starts Steam
@@ -10296,7 +10302,7 @@ async fn launch_app(
             if LAUNCH_WATCH_GENERATION.load(Ordering::SeqCst) != watch_generation {
                 return;
             }
-            if is_steam_launch {
+            if is_steam_launch && !asobi_was_open {
                 let next_phase = steam_log_watcher
                     .as_mut()
                     .map(|watcher| watcher.poll(is_process_running("steam.exe"), started.elapsed()))
@@ -10318,9 +10324,12 @@ async fn launch_app(
                 }
             }
             // 1) Preferred: a window that specifically matches this game.
-            if let Some((hwnd, score)) =
+            let target = if is_asobi_client {
+                asobi::client_window().map(|hwnd| (hwnd, 100))
+            } else {
                 poll_for_matched_window(&watch_name, &watch_path, &watch_source)
-            {
+            };
+            if let Some((hwnd, score)) = target {
                 // Let the exact matching game window settle behind the launch
                 // artwork. A transient launcher/splash must not end the cover.
                 if score >= 45 {
@@ -10384,6 +10393,9 @@ async fn launch_app(
                         std::thread::sleep(Duration::from_secs(1));
                     }
                 });
+            }
+            if is_asobi_client {
+                focus_external_window(windows::Win32::Foundation::HWND(found as _));
             }
             // Steam starts a fresh watch here, replacing any previous game's
             // watch rather than retargeting an already-acquired window.

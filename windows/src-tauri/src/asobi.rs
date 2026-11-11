@@ -117,18 +117,36 @@ pub fn get_asobi_games()->Result<Vec<Game>,String>{games()}
 #[tauri::command]
 pub async fn open_asobi_client()->Result<(),String>{
     tauri::async_runtime::spawn_blocking(||{
-        if windows().is_empty(){
-            let steam=PathBuf::from(super::get_steam_install_path().ok_or("Steam is not installed")?).join("steam.exe");
-            std::process::Command::new(steam).args(["-applaunch","4505440"]).spawn().map_err(|_|"Could not open ASOBI")?;
-        }
+        open_client_in_background()?;
         let start=std::time::Instant::now();
         while start.elapsed().as_secs()<20 {
-            if let Some(target)=windows().first(){super::focus_external_window(windows::Win32::Foundation::HWND(target.hwnd as _));return Ok(())}
+            if let Some(hwnd)=client_window(){super::focus_external_window(windows::Win32::Foundation::HWND(hwnd as _));return Ok(())}
             std::thread::sleep(std::time::Duration::from_millis(250));
         }
         Err("ASOBI has not opened. Check its Steam installation.".into())
     }).await.map_err(|e|e.to_string())?
 }
+pub(crate) fn is_client_uri(uri: &str) -> bool {
+    uri == "steam://rungameid/4505440"
+}
+
+pub(crate) fn client_window() -> Option<isize> {
+    windows().first().map(|window| window.hwnd)
+}
+
+pub(crate) fn open_client_in_background() -> Result<(), String> {
+    if client_window().is_some() {
+        return Ok(());
+    }
+    let steam = PathBuf::from(super::get_steam_install_path().ok_or("Steam is not installed")?);
+    std::process::Command::new(steam.join("steam.exe"))
+        .current_dir(&steam)
+        .args(["-silent", "-applaunch", "4505440"])
+        .spawn()
+        .map_err(|error| format!("Could not start ASOBI through Steam: {error}"))?;
+    Ok(())
+}
+
 pub fn merge(apps:&mut Vec<super::AppEntry>){
     let art=dirs::config_dir().unwrap_or_default().join("asobi/steam_tiles_art");
     let grids=super::load_art_cache();let heroes=super::load_hero_cache();let times=history();
