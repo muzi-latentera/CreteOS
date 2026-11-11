@@ -389,7 +389,7 @@ export default function App() {
     gameMemberships, setGameMemberships, gameMembershipsRef,
   } = useCollections();
   const audioProfileRef = useRef(AUDIO_PROFILES.standard);
-  const sfxEnabledRef = useRef(true);
+  const sfxEnabledRef = useRef(false);
   const {
     customSources,
     setCustomSources,
@@ -503,8 +503,8 @@ export default function App() {
   const helperBarMode = normalizeBottomBarMode(settings.bottombar_mode);
   const pokeBarIdleRef = useRef(() => {});
   useEffect(() => {
-    sfxEnabledRef.current = settings.sfx_enabled !== false;
-  }, [settings.sfx_enabled]);
+    sfxEnabledRef.current = settingsLoaded && settings.sfx_enabled !== false;
+  }, [settingsLoaded, settings.sfx_enabled]);
 
   startupHapticsEnabledRef.current = settings.haptic_feedback ?? true;
   // Only interrupt with the update modal when nothing else owns the screen.
@@ -2987,7 +2987,7 @@ export default function App() {
 
 
 
-    if (loading) return <SplashScreen exiting={splashExiting} />;
+    if (loading) return <SplashScreen exiting={splashExiting} soundEnabled={settingsLoaded && settings.sfx_enabled !== false} />;
 
   const openThemePicker = () => {
     const idx = Math.max(0, THEME_OPTIONS.indexOf(normalizeThemeKey(String(settings.theme))));
@@ -3385,7 +3385,7 @@ export default function App() {
     <GamepadProvider value={{ platform: settings.gamepad_platform ?? "xbox", colored: settings.gamepad_icons_colored ?? false, filled: settings.gamepad_icons_filled ?? true, themeColor: (settings.gamepad_icons_theme_color ?? false) ? accent.primary : undefined, darkText: (settings.gamepad_icons_theme_color ?? false) ? (accent.darkText ?? false) : false, btnSize: settings.gamepad_btn_size ?? "medium" }}>
     <div data-theme={resolvedTheme} data-motion={motionProfile} data-ui-motion={settings.ui_motion === false ? "off" : "on"} data-effects={settings.stars_enabled === false ? "static" : "animated"} data-focus={windowFocused && !fseSessionActive ? "active" : "blurred"} className={launchingApp ? "app-launch-paused" : undefined} style={{ ...materialTokens, ...(resolvedTheme === "crete" ? { "--crete-accent": settings.accent === "crete" ? "#e9a93c" : accent.primary, "--crete-launch": accent.primary, "--crete-viewport-height": `${100 / (settings.ui_scale ?? 1)}vh` } : {}), "--accent-pulse": `${accent.glow}0.22)`, "--header-height": `${headerHeightVal}px`, "--bottom-bar-height": `${bottomBarHeightVal}px`, position: "fixed", top: 0, left: 0, width: `${100 / (settings.ui_scale ?? 1)}vw`, height: `${100 / (settings.ui_scale ?? 1)}vh`, transform: `scale(${settings.ui_scale ?? 1})`, transformOrigin: "top left", overflowY: (semiHomeShellActive || immersiveHomeShellActive) ? "hidden" : "auto", overflowX: "hidden", animation: "appFadeIn 0.5s ease forwards", zIndex: 1, fontFamily: "'Segoe UI', sans-serif" }} ref={outerRef}>
 
-      <AppBackground settings={settings} resolvedTheme={resolvedTheme} accent={accent} appBg={appBg} bgGlow1={bgGlow1} bgGlow2={bgGlow2} isDark={isDark} isMaterial={isMaterial} surfaceStyle={surfaceStyle} appPaused={appPaused} windowFocused={windowFocused} spotifyPlaying={!!spotify.track?.isPlaying} />
+      <AppBackground settings={settings} resolvedTheme={resolvedTheme} accent={accent} appBg={appBg} bgGlow1={bgGlow1} bgGlow2={bgGlow2} isDark={isDark} isMaterial={isMaterial} surfaceStyle={surfaceStyle} appPaused={appPaused || !settingsLoaded} windowFocused={windowFocused} spotifyPlaying={!!spotify.track?.isPlaying} />
       <AppOverlays>
       <StreamLaunchCover heroArt={heroStatic} customHeroArt={customHeroArt} />
       {fseHintVisible && (

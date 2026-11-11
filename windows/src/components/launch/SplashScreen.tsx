@@ -1,5 +1,5 @@
 import { CreteMark } from "../CreteMark";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -11,6 +11,7 @@ const startingSound = new URL("../../assets/appLaunchSound.wav", import.meta.url
 
 interface SplashScreenProps {
   exiting: boolean;
+  soundEnabled: boolean;
 }
 
 const ss: Record<string, CSSProperties> = {
@@ -26,8 +27,7 @@ const ss: Record<string, CSSProperties> = {
   status:   { minHeight: 18, marginTop: 2, fontSize: 13, fontWeight: 500, letterSpacing: "0.01em", color: "rgba(245,237,232,0.62)", fontFamily: "'Segoe UI', sans-serif", textAlign: "center", maxWidth: 320, lineHeight: "18px" },
 };
 
-export function SplashScreen({ exiting }: SplashScreenProps) {
-  const audioRefStart = useRef(new Audio(startingSound));
+export function SplashScreen({ exiting, soundEnabled }: SplashScreenProps) {
   const { t } = useTranslation();
   const [statusIdx, setStatusIdx] = useState(0);
   const [longWait, setLongWait] = useState(false);
@@ -95,28 +95,22 @@ export function SplashScreen({ exiting }: SplashScreenProps) {
 
   useEffect(() => {
     preloadOnboardingPreviews();
+    void invoke("show_main_window").catch(() => {});
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    const audio = audioRefStart.current;
+    if (exiting || !soundEnabled) return;
+    const audio = new Audio(startingSound);
     const playStart = () => {
-      if (cancelled) return;
-      audio.currentTime = 0;
       void audio.play().catch(() => {});
     };
-    invoke("show_main_window")
-      .catch(() => {})
-      .finally(() => {
-        if (cancelled) return;
-        if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) playStart();
-        else audio.addEventListener("canplaythrough", playStart, { once: true });
-      });
+    if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) playStart();
+    else audio.addEventListener("canplaythrough", playStart, { once: true });
     return () => {
-      cancelled = true;
       audio.removeEventListener("canplaythrough", playStart);
+      audio.pause();
     };
-  }, []);
+  }, [exiting, soundEnabled]);
 
   useEffect(() => {
     const style = document.createElement("style");
@@ -191,10 +185,6 @@ export function SplashScreen({ exiting }: SplashScreenProps) {
     }
     return () => { document.getElementById("splash-styles")?.remove(); };
   }, []);
-
-  useEffect(() => {
-    if (exiting) { audioRefStart.current.pause(); audioRefStart.current.currentTime = 0; }
-  }, [exiting]);
 
   return (
     <div style={ss.outer} className={exiting ? "splash-exiting" : ""}>
