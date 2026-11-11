@@ -4,6 +4,8 @@ Maintained device record, updated 11 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**Smart lid and TV dock.** Windows still hibernates immediately on lid close on this G1. The 30-second utility is a dry-run build only. The observed USB AV and ASIX devices were present with the Philips TV on or off and both disappeared after disconnect. The [diagnostic source and build instructions](../windows/scripts/smart-lid/README.md) explain how to repeat the check on this G1 or rediscover the IDs on replacement hardware. Keep the native policy until live hibernation and failure recovery have passed attended tests. No private backup inputs changed during the dock diagnostic.
+
 **11 November ASOBI artwork and recovery.** Open **Apps → Asobi: Remote Play** for the standalone PlayStation client and PS5 dashboard. The app uses its Steam capsule artwork and is unpinned. The installed CreteOS executable is the 4 November menu build. The [dated journal](journal/2026-11-11-asobi-home-and-tv-dock-pending-sync.md) also records the read-only smart lid and TV dock inspection.
 
 Verified private snapshot `CreteOS-G1-profile-backup-20261111-111506.zip` contains 1569 manifested files and the ASOBI cover. SHA-256 `50e0bd78b8ed1d8589bee27cb3eca43ce219c24e021145eb203e7dc9eea109f1`. Verified the archive hash, cover, pin state and matching installed executable independently. The previous `CreteOS-G1-profile-backup-20261104-222223.zip` is retained.
