@@ -4,6 +4,12 @@ Maintained device record, updated 11 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**Launch controller navigation.** Left and Right move within each visible row. Up and Down move between rows. Down from Start stream returns to the first available field. Back from Launch options restores the whole Play control's outline. [Controller and recovery record](journal/2026-11-11-launch-navigation-pending-sync.md).
+
+Installed on the G1 at 2026-11-11T23:39:58.5988112+00:00 from `0b99ff29a9035a4f03b387e7cdf62d9ad181536e`, executable SHA-256 `9CBF927685B2F0913EF456A89CD8479CDE94A124F8F763A9122597DFABC201FE`. Bundled assets and 8 existing profiles passed verification. Executable rollback is at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Launch-navigation-20261111-233953`.
+
+Verified private archive `CreteOS-G1-profile-backup-20261111-234020.zip`, SHA-256 `63262a14795085bc837281214f36cae81b06a1e8f5d51f37df50e60e6c0d2f32`, contains 1634 manifested payloads including the deployed executable. The preceding `CreteOS-G1-profile-backup-20261111-223034.zip` and its Bosgame Lutris reference are retained. The replacement pack is `CreteOS-Recovery-20261111-LaunchNavigation`. Its USB receipt identifies the verified SanDisk copy.
+
 **Launch summaries and Moonlight layout.** Launch headers show the selected display mode, audio output and microphone. The Moonlight header places the host at left and the dot-separated stream settings in the middle. The G1 and Bosgame selectors share one Home connection row when space permits, with Sound above Display preset. [Layout and verification record](journal/2026-11-11-launch-header-pending-sync.md).
 
 Installed on the G1 at 2026-11-11T22:30:13.9188767+00:00 from `9dcc92740dae66ec9cfef5fd76234795c2d1d7d2`, executable SHA-256 `6472E3D47E0C1FD516A629FC8CBE6E8ABC4C89DAB7B4EB69E9727A62CE856D56`. Bundled assets and 8 existing profiles passed verification. Executable rollback is at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Launch-header-20261111-223010`.
