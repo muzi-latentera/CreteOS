@@ -4,6 +4,12 @@ Maintained device record, updated 11 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**TV streaming and launch retry follow-up.** GeForce NOW's 4K60 test showed V-sync off during play. The Moonlight test was 4K60 on E433 and reported a final 329 ms round-trip estimate. The installed follow-up fixes the lingering NVIDIA container and standalone Lutris false positives and returns failed configured launches directly to settings. [Dated diagnostics and deployment](journal/2026-11-11-streaming-retry-pending-sync.md).
+
+Installed on the G1 at 2026-11-11T17:22:12.2194981+00:00 from `a3ada17bd81d4e56bdccb9f788f4bf96f0740614`. Executable SHA-256 `AF450C15FAEF73CB8312A97B33D82275C067C2F353BEDB8CAADF15C59D7B6229`. The production build and installed asset check passed. The install verified 8 saved profile files and retained the rollback at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Streaming-retry-20261111-172208`.
+
+Verified private snapshot `CreteOS-G1-profile-backup-20261111-172256.zip`, SHA-256 `2ffed12bb400614c36ea4fe4c7440f91a486a99b289a3d80de59a44c9d5140b3`, contains 1596 manifested files and the exact installed executable. The 161653 archive is retained. The new local replacement package is `CreteOS-Recovery-20261111-StreamRetry`. Use its package and copy receipts for artifact verification. The SanDisk copy requires the drive to be connected.
+
 **Streaming focus and host preflight.** Launch errors restore controller focus to the settings dialog. B returns to the combined Play/options control. The Bosgame preflight skips exited processes and continues to protect active setup or game processes. No network settings changed. [Dated launch evidence](journal/2026-11-11-streaming-modal-focus-pending-sync.md).
 
 Installed CreteOS source `9b2597c193d4e3b85747a778bdfdc0b5b8416d76`, SHA-256 `1213821E9DB18CC5E98C0996D15C49F66534F6136B1799477EA6BBC49AA6DF46` at 2026-11-11T16:16:11.1210353+00:00. Production build, TypeScript check and bundled asset verification passed on the G1. The installer verified 8 profile files and retained the previous executable at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Streaming-focus-20261111-161607`. Verified private snapshot `CreteOS-G1-profile-backup-20261111-161653.zip` contains 1593 manifested files, including the new executable, Smart Lid and OneXConsole profile. Archive SHA-256 `5afcbbbb3631f675baf5173ad1439070f4895d99087f7ecd929d6f23e6269392`. The previous 154527 snapshot is retained.
