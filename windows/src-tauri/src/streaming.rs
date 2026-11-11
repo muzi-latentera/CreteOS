@@ -261,7 +261,9 @@ fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::L
 
 fn nvidia_profile_matches(actual:&serde_json::Value,expected:&serde_json::Value)->bool{
     let actual=&actual["appSettingsConfig"];let expected=&expected["appSettingsConfig"];
-    actual["streamingProfiles"]==expected["streamingProfiles"] && ["width","height","fps","maxBitrate","maxBitrateAuto","name","profile"].iter().all(|key|actual["customProfile"][*key]==expected["customProfile"][*key])
+    actual["streamingProfiles"]==expected["streamingProfiles"]
+        && ["width","height","fps","maxBitrate","maxBitrateAuto","name","profile"].iter().all(|key|actual["customProfile"][*key]==expected["customProfile"][*key])
+        && expected["customProfile"].get("vSync").is_none_or(|sync| &actual["customProfile"]["vSync"] == sync)
 }
 fn warm_geforce_client(path:&std::path::Path,expected:&serde_json::Value,epoch:u64) -> Result<(), String> {
     let mut log=super::stream_readiness::LogCursor::new(nvidia_console());
@@ -512,6 +514,16 @@ fn geforce_native_game_uri(game_url: &str) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn launch_geforce_game(window: tauri::Window, game_url: String, source: Option<String>, play: Option<bool>) -> Result<(), String> {
+    if play.unwrap_or(true) {
+        if let Ok(display) = get_geforce_profile(window.clone()) {
+            if let Some(key) = display["displayKey"].as_str() {
+                if uses_tv_vsync(key) || geforce_profiles().get(GFN_PRE_TV_VSYNC).is_some() {
+                    let profile = serde_json::from_value(display["profile"].clone()).map_err(|e| e.to_string())?;
+                    return start_geforce_game(window, game_url, key.to_owned(), profile, source).await;
+                }
+            }
+        }
+    }
     tauri::async_runtime::spawn_blocking(move || {
         let (client, argument) = geforce_launch(&game_url, source.as_deref(), play.unwrap_or(true))?;
         let wifi = if play.unwrap_or(true) { super::stream_wifi::prepare("geforceNow") } else { None };
@@ -579,11 +591,49 @@ fn geforce_launch(game_url: &str, source: Option<&str>, play: bool) -> Result<(P
     Ok((client, format!("--url-route={fallback}")))
 }
 
+const GFN_PRE_TV_VSYNC: &str = "_creteosPreTvVSync";
+const GFN_VSYNC_ON: u64 = 1;
+
+fn uses_tv_vsync(display_key: &str) -> bool {
+    // Match the Philips EDID ID, independent of port, dock, or selected resolution.
+    display_key.split('\\').nth(1).is_some_and(|id| id.eq_ignore_ascii_case("PHL04C3"))
+}
+
+fn current_display_uses_tv_vsync(window: &tauri::Window) -> bool {
+    get_moonlight_profile(window.clone()).ok()
+        .is_some_and(|display| display["displayKey"].as_str().is_some_and(uses_tv_vsync))
+}
+
+fn geforce_profiles() -> serde_json::Value {
+    std::fs::read(super::liftoff_dir().join("geforce_profiles.json"))
+        .ok().and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .filter(serde_json::Value::is_object).unwrap_or_else(|| serde_json::json!({}))
+}
+
+fn apply_geforce_display_vsync(settings: &mut serde_json::Value, profiles: &mut serde_json::Value, tv: bool) -> bool {
+    let custom = settings["appSettingsConfig"]["customProfile"].as_object_mut().expect("validated NVIDIA profile");
+    let enabled = custom.get("vSync").and_then(serde_json::Value::as_u64) == Some(GFN_VSYNC_ON);
+    if tv && !enabled {
+        profiles[GFN_PRE_TV_VSYNC] = custom.insert("vSync".into(), GFN_VSYNC_ON.into()).unwrap_or_default();
+        return true;
+    }
+    if !tv {
+        if let Some(prior) = profiles.as_object_mut().and_then(|profiles| profiles.remove(GFN_PRE_TV_VSYNC)) {
+            // A manual change after the TV launch takes precedence.
+            if enabled {
+                if prior.is_null() { custom.remove("vSync"); }
+                else { custom.insert("vSync".into(), prior); }
+            }
+        }
+    }
+    false
+}
+
 #[tauri::command]
 pub fn get_geforce_profile(window: tauri::Window) -> Result<serde_json::Value, String> {
     let mut display = get_moonlight_profile(window)?;
     let key = display["displayKey"].as_str().ok_or("Missing display identity")?;
-    let profiles: serde_json::Value = std::fs::read(super::liftoff_dir().join("geforce_profiles.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(serde_json::json!({}));
+    let profiles = geforce_profiles();
     let mut profile = profiles.get(key).cloned().unwrap_or_else(|| display["profile"].clone());
     profile["host"] = serde_json::json!("GeForce NOW");
     if profile["fps"] == 90 { profile["fps"] = serde_json::json!(60); }
@@ -628,6 +678,13 @@ pub async fn start_geforce_game(window: tauri::Window, game_url: String, display
         let original = std::fs::read(&path).map_err(|_| "Open GeForce NOW and configure Custom streaming quality once")?;
         let mut settings: serde_json::Value = serde_json::from_slice(&original).map_err(|_| "Could not read GeForce NOW settings")?;
         update_geforce_settings(&mut settings, &profile)?;
+        let tv = current_display_uses_tv_vsync(&window);
+        let profiles_path = super::liftoff_dir().join("geforce_profiles.json");
+        let mut profiles = geforce_profiles();
+        if apply_geforce_display_vsync(&mut settings, &mut profiles, tv) {
+            // Save the native preference before replacing the global NVIDIA value.
+            std::fs::write(&profiles_path, serde_json::to_vec(&profiles).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        }
         let backup = root.join("CreteOS-Bootstrap/gfn-settings"); std::fs::create_dir_all(&backup).map_err(|e| e.to_string())?;
         let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
         std::fs::write(backup.join(format!("sharedstorage-{stamp}.json")), &original).map_err(|e| e.to_string())?;
@@ -639,9 +696,7 @@ pub async fn start_geforce_game(window: tauri::Window, game_url: String, display
         warm_geforce_client(&path,&settings,epoch)?;
         check_launch(epoch)?;
         let readback: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-        let expected = &settings["appSettingsConfig"];
-        let actual = &readback["appSettingsConfig"];
-        if actual["streamingProfiles"] != expected["streamingProfiles"] || ["width", "height", "fps", "maxBitrate", "maxBitrateAuto", "name", "profile"].iter().any(|key| actual["customProfile"][*key] != expected["customProfile"][*key]) {
+        if !nvidia_profile_matches(&readback, &settings) {
             return Err("NVIDIA changed the selected profile during startup. No game was started; check its Custom quality settings.".into());
         }
         let log = super::stream_readiness::LogCursor::new(nvidia_console());
@@ -649,10 +704,8 @@ pub async fn start_geforce_game(window: tauri::Window, game_url: String, display
         let launch = spawn_geforce(&client, &argument);
         if let Err(error) = launch { let _ = std::fs::write(&path, original); return Err(error.to_string()); }
         watch_geforce_exit(window, log, generation, wifi);
-        let path = super::liftoff_dir().join("geforce_profiles.json");
-        let mut profiles: serde_json::Value = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(serde_json::json!({}));
         profiles[display_key] = serde_json::to_value(profile).map_err(|e| e.to_string())?;
-        std::fs::write(path, serde_json::to_vec(&profiles).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        std::fs::write(profiles_path, serde_json::to_vec(&profiles).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         Ok(())
     }).await.map_err(|e| e.to_string())?
 }
@@ -913,7 +966,7 @@ pub fn get_moonlight_profile(window: tauri::Window) -> Result<serde_json::Value,
     let path = super::liftoff_dir().join("moonlight_profiles.json");
     let profiles: serde_json::Value = std::fs::read(path).ok().and_then(|bytes| serde_json::from_slice(&bytes).ok()).unwrap_or(serde_json::json!({}));
     let (resolution, fps) = if size.height >= 2160 { ("3840x2160", 60) } else if size.width == 2560 && size.height == 1600 { ("2560x1600", 120) } else if xreal || size.height == 1200 { ("1920x1200", 90) } else { ("1920x1080", 120) };
-    let display_label = if key.to_uppercase().starts_with("MONITOR\\HSX0224\\") { "G1" } else { "Handheld" };
+    let display_label = if uses_tv_vsync(&key) { "Philips TV" } else if key.to_uppercase().starts_with("MONITOR\\HSX0224\\") { "G1" } else { "Handheld" };
     let saved = profiles.get(&key).cloned().unwrap_or(serde_json::json!({"host":"Bosgame","resolution":resolution,"fps":fps,"bitrate":80000,"codec":"auto"}));
     Ok(serde_json::json!({"displayKey":key,"profile":saved,"nativeResolution":resolution,"nativeFps":fps,"displayLabel":display_label}))
 }
@@ -969,9 +1022,14 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
             if let Some(token) = &presentation { finish_host_presentation(&profile.host, token); }
             return Err(error);
         }
-        let client = std::process::Command::new(client_path("moonlight")?).args(["stream", &profile.host, &app_name,
+        let mut command = std::process::Command::new(client_path("moonlight")?);
+        command.args(["stream", &profile.host, &app_name,
             "--resolution", &profile.resolution, "--fps", &profile.fps.to_string(), "--bitrate", &profile.bitrate.to_string(),
-            "--video-codec", &profile.codec, "--display-mode", "borderless", "--quit-after"]).spawn().map_err(|e| {
+            "--video-codec", &profile.codec, "--display-mode", "borderless", "--quit-after"]);
+        if current_display_uses_tv_vsync(&window) {
+            command.arg("--vsync");
+        }
+        let client = command.spawn().map_err(|e| {
                 if let Some(token) = &presentation { finish_host_presentation(&profile.host, token); }
                 e.to_string()
             })?;
@@ -1103,6 +1161,37 @@ mod tests {
         assert_eq!(settings["appSettingsConfig"]["customProfile"]["profile"],0);
         assert_eq!(settings["appSettingsConfig"]["customProfile"]["name"],"custom");
         assert!(super::update_geforce_settings(&mut serde_json::json!({}), &profile).is_err());
+    }
+    #[test]
+    fn tv_vsync_is_keyed_to_the_philips_monitor() {
+        assert!(super::uses_tv_vsync(r"MONITOR\PHL04C3\{class}\0001"));
+        assert!(super::uses_tv_vsync(r"MONITOR\phl04c3\{class}\0008"));
+        assert!(!super::uses_tv_vsync(r"MONITOR\HSX0224\{class}\0000"));
+        assert!(!super::uses_tv_vsync(r"MONITOR\MRG4102\{class}\0006"));
+        assert!(!super::uses_tv_vsync(r"\\.\DISPLAY1:3840x2160"));
+    }
+    #[test]
+    fn geforce_tv_vsync_restores_the_prior_native_choice() {
+        use serde_json::json;
+        let mut settings = json!({"appSettingsConfig":{"streamingProfiles":"custom","customProfile":{"vSync":0}}});
+        let mut profiles = json!({"handheld":{"fps":60}});
+        let original = settings.clone();
+        assert!(super::apply_geforce_display_vsync(&mut settings, &mut profiles, true));
+        assert_eq!(settings["appSettingsConfig"]["customProfile"]["vSync"], 1);
+        assert!(!super::nvidia_profile_matches(&original, &settings));
+        assert!(!super::apply_geforce_display_vsync(&mut settings, &mut profiles, true));
+        assert!(!super::apply_geforce_display_vsync(&mut settings, &mut profiles, false));
+        assert_eq!(settings, original);
+        assert_eq!(profiles, json!({"handheld":{"fps":60}}));
+    }
+    #[test]
+    fn geforce_preserves_a_manual_change_after_tv_play() {
+        use serde_json::json;
+        let mut settings = json!({"appSettingsConfig":{"customProfile":{"vSync":2}}});
+        let mut profiles = json!({"_creteosPreTvVSync":0});
+        assert!(!super::apply_geforce_display_vsync(&mut settings, &mut profiles, false));
+        assert_eq!(settings["appSettingsConfig"]["customProfile"]["vSync"], 2);
+        assert_eq!(profiles, json!({}));
     }
     #[test]
     fn session_exit_requires_this_launch_to_have_streamed_and_handles_same_batch_restart() {
