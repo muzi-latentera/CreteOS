@@ -580,6 +580,7 @@ test("CreteOS details keeps native management and sends one launch command", asy
   await details.getByRole("menuitem", { name: "Game information", exact: true }).click();
   await expect(details.getByRole("button", { name: /Pin/ }).first()).not.toBeVisible();
   await details.locator("[data-launch-btn]").click();
+  await page.getByRole("dialog", { name: "Launch settings" }).getByRole("button", { name: "Play", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
 });
 
@@ -865,6 +866,7 @@ test("Installed mapped games keep local Play as the default", async ({ page }) =
   await expect(primary).toHaveCSS("background-color", "rgb(201, 72, 42)");
   await expect(page.getByRole("button", { name: "Launch options", exact: true })).toHaveCSS("background-color", "rgb(201, 72, 42)");
   await primary.click();
+  await page.getByRole("dialog", { name: "Launch settings" }).getByRole("button", { name: "Play", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
   expect(await page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"] ?? 0)).toBe(0);
 });
@@ -1015,6 +1017,7 @@ test("Bosgame MoonDeck is preferred over a local copy, with explicit local Play 
   await expect(details.locator("[data-launch-btn]")).toHaveText("Play");
   await details.getByRole("button", { name: "Launch options", exact: true }).click();
   await details.getByRole("menuitem", { name: "Local", exact: true }).click();
+  await page.getByRole("dialog", { name: "Launch settings" }).getByRole("button", { name: "Play", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
   expect(await page.evaluate(() => (window as any).__invokeCounts.launch_moonlight ?? 0)).toBe(0);
 });
@@ -1088,6 +1091,7 @@ test("Offline network selects installed local play without host or cloud request
   const primary = page.locator('[data-crete-details="true"] [data-launch-btn]');
   await expect(primary).toHaveAttribute("data-provider", "local");
   await primary.click();
+  await page.getByRole("dialog", { name: "Launch settings" }).getByRole("button", { name: "Play", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
   expect(await page.evaluate(() => (window as any).__invokeCounts.get_host_installed_games ?? 0)).toBe(0);
   expect(await page.evaluate(() => (window as any).__invokeCounts["plugin:opener|open_url"] ?? 0)).toBe(0);
@@ -1117,6 +1121,7 @@ test("A failed cached Moonlight launch offers explicit local play", async ({ pag
   await expect(error).toHaveCSS("font-style", "italic");
   await stream.getByRole("button", { name: "Play locally", exact: true }).click();
   await expect(stream).not.toBeVisible();
+  await page.getByRole("dialog", { name: "Launch settings" }).getByRole("button", { name: "Play", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__invokeCounts.launch_app)).toBe(1);
 });
 
@@ -1184,6 +1189,8 @@ test("Moonlight controller opens dropdown choices and reaches the bottom actions
   await stream.getByRole("button", { name: "Host & connection tools" }).click();
   const open = stream.getByRole("button", { name: "Open Moonlight", exact: true });
   await open.focus(); await page.keyboard.press("ArrowDown");
+  await expect(stream.getByRole("button", { name: "Sound", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
   const cancel = stream.getByRole("button", { name: "Cancel", exact: true });
   await expect(cancel).toBeFocused();
   await pad(page, 15); await expect(play).toBeFocused();
@@ -1729,7 +1736,7 @@ test("local launch keeps sound visible and insets dropdown arrows", async ({ pag
   await expect(dialog.getByRole("button", { name: "Sound", exact: true })).toHaveCount(0);
   await expect(dialog.getByRole("combobox", { name: "Display mode" })).toContainText("144 Hz");
   await expect(output).toHaveCSS("appearance", "none");
-  await expect(output).toHaveCSS("background-position-x", "right 14px");
+  await expect(output).toHaveCSS("background-position-x", "calc(100% - 14px)");
   await expect(dialog.getByRole("button", { name: "Play", exact: true })).toBeFocused();
   expect(await page.evaluate(() => (window as any).__invokeCounts.launch_app ?? 0)).toBe(0);
 });
