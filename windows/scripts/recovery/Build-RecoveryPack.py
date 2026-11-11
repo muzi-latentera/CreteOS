@@ -39,7 +39,8 @@ heads=subprocess.check_output(['git','bundle','list-heads',str(bundle)],text=Tru
 assert any(line.split()==[head,'HEAD'] for line in heads.splitlines()),'Refresh/verify source bundle to current HEAD before packaging'
 cp(bundle,'Source/CreteOS.bundle')
 subprocess.run(['git','-C',str(r),'archive','--format=zip','--output='+str(out/'Source/SourceSnapshot.zip'),head],check=True)
-start='''CRETEOS — REPLACEMENT WINDOWS DEVICE — 2 NOVEMBER 2026
+pack_date=datetime.date.today()
+start=f'''CRETEOS — REPLACEMENT WINDOWS DEVICE — {pack_date.day} {pack_date.strftime('%B %Y').upper()}
 
 Use THIS folder. The older CreteOS-G1 folder is preserved October history.
 Keep this USB connected until verification/setup finishes. No installed game
