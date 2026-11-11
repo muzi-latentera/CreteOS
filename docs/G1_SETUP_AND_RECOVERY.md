@@ -4,6 +4,12 @@ Maintained device record, updated 11 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**Clean streaming launches and dock audio.** MoonDeck Steam launches close idle Steam on Bosgame before Buddy starts it. GeForce NOW game routes share the guarded idle-client restart. When Windows exposes Philips FTV audio, CreteOS uses it as the default output and offers temporary sound overrides. Local apps and games, including the ASOBI app, use the launch dialog for Wi-Fi, Windows display mode and sound. ASOBI game routes have the same display and audio controls. Local Steam uses its normal Windows launch behavior. [Launch behavior, evidence and restore notes](journal/2026-11-11-launch-dock-audio-pending-sync.md).
+
+Installed on the G1 at 2026-11-11T21:15:45.2464100+00:00 from `945af6036968b03c13b1efab028b81fc3712cc4c`, executable SHA-256 `FE551B8C3A7D6A767C1ABCE1A7FC52B8DAC02A5B688A65477E4A5E1C16288782`. Bundled assets and 8 existing profiles passed verification. Executable rollback is at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Launch-dock-20261111-211539`.
+
+Verified private archive `CreteOS-G1-profile-backup-20261111-211628.zip`, SHA-256 `8afda5da64d231a3c4e08bfe58bf01d5a6a560b4965949c4b2894f1e61d9c602`, contains 1615 manifested payloads including the installed executable and silent UI profile. The preceding `CreteOS-G1-profile-backup-20261111-203859.zip` and its Bosgame Lutris reference are retained. The replacement pack is `CreteOS-Recovery-20261111-LaunchAndDockAudio`. The USB copy receipt and root START-HERE file identify the pack verified on the SanDisk.
+
 **Silent CreteOS interface.** Sound Effects and Lo-fi Music are off on the G1. Appearance still exposes both controls. The effects toggle covers startup, navigation, controller input and launch cues. The restored profile applies the same choices on a replacement.
 
 Applied and verified after reopening CreteOS at 2026-11-11T20:31:47.4882946+00:00. Installed the startup fix at 2026-11-11T20:38:41.9376301+00:00 from source `ad88b01eca3dd2f07addd64220668b335cfc14d7`, SHA-256 `A7EF7AA82DACA75112DE48C74241426B61E49223F9F38D9C9B7ECBE457D72291`. [Audio settings and rollback](journal/2026-11-11-quiet-interface-pending-sync.md).
