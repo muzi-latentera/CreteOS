@@ -73,6 +73,7 @@ internal sealed class SmartLid : NativeWindow, IDisposable
     private LidState lid;
     private DockState dock;
     private long nextScan;
+    private bool ending;
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr RegisterPowerSettingNotification(IntPtr recipient, ref Guid setting, uint flags);
@@ -147,9 +148,14 @@ internal sealed class SmartLid : NativeWindow, IDisposable
 
     private void Advance()
     {
+        if (ending)
+            return;
+
         long now = clock.ElapsedMilliseconds;
         if (now >= stopAt)
         {
+            ending = true;
+            tick.Stop();
             Record("Dry run ended");
             Application.ExitThread();
             return;
@@ -173,6 +179,12 @@ internal sealed class SmartLid : NativeWindow, IDisposable
 
     protected override void WndProc(ref Message message)
     {
+        if (ending)
+        {
+            base.WndProc(ref message);
+            return;
+        }
+
         if (message.Msg == PowerBroadcast)
         {
             long kind = message.WParam.ToInt64();
