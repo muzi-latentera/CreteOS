@@ -6,7 +6,10 @@ import { LaunchMenu } from "./LaunchMenu";
 vi.mock("@tauri-apps/api/core",()=>({invoke:vi.fn(async(command:string)=>{
   if (command === "get_stream_network_status") return { wired: false };
   if (command === "get_local_display_modes") return { current: { width: 2560, height: 1600, hz: 144 }, modes: [{ width: 1920, height: 1200, hz: 60 }] };
-  if (command === "get_stream_audio_devices") return { output: [{ id: "headphones", name: "Arctis Nova 7" }], input: [{ id: "mic", name: "Arctis mic" }], defaultOutput: null, defaultInput: null };
+  if (command === "get_stream_audio_devices") return {
+    output: [{ id: "headphones", name: "Arctis Nova 7" }, { id: "tv", name: "1 - Philips FTV (AMD High Definition Audio Device)" }],
+    input: [{ id: "mic", name: "Arctis mic" }, { id: "g1-mic", name: "Microphone (3- Realtek(R) Audio)" }], defaultOutput: "tv", defaultInput: "g1-mic",
+  };
   return { moonlight: "automatic", luna: "automatic", ps5RemotePlay: "automatic" };
 })}));
 vi.mock("@tauri-apps/api/event",()=>({listen:vi.fn(async()=>()=>{})}));
@@ -29,7 +32,10 @@ it("keeps host tools out of the default view and retains the exact launch profil
   expect(document.querySelector('[aria-label="Resolution"]')).toBeNull();
   expect(document.querySelector('select[aria-label="Display preset"]')).toBeNull();
   expect(document.body.textContent).not.toContain("Refresh host");
-  expect(document.querySelector(".crete-stream-heading .crete-stream-summary")?.textContent).toBe("2560 × 1600, 90 FPS, 80 Mbps");
+  expect(document.querySelector(".crete-stream-heading .crete-stream-summary")?.textContent).toBe("2560 × 1600 · 90 FPS · 80 Mbps");
+  expect(document.querySelector(".crete-stream-audio-summary")?.textContent).toContain("Audio output: Philips TV");
+  expect(document.querySelector(".crete-stream-audio-summary")?.textContent).toContain("Microphone: G1 mic");
+  expect(Array.from(document.querySelectorAll(".crete-stream-disclosure")).map(item => item.textContent)).toEqual(["Sound", "Display preset", "Stream options", "Host & connection tools"]);
   await click(document.querySelector('[data-launch-primary]'));
   expect(s.stream).toHaveBeenCalledWith("MoonDeckStream",s.display.profile,{input:null,output:null});
   expect(invoke).not.toHaveBeenCalledWith("set_stream_wifi_preference",expect.anything());
@@ -77,6 +83,8 @@ it("passes separate output and microphone choices to a stream",async()=>{
     await act(async()=>select.dispatchEvent(new MouseEvent("pointerdown",{bubbles:true,cancelable:true})));
     await click(Array.from(document.querySelectorAll('[role="option"]')).find(item=>item.textContent?.includes(option))!);
   }
+  expect(document.querySelector(".crete-stream-audio-summary")?.textContent).toContain("Audio output: Arctis Nova 7");
+  expect(document.querySelector(".crete-stream-audio-summary")?.textContent).toContain("Microphone: Arctis mic");
   await click(document.querySelector('[data-launch-primary]'));
   expect(s.stream).toHaveBeenCalledWith("MoonDeckStream",s.display.profile,{input:"mic",output:"headphones"});
 });

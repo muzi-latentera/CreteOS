@@ -8,8 +8,15 @@
 .crete-launch-layer .crete-stream-heading h2,
 .crete-launch-layer .crete-stream-choice-panel h2 { font:650 26px/1.2 system-ui,sans-serif; letter-spacing:-.5px; margin:8px 0 0; color:#f2eadb; overflow-wrap:anywhere; }
 .crete-launch-layer .crete-stream-heading p { margin:6px 0 0; color:#a7aaa8; font-size:14px; }
-.crete-stream-heading-meta { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; column-gap:16px; }
-.crete-launch-layer .crete-stream-heading .crete-stream-summary { margin-inline-start:auto; color:#d2c8b6; font:500 12px/1.5 ui-monospace,monospace; text-align:end; }
+.crete-stream-heading-meta { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center; gap:6px 12px; margin-top:8px; }
+.crete-stream-heading-meta-pair { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+.crete-launch-layer .crete-stream-heading .crete-stream-host { justify-self:start; max-width:100%; margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.crete-launch-layer .crete-stream-heading .crete-stream-summary { margin:0; color:#d9bd89; font:500 12px/1.5 ui-monospace,monospace; }
+.crete-stream-audio-summary { justify-self:end; display:grid; gap:3px; min-width:0; max-width:100%; color:#c0c4bf; font-size:11px; }
+.crete-stream-audio-device { display:flex; align-items:center; gap:5px; min-width:0; }
+.crete-stream-audio-device svg { flex:none; width:14px; height:14px; color:#d9bd89; }
+.crete-stream-audio-device > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.crete-stream-audio-label { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 .crete-stream-body { overflow-y:auto; overscroll-behavior:contain; min-height:0; padding:8px 28px 20px; scroll-padding:12px; scrollbar-width:thin; scrollbar-color:#69716c #101519; }
 .crete-stream-connection-heading { margin:12px 0 0; color:#a7aaa8; font-size:12px; font-weight:600; }
 .crete-launch-layer .crete-stream-body p { font-size:13px; line-height:1.5; color:#a7aaa8; margin:10px 0; }
@@ -23,6 +30,7 @@
 .crete-stream-disclosure svg { flex:none; transition:transform .15s; color:#979e96; }
 .crete-stream-disclosure[aria-expanded=true] svg { transform:rotate(180deg); }
 .crete-stream-fields { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 20px; padding:4px 0 12px; }
+.crete-stream-connection-fields { padding:0; }
 .crete-launch-layer .crete-stream-fields label { flex-direction:column; align-items:stretch; gap:7px; font-size:12px; padding:12px 0; }
 .crete-launch-layer .crete-stream-fields select { width:100%; max-width:100%; font-size:14px; }
 .crete-stream-field-wide { grid-column:1/-1; }
@@ -52,5 +60,6 @@
 .crete-launch-popover { border-color:#f2eadb24; background:#101519; border-radius:14px; }
 .crete-launch-popover button:is(:hover,:focus) { outline-color:#efc97f; background:#e8b7631a; }
 @media(max-height:600px) { .crete-launch-layer .crete-stream-backdrop,.crete-launch-layer .crete-stream-choice-backdrop { padding:12px; } .crete-launch-layer .crete-stream-settings.crete-stream-dialog,.crete-stream-choice-panel { max-height:calc(100dvh - 24px); } .crete-stream-heading { padding:16px 22px 12px; } .crete-launch-layer .crete-stream-heading h2 { font-size:23px; } .crete-stream-body { padding:4px 22px 12px; } .crete-launch-layer .crete-stream-buttons { padding:12px 22px; } }
+@media(max-width:520px) { .crete-stream-heading-meta { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } .crete-stream-host { grid-column:1; grid-row:1; } .crete-stream-heading-meta:not(.crete-stream-heading-meta-pair) .crete-stream-summary { grid-column:1/-1; grid-row:2; } .crete-stream-audio-summary { grid-column:2; grid-row:1; } }
 @media(max-width:440px) { .crete-stream-fields { grid-template-columns:minmax(0,1fr); } .crete-launch-layer .crete-stream-body label { flex-direction:column; align-items:stretch; gap:8px; } .crete-launch-layer .crete-stream-body select { width:100%; max-width:100%; } .crete-stream-heading { padding-inline:20px; } .crete-stream-body { padding-inline:20px; } .crete-launch-layer .crete-stream-buttons { padding-inline:20px; } }
 @media(prefers-reduced-motion:reduce) { .crete-stream-disclosure svg { transition:none; } }

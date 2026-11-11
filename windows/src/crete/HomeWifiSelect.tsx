@@ -42,10 +42,7 @@ export function HomeWifiSelect({ provider, host, saving }: { provider: WifiProvi
   };
   const localLabel = bosgame ? "G1 connection" : wired ? "Wi-Fi fallback" : "Home connection";
   const hostAutomatic = !wired && (choice === "download" || (choice === "current" && e433)) ? "Wi-Fi" : "Ethernet";
-  return <>
-    {wired && <p className="crete-stream-wired" role="status">Ethernet connected</p>}
-    {bosgame && <h3 className="crete-stream-connection-heading">Home connection</h3>}
-    <label>{localLabel}<select aria-label={localLabel} disabled={!ready} value={choice} onChange={event => {
+  const localField = <label>{bosgame ? "G1" : localLabel}<select aria-label={localLabel} disabled={!ready} value={choice} onChange={event => {
       const next = event.target.value as Choice;
       save(event.currentTarget, "set_stream_wifi_preference", {provider, choice:next}, () => setChoice(next));
     }}>
@@ -53,15 +50,23 @@ export function HomeWifiSelect({ provider, host, saving }: { provider: WifiProvi
       <option value="gaming">Hyperoptic Extra</option>
       <option value="download">Hyperoptic Fibre E433</option>
       <option value="current">Keep current connection</option>
-    </select></label>
-    {bosgame && <label>Bosgame connection<select aria-label="Bosgame connection" disabled={!ready} value={hostChoice} onChange={event => {
-      const next = event.target.value as HostChoice;
-      save(event.currentTarget, "set_bosgame_connection_preference", {choice:next}, () => setHostChoice(next));
-    }}>
-      <option value="automatic">Automatic · {hostAutomatic}</option>
-      <option value="ethernet">Ethernet</option>
-      <option value="wifi">Wi-Fi · E433</option>
-    </select></label>}
+    </select></label>;
+  return <>
+    {wired && <p className="crete-stream-wired" role="status">Ethernet connected</p>}
+    {bosgame ? <>
+      <h3 className="crete-stream-connection-heading">Home connection</h3>
+      <div className="crete-stream-fields crete-stream-connection-fields">
+        {localField}
+        <label>Bosgame<select aria-label="Bosgame connection" disabled={!ready} value={hostChoice} onChange={event => {
+          const next = event.target.value as HostChoice;
+          save(event.currentTarget, "set_bosgame_connection_preference", {choice:next}, () => setHostChoice(next));
+        }}>
+          <option value="automatic">Automatic · {hostAutomatic}</option>
+          <option value="ethernet">Ethernet</option>
+          <option value="wifi">Wi-Fi · E433</option>
+        </select></label>
+      </div>
+    </> : localField}
     {error && <p role="alert">Could not save connection preference: {error}</p>}
   </>;
 }
