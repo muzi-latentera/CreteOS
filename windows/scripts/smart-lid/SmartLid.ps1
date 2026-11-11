@@ -13,15 +13,24 @@ $workerLog=Join-Path $root 'worker.log'
 $supervisorLog=Join-Path $root 'supervisor.log'
 $runner=Join-Path $root 'SmartLid.ps1'
 $exe=Join-Path $root 'SmartLid.exe'
+$launcher=Join-Path $root 'LaunchHidden.vbs'
 $startTask='CreteOS Smart Lid'
 $guardTask='CreteOS Smart Lid Recovery'
 $power=Join-Path $env:SystemRoot 'System32\powercfg.exe'
 $ps=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 
 function Invoke-PowerCfg {
- $output=& $power @args
- if($LASTEXITCODE -ne 0){throw "powercfg $($args[0]) failed ($LASTEXITCODE)"}
- $output
+ $info=[Diagnostics.ProcessStartInfo]::new($power,(($args|ForEach-Object {'"{0}"' -f $_}) -join ' '))
+ $info.UseShellExecute=$false
+ $info.CreateNoWindow=$true
+ $info.RedirectStandardOutput=$true
+ $process=[Diagnostics.Process]::Start($info)
+ try{
+  $output=$process.StandardOutput.ReadToEnd()
+  $process.WaitForExit()
+  if($process.ExitCode -ne 0){throw "powercfg $($args[0]) failed ($($process.ExitCode))"}
+  $output
+ } finally {$process.Dispose()}
 }
 function Get-ActivePlan {
  $result=(Invoke-PowerCfg /getactivescheme) -join ' '
@@ -47,7 +56,8 @@ function New-Action([string]$runMode){
  $trace=Join-Path $root ("task-"+$runMode+".log")
  $command='& "'+$runner+'" -Mode '+$runMode+' *> "'+$trace+'"'
  $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
- New-ScheduledTaskAction -Execute $ps -Argument ('-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand '+$encoded) -WorkingDirectory $root
+ $wscript=Join-Path $env:SystemRoot 'System32\wscript.exe'
+ New-ScheduledTaskAction -Execute $wscript -Argument ('//B //Nologo "'+$launcher+'" "'+$ps+'" '+$encoded) -WorkingDirectory $root
 }
 function Remove-Tasks {
  foreach($name in $startTask,$guardTask){
@@ -133,6 +143,11 @@ $managed=[guid]::NewGuid().ToString()
 New-Item -ItemType Directory -Path $root -Force|Out-Null
 Copy-Item -LiteralPath $Executable -Destination $exe -Force
 Copy-Item -LiteralPath $PSCommandPath -Destination $runner -Force
+@"
+Set shell = CreateObject("WScript.Shell")
+command = Chr(34) & WScript.Arguments(0) & Chr(34) & " -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand " & WScript.Arguments(1)
+WScript.Quit shell.Run(command, 0, True)
+"@ | Set-Content -LiteralPath $launcher -Encoding ASCII
 $config=[pscustomobject]@{OriginalPlan=$original;ManagedPlan=$managed;DelaySeconds=$DelaySeconds;DockIds=$DockIds}
 $config|ConvertTo-Json|Set-Content -LiteralPath $configFile -Encoding UTF8
 $created=$false
