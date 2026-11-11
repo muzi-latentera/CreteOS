@@ -4,6 +4,12 @@ Maintained device record, updated 11 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**Philips TV V-sync.** CreteOS selects V-sync On for Moonlight and GeForce NOW when the active display is Philips FTV (`PHL04C3`). On other displays Moonlight uses its saved native preference, and the next CreteOS GeForce NOW launch restores the NVIDIA preference that preceded the TV override. The rule is based on the display ID. [Verification and restore details](journal/2026-11-11-philips-tv-vsync-pending-sync.md).
+
+Installed on the G1 at 2026-11-11T17:36:58.6511368+00:00 from `ef63c911fc82b6f093fc3461e40bc92819ce59de`. Executable SHA-256 `3FC8C3C16677A69AB69E68DE33F95CF3A772B98BB9157B130CDC7CC068505801`. The production build and installed asset check passed. The installer verified 8 saved profile files and retained rollback at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Tv-vsync-20261111-173655`.
+
+Verified private snapshot `CreteOS-G1-profile-backup-20261111-173724.zip`, SHA-256 `dc5be14020ad6122a00b22684e94ff403dbb77995645d7705dde88920d6bd69f`, contains 1599 manifested files and the exact installed executable. The 172256 archive is retained. The local replacement package is `CreteOS-Recovery-20261111-TvVSync`. Use its manifest and USB copy receipt to identify the deployed build. The USB copy requires a connected SanDisk.
+
 **TV streaming and launch retry follow-up.** GeForce NOW's 4K60 test showed V-sync off during play. The Moonlight test was 4K60 on E433 and reported a final 329 ms round-trip estimate. The installed follow-up fixes the lingering NVIDIA container and standalone Lutris false positives and returns failed configured launches directly to settings. [Dated diagnostics and deployment](journal/2026-11-11-streaming-retry-pending-sync.md).
 
 Installed on the G1 at 2026-11-11T17:22:12.2194981+00:00 from `a3ada17bd81d4e56bdccb9f788f4bf96f0740614`. Executable SHA-256 `AF450C15FAEF73CB8312A97B33D82275C067C2F353BEDB8CAADF15C59D7B6229`. The production build and installed asset check passed. The install verified 8 saved profile files and retained the rollback at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Streaming-retry-20261111-172208`.
