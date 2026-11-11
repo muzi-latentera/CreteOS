@@ -42,11 +42,15 @@ export function HomeWifiSelect({ provider, host, saving }: { provider: WifiProvi
   };
   const localLabel = bosgame ? "G1 connection" : wired ? "Wi-Fi fallback" : "Home connection";
   const hostAutomatic = !wired && (choice === "download" || (choice === "current" && e433)) ? "Wi-Fi" : "Ethernet";
+  const preferredWifi = provider === "moonlight" || provider === "ps5RemotePlay" ? "Extra" : "Fibre E433";
+  const automaticLabel = provider === "local" ? "Automatic · normal network rules"
+    : bosgame && wired ? "Auto · Wired → Extra"
+    : `Automatic · ${wired ? "Ethernet first · " : ""}${preferredWifi}`;
   const localField = <label>{bosgame ? "G1" : localLabel}<select aria-label={localLabel} disabled={!ready} value={choice} onChange={event => {
       const next = event.target.value as Choice;
       save(event.currentTarget, "set_stream_wifi_preference", {provider, choice:next}, () => setChoice(next));
     }}>
-      <option value="automatic">{provider === "local" ? "Automatic · normal network rules" : `Automatic · ${wired ? "Ethernet first · " : ""}${provider === "moonlight" || provider === "ps5RemotePlay" ? "Extra" : "Fibre E433"}`}</option>
+      <option value="automatic">{automaticLabel}</option>
       <option value="gaming">Hyperoptic Extra</option>
       <option value="download">Hyperoptic Fibre E433</option>
       <option value="current">Keep current connection</option>

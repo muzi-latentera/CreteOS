@@ -1703,6 +1703,7 @@ for (const size of [{width:1280,height:800},{width:1280,height:600},{width:1920,
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("button",{name:"Start stream",exact:true})).toBeFocused();
     await expect(dialog.getByText(/Ethernet connected/)).toBeVisible();
+    await expect(dialog.getByLabel("G1 connection", { exact: true }).locator('option[value="automatic"]')).toHaveText("Auto · Wired → Extra");
     await expect(dialog.getByRole("button",{name:"Refresh host",exact:true})).toHaveCount(0);
     await page.screenshot({path:info.outputPath("compact-launch.png")});
     await dialog.getByRole("button",{name:"Stream options",exact:true}).click();
