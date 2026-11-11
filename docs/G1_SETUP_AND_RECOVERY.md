@@ -4,6 +4,12 @@ Maintained device record, updated 11 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**Standalone ASOBI launch.** Open Apps → Asobi: Remote Play. CreteOS uses Steam in the background when needed and confirms the native ASOBI window. The previous Steam-title watcher could miss it. [Dated build and verification](journal/2026-11-11-asobi-client-launch-pending-sync.md).
+
+Installed CreteOS source `5ca60cc6cf97c53bc0b01b3efe390c5a593c13dc`, SHA-256 `4D6FD4CDCAFC169C90F887A4A13F9791C35E7A364FE791EEA60D8577FEA3A180` at 2026-11-11T14:40:22.1983103+00:00. Production build, TypeScript check and bundled asset verification passed on the G1. The installer verified 8 saved profile files and retained the previous executable under the native app-updates folder. Verified private snapshot `CreteOS-G1-profile-backup-20261111-144046.zip` contains 1583 manifested files, including the new executable, windowless Smart Lid and OneXConsole profile. Archive SHA-256 `090e27999c32766eac06509b67f9524a8ea6b067d31a6eb0689dbf6eaa958dae`. The previous 141310 snapshot is retained.
+
+The new local replacement pack is `CreteOS-Recovery-20261111-Asobi`. Its package and copy receipt identify the deployed app and branch HEAD. When the SanDisk is connected, copy and verify it before updating the root START-HERE pointer. The previous USB pack includes the quiet Smart Lid and OneXConsole changes but predates this application build.
+
 **11 November follow-up.** Smart Lid now launches its scheduled actions and power-plan checks without a console window. OneXConsole's Desktop preset is saved at 6 W on battery and 12 W on external power. Restart OneXConsole or sign in again to load the new values. The recovery archive captures the new vendor settings. Apply those only after checking OneXConsole and supported TDP on the replacement. [Dated verification and ASOBI comparison](journal/2026-11-11-smart-lid-hidden-asobi-pending-sync.md).
 
 Verified private snapshot `CreteOS-G1-profile-backup-20261111-141310.zip` contains 1581 payloads and has SHA-256 `5f83e5c5bc36e967dd70f0b373423705bce8c93f66d88c789f99ca13c602983d`. Independently checked the archive hash, windowless Smart Lid launcher, both updated tasks and the 6 W battery/12 W external power OneXConsole profile. The 131221 archive is retained.
