@@ -34,7 +34,7 @@ it("keeps host tools out of the default view and retains the exact launch profil
   expect(invoke).not.toHaveBeenCalledWith("set_stream_wifi_preference",expect.anything());
 });
 it("opens a pointer choice list and cancels without changing the saved preference",async()=>{
-  const s=await render();const select=document.querySelector<HTMLSelectElement>('[aria-label="Home Wi-Fi"]')!;
+  const s=await render();const select=document.querySelector<HTMLSelectElement>('[aria-label="G1 connection"]')!;
   await act(async()=>select.dispatchEvent(new MouseEvent("pointerdown",{bubbles:true,cancelable:true})));
   expect(document.querySelector('[role="listbox"]')).not.toBeNull();
   await act(async()=>window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true})));

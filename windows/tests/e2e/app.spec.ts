@@ -1720,9 +1720,9 @@ test("launch menu polish highlights controller option without saving until confi
   await page.getByRole("button",{name:"Control Ultimate Edition",exact:true}).click();
   await page.locator('[data-crete-details="true"]').getByRole("button",{name:"Play",exact:true}).click();
   const dialog=page.getByRole("dialog",{name:"Moonlight stream settings"});
-  const network=dialog.getByLabel("Home Wi-Fi",{exact:true});
+  const network=dialog.getByLabel("G1 connection",{exact:true});
   await network.focus();await frames(page,10);await pad(page,0);
-  const list=page.getByRole("listbox",{name:"Home Wi-Fi"});
+  const list=page.getByRole("listbox",{name:"G1 connection"});
   await expect(list).toBeVisible();
   await pad(page,13);
   const focused=list.getByRole("option",{name:"Hyperoptic Extra",exact:true});
@@ -1776,7 +1776,8 @@ test("launch menu polish navigates quality fields without changing them and scro
   const summary=await header.locator(".crete-stream-summary").boundingBox();
   expect(summary!.x).toBeGreaterThan(host!.x+host!.width);
   expect(Math.abs(summary!.y-host!.y)).toBeLessThan(6);
-  await expect(dialog.getByLabel("Home Wi-Fi",{exact:true})).toBeVisible();
+  await expect(dialog.getByLabel("G1 connection",{exact:true})).toBeVisible();
+  await expect(dialog.getByLabel("Bosgame connection",{exact:true})).toBeVisible();
   await expect(dialog.getByRole("button",{name:"Start stream",exact:true})).toBeInViewport();
   await expect(dialog.getByRole("button",{name:"Display preset",exact:true})).toHaveAttribute("aria-expanded","false");
   await expect(dialog.getByRole("button",{name:"Stream options",exact:true})).toHaveAttribute("aria-expanded","false");

@@ -3,46 +3,65 @@ import { invoke } from "@tauri-apps/api/core";
 
 export type WifiProvider = "moonlight" | "geforceNow" | "luna" | "ps5RemotePlay" | "playstationCloud";
 type Choice = "automatic" | "gaming" | "download" | "current";
-export function HomeWifiSelect({ provider, saving }: { provider: WifiProvider; saving: (busy: boolean) => void }) {
+type HostChoice = "automatic" | "ethernet" | "wifi";
+export function HomeWifiSelect({ provider, host, saving }: { provider: WifiProvider; host?: string; saving: (busy: boolean) => void }) {
   const [choice, setChoice] = useState<Choice>("automatic");
+  const [hostChoice, setHostChoice] = useState<HostChoice>("automatic");
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
-  const field = useRef<HTMLSelectElement>(null);
-  const restoreFocus = useRef(false);
+  const restoreFocus = useRef<HTMLSelectElement | null>(null);
   useEffect(() => {
     if (ready && restoreFocus.current) {
-      restoreFocus.current = false;
-      if (document.activeElement === document.body) field.current?.focus({ preventScroll: true });
+      const field = restoreFocus.current;
+      restoreFocus.current = null;
+      if (document.activeElement === document.body) field.focus({ preventScroll: true });
     }
   }, [ready]);
   const [wired,setWired]=useState(false);
+  const [e433,setE433]=useState(false);
+  const bosgame = provider === "moonlight" && /^bosgame\.?$/i.test(host ?? "");
   useEffect(()=>{
     let active=true;
-    const refresh=()=>void invoke<{wired?:boolean}>("get_stream_network_status").then(status=>{if(active)setWired(status?.wired===true);}).catch(()=>{});
+    const refresh=()=>void invoke<{wired?:boolean; e433?:boolean}>("get_stream_network_status", {host}).then(status=>{if(active){setWired(status?.wired===true);setE433(status?.e433===true);}}).catch(()=>{});
     refresh();const timer=window.setInterval(refresh,10_000);
     return()=>{active=false;window.clearInterval(timer);};
-  },[]);
+  },[host]);
   useEffect(() => {
     let active = true;
     setReady(false); setError("");
-    void invoke<Record<WifiProvider, Choice>>("get_stream_wifi_preferences").then(prefs => {
-      if (active) { setChoice(prefs?.[provider] ?? "automatic"); setReady(true); }
+    void invoke<Record<WifiProvider, Choice> & {bosgameConnection?:HostChoice}>("get_stream_wifi_preferences").then(prefs => {
+      if (active) { setChoice(prefs?.[provider] ?? "automatic"); setHostChoice(prefs?.bosgameConnection ?? "automatic"); setReady(true); }
     }).catch(reason => { if (active) setError(String(reason)); });
     return () => { active = false; };
   }, [provider]);
+  const save = (field: HTMLSelectElement, command: string, args: Record<string, string>, onSaved: () => void) => {
+    restoreFocus.current = field;
+    saving(true); setReady(false); setError("");
+    void invoke(command, args).then(onSaved).catch(reason => setError(String(reason)))
+      .finally(() => { saving(false); setReady(true); });
+  };
+  const localLabel = bosgame ? "G1 connection" : wired ? "Wi-Fi fallback" : "Home connection";
+  const hostAutomatic = !wired && (choice === "download" || (choice === "current" && e433)) ? "Wi-Fi" : "Ethernet";
   return <>
     {wired && <p className="crete-stream-wired" role="status">Ethernet connected</p>}
-    <label>{wired?"Wi-Fi fallback":"Home Wi-Fi"}<select ref={field} aria-label="Home Wi-Fi" disabled={!ready} value={choice} onChange={event => {
+    {bosgame && <h3 className="crete-stream-connection-heading">Home connection</h3>}
+    <label>{localLabel}<select aria-label={localLabel} disabled={!ready} value={choice} onChange={event => {
       const next = event.target.value as Choice;
-      restoreFocus.current = true; saving(true); setReady(false); setError("");
-      void invoke("set_stream_wifi_preference", { provider, choice: next }).then(() => setChoice(next))
-        .catch(reason => setError(String(reason))).finally(() => { saving(false); setReady(true); });
+      save(event.currentTarget, "set_stream_wifi_preference", {provider, choice:next}, () => setChoice(next));
     }}>
       <option value="automatic">Automatic · {wired?"Ethernet first · ":""}{provider === "moonlight" || provider === "ps5RemotePlay" ? "Extra" : "Fibre E433"}</option>
       <option value="gaming">Hyperoptic Extra</option>
       <option value="download">Hyperoptic Fibre E433</option>
       <option value="current">Keep current connection</option>
     </select></label>
-    {error && <p role="alert">Could not save Wi-Fi preference: {error}</p>}
+    {bosgame && <label>Bosgame connection<select aria-label="Bosgame connection" disabled={!ready} value={hostChoice} onChange={event => {
+      const next = event.target.value as HostChoice;
+      save(event.currentTarget, "set_bosgame_connection_preference", {choice:next}, () => setHostChoice(next));
+    }}>
+      <option value="automatic">Automatic · {hostAutomatic}</option>
+      <option value="ethernet">Ethernet</option>
+      <option value="wifi">Wi-Fi · E433</option>
+    </select></label>}
+    {error && <p role="alert">Could not save connection preference: {error}</p>}
   </>;
 }

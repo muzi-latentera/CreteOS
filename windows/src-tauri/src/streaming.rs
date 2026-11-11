@@ -754,6 +754,10 @@ fn query_apps(host: &str) -> Result<Vec<String>, String> {
 pub struct HostGame { pub steam_app_id: String, pub name: String }
 
 pub(crate) fn host_command(host: &str) -> Result<std::process::Command, String> {
+    host_ssh_command(host, false)
+}
+
+pub(crate) fn host_ssh_command(host: &str, ipv4_only: bool) -> Result<std::process::Command, String> {
     validate_host(host)?;
     let folder = dirs::data_local_dir().ok_or("No local data directory")?.join("CreteOS-Bootstrap/ssh");
     let settings: serde_json::Value = std::fs::read(folder.join("bosgame.json")).ok()
@@ -766,6 +770,7 @@ pub(crate) fn host_command(host: &str) -> Result<std::process::Command, String> 
     if !key.is_file() || !known.is_file() { return Err("Bosgame SSH key is unavailable".into()); }
     let ssh = PathBuf::from(std::env::var_os("SystemRoot").unwrap_or_else(|| "C:/Windows".into())).join("System32/OpenSSH/ssh.exe");
     let mut command = std::process::Command::new(ssh);
+    if ipv4_only { command.arg("-4"); }
     command.arg("-i").arg(key).args(["-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=yes", "-o"])
         .arg(format!("UserKnownHostsFile={}", known.display())).arg(format!("{username}@{host}"));
     Ok(command)
@@ -1014,6 +1019,22 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         std::fs::write(path, serde_json::to_vec_pretty(&profiles).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         let generation = next_session();
         let audio = super::stream_audio::prepare(audio)?;
+        let route = if let Some((choice, manual)) = super::stream_wifi::bosgame_route(&profile.host) {
+            match super::host_moonlight_route::prepare(&profile.host, choice) {
+                Ok(route) => {
+                    let interface = if choice == super::host_moonlight_route::Choice::Wifi { "Wi-Fi" } else { "Ethernet" };
+                    progress(&window, &format!("Using Bosgame {interface} for the stream…"));
+                    super::fse_watcher::log_stream_transition(window.app_handle(), if interface == "Wi-Fi" { "bosgame-route-wifi" } else { "bosgame-route-ethernet" });
+                    Some(route)
+                }
+                Err(error) if manual => return Err(error),
+                Err(_) => {
+                    progress(&window, "Bosgame Wi-Fi is unavailable. Using its normal route…");
+                    super::fse_watcher::log_stream_transition(window.app_handle(), "bosgame-route-fallback");
+                    None
+                }
+            }
+        } else { None };
         let presentation = if let Some(id) = steam_id.as_ref() {
             match stage_host_presentation(&profile.host, id, &profile.resolution, game_id.as_deref(), game_name.as_deref(), generation) {
                 Ok(token) => { super::fse_watcher::log_stream_transition(window.app_handle(), "host-artwork-ready"); Some(token) },
@@ -1026,7 +1047,8 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
             return Err(error);
         }
         let mut command = std::process::Command::new(client_path("moonlight")?);
-        command.args(["stream", &profile.host, &app_name,
+        let endpoint = route.as_ref().map(|lease| lease.address.to_string()).unwrap_or_else(|| profile.host.clone());
+        command.args(["stream", &endpoint, &app_name,
             "--resolution", &profile.resolution, "--fps", &profile.fps.to_string(), "--bitrate", &profile.bitrate.to_string(),
             "--video-codec", &profile.codec, "--display-mode", "borderless", "--quit-after"]);
         if current_display_uses_tv_vsync(&window) {
@@ -1070,6 +1092,7 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         std::thread::spawn(move || {
             let _wifi = wifi;
             let _audio = audio;
+            let _route = route;
             if let Some(id) = buddy_id {
                 let exit_confirmed = std::sync::atomic::AtomicBool::new(false);
                 // A failed/disconnected client can exit before Buddy ever

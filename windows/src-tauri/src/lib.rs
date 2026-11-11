@@ -66,6 +66,7 @@ mod lutris;
 mod stream_artwork;
 mod native_artwork;
 mod stream_wifi;
+mod host_moonlight_route;
 mod stream_audio;
 mod asobi;
 mod asobi_session;
@@ -10497,6 +10498,7 @@ pub fn run() {
             asobi::open_asobi_client,
             asobi::launch_asobi_game,
             stream_wifi::set_stream_wifi_preference,
+            stream_wifi::set_bosgame_connection_preference,
             crete_news::get_crete_news_rss,
             crete_news::get_crete_article_thumbnail,
             crete_videos::get_crete_review_videos,

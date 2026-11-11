@@ -261,7 +261,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
         </div>
       </header>
       <div className="crete-stream-body">
-        <HomeWifiSelect provider={wifiOnly ? "luna" : gfn ? "geforceNow" : "moonlight"} saving={setBusy} />
+        <HomeWifiSelect provider={wifiOnly ? "luna" : gfn ? "geforceNow" : "moonlight"} host={!wifiOnly && !gfn ? profile.host : undefined} saving={setBusy} />
         {!wifiOnly && <>
           <button className="crete-stream-disclosure" type="button" aria-expanded={presetsOpen} onClick={() => setPresetsOpen(value => !value)}><span>{text("Display preset")}</span><IoChevronDownOutline /></button>
           {presetsOpen && <label>{text("Preset")}<select aria-label={text("Display preset")} value={displayPreset} onChange={e => preset(e.target.value)}><option value="auto">Saved for this display</option><option value="native">{nativeLabel} · {nativeResolution.split("x")[1]}p / {nativeFps}fps</option><option value="xreal">XREAL · 1200p / {gfn ? 60 : 90}fps</option><option value="tv">TV · 4K / 60fps</option><option value="custom" disabled>Custom</option></select></label>}

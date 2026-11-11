@@ -11,6 +11,7 @@
 .crete-stream-heading-meta { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; column-gap:16px; }
 .crete-launch-layer .crete-stream-heading .crete-stream-summary { margin-inline-start:auto; color:#d2c8b6; font:500 12px/1.5 ui-monospace,monospace; text-align:end; }
 .crete-stream-body { overflow-y:auto; overscroll-behavior:contain; min-height:0; padding:8px 28px 20px; scroll-padding:12px; scrollbar-width:thin; scrollbar-color:#69716c #101519; }
+.crete-stream-connection-heading { margin:12px 0 0; color:#a7aaa8; font-size:12px; font-weight:600; }
 .crete-launch-layer .crete-stream-body p { font-size:13px; line-height:1.5; color:#a7aaa8; margin:10px 0; }
 .crete-launch-layer .crete-stream-body .crete-stream-wired { display:inline-flex; align-items:center; gap:8px; margin:12px 0 0; padding:5px 9px; color:#b6d5bd; background:#90bf9710; border:1px solid #90bf9726; border-radius:6px; font-size:11px; }
 .crete-stream-wired::before { content:""; width:5px; height:5px; background:#9acba3; border-radius:50%; }

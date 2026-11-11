@@ -38,3 +38,17 @@ it("shows Ethernet and preserves the saved Wi-Fi fallback without saving on dete
   expect(host.querySelector("select")!.options[0].text).toContain("Ethernet first");
   expect(invoke).not.toHaveBeenCalledWith("set_stream_wifi_preference",expect.anything());
 });
+it("previews the automatic Bosgame route and saves a separate override", async () => {
+  vi.mocked(invoke).mockImplementation(async command => command === "get_stream_wifi_preferences" ? { moonlight: "gaming" } : { wired: false });
+  host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+  await act(async () => root.render(<HomeWifiSelect provider="moonlight" host="Bosgame" saving={() => {}} />));
+  const local = host.querySelector<HTMLSelectElement>('select[aria-label="G1 connection"]')!;
+  const remote = host.querySelector<HTMLSelectElement>('select[aria-label="Bosgame connection"]')!;
+  expect(remote.options[0].text).toBe("Automatic · Ethernet");
+  await act(async () => { local.value = "download"; local.dispatchEvent(new Event("change", { bubbles: true })); });
+  expect(remote.options[0].text).toBe("Automatic · Wi-Fi");
+  await act(async () => { remote.value = "ethernet"; remote.dispatchEvent(new Event("change", { bubbles: true })); });
+  expect(invoke).toHaveBeenCalledWith("set_bosgame_connection_preference", { choice: "ethernet" });
+  expect(local.value).toBe("download");
+  expect(remote.value).toBe("ethernet");
+});
