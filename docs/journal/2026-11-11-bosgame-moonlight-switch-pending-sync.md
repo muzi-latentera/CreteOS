@@ -1,0 +1,17 @@
+# 11 November 2026 — independent Moonlight connection choices
+
+Moonlight's Home connection section has separate G1 and Bosgame selectors. The G1 retains Automatic, Hyperoptic Extra, Hyperoptic Fibre E433, and Keep current connection. Ethernet remains preferred when Windows routes to the host through a cable. Bosgame offers Automatic, Ethernet, and Wi-Fi · E433. Each selector saves independently in `stream_wifi_preferences.json`. Older profiles default the new Bosgame choice to Automatic. Other providers still have one local connection selector.
+
+Automatic checks the G1's actual adapter and connected Wi-Fi profile after network preparation. When the G1 is on the saved E433 profile, CreteOS requests Bosgame's E433 5 GHz interface. Extra and a routed cable use the normal Ethernet route. If the E433 selection falls back to Extra, no Bosgame override is requested. On away networks Automatic also leaves normal routing in place. When Bosgame Wi-Fi cannot be selected, Automatic falls back and records the reason in the launch progress and FSE log. An unavailable manual choice returns a launch error.
+
+The existing Bosgame SSH connection supplies the G1's current LAN address. The bundled helper runs via the existing passwordless sudo account and applies a temporary reply route for that peer and Sunshine's streaming ports. CreteOS gives Moonlight the preferred address, and replies follow the selected interface even if Moonlight uses the other paired address. The helper removes the route on SSH EOF or a missed heartbeat. Host Internet, SSH, Steam, and other clients keep their ordinary routing. No permanent host service, firewall policy, or route is installed. On a replacement G1, authorize its SSH key and restore the saved selector preference. The existing Bosgame configuration uses `eno1`, `wlan0`, and the standard Sunshine ports.
+
+The Delta installer was left running. No game or Sunshine session was started for testing. The private G1 snapshot carries forward the prior verified Bosgame export as a historical snapshot.
+
+Ten focused UI tests, nine browser controller and viewport scenarios, four native Wi-Fi tests, and a native SSH lease start/drop test passed on the G1. A live packet capture verified both Sunshine addresses' TCP replies on port 47989 and UDP test replies on port 48002 in both host modes. The SSH route stayed on Ethernet. Rules were removed on EOF and on heartbeat expiry. The G1 was on Extra and could only see Extra at this location, so a live E433 selection and actual gameplay remain untested.
+
+Installed on the G1 at 2026-11-11T20:24:53.0971121+00:00 from `4c89eb729bc1af712b12c6cb1cff06b447c0c56e`. Executable SHA-256 `951DD3DB54596741328CC0CC3552C9C964294C273407FD5751D6F7908933BDD4`. The production build and installed asset check passed. The installer verified 8 saved profile files and retained rollback at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Bosgame-route-20261111-202449`.
+
+Verified private G1 snapshot `CreteOS-G1-profile-backup-20261111-202503.zip`, SHA-256 `2741b705a2f3652aa3d47ed56ee04e10f6083aaea2de64d7986845b85b1742b6`, contains 1614 manifested files and the exact installed executable. It preserves the verified host export from the retained 194008 archive. The local replacement package is `CreteOS-Recovery-20261111-BosgameRoute`. Its manifest and USB copy receipt identify the deployment. The previous SanDisk pack is the Wi-Fi copy cleanup build.
+
+Canonical vault sync pending.

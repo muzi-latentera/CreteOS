@@ -4,6 +4,12 @@ Maintained device record, updated 11 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**Moonlight Home connection.** Set the G1 and Bosgame independently. Bosgame Automatic uses Wi-Fi on an actual E433 connection and uses the ordinary Ethernet route on Extra or a routed cable. Its manual Ethernet and E433 Wi-Fi choices apply for the stream. [Routing, verification and restore details](journal/2026-11-11-bosgame-moonlight-switch-pending-sync.md).
+
+Installed on the G1 at 2026-11-11T20:24:53.0971121+00:00 from `4c89eb729bc1af712b12c6cb1cff06b447c0c56e`. Executable SHA-256 `951DD3DB54596741328CC0CC3552C9C964294C273407FD5751D6F7908933BDD4`. The production build and installed asset check passed. The installer verified 8 saved profile files and retained rollback at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Bosgame-route-20261111-202449`.
+
+Verified private G1 snapshot `CreteOS-G1-profile-backup-20261111-202503.zip`, SHA-256 `2741b705a2f3652aa3d47ed56ee04e10f6083aaea2de64d7986845b85b1742b6`, contains 1614 manifested files and the exact installed executable. It preserves the verified host export from the retained 194008 archive. The local replacement package is `CreteOS-Recovery-20261111-BosgameRoute`. Its manifest and USB copy receipt identify the deployment. The previous SanDisk pack is the Wi-Fi copy cleanup build.
+
 **Launch Wi-Fi selector.** Home Wi-Fi stays visible in the launch dialogs. The explanatory line underneath it was removed. [Deployment and recovery record](journal/2026-11-11-launch-wifi-copy-pending-sync.md).
 
 Installed on the G1 at 2026-11-11T19:39:57.6295930+00:00 from `5d40633fcb0557661f39c8f34a7b1198828471a8`. Executable SHA-256 `B1D9A93B2D6EE743AB2B7D348886BB425C925BE19B4897E33708D35461428018`. The production build and installed asset check passed. The installer verified 8 saved profile files and retained rollback at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Wifi-copy-20261111-193954`.
