@@ -4,6 +4,12 @@ Maintained device record, updated 11 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**Silent CreteOS interface.** Sound Effects and Lo-fi Music are off on the G1. Appearance still exposes both controls. The effects toggle covers startup, navigation, controller input and launch cues. The restored profile applies the same choices on a replacement.
+
+Applied and verified after reopening CreteOS at 2026-11-11T20:31:47.4882946+00:00. Installed executable remains source `4c89eb729bc1af712b12c6cb1cff06b447c0c56e`, SHA-256 `951DD3DB54596741328CC0CC3552C9C964294C273407FD5751D6F7908933BDD4`. [Audio settings and rollback](journal/2026-11-11-quiet-interface-pending-sync.md).
+
+Verified private G1 profile archive `CreteOS-G1-profile-backup-20261111-203158.zip`, SHA-256 `60cc249ad3d20a527d03605b96fd4b8dfbab8fd44329db564e64382eb045c773`, contains 1614 manifested files. The settings payload differs from the saved pre-change settings only in the two audio fields. The preceding `CreteOS-G1-profile-backup-20261111-202503.zip` and its Bosgame Lutris reference are retained. The replacement package is `CreteOS-Recovery-20261111-SilentInterface`. Use the USB copy receipt and root START-HERE pointer to identify the copy verified on the SanDisk.
+
 **Moonlight Home connection.** Set the G1 and Bosgame independently. Bosgame Automatic uses Wi-Fi on an actual E433 connection and uses the ordinary Ethernet route on Extra or a routed cable. Its manual Ethernet and E433 Wi-Fi choices apply for the stream. [Routing, verification and restore details](journal/2026-11-11-bosgame-moonlight-switch-pending-sync.md).
 
 Installed on the G1 at 2026-11-11T20:24:53.0971121+00:00 from `4c89eb729bc1af712b12c6cb1cff06b447c0c56e`. Executable SHA-256 `951DD3DB54596741328CC0CC3552C9C964294C273407FD5751D6F7908933BDD4`. The production build and installed asset check passed. The installer verified 8 saved profile files and retained rollback at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Bosgame-route-20261111-202449`.
