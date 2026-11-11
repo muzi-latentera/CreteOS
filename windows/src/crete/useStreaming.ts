@@ -7,6 +7,7 @@ import { refreshGeForceCatalog, subscribeGeForceCatalog } from "./gfnCatalog";
 import { withStreamCover } from "../components/launch/StreamLaunchCover";
 import { streamErrorMessage } from "./streamErrors";
 import { asobiMatches, type AsobiGame, type AsobiProvider } from "./asobi";
+import type { StreamAudioChoice } from "./StreamAudioFields";
 
 export interface MoonlightProfile { host: string; resolution: string; fps: number; bitrate: number; codec: string }
 export interface DisplayProfile { displayKey: string; profile: MoonlightProfile; nativeResolution?: string; nativeFps?: number; displayLabel?: string }
@@ -25,12 +26,12 @@ export function useStreaming(app: App, enabled: boolean) {
       .catch(reason => { if (active) setAsobiError(String(reason)); });
     return () => { active = false; };
   }, [enabled, app.id, app.name, app.source, app.store_id]);
-  const startAsobi = async (shortcutId: string) => {
+  const startAsobi = async (shortcutId: string, audio?: StreamAudioChoice) => {
     setAsobiError("");
     try {
       const game = asobiGames.find(game => game.id === shortcutId);
       if (!game) throw new Error("Refresh the ASOBI shortcuts before launching.");
-      await withStreamCover(app, game.provider, () => invoke("launch_asobi_game", { shortcutId }), () => setAsobiConfigure(null));
+      await withStreamCover(app, game.provider, () => invoke("launch_asobi_game", { shortcutId, audio }), () => setAsobiConfigure(null));
     }
     catch (reason) { setAsobiError(String(reason)); }
   };
@@ -114,18 +115,18 @@ export function useStreaming(app: App, enabled: boolean) {
       void invoke<DisplayProfile>("get_geforce_profile").then(current => { if (current?.profile) setGeforceDisplay(current); }).catch(reason => setError(String(reason)));
     } else void invoke("launch_streaming_client", { provider }).catch(reason => setError(String(reason)));
   };
-  const geforceStream = async (profile: MoonlightProfile) => {
+  const geforceStream = async (profile: MoonlightProfile, audio?: StreamAudioChoice) => {
     if (!gameUrl) return;
     setError(null);
     try {
-      await withStreamCover(app, "geforceNow", () => invoke("start_geforce_game", { gameUrl, source: app.source, displayKey: geforceDisplay.displayKey, profile }), () => setGeforceConfigure(false), "settings");
+      await withStreamCover(app, "geforceNow", () => invoke("start_geforce_game", { gameUrl, source: app.source, displayKey: geforceDisplay.displayKey, profile, audio }), () => setGeforceConfigure(false), "settings");
     } catch (reason) { setGeforceConfigure(true); setError(streamErrorMessage(reason)); }
   };
-  const stream = async (appName: string, profile: MoonlightProfile) => {
+  const stream = async (appName: string, profile: MoonlightProfile, audio?: StreamAudioChoice) => {
     setError(null);
     try {
       const steamId = appName === "MoonDeckStream" && app.source === "steam" && app.steam_appid ? String(app.steam_appid) : null;
-      await withStreamCover(app, "moonlight", () => invoke("launch_moonlight", { appName, displayKey: display.displayKey, profile, steamId, gameId: app.id, gameName: app.name, lutrisId: app.source === "lutris" ? app.store_id : null }), () => setConfigure(false), "settings");
+      await withStreamCover(app, "moonlight", () => invoke("launch_moonlight", { appName, displayKey: display.displayKey, profile, steamId, gameId: app.id, gameName: app.name, lutrisId: app.source === "lutris" ? app.store_id : null, audio }), () => setConfigure(false), "settings");
     } catch (reason) { setConfigure(true); setError(streamErrorMessage(reason)); }
   };
   const pair = async (pin: number) => {

@@ -66,6 +66,7 @@ mod lutris;
 mod stream_artwork;
 mod native_artwork;
 mod stream_wifi;
+mod stream_audio;
 mod asobi;
 mod asobi_session;
 mod moondeck;
@@ -10490,6 +10491,7 @@ pub fn run() {
         ))
         .invoke_handler(tauri::generate_handler![
             stream_wifi::get_stream_wifi_preferences,
+            stream_audio::get_stream_audio_devices,
             stream_wifi::get_stream_network_status,
             asobi::get_asobi_games,
             asobi::open_asobi_client,
@@ -10671,6 +10673,7 @@ pub fn run() {
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Focused(_)) { fse_watcher::keep_main_borderless(window.app_handle()); }
         })
         .setup(|app| {
+            stream_audio::watch(app.handle().clone());
             let lofi_sources = bundled_lofi_source_dirs(app.handle());
             for name in lofi_media::LOFI_MEDIA_FILES {
                 if let Err(error) =

@@ -226,9 +226,10 @@ impl NvidiaSession {
     }
 }
 
-fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::LogCursor, generation: u64, wifi: Option<super::stream_wifi::Session>) {
+fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::LogCursor, generation: u64, wifi: Option<super::stream_wifi::Session>, audio: Option<super::stream_audio::Session>) {
     std::thread::spawn(move || {
         let _wifi = wifi;
+        let _audio = audio;
         let mut session = NvidiaSession::default();
         let mut returning=false;
         let start = std::time::Instant::now();
@@ -519,7 +520,7 @@ pub async fn launch_geforce_game(window: tauri::Window, game_url: String, source
             if let Some(key) = display["displayKey"].as_str() {
                 if uses_tv_vsync(key) || geforce_profiles().get(GFN_PRE_TV_VSYNC).is_some() {
                     let profile = serde_json::from_value(display["profile"].clone()).map_err(|e| e.to_string())?;
-                    return start_geforce_game(window, game_url, key.to_owned(), profile, source).await;
+                    return start_geforce_game(window, game_url, key.to_owned(), profile, source, None).await;
                 }
             }
         }
@@ -529,7 +530,7 @@ pub async fn launch_geforce_game(window: tauri::Window, game_url: String, source
         let wifi = if play.unwrap_or(true) { super::stream_wifi::prepare("geforceNow") } else { None };
         let log = super::stream_readiness::LogCursor::new(nvidia_console());
         spawn_geforce(&client, &argument)?;
-        if play.unwrap_or(true) { watch_geforce_exit(window, log, next_session(), wifi); }
+        if play.unwrap_or(true) { watch_geforce_exit(window, log, next_session(), wifi, None); }
         Ok(())
     }).await.map_err(|e| e.to_string())?
 }
@@ -664,7 +665,7 @@ fn update_geforce_settings(settings: &mut serde_json::Value, profile: &Moonlight
 }
 
 #[tauri::command]
-pub async fn start_geforce_game(window: tauri::Window, game_url: String, display_key: String, profile: MoonlightProfile, source: Option<String>) -> Result<(), String> {
+pub async fn start_geforce_game(window: tauri::Window, game_url: String, display_key: String, profile: MoonlightProfile, source: Option<String>, audio: Option<super::stream_audio::Choice>) -> Result<(), String> {
     geforce_native_game_uri(&game_url)?;
     if display_key.is_empty() || display_key.len() > 256 { return Err("Invalid display identity".into()); }
     let epoch=launch_epoch();
@@ -672,6 +673,7 @@ pub async fn start_geforce_game(window: tauri::Window, game_url: String, display
         check_launch(epoch)?;
         let (client, argument) = geforce_launch(&game_url, source.as_deref(), true)?;
         close_idle_geforce(|message|progress(&window,message))?;
+        let audio = super::stream_audio::prepare(audio)?;
         let wifi = super::stream_wifi::prepare("geforceNow");
         let root = dirs::data_local_dir().ok_or("No local data folder")?;
         let path = root.join("NVIDIA Corporation/GeForceNOW/sharedstorage.json");
@@ -703,7 +705,7 @@ pub async fn start_geforce_game(window: tauri::Window, game_url: String, display
         check_launch(epoch)?;
         let launch = spawn_geforce(&client, &argument);
         if let Err(error) = launch { let _ = std::fs::write(&path, original); return Err(error.to_string()); }
-        watch_geforce_exit(window, log, generation, wifi);
+        watch_geforce_exit(window, log, generation, wifi, audio);
         profiles[display_key] = serde_json::to_value(profile).map_err(|e| e.to_string())?;
         std::fs::write(profiles_path, serde_json::to_vec(&profiles).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         Ok(())
@@ -972,7 +974,7 @@ pub fn get_moonlight_profile(window: tauri::Window) -> Result<serde_json::Value,
 }
 
 #[tauri::command]
-pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_key: String, profile: MoonlightProfile, steam_id: Option<String>, game_id: Option<String>, game_name: Option<String>, lutris_id: Option<String>) -> Result<(), String> {
+pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_key: String, profile: MoonlightProfile, steam_id: Option<String>, game_id: Option<String>, game_name: Option<String>, lutris_id: Option<String>, audio: Option<super::stream_audio::Choice>) -> Result<(), String> {
     let epoch = LAUNCH_EPOCH.load(Ordering::SeqCst);
     validate(&profile)?;
     if display_key.len() > 512 { return Err("Invalid display".into()); }
@@ -1011,6 +1013,7 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         std::fs::create_dir_all(super::liftoff_dir()).map_err(|e| e.to_string())?;
         std::fs::write(path, serde_json::to_vec_pretty(&profiles).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         let generation = next_session();
+        let audio = super::stream_audio::prepare(audio)?;
         let presentation = if let Some(id) = steam_id.as_ref() {
             match stage_host_presentation(&profile.host, id, &profile.resolution, game_id.as_deref(), game_name.as_deref(), generation) {
                 Ok(token) => { super::fse_watcher::log_stream_transition(window.app_handle(), "host-artwork-ready"); Some(token) },
@@ -1066,6 +1069,7 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         // startup error. A late-starting game must not become an orphan stream.
         std::thread::spawn(move || {
             let _wifi = wifi;
+            let _audio = audio;
             if let Some(id) = buddy_id {
                 let exit_confirmed = std::sync::atomic::AtomicBool::new(false);
                 // A failed/disconnected client can exit before Buddy ever

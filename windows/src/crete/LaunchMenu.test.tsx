@@ -3,7 +3,12 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { LaunchMenu } from "./LaunchMenu";
-vi.mock("@tauri-apps/api/core",()=>({invoke:vi.fn(async(command:string)=>command==="get_stream_network_status"?{wired:false}:{moonlight:"automatic",luna:"automatic",ps5RemotePlay:"automatic"})}));
+vi.mock("@tauri-apps/api/core",()=>({invoke:vi.fn(async(command:string)=>{
+  if (command === "get_stream_network_status") return { wired: false };
+  if (command === "get_stream_audio_devices") return { output: [{ id: "headphones", name: "Arctis Nova 7" }], input: [{ id: "mic", name: "Arctis mic" }], defaultOutput: null, defaultInput: null };
+  return { moonlight: "automatic", luna: "automatic", ps5RemotePlay: "automatic" };
+})}));
+vi.mock("@tauri-apps/api/event",()=>({listen:vi.fn(async()=>()=>{})}));
 vi.mock("./text",()=>({useCreteText:()=>(label:string)=>label}));
 vi.mock("../utils/gamepad",()=>({getBestGamepad:()=>null,readGpState:()=>({})}));
 let root:Root; let host:HTMLDivElement;
@@ -24,7 +29,7 @@ it("keeps host tools out of the default view and retains the exact launch profil
   expect(document.body.textContent).not.toContain("Refresh host");
   expect(document.body.textContent).toContain("90 fps");
   await click(document.querySelector('[data-launch-primary]'));
-  expect(s.stream).toHaveBeenCalledWith("MoonDeckStream",s.display.profile);
+  expect(s.stream).toHaveBeenCalledWith("MoonDeckStream",s.display.profile,{input:null,output:null});
   expect(invoke).not.toHaveBeenCalledWith("set_stream_wifi_preference",expect.anything());
 });
 it("opens a pointer choice list and cancels without changing the saved preference",async()=>{
@@ -41,8 +46,20 @@ it("PlayStation keeps the exported ASOBI route and primary action",async()=>{
   const s=await render({configure:false,asobiConfigure:"ps5RemotePlay",asobiGames:[{provider:"ps5RemotePlay",id:"actual-shortcut",label:"PS5 game"}]});
   expect(document.querySelector('[aria-label="PS5 Remote Play settings"]')).not.toBeNull();
   await click(document.querySelector('[data-launch-primary]'));
-  expect(s.startAsobi).toHaveBeenCalledWith("actual-shortcut");
+  expect(s.startAsobi).toHaveBeenCalledWith("actual-shortcut",{input:null,output:null});
   expect(s.stream).not.toHaveBeenCalled();
+});
+
+it("passes separate output and microphone choices to a stream",async()=>{
+  const s=await render();
+  await click(Array.from(document.querySelectorAll("button")).find(button=>button.textContent==="Sound")!);
+  for(const [label, option] of [["Audio output", "Arctis Nova 7"], ["Microphone", "Arctis mic"]]){
+    const select=document.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`)!;
+    await act(async()=>select.dispatchEvent(new MouseEvent("pointerdown",{bubbles:true,cancelable:true})));
+    await click(Array.from(document.querySelectorAll('[role="option"]')).find(item=>item.textContent?.includes(option))!);
+  }
+  await click(document.querySelector('[data-launch-primary]'));
+  expect(s.stream).toHaveBeenCalledWith("MoonDeckStream",s.display.profile,{input:"mic",output:"headphones"});
 });
 it("Luna connection settings never expose or start a host stream",async()=>{
   await render({configure:false,provider:"luna"},true);
