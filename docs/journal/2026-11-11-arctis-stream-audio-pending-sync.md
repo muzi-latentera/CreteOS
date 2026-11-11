@@ -1,0 +1,17 @@
+# 11 November 2026 — G1 default audio and stream sound choices
+
+Windows enumerates the Arctis Nova 7 headphone output and microphone independently alongside the built-in Realtek speakers and microphone. CreteOS listens for Windows endpoint changes. On startup and when the Arctis becomes active, it gives any default role Windows assigned to the headset back to the corresponding built-in endpoint. The headset stays enabled and available. The event listener is idle between notifications and pauses its default correction during a CreteOS sound override.
+
+Open **Sound** in the Moonlight, GeForce NOW, or PlayStation launch settings. Choose Audio output and Microphone independently, or choose Windows default. For an explicit selection, CreteOS temporarily sets the Windows defaults for that stream, including the communications roles, and restores the prior devices on exit, cancellation or failed launch. Apps that use Windows defaults may follow the selection while the stream is open. CreteOS preserves a role that the user or another app changes after launch. If CreteOS stops abruptly, its next startup checks the recorded settings and restores any role it still owns. The choice starts at Windows default on each new launch. A disconnected selection returns a launch error instead of silently playing from a different device.
+
+Stock Moonlight uses the selected local output. Its microphone choice applies to Windows on the G1, and stock Moonlight does not forward that microphone to Bosgame. This update applies to the provider dialogs with a Play button. The Luna Wi-Fi panel remains a connection-only panel.
+
+Bosgame was left running its installation without any connection or operation from this turn. The new Windows profile snapshot carries forward the previous verified Bosgame Lutris export as a historical host snapshot. CreteOS identifies the audio endpoints on the replacement device by their Windows names and active state. Temporary endpoint IDs and the in-flight audio restore journal are not portable recovery inputs.
+
+On the G1 with the headset connected, a native test verified that the Realtek speakers and microphone were the defaults for console, multimedia and communications, changed all six roles to the Arctis using the same launch code, then verified that all six restored to Realtek and that the temporary journal was cleared. TypeScript, 20 focused frontend tests and four browser controller scenarios passed. The Sound picker test chose both endpoints and verified their separate launch arguments. A physical replug and a live provider stream remain to be checked. No game was launched for testing.
+
+Installed on the G1 at 2026-11-11T18:14:15.1935608+00:00 from `7df9763de38ca98b35ea3642973f67e9a06e92d0`. Executable SHA-256 `E2867B9E01840CAA868E7C5A0E00FA317EF900D83485E1D0502F083BACE45FDD`. The production build and installed asset check passed. The installer verified 8 saved profile files and retained rollback at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Stream-audio-20261111-181411`.
+
+Verified private G1 snapshot `CreteOS-G1-profile-backup-20261111-181425.zip`, SHA-256 `1681ce0f2f2cc127101db560e88e53a328cb7552693b684cc539d30ebf797830`, contains 1601 manifested files and the exact installed executable. It preserves the verified host export from the retained 173724 archive. The local replacement package is `CreteOS-Recovery-20261111-StreamAudio`. Its manifest and USB copy receipt identify the deployment. The previous SanDisk pack is the TV V-sync build.
+
+Canonical vault sync pending.

@@ -4,6 +4,12 @@ Maintained device record, updated 11 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**G1 audio and Arctis Nova 7.** The Realtek speakers and microphone are the normal defaults when the Arctis connects. Open **Sound** in Moonlight, GeForce NOW, or PlayStation launch settings to use a different output or microphone for the stream. Windows defaults are restored when the stream finishes. Moonlight's microphone choice applies locally on Windows. [Audio setup and verification](journal/2026-11-11-arctis-stream-audio-pending-sync.md).
+
+Installed on the G1 at 2026-11-11T18:14:15.1935608+00:00 from `7df9763de38ca98b35ea3642973f67e9a06e92d0`. Executable SHA-256 `E2867B9E01840CAA868E7C5A0E00FA317EF900D83485E1D0502F083BACE45FDD`. The production build and installed asset check passed. The installer verified 8 saved profile files and retained rollback at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Stream-audio-20261111-181411`.
+
+Verified private G1 snapshot `CreteOS-G1-profile-backup-20261111-181425.zip`, SHA-256 `1681ce0f2f2cc127101db560e88e53a328cb7552693b684cc539d30ebf797830`, contains 1601 manifested files and the exact installed executable. It preserves the verified host export from the retained 173724 archive. The local replacement package is `CreteOS-Recovery-20261111-StreamAudio`. Its manifest and USB copy receipt identify the deployment. The previous SanDisk pack is the TV V-sync build.
+
 **Philips TV V-sync.** CreteOS selects V-sync On for Moonlight and GeForce NOW when the active display is Philips FTV (`PHL04C3`). On other displays Moonlight uses its saved native preference, and the next CreteOS GeForce NOW launch restores the NVIDIA preference that preceded the TV override. The rule is based on the display ID. [Verification and restore details](journal/2026-11-11-philips-tv-vsync-pending-sync.md).
 
 Installed on the G1 at 2026-11-11T17:36:58.6511368+00:00 from `ef63c911fc82b6f093fc3461e40bc92819ce59de`. Executable SHA-256 `3FC8C3C16677A69AB69E68DE33F95CF3A772B98BB9157B130CDC7CC068505801`. The production build and installed asset check passed. The installer verified 8 saved profile files and retained rollback at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Tv-vsync-20261111-173655`.
