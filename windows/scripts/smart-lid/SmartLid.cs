@@ -59,6 +59,7 @@ internal sealed class SmartLid : NativeWindow, IDisposable
     private const int DisplayChange = 0x7e;
     private const int PowerSettingChange = 0x8013;
     private const int Suspend = 4;
+    private const int ResumeInteractive = 7;
     private const int ResumeAutomatic = 18;
     private const uint PresentDevices = 0x100;
     private static Guid lidSetting = new Guid("BA3E0F4D-B817-4094-A2D1-D56379E6A0F3");
@@ -80,6 +81,11 @@ internal sealed class SmartLid : NativeWindow, IDisposable
     private long? unknownSince;
     private Process hibernation;
     private long hibernateRequestedAt;
+    private long previousAwake;
+    private long previousElapsed;
+    private long nextLidRefresh;
+    private long lastResume = -3000;
+    private bool suspended;
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr RegisterPowerSettingNotification(IntPtr recipient, ref Guid setting, uint flags);
@@ -98,6 +104,17 @@ internal sealed class SmartLid : NativeWindow, IDisposable
 
     [DllImport("kernel32.dll")]
     private static extern IntPtr LocalFree(IntPtr memory);
+
+    [DllImport("kernel32.dll")]
+    private static extern bool QueryUnbiasedInterruptTime(out ulong time);
+
+    private static long AwakeMilliseconds()
+    {
+        ulong time;
+        if (!QueryUnbiasedInterruptTime(out time))
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        return (long)(time / 10000);
+    }
 
     private bool LivePlanIsActive()
     {
@@ -146,7 +163,8 @@ internal sealed class SmartLid : NativeWindow, IDisposable
         log = path;
         dockIds = ids;
         countdown = new LidCountdown(delaySeconds * 1000L);
-        stopAt = observeSeconds == 0 ? long.MaxValue : observeSeconds * 1000L;
+        previousAwake = AwakeMilliseconds();
+        stopAt = observeSeconds == 0 ? long.MaxValue : previousAwake + observeSeconds * 1000L;
         heartbeat = heartbeatPath;
         livePlan = scheme;
         tick = new System.Windows.Forms.Timer { Interval = 250 };
@@ -197,12 +215,40 @@ internal sealed class SmartLid : NativeWindow, IDisposable
         return DockState.Unknown;
     }
 
+    private void ResetAfterWake(long now, string reason)
+    {
+        if (hibernation != null)
+        {
+            hibernation.Dispose();
+            hibernation = null;
+        }
+        suspended = false;
+        lastResume = now;
+        lid = LidState.Unknown;
+        dock = DockState.Unknown;
+        unknownSince = null;
+        nextScan = 0;
+        nextHeartbeat = 0;
+        nextLidRefresh = now + 4000;
+        countdown.Update(lid, dock, now);
+        Record(reason + "; refreshing lid and dock state");
+        RegisterLid();
+    }
+
     private void Advance()
     {
         if (ending)
             return;
 
-        long now = clock.ElapsedMilliseconds;
+        long now = AwakeMilliseconds();
+        long elapsed = clock.ElapsedMilliseconds;
+        bool sleepGap = elapsed - previousElapsed - (now - previousAwake) >= 1500;
+        previousAwake = now;
+        previousElapsed = elapsed;
+        if (sleepGap && (suspended || now - lastResume >= 2000))
+            ResetAfterWake(now, "Wake gap detected");
+        if (suspended)
+            return;
         if (now >= stopAt)
         {
             ending = true;
@@ -231,7 +277,13 @@ internal sealed class SmartLid : NativeWindow, IDisposable
                 if (!unknownSince.HasValue)
                     unknownSince = now;
                 if (now - unknownSince.Value >= 20000)
-                    throw new InvalidOperationException("Lid or dock state stayed unknown; restoring Windows lid handling");
+                    throw new InvalidOperationException("State stayed unknown: lid=" + lid + ", dock=" + dock);
+                if (lid == LidState.Unknown && now >= nextLidRefresh)
+                {
+                    nextLidRefresh = now + 4000;
+                    Record("Retrying lid state notification");
+                    RegisterLid();
+                }
             }
             else
             {
@@ -276,21 +328,24 @@ internal sealed class SmartLid : NativeWindow, IDisposable
                 nextScan = 0;
                 Advance();
             }
-            else if (kind == Suspend || kind == ResumeAutomatic)
+            else if (kind == Suspend)
             {
                 if (hibernation != null)
                 {
-                    Record(kind == Suspend ? "Windows suspend notification received" : "Windows resumed");
+                    Record("Windows suspend notification received");
                     hibernation.Dispose();
                     hibernation = null;
                 }
+                suspended = true;
                 lid = LidState.Unknown;
-                unknownSince = null;
-                nextHeartbeat = 0;
-                nextScan = 0;
+                countdown.Update(lid, DockState.Unknown, AwakeMilliseconds());
+            }
+            else if (kind == ResumeAutomatic || kind == ResumeInteractive)
+            {
+                long now = AwakeMilliseconds();
+                if (suspended || now - lastResume >= 2000)
+                    ResetAfterWake(now, "Windows resumed");
                 Advance();
-                if (kind == ResumeAutomatic)
-                    RegisterLid();
             }
         }
         else if (message.Msg == DeviceChange || message.Msg == DisplayChange)
@@ -348,6 +403,8 @@ internal sealed class SmartLid : NativeWindow, IDisposable
             if (args.Length == 1 && args[0] == "--self-test")
             {
                 SelfTest();
+                if (AwakeMilliseconds() <= 0)
+                    throw new InvalidOperationException("Awake clock unavailable");
                 Console.WriteLine("18 countdown assertions passed");
                 return 0;
             }

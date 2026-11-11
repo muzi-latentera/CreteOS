@@ -9,6 +9,7 @@ $ErrorActionPreference='Stop'
 $root=Join-Path $env:LOCALAPPDATA 'CreteOS-Bootstrap\SmartLid'
 $configFile=Join-Path $root 'config.json'
 $heartbeat=Join-Path $root 'heartbeat'
+$recoverySignal=Join-Path $root 'recovery-request'
 $workerLog=Join-Path $root 'worker.log'
 $supervisorLog=Join-Path $root 'supervisor.log'
 $runner=Join-Path $root 'SmartLid.ps1'
@@ -75,8 +76,9 @@ if($Mode -eq 'Guard'){
  if((Get-ActivePlan) -ne $config.ManagedPlan -or (Test-Heartbeat ([datetime]::UtcNow.AddSeconds(-25)))){return}
  # A wake can briefly expose the pre-hibernate heartbeat before the desktop responds.
  Start-Sleep -Seconds 8
- if(!(Test-Heartbeat ([datetime]::UtcNow.AddSeconds(-25)))){
+ if((Get-ActivePlan) -eq $config.ManagedPlan -and !(Test-Heartbeat ([datetime]::UtcNow.AddSeconds(-25)))){
   Write-Log 'Recovery task detected a stale or missing heartbeat'
+  [IO.File]::WriteAllText($recoverySignal,[datetime]::UtcNow.ToString('o'))
   Restore-Plan $config
  }
  return
@@ -91,34 +93,50 @@ if($Mode -eq 'Remove'){
  return
 }
 if($Mode -eq 'Launch'){
- $worker=$null
- try {
-  Restore-Plan $config
-  if((Get-ActivePlan) -ne $config.OriginalPlan){throw 'A different Windows power plan is selected'}
-  if(!(Get-ScheduledTask -TaskName $guardTask).Settings.Enabled){throw 'Recovery task is disabled'}
-  $started=[datetime]::UtcNow
-  $arguments=@('--live',$config.DelaySeconds,'0',('"{0}"' -f $workerLog),('"{0}"' -f $heartbeat),$config.ManagedPlan)
-  $arguments+=@($config.DockIds|ForEach-Object {'"{0}"' -f $_})
-  $worker=Start-Process -FilePath $exe -ArgumentList ($arguments -join ' ') -WindowStyle Hidden -PassThru -RedirectStandardError (Join-Path $root 'worker-error.log')
-  $deadline=$started.AddSeconds(12)
-  while(!(Test-Heartbeat $started)){
-   if($worker.WaitForExit(250) -or [datetime]::UtcNow -gt $deadline){throw 'Live observer did not report a known lid and dock state'}
+ Restore-Plan $config
+ for($attempt=1;$attempt -le 3;$attempt++){
+  if((Get-ActivePlan) -ne $config.OriginalPlan){
+   Write-Log 'A different Windows power plan is selected'
+   return
   }
-  if((Get-ActivePlan) -ne $config.OriginalPlan){throw 'Power plan changed while starting Smart Lid'}
-  Invoke-PowerCfg /setactive $config.ManagedPlan|Out-Null
-  if((Get-ActivePlan) -ne $config.ManagedPlan){throw 'Managed power plan did not activate'}
-  Write-Log "Live Smart Lid active. Observer PID $($worker.Id). Delay $($config.DelaySeconds) seconds"
-  while(!$worker.WaitForExit(3000)){
-   if((Get-ActivePlan) -ne $config.ManagedPlan){break}
+  $worker=$null
+  try {
+   if(!(Get-ScheduledTask -TaskName $guardTask).Settings.Enabled){throw 'Recovery task is disabled'}
+   $started=[datetime]::UtcNow
+   $arguments=@('--live',$config.DelaySeconds,'0',('"{0}"' -f $workerLog),('"{0}"' -f $heartbeat),$config.ManagedPlan)
+   $arguments+=@($config.DockIds|ForEach-Object {'"{0}"' -f $_})
+   $worker=Start-Process -FilePath $exe -ArgumentList ($arguments -join ' ') -WindowStyle Hidden -PassThru -RedirectStandardError (Join-Path $root 'worker-error.log')
+   $deadline=$started.AddSeconds(12)
+   while(!(Test-Heartbeat $started)){
+    if($worker.WaitForExit(250) -or [datetime]::UtcNow -gt $deadline){throw 'Live observer did not report a known lid and dock state'}
+   }
+   if((Get-ActivePlan) -ne $config.OriginalPlan){return}
+   Invoke-PowerCfg /setactive $config.ManagedPlan|Out-Null
+   if((Get-ActivePlan) -ne $config.ManagedPlan){throw 'Managed power plan did not activate'}
+   $healthySince=[datetime]::UtcNow
+   Write-Log "Live Smart Lid active. Observer PID $($worker.Id). Delay $($config.DelaySeconds) seconds"
+   while(!$worker.WaitForExit(3000)){
+    $plan=Get-ActivePlan
+    if($plan -eq $config.ManagedPlan){continue}
+    $signal=Get-Item -LiteralPath $recoverySignal -ErrorAction SilentlyContinue
+    if($plan -ne $config.OriginalPlan -or !$signal -or $signal.LastWriteTimeUtc -lt $started){return}
+    Write-Log 'Recovery task restored the original plan; restarting the observer'
+    break
+   }
+   if($worker.HasExited){Write-Log "Observer exited with code $($worker.ExitCode)"}
+   if(([datetime]::UtcNow-$healthySince).TotalMinutes -ge 2){$attempt=0}
+  } catch {
+   Write-Log $_.Exception.Message
+  } finally {
+   if($worker -and !$worker.HasExited){Stop-Process -Id $worker.Id -ErrorAction SilentlyContinue}
+   Restore-Plan $config
   }
-  if($worker.HasExited){Write-Log "Observer exited with code $($worker.ExitCode)"}
- } catch {
-  Write-Log $_.Exception.Message
-  throw
- } finally {
-  if($worker -and !$worker.HasExited){Stop-Process -Id $worker.Id -ErrorAction SilentlyContinue}
-  Restore-Plan $config
+  if($attempt -lt 3){
+   Write-Log 'Restarting observer with the original plan in place'
+   Start-Sleep -Seconds 2
+  }
  }
+ throw 'Smart Lid could not recover after three attempts. Windows lid handling is active.'
  return
 }
 
