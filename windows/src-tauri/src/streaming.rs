@@ -732,10 +732,10 @@ fn prepare_host_steam(host: &str) -> Result<(), String> {
     let result: serde_json::Value = serde_json::from_slice(&output.stdout).map_err(|_| "Could not check Steam's desktop on Bosgame. Check SSH access, then retry.")?;
     match result["status"].as_str() {
         Some("ready" | "moved") if output.status.success() => Ok(()),
-        Some("gameRunning") => Err("A game is running on Bosgame's regular desktop. Quit it before starting this Moonlight game; CreteOS has left it running.".into()),
+        Some("gameRunning") => Err("Steam is busy with a game or installation on Bosgame's regular desktop. Let setup finish or close the running game, then retry Moonlight.".into()),
         Some("streamActive") => Err("Another Moonlight stream is connected to Bosgame. End that session before moving Steam to the streaming desktop.".into()),
         Some("shutdownPending") => Err("Steam is waiting to close on Bosgame, possibly for a download or save-sync prompt. Finish that prompt and retry. Nothing was forcibly stopped.".into()),
-        Some("processCheckUnavailable") => Err("CreteOS could not verify Steam's process state on Bosgame. Nothing was forcibly stopped. Wait for Steam to settle, then retry.".into()),
+        Some("processCheckUnavailable") => Err("CreteOS could not confirm that Steam can safely move to Bosgame's streaming desktop. Finish any game installation or setup on Bosgame, then retry Moonlight.".into()),
         Some("shutdownCheckPending") => Err("Steam is closing on Bosgame, but CreteOS could not yet confirm the desktop change. Wait a moment and retry. Nothing was forcibly stopped.".into()),
         Some("desktopUnknown" | "targetUnavailable") => Err("Bosgame's streaming desktop is not ready or its display identity is unavailable. Check its streaming desktop service, then retry.".into()),
         Some("preflightBusy") => Err("Another launch is already preparing Steam on Bosgame. Wait for it to finish, then retry.".into()),

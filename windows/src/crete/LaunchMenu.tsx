@@ -26,6 +26,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   const [profile, setProfile] = useState<MoonlightProfile>(s.display.profile);
   const [target, setTarget] = useState("");
   const [busy, setBusy] = useState(false);
+  const restoreAfterLaunch = useRef(false);
   const [wifiOnly, setWifiOnly] = useState(false);
   const [pin, setPin] = useState<number | null>(null);
   const [psTarget, setPsTarget] = useState("");
@@ -34,8 +35,24 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   useEffect(() => { if (ps) { setOpen(false); setPsTarget(s.asobiGames.find(game => game.provider === ps)?.id ?? ""); } }, [ps, s.asobiGames]);
   const [choices, setChoices] = useState<HTMLSelectElement | null>(null);
   const choicesRef = useRef<HTMLSelectElement | null>(null);
+  const selectFocus = useRef<HTMLSelectElement | null>(null);
   const openChoices = (select: HTMLSelectElement) => { choicesRef.current = select; setChoices(select); };
-  const closeChoices = () => { const select = choicesRef.current; choicesRef.current = null; setChoices(null); select?.focus(); };
+  const closeChoices = () => {
+    const select = choicesRef.current;
+    choicesRef.current = null;
+    selectFocus.current = select;
+    setChoices(null);
+    select?.focus({ preventScroll: true });
+  };
+  useEffect(() => {
+    if (choices || busy || !selectFocus.current) return;
+    const frame = requestAnimationFrame(() => {
+      const select = selectFocus.current;
+      selectFocus.current = null;
+      if (select?.isConnected && !select.disabled) select.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [choices, busy]);
   const gfn = s.geforceConfigure;
   const activeDisplay = gfn ? s.geforceDisplay : s.display;
   const nativeResolution = activeDisplay.nativeResolution ?? "1920x1080";
@@ -53,7 +70,8 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   }, [s.configure, s.apps, s.moonlightGame]);
   const close = () => {
     const returnFocus = s.configure || gfn || wifiOnly || ps ? root.current?.closest('[data-crete-detail-slot="primary-actions"], .crete-hero')?.querySelector<HTMLButtonElement>('[data-launch-btn], .crete-play') ?? anchor.current : anchor.current;
-    setOpen(false); setWifiOnly(false); s.setConfigure(false); s.setGeforceConfigure(false); s.setAsobiConfigure(null); choicesRef.current = null; setChoices(null);
+    setOpen(false); setWifiOnly(false); s.setConfigure(false); s.setGeforceConfigure(false); s.setAsobiConfigure(null); choicesRef.current = null; selectFocus.current = null; setChoices(null);
+    restoreAfterLaunch.current = false;
     restorePlayFocus?.();
     returnFocus?.focus({ preventScroll: true });
   };
@@ -137,7 +155,9 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       if (gp) {
         const state = readGpState(gp);
         if (last) {
-          if (state.ArrowDown || state.ArrowUp || state.ArrowLeft || state.ArrowRight || state.Enter) repairFocus();
+          if ((state.ArrowDown && !last.ArrowDown) || (state.ArrowUp && !last.ArrowUp)
+              || (state.ArrowLeft && !last.ArrowLeft) || (state.ArrowRight && !last.ArrowRight)
+              || (state.Enter && !last.Enter)) repairFocus();
           if (state.Escape && !last.Escape) { if (choicesRef.current) closeChoices(); else close(); }
           else if (state.ArrowDown && !last.ArrowDown) navigate("down");
           else if (state.ArrowUp && !last.ArrowUp) navigate("up");
@@ -162,14 +182,23 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     return () => clearTimeout(timer);
   }, [choices]);
   useEffect(() => {
-    if (busy || !(s.error || s.asobiError) || !(s.configure || gfn || ps)) return;
+    if (busy || !restoreAfterLaunch.current) return;
+    restoreAfterLaunch.current = false;
+    if (!(s.configure || gfn || ps)) return;
     const frame = requestAnimationFrame(() => {
       if (!document.querySelector("[data-stream-launch-cover]")) {
         panelRoot.current?.querySelector<HTMLButtonElement>("[data-launch-primary]:not(:disabled)")?.focus({ preventScroll: true });
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [busy, s.error, s.asobiError, s.configure, gfn, ps]);
+  }, [busy, s.configure, gfn, ps]);
+  const startStream = (launch: () => Promise<void>) => {
+    setBusy(true);
+    void launch().finally(() => {
+      restoreAfterLaunch.current = true;
+      setBusy(false);
+    });
+  };
   const choose = (action: () => void) => { setOpen(false); action(); };
   const row = (label: string, provider: string, color: string, action: () => void, disabled = false, key?: string) => <button key={key} type="button" role="menuitem" disabled={disabled} onClick={() => choose(action)}><i style={{ background: color }} />{text(label)}{s.provider === provider && <small aria-hidden="true">{text("DEFAULT")}</small>}</button>;
   const preset = (value: string) => {
@@ -204,7 +233,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
         {s.asobiError && <p role="alert">{s.asobiError}</p>}
         {!psGames.length && <p role="status">Add this game's shortcut in ASOBI, restart Steam, then refresh your library.</p>}
       </div>
-      <footer className="crete-stream-buttons"><button type="button" onClick={close}>{text("Cancel")}</button><button data-launch-primary type="button" disabled={busy || !psTarget || !s.online} onClick={() => { setBusy(true); void s.startAsobi(psTarget).finally(() => setBusy(false)); }}>{text(busy ? "Connecting…" : "Play")}</button></footer>
+      <footer className="crete-stream-buttons"><button type="button" onClick={close}>{text("Cancel")}</button><button data-launch-primary type="button" disabled={busy || !psTarget || !s.online} onClick={() => startStream(() => s.startAsobi(psTarget))}>{text(busy ? "Connecting…" : "Play")}</button></footer>
     </section></div>}
     {(s.configure || gfn || wifiOnly) && <div className="crete-stream-backdrop" onClick={event => { if (event.target === event.currentTarget) close(); }}><section role="dialog" aria-modal="true" aria-label={text(wifiOnly ? "Amazon Luna Wi-Fi" : gfn ? "GeForce NOW stream settings" : "Moonlight stream settings")} className="crete-stream-settings crete-stream-dialog">
       <header className="crete-stream-heading"><span className="crete-stream-eyebrow">{wifiOnly || gfn ? "CLOUD STREAMING" : "PC STREAMING"}</span><h2>{wifiOnly ? "Amazon Luna" : gfn ? "GeForce NOW" : "Moonlight"}</h2><p>{wifiOnly ? "Choose your connection." : gfn ? "Stream to this display." : profile.host}</p></header>
@@ -231,7 +260,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
         </>}
         {!s.online && <p role="status">{text("No network connection. Installed local games are available offline.")}</p>}
       </div>
-      <footer className="crete-stream-buttons"><button type="button" onClick={close}>{text(wifiOnly ? "Done" : "Cancel")}</button>{!wifiOnly && <button data-launch-primary type="button" disabled={busy || !s.online || (!gfn && (!target || s.checking || (target === "MoonDeckStream" && !!s.steamId && (!s.buddy?.paired || !s.hostInstalled))))} onClick={() => { setBusy(true); void (gfn ? s.geforceStream(profile) : s.stream(target, profile)).finally(() => setBusy(false)); }}>{text(busy ? "Connecting…" : gfn ? "Play" : "Start stream")}</button>}</footer>
+      <footer className="crete-stream-buttons"><button type="button" onClick={close}>{text(wifiOnly ? "Done" : "Cancel")}</button>{!wifiOnly && <button data-launch-primary type="button" disabled={busy || !s.online || (!gfn && (!target || s.checking || (target === "MoonDeckStream" && !!s.steamId && (!s.buddy?.paired || !s.hostInstalled))))} onClick={() => startStream(() => gfn ? s.geforceStream(profile) : s.stream(target, profile))}>{text(busy ? "Connecting…" : gfn ? "Play" : "Start stream")}</button>}</footer>
     </section></div>}
     {choices && <div className="crete-stream-choice-backdrop" onClick={event => { if (event.target === event.currentTarget) closeChoices(); }}><section className="crete-stream-choice-panel" aria-label={choices.getAttribute("aria-label") ?? "Options"}><header><span className="crete-stream-eyebrow">CHOOSE AN OPTION</span><h2>{choices.getAttribute("aria-label") ?? "Options"}</h2></header><div data-stream-choices role="listbox" aria-label={choices.getAttribute("aria-label") ?? "Options"} className="crete-stream-choices">{Array.from(choices.options).map(option => <button type="button" role="option" aria-selected={option.selected} disabled={option.disabled} key={option.value} onClick={() => { choices.value = option.value; choices.dispatchEvent(new Event("change", { bubbles: true })); closeChoices(); }}><span>{option.text}</span><span aria-hidden="true">{option.selected ? "✓" : ""}</span></button>)}</div><footer><button type="button" onClick={closeChoices}>Back</button></footer></section></div>}
     </div>, document.body)}

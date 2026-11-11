@@ -251,6 +251,7 @@ export function GameDetailsModal({
   const streaming = useStreaming(app, resolvedTheme === "crete");
   const [launchMenuOpen, setLaunchMenuOpen] = useState(false);
   const launchPopupBlockedRef = useRef(false);
+  const swallowLaunchBack = useRef(false);
   const blockLaunchPopup = useCallback((blocked: boolean) => { launchPopupBlockedRef.current = blocked; }, []);
   const isSteam = source === "steam";
   const isXbox = source === "xbox";
@@ -668,6 +669,10 @@ export function GameDetailsModal({
       const gp = getBestGamepad();
       if (gp) {
         const state = readGpState(gp);
+        if (swallowLaunchBack.current) {
+          if (state.Escape) last.Escape = true;
+          else swallowLaunchBack.current = false;
+        }
         if (interactionBlockedRef.current || launchPopupBlockedRef.current) {
           Object.assign(last, state);
           rafId = requestAnimationFrame(poll);
@@ -1235,6 +1240,7 @@ export function GameDetailsModal({
               </button>}
               {resolvedTheme === "crete" && <LaunchMenu streaming={streaming} open={launchMenuOpen} setOpen={setLaunchMenuOpen} loading={launchLoading}
                 block={blockLaunchPopup} restorePlayFocus={() => {
+                  swallowLaunchBack.current = true;
                   setFocusedIndex(0);
                   requestAnimationFrame(() => focusRefs.current[0]?.focus({ preventScroll: true }));
                 }} copies={actions.filter(action => action.key.startsWith("copy-"))} local={handleLocalAction} localLabel={installed ? "Local" : installing ? "Cancel installation" : storeAccountGame ? storeClientLabel : "Install locally"}
