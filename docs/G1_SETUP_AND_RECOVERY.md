@@ -4,6 +4,12 @@ Maintained device record, updated 11 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**Streaming focus and host preflight.** Launch errors restore controller focus to the settings dialog. B returns to the combined Play/options control. The Bosgame preflight skips exited processes and continues to protect active setup or game processes. No network settings changed. [Dated launch evidence](journal/2026-11-11-streaming-modal-focus-pending-sync.md).
+
+Installed CreteOS source `9b2597c193d4e3b85747a778bdfdc0b5b8416d76`, SHA-256 `1213821E9DB18CC5E98C0996D15C49F66534F6136B1799477EA6BBC49AA6DF46` at 2026-11-11T16:16:11.1210353+00:00. Production build, TypeScript check and bundled asset verification passed on the G1. The installer verified 8 profile files and retained the previous executable at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Streaming-focus-20261111-161607`. Verified private snapshot `CreteOS-G1-profile-backup-20261111-161653.zip` contains 1593 manifested files, including the new executable, Smart Lid and OneXConsole profile. Archive SHA-256 `5afcbbbb3631f675baf5173ad1439070f4895d99087f7ecd929d6f23e6269392`. The previous 154527 snapshot is retained.
+
+The new local replacement pack is `CreteOS-Recovery-20261111-StreamFocus`. Its package and copy receipt identify the deployed app and branch HEAD. Copy and verify it when the SanDisk is connected. The previous USB pack predates this build.
+
 **Standalone ASOBI launch.** Open Apps → Asobi: Remote Play. CreteOS uses Steam in the background when needed and confirms the native ASOBI window. The previous Steam-title watcher could miss it. The installed G1 build opened ASOBI from CreteOS and returned to Home without a launch warning. Steam was already running for that check. [Dated build and verification](journal/2026-11-11-asobi-client-launch-pending-sync.md).
 
 Installed CreteOS source `5ca60cc6cf97c53bc0b01b3efe390c5a593c13dc`, SHA-256 `4D6FD4CDCAFC169C90F887A4A13F9791C35E7A364FE791EEA60D8577FEA3A180` at 2026-11-11T14:40:22.1983103+00:00. Production build, TypeScript check and bundled asset verification passed on the G1. The installer verified 8 saved profile files and retained the previous executable under the native app-updates folder. Verified private snapshot `CreteOS-G1-profile-backup-20261111-144046.zip` contains 1583 manifested files, including the new executable, windowless Smart Lid and OneXConsole profile. Archive SHA-256 `090e27999c32766eac06509b67f9524a8ea6b067d31a6eb0689dbf6eaa958dae`. The previous 141310 snapshot is retained.
