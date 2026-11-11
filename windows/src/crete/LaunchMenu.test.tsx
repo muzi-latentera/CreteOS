@@ -9,11 +9,11 @@ vi.mock("../utils/gamepad",()=>({getBestGamepad:()=>null,readGpState:()=>({})}))
 let root:Root; let host:HTMLDivElement;
 beforeEach(()=>{Element.prototype.scrollIntoView=vi.fn();(globalThis as {IS_REACT_ACT_ENVIRONMENT?:boolean}).IS_REACT_ACT_ENVIRONMENT=true;});
 afterEach(async()=>{await act(async()=>root?.unmount());host?.remove();vi.clearAllMocks();});
-async function render(overrides:Record<string,unknown>={}, menuOpen=false) {
+async function render(overrides:Record<string,unknown>={}, menuOpen=false, restorePlayFocus?:()=>void) {
   const profile={host:"Bosgame",resolution:"2560x1600",fps:90,bitrate:80000,codec:"auto"};
   const streaming={display:{profile},geforceDisplay:{profile},configure:true,geforceConfigure:false,asobiConfigure:null,asobiGames:[],apps:["MoonDeckStream","Desktop"],steamId:"123",moonlightGame:null,buddy:{paired:true},hostInstalled:true,online:true,pcGame:true,clients:{moonlight:true},error:null,hostError:null,checking:false,setConfigure:vi.fn(),setGeforceConfigure:vi.fn(),setAsobiConfigure:vi.fn(),stream:vi.fn(async()=>{}),geforceStream:vi.fn(async()=>{}),startAsobi:vi.fn(async()=>{}),refresh:vi.fn(),...overrides};
   host=document.createElement("div");document.body.append(host);root=createRoot(host);
-  await act(async()=>root.render(<LaunchMenu streaming={streaming as unknown as Parameters<typeof LaunchMenu>[0]["streaming"]} open={menuOpen} setOpen={()=>{}} local={()=>{}} localLabel="Local" localEnabled manage={()=>{}} manageLabel="Manage" block={()=>{}}/>));
+  await act(async()=>root.render(<LaunchMenu streaming={streaming as unknown as Parameters<typeof LaunchMenu>[0]["streaming"]} open={menuOpen} setOpen={()=>{}} local={()=>{}} localLabel="Local" localEnabled manage={()=>{}} manageLabel="Manage" block={()=>{}} restorePlayFocus={restorePlayFocus}/>));
   return streaming;
 }
 async function click(el:Element|null){expect(el).not.toBeNull();await act(async()=>(el as HTMLElement).click());}
@@ -50,4 +50,15 @@ it("Luna connection settings never expose or start a host stream",async()=>{
   expect(document.querySelector('[aria-label="Amazon Luna Wi-Fi"]')).not.toBeNull();
   expect(document.querySelector('[data-launch-primary]')).toBeNull();
   expect(document.body.textContent).not.toContain("Stream options");
+});
+
+it("restores the Play action after a launch error and returns focus on cancel",async()=>{
+  const restore=vi.fn();
+  const s=await render({error:"Bosgame could not verify Steam."},false,restore);
+  const play=document.querySelector<HTMLButtonElement>("[data-launch-primary]")!;
+  await act(async()=>{await new Promise(resolve=>setTimeout(resolve,35));});
+  expect(document.activeElement).toBe(play);
+  await act(async()=>window.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true})));
+  expect(s.setConfigure).toHaveBeenCalledWith(false);
+  expect(restore).toHaveBeenCalledOnce();
 });

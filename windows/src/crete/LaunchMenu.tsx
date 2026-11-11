@@ -11,9 +11,9 @@ import { HomeWifiSelect } from "./HomeWifiSelect";
 import { asobiLabel, type AsobiProvider } from "./asobi";
 
 type Streaming = ReturnType<typeof useStreaming>;
-export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, localEnabled, manage, manageLabel, block, loading = false, copies = [] }: {
+export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, localEnabled, manage, manageLabel, block, restorePlayFocus, loading = false, copies = [] }: {
   streaming: Streaming; open: boolean; setOpen: (open: boolean) => void; local: () => void;
-  localLabel: string; localEnabled: boolean; manage: () => void; manageLabel: string; block: (blocked: boolean) => void; loading?: boolean;
+  localLabel: string; localEnabled: boolean; manage: () => void; manageLabel: string; block: (blocked: boolean) => void; restorePlayFocus?: () => void; loading?: boolean;
   copies?: { key: string; label: string; onClick: () => void }[];
 }) {
   const text = useCreteText();
@@ -54,6 +54,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   const close = () => {
     const returnFocus = s.configure || gfn || wifiOnly || ps ? root.current?.closest('[data-crete-detail-slot="primary-actions"], .crete-hero')?.querySelector<HTMLButtonElement>('[data-launch-btn], .crete-play') ?? anchor.current : anchor.current;
     setOpen(false); setWifiOnly(false); s.setConfigure(false); s.setGeforceConfigure(false); s.setAsobiConfigure(null); choicesRef.current = null; setChoices(null);
+    restorePlayFocus?.();
     returnFocus?.focus({ preventScroll: true });
   };
   useEffect(() => {
@@ -61,10 +62,16 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     const scope = () => panelRoot.current?.querySelector<HTMLElement>('[data-stream-choices]') ?? panelRoot.current?.querySelector<HTMLElement>('[role=dialog]') ?? root.current;
     const controls = () => Array.from(scope()?.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('button:not([disabled]), select:not([disabled])') ?? []).filter(el => el !== anchor.current);
     const focus = (el?: HTMLElement) => { el?.focus({ preventScroll: true }); el?.scrollIntoView({ block: "nearest", inline: "nearest" }); };
-    const timer = window.setTimeout(() => focus(scope()?.querySelector<HTMLButtonElement>("[data-launch-primary]:not(:disabled)") ?? controls()[0]), 0);
+    const repairFocus = () => {
+      const list = controls();
+      if (!list.some(el => el === document.activeElement)) {
+        focus(scope()?.querySelector<HTMLButtonElement>("[data-launch-primary]:not(:disabled)") ?? list[0]);
+      }
+    };
+    const timer = window.setTimeout(repairFocus, 0);
     const move = (direction: number, tab = false) => {
       const list = tab && choicesRef.current ? Array.from(panelRoot.current?.querySelectorAll<HTMLButtonElement>('.crete-stream-choice-panel button:not([disabled])') ?? []) : controls(); const index = list.indexOf(document.activeElement as HTMLButtonElement);
-      const next = list[(index + direction + list.length) % list.length];
+      const next = list[index < 0 ? (direction < 0 ? list.length - 1 : 0) : (index + direction + list.length) % list.length];
       focus(next);
     };
     const navigate = (direction: "up" | "down" | "left" | "right") => {
@@ -114,12 +121,23 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     const release = (event: KeyboardEvent) => { if ((event.key === "Enter" || event.key === " ") && event.target instanceof HTMLSelectElement) { event.preventDefault(); event.stopImmediatePropagation(); } };
     window.addEventListener("keydown", key, true); window.addEventListener("keyup", release, true); window.addEventListener("pointerdown", outside);
     let frame = 0; let last: ReturnType<typeof readGpState> | undefined;
+    let covered = false;
     const poll = () => {
-      if (document.querySelector("[data-stream-launch-cover]")) { frame = requestAnimationFrame(poll); return; }
+      if (document.querySelector("[data-stream-launch-cover]")) {
+        covered = true;
+        last = undefined;
+        frame = requestAnimationFrame(poll);
+        return;
+      }
+      if (covered) {
+        covered = false;
+        repairFocus();
+      }
       const gp = getBestGamepad();
       if (gp) {
         const state = readGpState(gp);
         if (last) {
+          if (state.ArrowDown || state.ArrowUp || state.ArrowLeft || state.ArrowRight || state.Enter) repairFocus();
           if (state.Escape && !last.Escape) { if (choicesRef.current) closeChoices(); else close(); }
           else if (state.ArrowDown && !last.ArrowDown) navigate("down");
           else if (state.ArrowUp && !last.ArrowUp) navigate("up");
@@ -143,6 +161,15 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     }, 0);
     return () => clearTimeout(timer);
   }, [choices]);
+  useEffect(() => {
+    if (busy || !(s.error || s.asobiError) || !(s.configure || gfn || ps)) return;
+    const frame = requestAnimationFrame(() => {
+      if (!document.querySelector("[data-stream-launch-cover]")) {
+        panelRoot.current?.querySelector<HTMLButtonElement>("[data-launch-primary]:not(:disabled)")?.focus({ preventScroll: true });
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [busy, s.error, s.asobiError, s.configure, gfn, ps]);
   const choose = (action: () => void) => { setOpen(false); action(); };
   const row = (label: string, provider: string, color: string, action: () => void, disabled = false, key?: string) => <button key={key} type="button" role="menuitem" disabled={disabled} onClick={() => choose(action)}><i style={{ background: color }} />{text(label)}{s.provider === provider && <small aria-hidden="true">{text("DEFAULT")}</small>}</button>;
   const preset = (value: string) => {

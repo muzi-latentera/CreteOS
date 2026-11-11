@@ -36,7 +36,7 @@ def snapshot(proc=Path('/proc')):
                 steam.append((int(process.name), env))
             elif comm != 'steamwebhelper' and game_environment(env):
                 games.append(int(process.name))
-        except FileNotFoundError:
+        except (FileNotFoundError, ProcessLookupError):
             continue  # A process that exited during enumeration.
         except (PermissionError, OSError):
             # Unable to prove the same-user process is safe to interrupt.
@@ -62,7 +62,7 @@ def steam_snapshot(proc=Path('/proc')):
                 continue
             values = (process / 'environ').read_bytes().split(b'\0')
             steam.append((int(process.name), dict(v.decode(errors='replace').split('=', 1) for v in values if b'=' in v)))
-        except FileNotFoundError:
+        except (FileNotFoundError, ProcessLookupError):
             continue
         except (PermissionError, OSError):
             raise RuntimeError('processCheckUnavailable')

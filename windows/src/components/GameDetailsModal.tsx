@@ -1204,6 +1204,8 @@ export function GameDetailsModal({
               gap: 10,
               flexWrap: "wrap",
             }}>
+              <div className={resolvedTheme === "crete" ? "crete-details-play-group" : undefined} style={resolvedTheme === "crete" ? undefined : { display: "contents" }}
+                data-play-group-focused={resolvedTheme === "crete" && focusIdx === 0 && !launchMenuOpen}>
               {launchLoading ? <LaunchLoading /> : <button
                 data-launch-btn={resolvedTheme === "crete" ? "" : undefined}
                 data-cloud={isCloud || cloudDefault}
@@ -1232,12 +1234,16 @@ export function GameDetailsModal({
               {primaryLabel}
               </button>}
               {resolvedTheme === "crete" && <LaunchMenu streaming={streaming} open={launchMenuOpen} setOpen={setLaunchMenuOpen} loading={launchLoading}
-                block={blockLaunchPopup} copies={actions.filter(action => action.key.startsWith("copy-"))} local={handleLocalAction} localLabel={installed ? "Local" : installing ? "Cancel installation" : storeAccountGame ? storeClientLabel : "Install locally"}
+                block={blockLaunchPopup} restorePlayFocus={() => {
+                  setFocusedIndex(0);
+                  requestAnimationFrame(() => focusRefs.current[0]?.focus({ preventScroll: true }));
+                }} copies={actions.filter(action => action.key.startsWith("copy-"))} local={handleLocalAction} localLabel={installed ? "Local" : installing ? "Cancel installation" : storeAccountGame ? storeClientLabel : "Install locally"}
                 manageLabel={activeTab === "manage" ? "Game information" : "Manage game"}
                 localEnabled={installed || canInstall || canXboxInstall || storeAccountGame || installing} manage={() => {
                   revealControls(); const next = activeTab === "manage" ? "details" : "manage";
                   activeTabRef.current = next; setActiveTab(next); setFocusedIndex(next === "details" ? 0 : 1);
                 }} />}
+              </div>
               {hasStoreContent && controlsRevealed && (
                 <div
                   role="tablist"

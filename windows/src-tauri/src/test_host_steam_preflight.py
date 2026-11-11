@@ -40,6 +40,30 @@ class SteamDesktopTests(unittest.TestCase):
                         else:
                             with self.assertRaises(RuntimeError):
                                 snapshot(Path(directory))
+    def test_exited_processes_do_not_mask_active_game_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for pid, name in [('1', 'steam'), ('2', 'firefox'), ('3', 'wine')]:
+                process = root / pid
+                process.mkdir()
+                (process / 'comm').write_text(name)
+            uid = (root / '1').stat().st_uid
+
+            def environment(path):
+                if path.parent.name == '2':
+                    raise ProcessLookupError()
+                if path.parent.name == '3':
+                    return b'SteamAppId=4115450\0'
+                return b'DISPLAY=:1\0'
+
+            with patch('host_steam_preflight.os.getuid', return_value=uid, create=True), patch('pathlib.Path.read_bytes', autospec=True, side_effect=environment):
+                steam, games = snapshot(root)
+                self.assertEqual(steam, [(1, {'DISPLAY': ':1'})])
+                self.assertEqual(games, [3])
+                run = Mock()
+                self.assertEqual(migrate({'DISPLAY': ':0'}, run=run, inspect=lambda: (steam, games)), 'gameRunning')
+                run.assert_not_called()
+
     def test_x11_identity_takes_precedence_over_inherited_wayland(self):
         steam = [(1, {'DISPLAY': ':1', 'WAYLAND_DISPLAY': 'wayland-1'})]
         self.assertTrue(wrong_desktop(steam, {'DISPLAY': ':0', 'WAYLAND_DISPLAY': 'wayland-1'}))
