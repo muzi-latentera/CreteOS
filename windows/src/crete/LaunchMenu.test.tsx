@@ -26,8 +26,9 @@ it("keeps host tools out of the default view and retains the exact launch profil
   const s=await render();
   expect(document.querySelector('[aria-label="Moonlight stream settings"]')).not.toBeNull();
   expect(document.querySelector('[aria-label="Resolution"]')).toBeNull();
+  expect(document.querySelector('select[aria-label="Display preset"]')).toBeNull();
   expect(document.body.textContent).not.toContain("Refresh host");
-  expect(document.body.textContent).toContain("90 fps");
+  expect(document.querySelector(".crete-stream-heading .crete-stream-summary")?.textContent).toBe("2560 × 1600, 90 FPS, 80 Mbps");
   await click(document.querySelector('[data-launch-primary]'));
   expect(s.stream).toHaveBeenCalledWith("MoonDeckStream",s.display.profile,{input:null,output:null});
   expect(invoke).not.toHaveBeenCalledWith("set_stream_wifi_preference",expect.anything());

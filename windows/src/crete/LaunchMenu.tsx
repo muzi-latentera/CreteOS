@@ -21,6 +21,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   const root = useRef<HTMLDivElement>(null);
   const panelRoot = useRef<HTMLDivElement>(null);
   const [advanced, setAdvanced] = useState(false);
+  const [presetsOpen, setPresetsOpen] = useState(false);
   const [sound, setSound] = useState(false);
   const [audio, setAudio] = useState<StreamAudioChoice>({ input: null, output: null });
   const [tools, setTools] = useState(false);
@@ -59,6 +60,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   const gfn = s.geforceConfigure;
   useEffect(() => {
     if (s.configure || gfn || ps) return;
+    setPresetsOpen(false);
     setSound(false);
     setAudio({ input: null, output: null });
   }, [s.configure, gfn, ps]);
@@ -240,23 +242,29 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       <header className="crete-stream-heading"><span className="crete-stream-eyebrow">PLAYSTATION</span><h2>{asobiLabel(ps)}</h2><p>{ps === "ps5RemotePlay" ? "Your PS5, on this screen." : "Your PlayStation cloud library."}</p></header>
       <div className="crete-stream-body">
         <HomeWifiSelect provider={ps} saving={setBusy} />
-        {soundOptions()}
         <label>Game shortcut<select aria-label="ASOBI shortcut" value={psTarget} onChange={event => setPsTarget(event.target.value)}>{psGames.map(game => <option key={game.id} value={game.id}>{game.label}</option>)}</select></label>
         <p>Uses your saved ASOBI picture and controller settings.</p>
         <button className="crete-stream-text-action" type="button" disabled={busy} onClick={() => { close(); void invoke("open_asobi_client").catch(() => {}); }}>Open ASOBI settings</button>
+        {soundOptions()}
         {s.asobiError && <p role="alert">{s.asobiError}</p>}
         {!psGames.length && <p role="status">Add this game's shortcut in ASOBI, restart Steam, then refresh your library.</p>}
       </div>
       <footer className="crete-stream-buttons"><button type="button" onClick={close}>{text("Cancel")}</button><button data-launch-primary type="button" disabled={busy || !psTarget || !s.online} onClick={() => startStream(() => s.startAsobi(psTarget, audio))}>{text(busy ? "Connecting…" : "Play")}</button></footer>
     </section></div>}
     {(s.configure || gfn || wifiOnly) && <div className="crete-stream-backdrop" onClick={event => { if (event.target === event.currentTarget) close(); }}><section role="dialog" aria-modal="true" aria-label={text(wifiOnly ? "Amazon Luna Wi-Fi" : gfn ? "GeForce NOW stream settings" : "Moonlight stream settings")} className="crete-stream-settings crete-stream-dialog">
-      <header className="crete-stream-heading"><span className="crete-stream-eyebrow">{wifiOnly || gfn ? "CLOUD STREAMING" : "PC STREAMING"}</span><h2>{wifiOnly ? "Amazon Luna" : gfn ? "GeForce NOW" : "Moonlight"}</h2><p>{wifiOnly ? "Choose your connection." : gfn ? "Stream to this display." : profile.host}</p></header>
+      <header className="crete-stream-heading">
+        <span className="crete-stream-eyebrow">{wifiOnly || gfn ? "CLOUD STREAMING" : "PC STREAMING"}</span>
+        <h2>{wifiOnly ? "Amazon Luna" : gfn ? "GeForce NOW" : "Moonlight"}</h2>
+        <div className="crete-stream-heading-meta">
+          <p>{wifiOnly ? "Choose your connection." : gfn ? "Stream to this display." : profile.host}</p>
+          {!wifiOnly && <p className="crete-stream-summary">{profile.resolution.replace("x", " × ")}, {profile.fps} FPS, {profile.bitrate ? `${profile.bitrate / 1000} Mbps` : "Auto bitrate"}</p>}
+        </div>
+      </header>
       <div className="crete-stream-body">
         <HomeWifiSelect provider={wifiOnly ? "luna" : gfn ? "geforceNow" : "moonlight"} saving={setBusy} />
         {!wifiOnly && <>
-          {soundOptions(!gfn)}
-          <label>{text("Display preset")}<select aria-label={text("Display preset")} value={displayPreset} onChange={e => preset(e.target.value)}><option value="auto">Saved for this display</option><option value="native">{nativeLabel} · {nativeResolution.split("x")[1]}p / {nativeFps}fps</option><option value="xreal">XREAL · 1200p / {gfn ? 60 : 90}fps</option><option value="tv">TV · 4K / 60fps</option><option value="custom" disabled>Custom</option></select></label>
-          <p className="crete-stream-summary">{profile.resolution.replace("x", " × ")}<span>·</span>{profile.fps} fps<span>·</span>{profile.bitrate ? `${profile.bitrate / 1000} Mbps` : "Auto bitrate"}</p>
+          <button className="crete-stream-disclosure" type="button" aria-expanded={presetsOpen} onClick={() => setPresetsOpen(value => !value)}><span>{text("Display preset")}</span><IoChevronDownOutline /></button>
+          {presetsOpen && <label>{text("Preset")}<select aria-label={text("Display preset")} value={displayPreset} onChange={e => preset(e.target.value)}><option value="auto">Saved for this display</option><option value="native">{nativeLabel} · {nativeResolution.split("x")[1]}p / {nativeFps}fps</option><option value="xreal">XREAL · 1200p / {gfn ? 60 : 90}fps</option><option value="tv">TV · 4K / 60fps</option><option value="custom" disabled>Custom</option></select></label>}
           {!gfn && target === "MoonDeckStream" && s.steamId && !s.buddy?.paired && <div className="crete-stream-notice"><p>{text("MoonDeck Buddy needs a separate pairing for CreteOS.")}</p><button type="button" onClick={() => { const bytes = crypto.getRandomValues(new Uint32Array(1)); const value = 1000 + bytes[0] % 9000; setPin(value); void s.pair(value); }}>{text("Pair MoonDeck Buddy")}</button>{pin && <p>{text("Enter PIN on Bosgame and choose Refresh host", { pin })}</p>}{s.buddyError && <p role="status">{s.buddyError}</p>}</div>}
           {!gfn && !s.hostInstalled && target === "MoonDeckStream" && s.steamId && <p role="status">{s.inventoryError || (s.checking ? "Checking this game on the host…" : "This game is not installed on the host. Choose another host app in Stream options.")}</p>}
           <button className="crete-stream-disclosure" type="button" aria-expanded={advanced} onClick={() => setAdvanced(value => !value)}><span>Stream options</span><IoChevronDownOutline /></button>
@@ -270,6 +278,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
           </div>}
           <button className="crete-stream-disclosure" type="button" aria-expanded={tools} onClick={() => setTools(value => !value)}><span>{gfn ? "About these settings" : "Host & connection tools"}</span><IoChevronDownOutline /></button>
           {tools && <div className="crete-stream-tools">{gfn ? <p>CreteOS can restart an idle NVIDIA client to apply settings. Active or unconfirmed sessions stay open.</p> : <><p>{s.buddy?.paired ? "MoonDeck Buddy paired." : "MoonDeck Buddy is not paired."} Host availability is checked again when you start.</p><div><button type="button" disabled={busy || s.refreshing || !s.online} onClick={s.refresh}>{text(s.refreshing ? "Checking…" : "Refresh host")}</button><button type="button" onClick={() => void invoke("launch_streaming_client", { provider: "moonlight" }).catch(() => {})}>{text("Open Moonlight")}</button></div></>}</div>}
+          {soundOptions(!gfn)}
           {!gfn && s.hostError && <p role="status">{text(s.hostError)}</p>}{s.error && <p role="alert">{s.error}</p>}
           {s.error && s.localInstalled && localEnabled && <button type="button" onClick={() => { close(); local(); }}>{text("Play locally")}</button>}
         </>}

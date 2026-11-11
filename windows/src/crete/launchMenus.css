@@ -8,14 +8,14 @@
 .crete-launch-layer .crete-stream-heading h2,
 .crete-launch-layer .crete-stream-choice-panel h2 { font:650 26px/1.2 system-ui,sans-serif; letter-spacing:-.5px; margin:8px 0 0; color:#f2eadb; overflow-wrap:anywhere; }
 .crete-launch-layer .crete-stream-heading p { margin:6px 0 0; color:#a7aaa8; font-size:14px; }
+.crete-stream-heading-meta { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; column-gap:16px; }
+.crete-launch-layer .crete-stream-heading .crete-stream-summary { margin-inline-start:auto; color:#d2c8b6; font:500 12px/1.5 ui-monospace,monospace; text-align:end; }
 .crete-stream-body { overflow-y:auto; overscroll-behavior:contain; min-height:0; padding:8px 28px 20px; scroll-padding:12px; scrollbar-width:thin; scrollbar-color:#69716c #101519; }
 .crete-launch-layer .crete-stream-body p { font-size:13px; line-height:1.5; color:#a7aaa8; margin:10px 0; }
 .crete-launch-layer .crete-stream-body .crete-stream-wired { display:inline-flex; align-items:center; gap:8px; margin:12px 0 0; padding:5px 9px; color:#b6d5bd; background:#90bf9710; border:1px solid #90bf9726; border-radius:6px; font-size:11px; }
 .crete-stream-wired::before { content:""; width:5px; height:5px; background:#9acba3; border-radius:50%; }
 .crete-launch-layer .crete-stream-body label { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:0; padding:14px 0; border-bottom:1px solid #f2eadb0d; color:#d7d6ce; }
 .crete-launch-layer .crete-stream-body select { font:inherit; width:60%; max-width:65%; min-width:0; min-height:42px; padding:9px 28px 9px 12px; border:1px solid #f2eadb26; border-radius:9px; color:#f2eadb; background:#1b2227; cursor:pointer; text-overflow:ellipsis; }
-.crete-launch-layer .crete-stream-body .crete-stream-summary { display:flex; flex-wrap:wrap; align-items:center; gap:10px; font:500 12px/1.5 ui-monospace,monospace; color:#d2c8b6; padding:4px 0 8px; margin:8px 0; }
-.crete-stream-summary span { color:#6d746e; }
 .crete-launch-layer .crete-stream-disclosure { display:flex; align-items:center; justify-content:space-between; gap:16px; width:100%; min-height:46px; padding:12px 0; border:0; border-bottom:1px solid #f2eadb16; border-radius:0; color:#c0c4bf; background:transparent; font-size:14px; text-align:left; }
 .crete-stream-disclosure svg { flex:none; transition:transform .15s; color:#979e96; }
 .crete-stream-disclosure[aria-expanded=true] svg { transform:rotate(180deg); }
