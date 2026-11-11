@@ -1344,7 +1344,7 @@ test("GFN settings footer uses left and right for controller and keyboard", asyn
   await pad(page, 13); await expect(cancel).toBeFocused();
   await pad(page, 15); await expect(play).toBeFocused();
   await page.keyboard.press("ArrowLeft"); await expect(cancel).toBeFocused();
-  await page.keyboard.press("ArrowUp"); await expect(dialog.getByRole("button", { name: "About these settings" })).toBeFocused();
+  await page.keyboard.press("ArrowUp"); await expect(dialog.getByRole("button", { name: "Sound", exact: true })).toBeFocused();
 });
 
 
@@ -1570,9 +1570,9 @@ test("G1 native preset uses detected 1600p in both providers and preserves GFN A
   const details = page.locator('[data-crete-details="true"]');
   await details.getByRole("button", { name: "Play", exact: true }).click();
   const moonlight = page.getByRole("dialog", { name: "Moonlight stream settings" });
+  await moonlight.getByRole("button",{name:"Display preset",exact:true}).click();
   await expect(moonlight.getByRole("option", { name: "G1 · 1600p / 120fps", exact: true })).toHaveCount(1);
   await moonlight.getByRole("button",{name:"Stream options",exact:true}).click();
-  await moonlight.getByRole("button",{name:"Display preset",exact:true}).click();
   await moonlight.getByLabel("Display preset").selectOption("native");
   await expect(moonlight.getByLabel("Resolution")).toHaveValue("2560x1600");
   await expect(moonlight.getByLabel("Frame rate")).toHaveValue("120");

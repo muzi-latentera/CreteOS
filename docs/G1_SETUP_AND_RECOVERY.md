@@ -4,6 +4,12 @@ Maintained device record, updated 11 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**Compact stream launch settings.** Moonlight puts the live quality summary beside the host in the header. GeForce NOW follows the same layout. Home Wi-Fi stays visible. Display preset, Stream options, tools and Sound open on demand, with Sound last. [Launch layout verification](journal/2026-11-11-compact-launch-layout-pending-sync.md).
+
+Installed on the G1 at 2026-11-11T19:26:45.6287328+00:00 from `22deb31320462bf52b23bcfa82dde7c4e3f9e4e9`. Executable SHA-256 `6582D6612750B0A9FC9599567774FE988F1ABC415B655D76942B89FA16059CCB`. The production build and installed asset check passed. The installer verified 8 saved profile files and retained rollback at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Compact-launch-20261111-192642`.
+
+Verified private G1 snapshot `CreteOS-G1-profile-backup-20261111-192657.zip`, SHA-256 `0616a3502df56319fca30d458623143c122cfa0e9f9c861cecaad794b66b6566`, contains 1602 manifested files and the exact installed executable. It preserves the verified host export from the retained 181425 archive. The local replacement package is `CreteOS-Recovery-20261111-CompactLaunch`. Its manifest and USB copy receipt identify the deployment. The previous SanDisk pack is the TV V-sync build.
+
 **G1 audio and Arctis Nova 7.** The Realtek speakers and microphone are the normal defaults when the Arctis connects. Open **Sound** in Moonlight, GeForce NOW, or PlayStation launch settings to use a different output or microphone for the stream. Windows defaults are restored when the stream finishes. Moonlight's microphone choice applies locally on Windows. [Audio setup and verification](journal/2026-11-11-arctis-stream-audio-pending-sync.md).
 
 Installed on the G1 at 2026-11-11T18:14:15.1935608+00:00 from `7df9763de38ca98b35ea3642973f67e9a06e92d0`. Executable SHA-256 `E2867B9E01840CAA868E7C5A0E00FA317EF900D83485E1D0502F083BACE45FDD`. The production build and installed asset check passed. The installer verified 8 saved profile files and retained rollback at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Stream-audio-20261111-181411`.
