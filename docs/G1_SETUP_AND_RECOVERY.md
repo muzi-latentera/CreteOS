@@ -246,6 +246,8 @@ The display update was installed 18 October from `85ca455`; its changes remain i
 
 ## Moonlight, SSH and MoonDeck Buddy
 
+**Bosgame administrator access, 11 November 2026.** The existing `muzidube` account has permanent passwordless sudo on Bosgame. After authorizing a replacement handheld's SSH key, verify it with `ssh bosgame 'sudo -n -k /usr/bin/id -u'` and expect `0`. The host-side rule is kept on Bosgame. The temporary E433 test and its limitations are recorded in the [dated journal](journal/2026-11-11-bosgame-sudo-e433-pending-sync.md).
+
 Bosgame is the Linux streaming host. The G1's Moonlight pairing was completed by Muzi; MoonDeckStream is advertised. **Moonlight pairing and CreteOS-to-Buddy pairing are distinct.**
 
 Buddy initially had a pending pairing and its existing service routed GUI windows to the dedicated Sway streaming desktop. A temporary Buddy instance was run on Bosgame's physical Plasma desktop while streaming was idle. Muzi accepted the PIN there. The temporary instance was stopped and the original `moondeckbuddy.service` restored. No permanent service-file changes were needed for that pairing. Keep existing pairings; do not replace them to solve an unrelated session error.
