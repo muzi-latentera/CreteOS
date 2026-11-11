@@ -40,6 +40,29 @@ describe("stream artwork handoff", () => {
     expect(invoke).not.toHaveBeenCalledWith("focus_stream_window", expect.anything());
     expect(invoke).not.toHaveBeenCalledWith("record_stream_launch", expect.anything());
   });
+  it.each(["moonlight", "geforceNow"] as const)("returns directly to %s settings after a launch failure", async provider => {
+    const events: string[] = [];
+    const cover = (event: Event) => { if (!(event as CustomEvent).detail) events.push("web cover closed"); };
+    const failure = vi.fn();
+    window.addEventListener("crete-stream-cover", cover);
+    window.addEventListener("crete-stream-failure", failure);
+    invoke.mockImplementation(async (command, args) => {
+      if (command === "set_launch_cover" && args?.active === false) events.push("native cover closed");
+      if (command === "present_stream_failure") events.push("window focused");
+    });
+    try {
+      const result = expect(withStreamCover({ id: "re2", name: "Resident Evil 2" }, provider, async () => {
+        throw new Error("Launch blocked");
+      }, undefined, "settings")).rejects.toThrow("Launch blocked");
+      await vi.advanceTimersByTimeAsync(50);
+      await result;
+      expect(events).toEqual(["native cover closed", "window focused", "web cover closed"]);
+      expect(failure).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("crete-stream-cover", cover);
+      window.removeEventListener("crete-stream-failure", failure);
+    }
+  });
   it("paints twice before opening the external client", async () => {
     invoke.mockResolvedValue(undefined);
     const frames: FrameRequestCallback[] = [];

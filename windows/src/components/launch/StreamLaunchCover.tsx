@@ -25,7 +25,7 @@ function cancelLaunch(notifyNative = true) {
   window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: null }));
   if (notifyNative) void invoke("cancel_stream_launch").catch(() => {});
 }
-export async function withStreamCover(app: App, provider: "moonlight" | "geforceNow" | "luna" | "ps5RemotePlay" | "playstationCloud", launch: () => Promise<unknown>, beforeHandoff?: () => void) {
+export async function withStreamCover(app: App, provider: "moonlight" | "geforceNow" | "luna" | "ps5RemotePlay" | "playstationCloud", launch: () => Promise<unknown>, beforeHandoff?: () => void, failureSurface: "artwork" | "settings" = "artwork") {
   if (cancelActive) throw new Error("A stream launch is already in progress. Cancel it before trying again.");
   const current = ++generation;
   const cancelled = Symbol("cancelled");
@@ -101,13 +101,18 @@ export async function withStreamCover(app: App, provider: "moonlight" | "geforce
     releaseAttention?.();
     if (cancelActive === cancel) cancelActive = undefined;
     if (current === generation) {
-      window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: null }));
       // Native handoff has already released the cover. No window changes after
       // it confirms foreground: late cleanup can disturb shell composition.
       if (!handedOff) await invoke("set_launch_cover", { active: false }).catch(() => {});
-      if (failure) {
-        window.dispatchEvent(new CustomEvent("crete-stream-failure",{detail:failure}));
-        void invoke("present_stream_failure",{provider}).catch(()=>{});
+      if (failure && failureSurface === "settings" && current === generation) {
+        await invoke("present_stream_failure", { provider }).catch(() => {});
+      }
+      if (current === generation) {
+        window.dispatchEvent(new CustomEvent("crete-stream-cover", { detail: null }));
+        if (failure && failureSurface === "artwork") {
+          window.dispatchEvent(new CustomEvent("crete-stream-failure", { detail: failure }));
+          void invoke("present_stream_failure", { provider }).catch(() => {});
+        }
       }
     }
   }

@@ -200,7 +200,10 @@ pub fn present_stream_return_cover(window: tauri::Window, provider: String, sess
     Ok(true)
 }
 
-fn nvidia_streamer_running()->bool{super::is_process_running("GeForceNOWStreamer.exe") || super::is_process_running("GeForceNOWContainer.exe")}
+fn nvidia_streamer_running() -> bool {
+    // The NVIDIA container can outlive both the client and the stream.
+    super::is_process_running("GeForceNOWStreamer.exe")
+}
 
 fn nvidia_console() -> PathBuf {
     dirs::data_local_dir().unwrap_or_default().join("NVIDIA Corporation/GeForceNOW/console.log")
@@ -299,7 +302,9 @@ fn nvidia_log_tail() -> String {
     let Ok(mut file) = std::fs::File::open(nvidia_console()) else { return String::new(); };
     let Ok(size) = file.metadata().map(|m|m.len()) else { return String::new(); };
     if file.seek(SeekFrom::Start(size.saturating_sub(2*1024*1024))).is_err() { return String::new(); }
-    let mut data=String::new(); let _=file.read_to_string(&mut data); data
+    let mut data = Vec::new();
+    if file.read_to_end(&mut data).is_err() { return String::new(); }
+    String::from_utf8_lossy(&data).into_owned()
 }
 
 fn gfn_process_instances() -> Result<std::collections::BTreeMap<u32,u64>,String> {

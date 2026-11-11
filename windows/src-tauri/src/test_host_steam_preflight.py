@@ -6,6 +6,13 @@ from host_steam_preflight import game_environment, migrate, wrong_desktop, snaps
 
 
 class SteamDesktopTests(unittest.TestCase):
+    def test_lutris_umu_setup_with_default_ids_is_independent_of_steam(self):
+        env = {'LUTRIS_GAME_UUID': 'standalone-lutris', 'STEAM_COMPAT_DATA_PATH': '/games/prefix',
+               'SteamAppId': 'default', 'SteamGameId': 'default'}
+        self.assertFalse(game_environment(env))
+        self.assertTrue(game_environment({**env, 'SteamGameId': '13474170597885870080'}))
+        self.assertTrue(game_environment({'SteamAppId': 'default'}))
+
     def test_normal_shutdown_tolerates_a_dying_process_without_repeating_shutdown(self):
         inspect=Mock(side_effect=[([(1,{'DISPLAY':':1'})],[]),RuntimeError('processCheckUnavailable'),([],[])])
         run=Mock()

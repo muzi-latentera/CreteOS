@@ -118,15 +118,15 @@ export function useStreaming(app: App, enabled: boolean) {
     if (!gameUrl) return;
     setError(null);
     try {
-      await withStreamCover(app, "geforceNow", () => invoke("start_geforce_game", { gameUrl, source: app.source, displayKey: geforceDisplay.displayKey, profile }), () => setGeforceConfigure(false));
-    } catch (reason) { setError(streamErrorMessage(reason)); }
+      await withStreamCover(app, "geforceNow", () => invoke("start_geforce_game", { gameUrl, source: app.source, displayKey: geforceDisplay.displayKey, profile }), () => setGeforceConfigure(false), "settings");
+    } catch (reason) { setGeforceConfigure(true); setError(streamErrorMessage(reason)); }
   };
   const stream = async (appName: string, profile: MoonlightProfile) => {
     setError(null);
     try {
       const steamId = appName === "MoonDeckStream" && app.source === "steam" && app.steam_appid ? String(app.steam_appid) : null;
-      await withStreamCover(app, "moonlight", () => invoke("launch_moonlight", { appName, displayKey: display.displayKey, profile, steamId, gameId: app.id, gameName: app.name, lutrisId: app.source === "lutris" ? app.store_id : null }), () => setConfigure(false));
-    } catch (reason) { setError(streamErrorMessage(reason)); }
+      await withStreamCover(app, "moonlight", () => invoke("launch_moonlight", { appName, displayKey: display.displayKey, profile, steamId, gameId: app.id, gameName: app.name, lutrisId: app.source === "lutris" ? app.store_id : null }), () => setConfigure(false), "settings");
+    } catch (reason) { setConfigure(true); setError(streamErrorMessage(reason)); }
   };
   const pair = async (pin: number) => {
     setError(null);

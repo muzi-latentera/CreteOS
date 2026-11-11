@@ -45,7 +45,13 @@ def snapshot(proc=Path('/proc')):
 
 
 def game_environment(env):
-    return any(env.get(key, '') not in ('', '0') for key in ('SteamAppId', 'SteamGameId'))
+    ids = (env.get('SteamAppId', ''), env.get('SteamGameId', ''))
+    # Standalone Lutris/UMU prefixes advertise default IDs even without a
+    # Steam session. A real Steam shortcut ID still protects its processes.
+    if (env.get('LUTRIS_GAME_UUID') and env.get('STEAM_COMPAT_DATA_PATH')
+            and 'default' in ids and all(value in ('', '0', 'default') for value in ids)):
+        return False
+    return any(value not in ('', '0') for value in ids)
 
 
 def steam_snapshot(proc=Path('/proc')):
