@@ -1,6 +1,18 @@
-# G1 smart lid diagnostic
+# G1 smart lid and TV dock
 
-This is the attended dry-run build. It reads lid and dock state and logs when it would hibernate. It does not invoke hibernation, edit the power plan, install a startup task or change display topology.
+Close the lid and connect the TV dock within 30 seconds to keep the G1 awake. If it stays closed and undocked, the helper requests Windows hibernation. Opening the lid cancels the countdown. If the dock is removed while the lid is closed, a fresh countdown starts. The power button and the dock's display topology use their existing Windows settings.
+
+## Install or remove
+
+On a replacement Windows device, connect the same TV dock with the lid open. Run `INSTALL-SMART-LID.cmd` in the recovery pack. It finds the AV and ASIX USB devices in this dock, copies the helper into native Local AppData, preserves the current Windows plan, and starts it at sign-in. It creates a separate power plan and sets that plan's AC and battery lid actions to Do nothing. The delay defaults to 30 seconds.
+
+Run `REMOVE-SMART-LID.cmd` to stop the helper, remove both scheduled tasks, and restore the original Windows power plan. Use a separately reviewed USB device pair for a different dock. The install script accepts `-DockIds <id1>,<id2>` and `-DelaySeconds <seconds>`. Use two exact PnP instance IDs confirmed present with the TV off and absent with the dock unplugged. Do not restore the old G1 power-plan GUIDs or import its tasks on the replacement.
+
+The desktop observer keeps a heartbeat. Its supervisor restores the native lid action if the observer exits. A separate once-per-minute recovery task also restores it if both stop responding. On machines where Windows rejects a background S4U task, the recovery task runs only in the signed-in desktop session. The helper itself requires a signed-in desktop. If a session or Windows terminates abruptly, a desktop-only recovery task cannot run until the next sign-in. Check the G1 has actually hibernated before putting it away.
+
+The helper checks both USB devices again at the deadline and uses Windows' standard hibernation command. A partially enumerated dock cancels the pending countdown. If lid or dock state remains unknown for 20 seconds, or a hibernation request fails, the worker exits and Windows' original lid action is restored. Logs are in `%LOCALAPPDATA%\CreteOS-Bootstrap\SmartLid`. The installed managed plan is named **CreteOS Smart Lid**.
+
+## Build and diagnostics
 
 Build with Windows' in-box .NET Framework C# compiler from PowerShell:
 
@@ -12,12 +24,8 @@ $exe = Join-Path (Get-Location).Path 'SmartLid.exe'
 & $exe --self-test
 ```
 
-Run the observer from the logged-in desktop session. The arguments set the countdown, the observation lifetime and the log location, followed by the dock's observed USB instance IDs. Use the exact IDs for this dock; rediscover them on a different unit.
+An optional bounded diagnostic can be run from a logged-in session when the live observer is stopped. It logs when it would hibernate and never changes the power plan.
 
 ```powershell
 & $exe --observe 30 300 (Join-Path $env:TEMP 'smart-lid.log') 'USB\VID_343C&PID_0000\000000000000' 'USB\VID_0B95&PID_1790\00C1A9E9'
 ```
-
-The observer gets the lid state via the Windows power notification and checks currently present Plug and Play devices. Both dock devices must be present. One matching device or an enumeration error makes dock state unknown and cancels any countdown. Device/display changes prompt a refresh, with a three-second rescan as a fallback and a fresh check at the deadline. The countdown uses a monotonic clock, starts only with a confirmed closed lid and absent dock, and records only one expiry per countdown.
-
-Before deployment, validate actual lid-open and lid-close notifications and the dock transitions in an attended session. An attended timer test requires a reversible temporary lid policy so the native lid-close action does not win the race. A live version still needs an explicit hibernation path, tested startup and a tested rollback or watchdog for process failure. On the source G1, the existing Windows lid action is Hibernate on both AC and DC and the power button is Do nothing. Leave that policy in place until deployment is ready.

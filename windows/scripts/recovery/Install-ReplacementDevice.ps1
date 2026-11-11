@@ -1,5 +1,5 @@
 [CmdletBinding(SupportsShouldProcess=$true)]
-param([string]$PackRoot=(Split-Path $PSScriptRoot),[switch]$UseG1DisplayProfiles)
+param([string]$PackRoot=(Split-Path $PSScriptRoot),[switch]$UseG1DisplayProfiles,[switch]$InstallSmartLid)
 $ErrorActionPreference='Stop'
 $pack=(Resolve-Path -LiteralPath $PackRoot).ProviderPath
 $info=Get-Content -LiteralPath (Join-Path $pack 'PACKAGE.json') -Raw -Encoding UTF8|ConvertFrom-Json
@@ -8,8 +8,16 @@ foreach($item in @($info.required)){
  if(!$path.StartsWith($pack.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Unsafe package path'}
  if((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $item.sha256){throw ('Package verification failed: '+$item.path)}
 }
+if($InstallSmartLid){
+ foreach($name in 'Supporting/SmartLid/SmartLid.ps1','Supporting/SmartLid/SmartLid.exe'){
+  $item=@($info.required|Where-Object path -eq $name)
+  if($item.Count -ne 1){throw 'This recovery pack does not include a verified Smart Lid installer'}
+ }
+}
 $target=Join-Path $env:LOCALAPPDATA 'CreteOS'
-if(!$PSCmdlet.ShouldProcess($target,'Install bootstrap if needed, deploy exact verified current executable and restore profiles; leave credentials, drivers and hardware settings alone')){return}
+$operation='Install bootstrap if needed, deploy the verified executable and restore profiles'
+if($InstallSmartLid){$operation+=' and configure Smart Lid using the connected dock'}
+if(!$PSCmdlet.ShouldProcess($target,$operation)){return}
 if($env:COMPUTERNAME -eq 'OXPG1'){throw 'This is the source G1. Use the recovery package on the replacement Windows machine.'}
 if(Get-Process creteos -ErrorAction SilentlyContinue){throw 'Close CreteOS normally before setup.'}
 $start=Get-Date
@@ -45,6 +53,7 @@ Copy-Item -LiteralPath (Join-Path $target 'creteos.exe') -Destination (Join-Path
 Copy-Item -LiteralPath $currentExe -Destination (Join-Path $target 'creteos.exe') -Force
 if((Get-FileHash -LiteralPath (Join-Path $target 'creteos.exe') -Algorithm SHA256).Hash -ne $info.executableSHA256){throw 'Deployed executable mismatch'}
 & (Join-Path $stage 'Restore-CreteOS.ps1') -Destination $target -KeepG1DisplayProfiles:$UseG1DisplayProfiles
-@{time=(Get-Date).ToString('o');target=$target;executableSHA256=$info.executableSHA256;profileArchiveSHA256=$info.profileArchiveSHA256;g1DisplayProfiles=[bool]$UseG1DisplayProfiles;credentialsRestored=$false;hardwareSettingsApplied=$false;gamesLaunched=$false;manualSteps='Read Documentation/G1_SETUP_AND_RECOVERY.md and START-HERE.txt; install/authenticate streaming apps, fresh pairings and device-specific helper configuration.'}|ConvertTo-Json|Set-Content (Join-Path $stage 'installation-receipt.json') -Encoding UTF8
+if($InstallSmartLid){ & (Join-Path $pack 'Supporting/SmartLid/SmartLid.ps1') -Mode Install }
+@{time=(Get-Date).ToString('o');target=$target;executableSHA256=$info.executableSHA256;profileArchiveSHA256=$info.profileArchiveSHA256;g1DisplayProfiles=[bool]$UseG1DisplayProfiles;credentialsRestored=$false;hardwareSettingsApplied=[bool]$InstallSmartLid;smartLidInstalled=[bool]$InstallSmartLid;gamesLaunched=$false;manualSteps='Read Documentation/G1_SETUP_AND_RECOVERY.md and START-HERE.txt; install/authenticate streaming apps, fresh pairings and device-specific helper configuration.'}|ConvertTo-Json|Set-Content (Join-Path $stage 'installation-receipt.json') -Encoding UTF8
 Write-Output ('CreteOS and saved profile restored. Receipt: '+$stage+'\installation-receipt.json')
 Write-Output 'No app/game launched. Finish the documented streaming app/account/pairing and hardware-specific steps before enabling automatic startup.'

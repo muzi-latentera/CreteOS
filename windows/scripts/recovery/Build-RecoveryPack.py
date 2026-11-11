@@ -19,7 +19,16 @@ with zipfile.ZipFile(archive) as z:
  assert isinstance(json.loads(z.read('Supporting/WiFiSmart/control.json'))['Paused'],bool)
  for name in ['creteos.exe','LICENSE','UPSTREAM.md']:
   p=out/'Recovery'/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(z.read('Recovery/'+name))
- assert sha(out/'Recovery/creteos.exe')==next(f['sha256'] for f in json.loads(z.read('manifest.json'))['files'] if f['path']=='Recovery/creteos.exe')
+ payload_manifest={f['path']:f['sha256'] for f in json.loads(z.read('manifest.json'))['files']}
+ assert sha(out/'Recovery/creteos.exe')==payload_manifest['Recovery/creteos.exe']
+ smart_lid_files=('Supporting/SmartLid/SmartLid.exe','Supporting/SmartLid/SmartLid.ps1')
+ smart_lid_included=all(name in payload_manifest for name in smart_lid_files)
+ if smart_lid_included:
+  for name in smart_lid_files:
+   target=out/name
+   target.parent.mkdir(parents=True,exist_ok=True)
+   target.write_bytes(z.read(name))
+   assert sha(target)==payload_manifest[name]
 old=args.legacy_pack.resolve();art=load(old/'ARTIFACTS.json')
 for item in art['artifacts']:
  src=old/item['path'];assert sha(src)==item['sha256']
@@ -102,11 +111,27 @@ observation. Drivers are G1-only recovery references, not new-device defaults.
 The current guide outside Profile-Backup.zip supersedes its packaging-time copy.
 '''
 start=start.replace('source1faa909', 'source '+args.app_source).replace('SHA256D2C4C3109193B19DF88ACAA3515B3817FE8D673981BDEF4439BA0F26579A4FD6','SHA256 '+sha(out/'Recovery/creteos.exe'))
+if smart_lid_included:
+ start=start.replace('FINISH ON THE NEW DEVICE:', '''FINISH ON THE NEW DEVICE:
+- For the 30-second smart lid and TV dock feature, connect the same TV dock
+  with the lid open and run SETUP-NEW-WINDOWS-WITH-SMART-LID.cmd, or run
+  INSTALL-SMART-LID.cmd after the main setup. This detects the dock,
+  saves the new machine's original plan, and starts the helper at sign-in.
+  Run REMOVE-SMART-LID.cmd to restore the original lid behavior.
+  For another dock, see Documentation/SMART_LID.md to identify its hardware.''')
+ cp(r/'windows/scripts/smart-lid/README.md','Documentation/SMART_LID.md')
+ for mode in ('Install','Remove'):
+  line='powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Supporting\\SmartLid\\SmartLid.ps1" -Mode '+mode
+  (out/(mode.upper()+'-SMART-LID.cmd')).write_bytes(('@echo off\r\n'+line+'\r\npause\r\n').encode('ascii'))
 (out/'START-HERE.txt').write_text(start,encoding='utf-8')
 (out/'CODEX-PROMPT.txt').write_text('''Set up CreteOS on this replacement Windows device using THIS recovery folder. First read START-HERE.txt, PACKAGE.json and Documentation/G1_SETUP_AND_RECOVERY.md, then verify MANIFEST.json with Scripts/Verify-RecoveryPack.ps1. Preserve this source USB and any destination profiles. Use the exact current recovery executable, not the October bootstrap as the final app. Core profile restore should preserve saved onboarding; use the native Windows AppData profile. Inspect the new hardware/display/client paths, install required clients and restore reviewed supporting preferences. Ask me to perform fresh account sign-ins and pairing; no credentials/private keys are portable. Do not blindly apply G1 drivers, BIOS, vendor power settings, Windows security/login settings, or its temporary diagnostic Wi-Fi pause to this device. Do not launch games without my instruction. Check each setup/test result and record exact installed hashes and remaining steps. Source bundle/snapshot and setup history are included; keep future changes documented and refresh verified private backups. Hardware/account-dependent steps must be verified, not assumed from the G1.\n''',encoding='utf-8')
 (out/'SETUP-NEW-WINDOWS.cmd').write_text('@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Scripts\\Install-ReplacementDevice.ps1"\r\nif errorlevel 1 echo Setup stopped. Read the error above before retrying.\r\npause\r\n',encoding='ascii')
+if smart_lid_included:
+ entry='powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Scripts\\Install-ReplacementDevice.ps1" -InstallSmartLid'
+ (out/'SETUP-NEW-WINDOWS-WITH-SMART-LID.cmd').write_bytes(('@echo off\r\n'+entry+'\r\nif errorlevel 1 echo Setup stopped. Read the error above before retrying.\r\npause\r\n').encode('ascii'))
 required=['Profile-Backup.zip','Recovery/creteos.exe','Installers/CreteOS-bootstrap-only.exe','Scripts/Install-ReplacementDevice.ps1']
-info={'prepared':datetime.datetime.now().astimezone().isoformat(),'appSourceCommit':args.app_source,'sourceBundleCommit':head,'executableSHA256':sha(out/'Recovery/creteos.exe'),'profileArchiveSHA256':sha(out/'Profile-Backup.zip'),'profileSnapshotName':archive.name,'required':[{'path':n,'sha256':sha(out/n)} for n in required],'bootstrapOnly':'October installer is used for base installation only; final executable must match the current PACKAGE.json SHA256','newWindowsInstallAcceptance':'Not performed; hash/read-only/fixture checks recorded separately','wifiFault':'Unresolved; automatic switching restored at user request, rollback did not fix recurrence'}
+if smart_lid_included: required.extend(smart_lid_files)
+info={'prepared':datetime.datetime.now().astimezone().isoformat(),'appSourceCommit':args.app_source,'sourceBundleCommit':head,'executableSHA256':sha(out/'Recovery/creteos.exe'),'profileArchiveSHA256':sha(out/'Profile-Backup.zip'),'profileSnapshotName':archive.name,'smartLidIncluded':smart_lid_included,'required':[{'path':n,'sha256':sha(out/n)} for n in required],'bootstrapOnly':'October installer is used for base installation only; final executable must match the current PACKAGE.json SHA256','newWindowsInstallAcceptance':'Not performed; hash/read-only/fixture checks recorded separately','wifiFault':'Unresolved; automatic switching restored at user request, rollback did not fix recurrence'}
 (out/'PACKAGE.json').write_text(json.dumps(info,indent=2)+'\n',encoding='utf-8')
 files=[{'path':p.relative_to(out).as_posix(),'bytes':p.stat().st_size,'sha256':sha(p)} for p in sorted(out.rglob('*')) if p.is_file() and p.name not in ('MANIFEST.json','MANIFEST.sha256','USB-COPY-RECEIPT.json','PACK-VERIFICATION.json')]
 (out/'MANIFEST.json').write_text(json.dumps({'created':info['prepared'],'files':files},indent=2)+'\n',encoding='utf-8')

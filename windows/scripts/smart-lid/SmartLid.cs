@@ -74,6 +74,12 @@ internal sealed class SmartLid : NativeWindow, IDisposable
     private DockState dock;
     private long nextScan;
     private bool ending;
+    private readonly string heartbeat;
+    private readonly Guid livePlan;
+    private long nextHeartbeat;
+    private long? unknownSince;
+    private Process hibernation;
+    private long hibernateRequestedAt;
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr RegisterPowerSettingNotification(IntPtr recipient, ref Guid setting, uint flags);
@@ -87,24 +93,69 @@ internal sealed class SmartLid : NativeWindow, IDisposable
     [DllImport("cfgmgr32.dll", EntryPoint = "CM_Get_Device_ID_ListW", CharSet = CharSet.Unicode, ExactSpelling = true)]
     private static extern uint GetIdList(string filter, [Out] char[] buffer, uint length, uint flags);
 
+    [DllImport("powrprof.dll")]
+    private static extern uint PowerGetActiveScheme(IntPtr key, out IntPtr scheme);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr LocalFree(IntPtr memory);
+
+    private bool LivePlanIsActive()
+    {
+        IntPtr scheme;
+        if (PowerGetActiveScheme(IntPtr.Zero, out scheme) != 0)
+            throw new InvalidOperationException("Could not read the active power plan");
+        try { return (Guid)Marshal.PtrToStructure(scheme, typeof(Guid)) == livePlan; }
+        finally { LocalFree(scheme); }
+    }
+
+    private void RequestHibernate(long now)
+    {
+        if (heartbeat == null || !LivePlanIsActive() || hibernation != null)
+            return;
+
+        Record("Requesting Windows hibernation");
+        hibernateRequestedAt = now;
+        hibernation = Process.Start(new ProcessStartInfo(
+            Path.Combine(Environment.SystemDirectory, "shutdown.exe"), "/h")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true
+        });
+        if (hibernation == null)
+            throw new InvalidOperationException("Could not start Windows hibernation");
+    }
+
+    private void CheckHibernate(long now)
+    {
+        if (hibernation == null)
+            return;
+
+        if (hibernation.HasExited && hibernation.ExitCode != 0)
+            throw new InvalidOperationException("Windows rejected hibernation, exit code " + hibernation.ExitCode);
+        if (now - hibernateRequestedAt >= 20000)
+            throw new InvalidOperationException("Windows did not report suspension after the hibernation request");
+    }
+
     private void Record(string message)
     {
         File.AppendAllText(log, DateTimeOffset.Now.ToString("o") + " " + message + Environment.NewLine);
     }
 
-    private SmartLid(string path, int delaySeconds, int observeSeconds, string[] ids)
+    private SmartLid(string path, int delaySeconds, int observeSeconds, string[] ids, string heartbeatPath, Guid scheme)
     {
         log = path;
         dockIds = ids;
         countdown = new LidCountdown(delaySeconds * 1000L);
-        stopAt = observeSeconds * 1000L;
+        stopAt = observeSeconds == 0 ? long.MaxValue : observeSeconds * 1000L;
+        heartbeat = heartbeatPath;
+        livePlan = scheme;
         tick = new System.Windows.Forms.Timer { Interval = 250 };
         tick.Tick += delegate { Advance(); };
         CreateHandle(new CreateParams());
         try
         {
             RegisterLid();
-            Record("Dry run started, delay " + delaySeconds + " seconds");
+            Record((heartbeat == null ? "Dry run" : "Live mode") + " started, delay " + delaySeconds + " seconds");
             Advance();
             tick.Start();
         }
@@ -172,7 +223,34 @@ internal sealed class SmartLid : NativeWindow, IDisposable
             nextScan = now + 3000;
         }
 
+        if (heartbeat != null)
+        {
+            CheckHibernate(now);
+            if (lid == LidState.Unknown || dock == DockState.Unknown)
+            {
+                if (!unknownSince.HasValue)
+                    unknownSince = now;
+                if (now - unknownSince.Value >= 20000)
+                    throw new InvalidOperationException("Lid or dock state stayed unknown; restoring Windows lid handling");
+            }
+            else
+            {
+                unknownSince = null;
+                if (now >= nextHeartbeat)
+                {
+                    using (File.Open(heartbeat, FileMode.OpenOrCreate, FileAccess.Write, FileShare.ReadWrite)) { }
+                    File.SetLastWriteTimeUtc(heartbeat, DateTime.UtcNow);
+                    nextHeartbeat = now + 2000;
+                }
+            }
+        }
+
         string change = countdown.Update(lid, dock, now);
+        if (change == "Would hibernate" && heartbeat != null)
+        {
+            RequestHibernate(now);
+            return;
+        }
         if (change != null)
             Record(change);
     }
@@ -200,7 +278,15 @@ internal sealed class SmartLid : NativeWindow, IDisposable
             }
             else if (kind == Suspend || kind == ResumeAutomatic)
             {
+                if (hibernation != null)
+                {
+                    Record(kind == Suspend ? "Windows suspend notification received" : "Windows resumed");
+                    hibernation.Dispose();
+                    hibernation = null;
+                }
                 lid = LidState.Unknown;
+                unknownSince = null;
+                nextHeartbeat = 0;
                 nextScan = 0;
                 Advance();
                 if (kind == ResumeAutomatic)
@@ -218,6 +304,8 @@ internal sealed class SmartLid : NativeWindow, IDisposable
     public void Dispose()
     {
         tick.Dispose();
+        if (hibernation != null)
+            hibernation.Dispose();
         if (registration != IntPtr.Zero)
             UnregisterPowerSettingNotification(registration);
         DestroyHandle();
@@ -266,15 +354,20 @@ internal sealed class SmartLid : NativeWindow, IDisposable
 
             int delay;
             int duration;
-            if (args.Length < 6 || args[0] != "--observe"
+            Guid scheme = Guid.Empty;
+            bool live = args.Length >= 8 && args[0] == "--live";
+            if (args.Length < 6 || (!live && args[0] != "--observe")
                 || !int.TryParse(args[1], out delay) || delay < 1 || delay > 600
-                || !int.TryParse(args[2], out duration) || duration <= delay || duration > 3600)
+                || !int.TryParse(args[2], out duration)
+                || (live ? duration != 0 || !Guid.TryParse(args[5], out scheme) || scheme == Guid.Empty
+                         : duration <= delay || duration > 3600))
             {
-                Console.Error.WriteLine("Usage: SmartLid --observe <delay seconds> <observation seconds> <log path> <dock USB ID> <dock USB ID> [...]");
+                Console.Error.WriteLine("Usage: SmartLid --observe <delay> <duration> <log> <dock ID> <dock ID> [...]");
+                Console.Error.WriteLine("       SmartLid --live <delay> 0 <log> <heartbeat> <managed plan GUID> <dock ID> <dock ID> [...]");
                 return 2;
             }
 
-            var ids = args.Skip(4).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var ids = args.Skip(live ? 6 : 4).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             if (ids.Length < 2 || ids.Any(id => !id.StartsWith("USB\\VID_", StringComparison.OrdinalIgnoreCase)))
             {
                 Console.Error.WriteLine("Supply at least two distinct, observed dock USB instance IDs.");
@@ -282,11 +375,13 @@ internal sealed class SmartLid : NativeWindow, IDisposable
             }
 
             bool owns;
-            using (var single = new Mutex(true, "Local\\CreteOS.SmartLidObservation", out owns))
+            using (var single = new Mutex(true, "Local\\CreteOS.SmartLid", out owns))
             {
                 if (!owns)
                     return 3;
-                using (var observer = new SmartLid(Path.GetFullPath(args[3]), delay, duration, ids))
+                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+                string heartbeatPath = live ? Path.GetFullPath(args[4]) : null;
+                using (var observer = new SmartLid(Path.GetFullPath(args[3]), delay, duration, ids, heartbeatPath, scheme))
                     Application.Run();
             }
             return 0;
