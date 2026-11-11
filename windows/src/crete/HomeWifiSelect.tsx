@@ -43,7 +43,6 @@ export function HomeWifiSelect({ provider, saving }: { provider: WifiProvider; s
       <option value="download">Hyperoptic Fibre E433</option>
       <option value="current">Keep current connection</option>
     </select></label>
-    <p>{provider === "ps5RemotePlay" || provider === "playstationCloud" ? "Held until ASOBI closes." : "Held during play."} Other networks stay unchanged.</p>
     {error && <p role="alert">Could not save Wi-Fi preference: {error}</p>}
   </>;
 }
