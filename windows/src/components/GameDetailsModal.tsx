@@ -1242,7 +1242,6 @@ export function GameDetailsModal({
                 block={blockLaunchPopup} restorePlayFocus={() => {
                   swallowLaunchBack.current = true;
                   setFocusedIndex(0);
-                  requestAnimationFrame(() => focusRefs.current[0]?.focus({ preventScroll: true }));
                 }} copies={actions.filter(action => action.key.startsWith("copy-"))} local={handleLocalAction} localLabel={installed ? "Local" : installing ? "Cancel installation" : storeAccountGame ? storeClientLabel : "Install locally"}
                 manageLabel={activeTab === "manage" ? "Game information" : "Manage game"}
                 localEnabled={installed || canInstall || canXboxInstall || storeAccountGame || installing} manage={() => {

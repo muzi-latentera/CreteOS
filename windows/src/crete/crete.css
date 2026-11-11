@@ -125,6 +125,8 @@
 [data-crete-details="true"] [data-crete-detail-slot="primary-actions"] { gap:0!important; }
 .crete-details-play-group { display:inline-flex; align-items:center; border-radius:10px; }
 .crete-details-play-group > [data-launch-btn] { border:1px solid transparent!important; }
+.crete-details-play-group > [data-launch-btn]:focus-visible,
+.crete-details-play-group > .crete-launch-menu > .crete-details-manage:focus-visible { outline:none; }
 .crete-details-play-group[data-play-group-focused="true"]:not(:has(.crete-launch-loading)),
 .crete-details-play-group:has(> [data-launch-btn]:focus-visible, > .crete-launch-menu > .crete-details-manage:focus-visible) {
   outline:3px solid #efc97f;

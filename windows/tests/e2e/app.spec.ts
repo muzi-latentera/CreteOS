@@ -1178,7 +1178,13 @@ test("Moonlight controller opens dropdown choices and reaches the bottom actions
   await page.locator('[data-crete-details="true"]').getByRole("button", { name: "Play", exact: true }).click();
   const stream = page.getByRole("dialog", { name: "Moonlight stream settings" });
   const play = stream.getByRole("button", { name: "Start stream", exact: true });
+  const g1 = stream.getByLabel("G1 connection", { exact: true });
+  const bosgame = stream.getByLabel("Bosgame connection", { exact: true });
   await expect(play).toBeFocused();
+  await pad(page, 13); await expect(g1).toBeFocused();
+  await pad(page, 15); await expect(bosgame).toBeFocused();
+  await pad(page, 14); await expect(g1).toBeFocused();
+  await pad(page, 13); await expect(stream.getByRole("button", { name: "Sound", exact: true })).toBeFocused();
   await stream.getByRole("button", { name: "Stream options", exact: true }).click();
   await stream.getByLabel("Codec", { exact: true }).focus();
   await frames(page, 10); await pad(page, 0);
@@ -1186,18 +1192,47 @@ test("Moonlight controller opens dropdown choices and reaches the bottom actions
   await expect(choices).toBeVisible();
   await pad(page, 13); await pad(page, 0);
   await expect(stream.getByLabel("Codec", { exact: true })).toHaveValue("H.264");
-  await stream.getByRole("button", { name: "Host & connection tools" }).click();
+  const tools = stream.getByRole("button", { name: "Host & connection tools" });
+  await tools.click();
+  const refresh = stream.getByRole("button", { name: "Refresh host", exact: true });
   const open = stream.getByRole("button", { name: "Open Moonlight", exact: true });
-  await open.focus(); await page.keyboard.press("ArrowDown");
+  await pad(page, 13); await expect(refresh).toBeFocused();
+  await pad(page, 15); await expect(open).toBeFocused();
+  await pad(page, 14); await expect(refresh).toBeFocused();
+  await page.keyboard.press("ArrowDown");
   const cancel = stream.getByRole("button", { name: "Cancel", exact: true });
   await expect(cancel).toBeFocused();
   await pad(page, 15); await expect(play).toBeFocused();
-  await pad(page, 13); await expect(play).toBeFocused();
-  await pad(page, 14); await expect(cancel).toBeFocused();
   const bounds = await play.boundingBox(); const dialog = await stream.boundingBox();
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(dialog!.y + dialog!.height);
+  await pad(page, 13); await expect(g1).toBeFocused();
+  await page.setViewportSize({ width: 480, height: 700 });
+  await pad(page, 13); await expect(bosgame).toBeFocused();
   await pad(page, 1); await expect(stream).not.toBeVisible();
   await expect(page.locator('[data-crete-details="true"]')).toBeVisible();
+});
+
+test("Game details restores one Play outline after controller opens and closes launch options", async ({ page }) => {
+  await page.goto("/?crete&rich&gfn&hostInstalled");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Control Ultimate Edition", exact: true }).click();
+  const details = page.locator('[data-crete-details="true"]');
+  const group = details.locator(".crete-details-play-group");
+  const play = group.getByRole("button", { name: "Play", exact: true });
+  const dropdown = group.getByRole("button", { name: "Launch options", exact: true });
+  await expect(group).toHaveCSS("outline-width", "3px");
+  await frames(page, 24);
+  await pad(page, 15);
+  await expect(group.getByRole("menu", { name: "Launch options" })).toBeVisible();
+  await pad(page, 1);
+  await expect(group.getByRole("menu", { name: "Launch options" })).not.toBeVisible();
+  await expect(play).toBeFocused();
+  await expect(group).toHaveAttribute("data-play-group-focused", "true");
+  await expect(group).toHaveCSS("outline-width", "3px");
+  await expect(play).toHaveCSS("outline-style", "none");
+  await dropdown.focus();
+  await expect(group).toHaveCSS("outline-width", "3px");
+  await expect(dropdown).toHaveCSS("outline-style", "none");
 });
 
 

@@ -99,7 +99,8 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   }, [s.configure, s.apps, s.moonlightGame]);
   const close = () => {
     if (localSetup) { localSetup.onClose(); return; }
-    const returnFocus = s.configure || gfn || wifiOnly || ps ? root.current?.closest('[data-crete-detail-slot="primary-actions"], .crete-hero')?.querySelector<HTMLButtonElement>('[data-launch-btn], .crete-play') ?? anchor.current : anchor.current;
+    const returnFocus = root.current?.closest('[data-crete-detail-slot="primary-actions"], .crete-hero')
+      ?.querySelector<HTMLButtonElement>('[data-launch-btn]:not(:disabled), .crete-play:not(:disabled)') ?? anchor.current;
     setOpen(false); setWifiOnly(false); s.setConfigure(false); s.setGeforceConfigure(false); s.setAsobiConfigure(null); choicesRef.current = null; selectFocus.current = null; setChoices(null);
     restoreAfterLaunch.current = false;
     setSound(false); setAudio({ input: null, output: null });
@@ -125,32 +126,30 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       focus(next);
     };
     const navigate = (direction: "up" | "down" | "left" | "right") => {
-      const list = controls();
-      const focused = document.activeElement as HTMLButtonElement | HTMLSelectElement;
-      const grid = focused?.closest(".crete-stream-fields");
-      if (grid && (direction === "left" || direction === "right")) {
-        const top = focused.getBoundingClientRect().top;
-        const row = list.filter(el => el.closest(".crete-stream-fields") === grid && Math.abs(el.getBoundingClientRect().top - top) < 12);
-        const index = row.indexOf(focused);
-        focus(row[Math.max(0, Math.min(row.length - 1, index + (direction === "right" ? 1 : -1)))]);
-        return;
-      }
-      // Choice lists and the provider menu are vertical. Footer actions form
-      // a horizontal row; Down must not silently mean Right in that row.
-      const footer = focused?.closest(".crete-stream-buttons");
-      if (footer) {
-        if (direction === "down") return;
-        if (direction === "up") {
-          const fields = list.filter(el => !el.closest(".crete-stream-buttons"));
-          focus(fields[fields.length - 1]);
-          return;
+      const rows: { group: Element | null; top: number; bottom: number; controls: HTMLElement[] }[] = [];
+      for (const control of controls()) {
+        const group = control.closest(".crete-stream-fields, .crete-stream-tools > div, .crete-stream-buttons");
+        const { top, bottom } = control.getBoundingClientRect();
+        const row = rows.at(-1);
+        if (group && row?.group === group && top < row.bottom && bottom > row.top) {
+          row.controls.push(control);
+        } else {
+          rows.push({ group, top, bottom, controls: [control] });
         }
-        const row = list.filter(el => el.closest(".crete-stream-buttons") === footer);
-        const index = row.indexOf(focused);
-        focus(row[Math.max(0, Math.min(row.length - 1, index + (direction === "right" ? 1 : -1)))]);
-        return;
       }
-      if (direction === "up" || direction === "down") move(direction === "up" ? -1 : 1);
+      const focused = document.activeElement as HTMLElement;
+      const rowIndex = rows.findIndex(row => row.controls.includes(focused));
+      if (rowIndex < 0) { repairFocus(); return; }
+      const row = rows[rowIndex];
+      if (direction === "left" || direction === "right") {
+        focus(row.controls[row.controls.indexOf(focused) + (direction === "right" ? 1 : -1)]);
+      } else if (direction === "up") {
+        focus(rows[rowIndex - 1]?.controls[0] ?? rows.at(-1)?.controls.at(-1));
+      } else if (rowIndex < rows.length - 1) {
+        focus(rows[rowIndex + 1].controls[0]);
+      } else if (!row.group?.matches(".crete-stream-buttons") || focused.hasAttribute("data-launch-primary") || row.controls.length === 1) {
+        focus(rows[0].controls[0]);
+      }
     };
     const key = (event: KeyboardEvent) => {
       if (document.querySelector("[data-stream-launch-cover]")) return;
@@ -162,7 +161,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       else if (["ArrowUp", "ArrowDown"].includes(event.key)) {
         event.preventDefault(); event.stopImmediatePropagation(); navigate(event.key === "ArrowUp" ? "up" : "down");
       }
-      else if (["ArrowLeft", "ArrowRight"].includes(event.key) && (event.target as HTMLElement)?.closest(".crete-stream-buttons, .crete-stream-fields")) { event.preventDefault(); event.stopImmediatePropagation(); navigate(event.key === "ArrowLeft" ? "left" : "right"); }
+      else if (["ArrowLeft", "ArrowRight"].includes(event.key)) { event.preventDefault(); event.stopImmediatePropagation(); navigate(event.key === "ArrowLeft" ? "left" : "right"); }
       else if (event.key === "Tab") { event.preventDefault(); event.stopImmediatePropagation(); move(event.shiftKey ? -1 : 1, true); }
     };
     const outside = (event: PointerEvent) => { if (!document.querySelector("[data-stream-launch-cover]") && !root.current?.contains(event.target as Node) && !panelRoot.current?.contains(event.target as Node)) close(); };
@@ -245,7 +244,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     setProfile(p => ({ ...p, resolution, fps, bitrate: gfn ? p.bitrate : 80000 }));
   };
   return <div ref={root} className="crete-launch-menu">
-    {!loading && !localSetup && <button ref={anchor} type="button" className="crete-details-manage" aria-label={text("Launch options")} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><IoChevronDownOutline /></button>}
+    {!loading && !localSetup && <button ref={anchor} type="button" className="crete-details-manage" aria-label={text("Launch options")} aria-haspopup="menu" aria-expanded={open} onClick={() => open ? close() : setOpen(true)}><IoChevronDownOutline /></button>}
     {open && !loading && <div className="crete-launch-popover" role="menu" aria-label={text("Launch options")}>
       {s.provider !== "ps5RemotePlay" && s.provider !== "playstationCloud" && row(localLabel, "local", "#c9482a", local, !localEnabled)}
       {(["ps5RemotePlay", "playstationCloud"] as AsobiProvider[]).filter(provider => s.asobiGames.some(game => game.provider === provider)).map(provider => row(asobiLabel(provider), provider, "#368bea", () => s.setAsobiConfigure(provider), false, provider))}
