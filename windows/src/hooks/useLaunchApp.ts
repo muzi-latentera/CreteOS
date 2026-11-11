@@ -3,6 +3,10 @@ import { emit } from "@tauri-apps/api/event";
 import { useCallback } from "react";
 import { getRunAsAdmin } from "../constants";
 import type { App } from "../types";
+import type { LocalDisplayMode } from "../crete/LocalDisplayField";
+import type { StreamAudioChoice } from "../crete/StreamAudioFields";
+
+export interface LocalLaunchOptions { audio: StreamAudioChoice; display: LocalDisplayMode | null }
 
 interface LaunchAppResult {
   launchMode: string;
@@ -11,7 +15,7 @@ interface LaunchAppResult {
   fallbackReason?: string | null;
 }
 
-export function launchApp(app: App) {
+export function launchApp(app: App, options?: LocalLaunchOptions) {
   return invoke<LaunchAppResult>("launch_app", {
     path: app.launch_path,
     id: app.id,
@@ -19,6 +23,7 @@ export function launchApp(app: App) {
     appType: app.app_type,
     source: app.source ?? "",
     runAsAdmin: getRunAsAdmin(app.id),
+    options,
   }).then((result) => {
     console.warn("launch_app result", {
       name: app.name,
@@ -28,7 +33,8 @@ export function launchApp(app: App) {
     });
     return result;
   }).catch((err) => {
-    window.setTimeout(() => emit("launch-failed").catch(() => {}), 250);
+    const message = typeof err === "string" ? err : err instanceof Error ? err.message : undefined;
+    window.setTimeout(() => emit("launch-failed", { id: app.id, message }).catch(() => {}), 250);
     throw err;
   });
 }

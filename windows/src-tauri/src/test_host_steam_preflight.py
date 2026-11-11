@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import Mock, patch
 from pathlib import Path
 import tempfile
-from host_steam_preflight import game_environment, migrate, wrong_desktop, snapshot, steam_snapshot
+from host_steam_preflight import game_environment, restart_idle, snapshot, steam_snapshot, stream_active
 
 
 class SteamDesktopTests(unittest.TestCase):
@@ -16,11 +16,11 @@ class SteamDesktopTests(unittest.TestCase):
     def test_normal_shutdown_tolerates_a_dying_process_without_repeating_shutdown(self):
         inspect=Mock(side_effect=[([(1,{'DISPLAY':':1'})],[]),RuntimeError('processCheckUnavailable'),([],[])])
         run=Mock()
-        self.assertEqual(migrate({'DISPLAY':':0'},run=run,inspect=inspect,sleep=Mock(),clock=Mock(side_effect=[0,1])),'moved')
+        self.assertEqual(restart_idle({'DISPLAY':':0'},run=run,inspect=inspect,sleep=Mock(),clock=Mock(side_effect=[0,1])),'closed')
         run.assert_called_once()
     def test_persistent_uncertainty_after_shutdown_is_reported_as_pending(self):
         inspect=Mock(side_effect=[([(1,{'DISPLAY':':1'})],[]),RuntimeError('processCheckUnavailable')])
-        self.assertEqual(migrate({'DISPLAY':':0'},run=Mock(),inspect=inspect,clock=Mock(side_effect=[0,26])),'shutdownCheckPending')
+        self.assertEqual(restart_idle({'DISPLAY':':0'},run=Mock(),inspect=inspect,clock=Mock(side_effect=[0,26])),'shutdownCheckPending')
     def test_correct_desktop_probe_reads_only_steam_environment(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
@@ -31,7 +31,7 @@ class SteamDesktopTests(unittest.TestCase):
                 if path.parent.name=='2':raise PermissionError()
                 return b'DISPLAY=:0\0'
             with patch('host_steam_preflight.os.getuid',return_value=uid,create=True),patch('pathlib.Path.read_bytes',autospec=True,side_effect=environment):
-                self.assertFalse(wrong_desktop(steam_snapshot(root),{'DISPLAY':':0'}))
+                self.assertEqual(steam_snapshot(root), [(1, {'DISPLAY': ':0'})])
                 with self.assertRaises(RuntimeError):snapshot(root)
     def test_protected_desktop_services_do_not_block_but_unknown_processes_do(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -68,36 +68,36 @@ class SteamDesktopTests(unittest.TestCase):
                 self.assertEqual(steam, [(1, {'DISPLAY': ':1'})])
                 self.assertEqual(games, [3])
                 run = Mock()
-                self.assertEqual(migrate({'DISPLAY': ':0'}, run=run, inspect=lambda: (steam, games)), 'gameRunning')
+                self.assertEqual(restart_idle({'DISPLAY': ':0'}, run=run, inspect=lambda: (steam, games)), 'gameRunning')
                 run.assert_not_called()
 
-    def test_x11_identity_takes_precedence_over_inherited_wayland(self):
-        steam = [(1, {'DISPLAY': ':1', 'WAYLAND_DISPLAY': 'wayland-1'})]
-        self.assertTrue(wrong_desktop(steam, {'DISPLAY': ':0', 'WAYLAND_DISPLAY': 'wayland-1'}))
-        self.assertFalse(wrong_desktop(steam, {'DISPLAY': ':1'}))
-        with self.assertRaises(RuntimeError):
-            wrong_desktop([(1, {})], {'DISPLAY': ':0'})
-
-    def test_games_and_existing_correct_desktop_are_never_restarted(self):
+    def test_running_games_and_connected_streams_are_never_interrupted(self):
         run = Mock()
-        self.assertEqual(migrate({'DISPLAY': ':0'}, run=run, inspect=lambda: ([(1, {'DISPLAY': ':1'})], [2])), 'gameRunning')
-        self.assertEqual(migrate({'DISPLAY': ':0'}, run=run, inspect=lambda: ([(1, {'DISPLAY': ':0'})], [])), 'ready')
-        self.assertEqual(migrate({'DISPLAY': ':0'}, run=run, inspect=lambda: ([], [])), 'ready')
+        steam = [(1, {'DISPLAY': ':0'})]
+        self.assertEqual(restart_idle({'DISPLAY': ':0'}, run=run, inspect=lambda: (steam, [2])), 'gameRunning')
+        self.assertEqual(restart_idle({'DISPLAY': ':0'}, stream_active=lambda: True, run=run, inspect=lambda: (steam, [])), 'streamActive')
+        self.assertEqual(restart_idle({'DISPLAY': ':0'}, run=run, inspect=lambda: ([], [])), 'ready')
         run.assert_not_called()
 
-    def test_idle_physical_steam_closes_normally_and_buddy_owns_restart(self):
-        inspect = Mock(side_effect=[([(1, {'DISPLAY': ':1'})], []), ([], [])])
-        run = Mock()
-        self.assertEqual(migrate({'DISPLAY': ':0'}, run=run, inspect=inspect), 'moved')
-        run.assert_called_once()
-        self.assertEqual(run.call_args.args[0], ['/usr/bin/steam', '-shutdown'])
-        self.assertEqual(run.call_args.kwargs['env']['DISPLAY'], ':0')
+    def test_idle_steam_on_either_desktop_closes_and_buddy_owns_restart(self):
+        for display in (':0', ':1'):
+            with self.subTest(display=display):
+                inspect = Mock(side_effect=[([(1, {'DISPLAY': display})], []), ([], [])])
+                run = Mock()
+                self.assertEqual(restart_idle({'DISPLAY': ':0'}, run=run, inspect=inspect), 'closed')
+                run.assert_called_once()
+                self.assertEqual(run.call_args.args[0], ['/usr/bin/steam', '-shutdown'])
+                self.assertEqual(run.call_args.kwargs['env']['DISPLAY'], ':0')
+
+    def test_sunshine_udp_session_is_protected_after_rtsp_closes(self):
+        with patch('host_steam_preflight.subprocess.run', side_effect=[Mock(stdout=''), Mock(stdout='UNCONN 0 0 *:47999 *:* users:(("sunshine",pid=8,fd=9))')]):
+            self.assertTrue(stream_active())
 
     def test_shutdown_timeout_and_a_new_game_never_force_termination(self):
         physical = ([(1, {'DISPLAY': ':1'})], [])
         run = Mock()
-        self.assertEqual(migrate({'DISPLAY': ':0'}, run=run, inspect=lambda: physical, clock=Mock(side_effect=[0, 26])), 'shutdownPending')
-        self.assertEqual(migrate({'DISPLAY': ':0'}, run=run, inspect=Mock(side_effect=[physical, (physical[0], [2])])), 'gameRunning')
+        self.assertEqual(restart_idle({'DISPLAY': ':0'}, run=run, inspect=lambda: physical, clock=Mock(side_effect=[0, 26])), 'shutdownPending')
+        self.assertEqual(restart_idle({'DISPLAY': ':0'}, run=run, inspect=Mock(side_effect=[physical, (physical[0], [2])])), 'gameRunning')
         self.assertTrue(game_environment({'SteamAppId': '4115450'}))
         self.assertTrue(game_environment({'SteamGameId': '13474170597885870080'}))
         self.assertFalse(game_environment({'SteamAppId': '0'}))

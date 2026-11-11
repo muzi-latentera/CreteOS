@@ -1,4 +1,4 @@
-"""Move only an idle Steam singleton to the dedicated streaming desktop.
+"""Close idle Steam so Buddy can start a fresh client on the streaming desktop.
 
 Never kill processes, start a game, approve a dialog or change save settings.
 Only fixed status codes leave the host. Failed/unknown checks fail closed.
@@ -75,23 +75,14 @@ def steam_snapshot(proc=Path('/proc')):
     return steam
 
 
-def wrong_desktop(steam, target):
-    for _, env in steam:
-        # Steam uses X11 even if it inherited a Wayland display variable.
-        key = 'DISPLAY' if env.get('DISPLAY') else 'WAYLAND_DISPLAY'
-        if not env.get(key) or not target.get(key):
-            raise RuntimeError('desktopUnknown')
-        if env[key] != target[key]:
-            return True
-    return False
-
-
-def migrate(target, run=subprocess.run, inspect=snapshot, sleep=time.sleep, clock=time.monotonic):
+def restart_idle(target, stream_active=lambda: False, run=subprocess.run, inspect=snapshot, sleep=time.sleep, clock=time.monotonic):
     steam, games = inspect()
-    if not steam or not wrong_desktop(steam, target):
-        return 'ready'
     if games:
         return 'gameRunning'
+    if stream_active():
+        return 'streamActive'
+    if not steam:
+        return 'ready'
     # A pending install/cloud/confirmation can also make shutdown unsafe.
     # Steam itself decides whether a normal shutdown can complete.
     environment = dict(os.environ)
@@ -121,7 +112,18 @@ def migrate(target, run=subprocess.run, inspect=snapshot, sleep=time.sleep, cloc
         sleep(.25)
     # Buddy starts Steam later on this compositor. No restart/game is needed
     # during preflight; this also keeps cancellation from opening extra apps.
-    return 'moved'
+    return 'closed'
+
+
+def stream_active():
+    result = subprocess.run(['ss', '-Htn', 'state', 'established', '(', 'sport', '=', '48010', ')'],
+                            capture_output=True, text=True, timeout=3, check=True)
+    if result.stdout.strip():
+        return True
+    # RTSP can close after setup while Sunshine still owns its UDP stream sockets.
+    result = subprocess.run(['ss', '-Huanp', '( sport = :47998 or sport = :47999 or sport = :48000 or sport = :48002 )'],
+                            capture_output=True, text=True, timeout=3, check=True)
+    return any('"sunshine"' in line for line in result.stdout.splitlines())
 
 
 def main():
@@ -135,15 +137,12 @@ def main():
             target = stream_environment(runtime)
         except Exception:
             raise RuntimeError('targetUnavailable')
-        steam = steam_snapshot()
-        if not steam or not wrong_desktop(steam, target):
-            return 'ready'
-        # A connected client may belong to another handheld. Never migrate it.
-        active = subprocess.run(['ss', '-Htn', 'state', 'established', '(', 'sport', '=', '48010', ')'],
-                                capture_output=True, text=True, timeout=3, check=True).stdout.strip()
-        if active and wrong_desktop(steam, target):
+        # A connected client may belong to another handheld.
+        if stream_active():
             return 'streamActive'
-        return migrate(target)
+        if not steam_snapshot():
+            return 'ready'
+        return restart_idle(target, stream_active)
 
 
 if __name__ == '__main__':
@@ -154,7 +153,7 @@ if __name__ == '__main__':
     except subprocess.SubprocessError:
         result = 'commandFailed'
     except RuntimeError as error:
-        result = str(error) if str(error) in ('processCheckUnavailable', 'desktopUnknown', 'targetUnavailable') else 'unavailable'
+        result = str(error) if str(error) in ('processCheckUnavailable', 'targetUnavailable') else 'unavailable'
     except Exception:
         result = 'unavailable'
     print(json.dumps({'status': result}), flush=True)

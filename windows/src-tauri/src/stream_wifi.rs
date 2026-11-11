@@ -9,14 +9,14 @@ use super::host_moonlight_route::Choice as HostChoice;
 pub enum Choice { #[default] Automatic, Gaming, Download, Current }
 #[derive(Default, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase")]
-pub struct Preferences { moonlight: Choice, geforce_now: Choice, luna: Choice, ps5_remote_play: Choice, playstation_cloud: Choice, bosgame_connection: HostChoice }
+pub struct Preferences { moonlight: Choice, geforce_now: Choice, luna: Choice, ps5_remote_play: Choice, playstation_cloud: Choice, local: Choice, bosgame_connection: HostChoice }
 static PREF_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 fn path() -> PathBuf { crate::liftoff_dir().join("stream_wifi_preferences.json") }
 fn read() -> Preferences {
     std::fs::read(path()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
 }
 fn selection(p: &Preferences, provider: &str) -> Result<Choice, String> {
-    match provider { "moonlight" => Ok(p.moonlight), "geforceNow" => Ok(p.geforce_now), "luna" => Ok(p.luna), "ps5RemotePlay"=>Ok(p.ps5_remote_play), "playstationCloud"=>Ok(p.playstation_cloud), _ => Err("Unknown streaming service".into()) }
+    match provider { "moonlight" => Ok(p.moonlight), "geforceNow" => Ok(p.geforce_now), "luna" => Ok(p.luna), "ps5RemotePlay"=>Ok(p.ps5_remote_play), "playstationCloud"=>Ok(p.playstation_cloud), "local" => Ok(p.local), _ => Err("Unknown streaming service".into()) }
 }
 fn mode(choice: Choice, provider: &str) -> &'static str {
     match choice { Choice::Current => "Current", Choice::Gaming => "Gaming", Choice::Download => "Download",
@@ -80,7 +80,7 @@ pub fn set_stream_wifi_preference(provider: String, choice: Choice) -> Result<()
     let _lock = PREF_LOCK.lock().map_err(|_| "Wi-Fi preferences busy")?;
     let mut prefs = read();
     selection(&prefs, &provider)?;
-    match provider.as_str() { "moonlight" => prefs.moonlight = choice, "geforceNow" => prefs.geforce_now = choice, "luna"=>prefs.luna = choice, "ps5RemotePlay"=>prefs.ps5_remote_play=choice, "playstationCloud"=>prefs.playstation_cloud=choice, _=>unreachable!() }
+    match provider.as_str() { "moonlight" => prefs.moonlight = choice, "geforceNow" => prefs.geforce_now = choice, "luna"=>prefs.luna = choice, "ps5RemotePlay"=>prefs.ps5_remote_play=choice, "playstationCloud"=>prefs.playstation_cloud=choice, "local" => prefs.local=choice, _=>unreachable!() }
     save(&prefs)
 }
 
@@ -101,7 +101,9 @@ fn save(prefs: &Preferences) -> Result<(), String> {
 pub struct Session { lease: PathBuf }
 impl Drop for Session { fn drop(&mut self) { let _ = std::fs::remove_file(&self.lease); } }
 pub fn prepare(provider: &str) -> Option<Session> {
-    prepare_choice(provider,selection(&read(),provider).ok()?,None)
+    let choice = selection(&read(), provider).ok()?;
+    if provider == "local" && choice == Choice::Automatic { return None; }
+    prepare_choice(provider, choice, None)
 }
 pub fn prepare_for_host(provider:&str,host:&str)->Option<Session>{prepare_choice(provider,selection(&read(),provider).ok()?,Some(host))}
 pub fn prepare_current(provider: &str) -> Option<Session> {

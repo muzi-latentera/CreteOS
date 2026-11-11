@@ -33,6 +33,7 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
   const { t } = useTranslation();
   const art = app?.app_type === "game" ? (customArt?.[app.id] || gameArt[app.id]) : null;
   const [status, setStatus] = useState<LaunchStatus>("launching");
+  const [launchError, setLaunchError] = useState<string>();
   const [steamPhase, setSteamPhase] = useState<SteamLaunchPhase | null>(() =>
     app?.launch_path.startsWith("steam://") ? "contacting_steam" : null
   );
@@ -165,7 +166,11 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
     listen<string>("launch-unconfirmed", (event) => {
       if (mounted.current && event.payload === launchTarget.launch_path) setStatus("unconfirmed");
     }).then(fn => { unlistenUnconfirmed = fn; });
-    listen("launch-failed", () => { if (mounted.current) setStatus("failed"); })
+    listen<{ id?: string; message?: string }>("launch-failed", ({ payload }) => {
+      if (!mounted.current || (payload?.id && payload.id !== launchTarget.id)) return;
+      setLaunchError(payload?.message);
+      setStatus("failed");
+    })
       .then(fn => { unlistenFailed = fn; });
 
     const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") done(); };
@@ -281,7 +286,7 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
           ? t("launch.runningUnfocused")
           : status === "unconfirmed"
             ? (app?.app_type === "game" ? t("launch.unconfirmed") : t("launch.unconfirmedApp"))
-            : t("launch.failed");
+            : launchError || t("launch.failed");
   const buttonStyle = (action: FocusedAction) => ({
     padding: "8px 22px", borderRadius: 10, cursor: "pointer",
     fontFamily: "'Segoe UI', sans-serif", fontSize: 13, fontWeight: 600,

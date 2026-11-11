@@ -8,7 +8,7 @@ import { inputTrace, inputTracePad, inputTracePoll, startInputDiagnostics } from
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { App, Settings } from "../types";
-import { launchApp } from "./useLaunchApp";
+import { launchApp, type LocalLaunchOptions } from "./useLaunchApp";
 import { getBestGamepad, getActiveGamepad, readGpState, detectPlatform, rumble, type HapticPattern } from "../utils/gamepad";
 import { getLibraryEntryFocusSection } from "../utils/libraryFocus";
 import { moveGridFocus, type GridDirection } from "../utils/gridNavigation";
@@ -45,6 +45,7 @@ const GAMES_SORTS = ["recent", "az", "store"];
 const isInstalled = (app: App) => app?.installed !== false;
 
 export interface UseGamepadNavigationOptions {
+  openLocalLaunch?: (app: App) => void;
   isReadyRef: AnyRef<boolean>;
   mainNavigationRef?: AnyRef<((key: string) => boolean) | null>;
   initialTab?: string | null;
@@ -257,7 +258,7 @@ export interface GamepadNavigationResult {
   setHeroActionIndex: Dispatch<SetStateAction<number>>;
 
   switchTab: (newTab: string, direction?: "forward" | "back") => void;
-  triggerLaunch: (app: App, rec: App[]) => void;
+  triggerLaunch: (app: App, rec: App[], launchOptions?: LocalLaunchOptions) => void;
   closeLaunchOverlay: () => void;
   startPreparedLaunch: () => void;
   closeHideModal: () => void;
@@ -289,11 +290,11 @@ export function useGamepadNavigation(
   const [homeColFocusCol, setHomeColFocusCol] = useState(0);
   const [heroActionIndex, setHeroActionIndex] = useState(0);
   const [launchingApp, setLaunchingApp] = useState<App | null>(null);
-  const pendingLaunchRef = useRef<App | null>(null);
+  const pendingLaunchRef = useRef<{ app: App; options?: LocalLaunchOptions } | null>(null);
   const startPreparedLaunch = useRef(() => {
-    const app = pendingLaunchRef.current;
+    const pending = pendingLaunchRef.current;
     pendingLaunchRef.current = null;
-    if (app) launchApp(app).catch(err => console.warn("launch_app failed", err));
+    if (pending) launchApp(pending.app, pending.options).catch(err => console.warn("launch_app failed", err));
   }).current;
   const [windowFocused, setWindowFocused] = useState(true);
   const tabRef = useRef(options.initialTab ?? "Home");
@@ -488,7 +489,7 @@ export function useGamepadNavigation(
     settingsActionIndexRef.current = value;
   };
 
-  const _triggerLaunchImpl = (app, rec) => {
+  const _triggerLaunchImpl = (app: App, rec: App[], launchOptions?: LocalLaunchOptions) => {
     if (app?.app_type === "game" && isRunning(app.id)) {
       invoke("try_focus_launched_app", {
         name: app.name,
@@ -516,20 +517,24 @@ export function useGamepadNavigation(
       console.warn("triggerLaunch BLOCKED — too soon after last launch");
       return;
     }
+    if (!launchOptions && resolvedTheme === "crete" && options.openLocalLaunch && app.installed !== false && app.launch_path) {
+      options.openLocalLaunch(app);
+      return;
+    }
     lastLaunchTime.current = now;
     launchedAppSessionRef.current = true;
     playSoundGameStart();
     if (app.source === "cloud" && /^https:\/\/luna\.amazon\.(co\.uk|com)(?:\/|$)/.test(app.launch_path)) {
-      void withStreamCover(app, "luna", () => invoke("launch_luna_session", {gameId:app.id, gameName:app.name, url:app.launch_path}))
+      void withStreamCover(app, "luna", () => invoke("launch_luna_session", {gameId:app.id, gameName:app.name, url:app.launch_path, ...launchOptions}))
         .catch(() => {});
       return;
     }
     const psProvider = asobiProvider(app);
     if (psProvider && app.store_id) {
-      void withStreamCover(app, psProvider, () => invoke("launch_asobi_game", { shortcutId: app.store_id })).catch(() => {});
+      void withStreamCover(app, psProvider, () => invoke("launch_asobi_game", { shortcutId: app.store_id, ...launchOptions })).catch(() => {});
       return;
     }
-    pendingLaunchRef.current = app;
+    pendingLaunchRef.current = { app, options: launchOptions };
     setLaunchingApp(app); launchingAppRef.current = app;
     haptic("confirm");
     const updated = [app, ...rec.filter(r => r.id !== app.id)].slice(0, 10);
@@ -541,7 +546,7 @@ export function useGamepadNavigation(
   };
   const _triggerLaunchRef = useRef(_triggerLaunchImpl);
   _triggerLaunchRef.current = _triggerLaunchImpl;
-  const triggerLaunch = useRef((app, rec) => _triggerLaunchRef.current(app, rec)).current;
+  const triggerLaunch = useRef((app: App, rec: App[], launchOptions?: LocalLaunchOptions) => _triggerLaunchRef.current(app, rec, launchOptions)).current;
 
   const closeLaunchOverlay = () => {
     const gp = getBestGamepad();
@@ -819,6 +824,7 @@ export function useGamepadNavigation(
 
   // ── handleNav ─────────────────────────────────────────────────
   const handleNav = (key) => {
+    if (document.querySelector("[data-local-launch-dialog]")) return;
     inputTrace("handler", { key, tab: tabRef.current, modalOwnsInput: modalOwnsInput(), contextMenu: !!contextMenuRef.current });
     // Onboarding owns its own poll and must never fall through to main nav.
     if (showOnboardingRef.current) return;

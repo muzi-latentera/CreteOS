@@ -8,6 +8,7 @@ import { withStreamCover } from "../components/launch/StreamLaunchCover";
 import { streamErrorMessage } from "./streamErrors";
 import { asobiMatches, type AsobiGame, type AsobiProvider } from "./asobi";
 import type { StreamAudioChoice } from "./StreamAudioFields";
+import type { LocalDisplayMode } from "./LocalDisplayField";
 
 export interface MoonlightProfile { host: string; resolution: string; fps: number; bitrate: number; codec: string }
 export interface DisplayProfile { displayKey: string; profile: MoonlightProfile; nativeResolution?: string; nativeFps?: number; displayLabel?: string }
@@ -26,12 +27,12 @@ export function useStreaming(app: App, enabled: boolean) {
       .catch(reason => { if (active) setAsobiError(String(reason)); });
     return () => { active = false; };
   }, [enabled, app.id, app.name, app.source, app.store_id]);
-  const startAsobi = async (shortcutId: string, audio?: StreamAudioChoice) => {
+  const startAsobi = async (shortcutId: string, audio?: StreamAudioChoice, display?: LocalDisplayMode | null) => {
     setAsobiError("");
     try {
       const game = asobiGames.find(game => game.id === shortcutId);
       if (!game) throw new Error("Refresh the ASOBI shortcuts before launching.");
-      await withStreamCover(app, game.provider, () => invoke("launch_asobi_game", { shortcutId, audio }), () => setAsobiConfigure(null));
+      await withStreamCover(app, game.provider, () => invoke("launch_asobi_game", { shortcutId, audio, display }), () => setAsobiConfigure(null));
     }
     catch (reason) { setAsobiError(String(reason)); }
   };

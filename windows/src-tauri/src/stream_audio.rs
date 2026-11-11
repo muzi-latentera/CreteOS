@@ -85,7 +85,7 @@ pub async fn get_stream_audio_devices() -> Result<serde_json::Value, String> {
         let output = devices(&api, eRender).map_err(|e| e.to_string())?;
         let input = devices(&api, eCapture).map_err(|e| e.to_string())?;
         Ok(serde_json::json!({"output": output, "input": input,
-            "defaultOutput": default_id(&api, eRender, eConsole),
+            "defaultOutput": philips_tv(&output).map(|device| device.id.clone()).or_else(|| default_id(&api, eRender, eConsole)),
             "defaultInput": default_id(&api, eCapture, eConsole)}))
     }).await.map_err(|e| e.to_string())?
 }
@@ -129,7 +129,10 @@ impl Drop for Session {
     fn drop(&mut self) {
         if let Ok(mut busy) = SESSION.lock() {
             if let Ok(_com) = Com::enter() {
-                if let Ok(api) = enumerator() { let _ = recover(&api); }
+                if let Ok(api) = enumerator() {
+                    let _ = recover(&api);
+                    let _ = dock_output(&api, false);
+                }
             }
             *busy = false;
         }
@@ -137,13 +140,27 @@ impl Drop for Session {
 }
 
 pub fn prepare(choice: Option<Choice>) -> Result<Option<Session>, String> {
-    let Some(choice) = choice else { return Ok(None) };
-    if choice.output.is_none() && choice.input.is_none() { return Ok(None); }
+    let choice = choice.unwrap_or(Choice { output: None, input: None });
+    let overrides = choice.output.is_some() || choice.input.is_some();
     let mut busy = SESSION.lock().map_err(|_| "Audio settings are busy.")?;
-    if *busy { return Err("Another CreteOS stream is using an audio device override. End it and retry.".into()); }
+    if *busy {
+        return if overrides { Err("Another CreteOS launch is using an audio device override. End it and retry.".into()) } else { Ok(None) };
+    }
+    if !overrides {
+        // Audio-less and undocked devices can still launch. The watcher also
+        // applies the rule as Windows exposes the HDMI endpoint on connection.
+        if let Ok(_com) = Com::enter() {
+            if let Ok(api) = enumerator() {
+                let _ = recover(&api);
+                let _ = dock_output(&api, false);
+            }
+        }
+        return Ok(None);
+    }
     let _com = Com::enter()?;
     let api = enumerator().map_err(|e| e.to_string())?;
     recover(&api)?;
+    let _ = dock_output(&api, false);
     let mut changes = Vec::new();
     for (capture, selected) in [(false, choice.output), (true, choice.input)] {
         let Some(selected) = selected else { continue };
@@ -179,6 +196,24 @@ fn built_in(devices: &[Device], capture: bool) -> Option<&Device> {
     })
 }
 
+fn philips_tv(outputs: &[Device]) -> Option<&Device> {
+    outputs.iter().find(|device| device.name.to_ascii_lowercase().contains("philips"))
+}
+
+fn dock_output(api: &IMMDeviceEnumerator, previously_docked: bool) -> windows::core::Result<bool> {
+    let outputs = devices(api, eRender)?;
+    let tv = philips_tv(&outputs);
+    let preferred = tv.or_else(|| previously_docked.then(|| built_in(&outputs, false)).flatten());
+    if let Some(device) = preferred {
+        for role in ROLES {
+            if default_id(api, eRender, role).as_deref() != Some(device.id.as_str()) {
+                set_default(&device.id, role)?;
+            }
+        }
+    }
+    Ok(tv.is_some())
+}
+
 fn arctis_defaults(api: &IMMDeviceEnumerator, seen: &mut BTreeSet<String>) -> windows::core::Result<()> {
     let mut connected = BTreeSet::new();
     for (capture, flow) in [(false, eRender), (true, eCapture)] {
@@ -212,6 +247,18 @@ impl IMMNotificationClient_Impl for DeviceEvents_Impl {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn finds_the_philips_hdmi_endpoint_among_other_outputs() {
+        let outputs = vec![
+            Device { id: "headset".into(), name: "Headphones (Arctis Nova 7)".into() },
+            Device { id: "built-in".into(), name: "Speakers (3- Realtek(R) Audio)".into() },
+            Device { id: "tv".into(), name: "1 - Philips FTV (AMD High Definition Audio Device)".into() },
+        ];
+        assert_eq!(philips_tv(&outputs).unwrap().id, "tv");
+        assert!(philips_tv(&outputs[..2]).is_none());
+        assert_eq!(built_in(&outputs[..2], false).unwrap().id, "built-in");
+    }
 
     #[test]
     #[ignore = "requires an idle G1 with its Arctis Nova 7 plugged in"]
@@ -250,11 +297,13 @@ pub fn watch(app: tauri::AppHandle) {
         let events: IMMNotificationClient = DeviceEvents(sender).into();
         if unsafe { api.RegisterEndpointNotificationCallback(&events) }.is_err() { return; }
         let mut seen = BTreeSet::new();
+        let mut docked = false;
         loop {
             if let Ok(busy) = SESSION.lock() {
                 if !*busy {
                     let _ = recover(&api);
                     let _ = arctis_defaults(&api, &mut seen);
+                    if let Ok(present) = dock_output(&api, docked) { docked = present; }
                 }
             }
             let _ = app.emit("stream-audio-devices-changed", ());

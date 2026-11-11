@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
-export type WifiProvider = "moonlight" | "geforceNow" | "luna" | "ps5RemotePlay" | "playstationCloud";
+export type WifiProvider = "moonlight" | "geforceNow" | "luna" | "ps5RemotePlay" | "playstationCloud" | "local";
 type Choice = "automatic" | "gaming" | "download" | "current";
 type HostChoice = "automatic" | "ethernet" | "wifi";
 export function HomeWifiSelect({ provider, host, saving }: { provider: WifiProvider; host?: string; saving: (busy: boolean) => void }) {
@@ -49,7 +49,7 @@ export function HomeWifiSelect({ provider, host, saving }: { provider: WifiProvi
       const next = event.target.value as Choice;
       save(event.currentTarget, "set_stream_wifi_preference", {provider, choice:next}, () => setChoice(next));
     }}>
-      <option value="automatic">Automatic · {wired?"Ethernet first · ":""}{provider === "moonlight" || provider === "ps5RemotePlay" ? "Extra" : "Fibre E433"}</option>
+      <option value="automatic">{provider === "local" ? "Automatic · normal network rules" : `Automatic · ${wired ? "Ethernet first · " : ""}${provider === "moonlight" || provider === "ps5RemotePlay" ? "Extra" : "Fibre E433"}`}</option>
       <option value="gaming">Hyperoptic Extra</option>
       <option value="download">Hyperoptic Fibre E433</option>
       <option value="current">Keep current connection</option>

@@ -19,6 +19,7 @@ import GamepadKeyboard from "./components/GamepadKeyboard";
 import { GamepadBtn } from "./components/GamepadBtn";
 import { GameDetailsModal } from "./components/GameDetailsModal";
 import { AppDetailsModal } from "./components/modals/AppDetailsModal";
+import { LocalLaunchMenu } from "./crete/LaunchMenu";
 import AddEntryModal from "./components/modals/AddEntryModal";
 import ConfirmModal from "./components/modals/ConfirmModal";
 import FolderManagerModal from "./components/modals/FolderManagerModal";
@@ -371,6 +372,7 @@ export default function App() {
     artPickerAppRef, artPickerModeRef, contextMenuRef, editNameAppRef, showPowerModalRef, updateReleaseRef, showOnboardingRef,
   } = useModalState();
   const [detailsApp, setDetailsApp] = useState(null);
+  const [localLaunchApp, setLocalLaunchApp] = useState(null);
   const detailsAppRef = useRef(null);
   const artPickerReturnDetailsRef = useRef(null);
   const [installSize, setInstallSize] = useState({});
@@ -1005,6 +1007,7 @@ export default function App() {
     openLibraryActionsModal,
     handleNav,
   } = useGamepadNavigation({
+    openLocalLaunch: setLocalLaunchApp,
     mainNavigationRef: creteMainNavigationRef,
     isReadyRef,
     initialTab: defaultTab,
@@ -3394,6 +3397,10 @@ export default function App() {
         </div>
       )}
       {launchingApp && <LaunchOverlay onReady={startPreparedLaunch} minimal={resolvedTheme === "crete" && launchingApp.app_type === "game"} app={launchingApp} gameArt={gameArt} customArt={customArt} heroArt={customHeroArt[launchingApp.id] || heroStatic[launchingApp.id]} accent={accent} onDone={closeLaunchOverlay} onSuccess={playLaunchSuccessSound} hapticEnabled={settings.haptic_feedback ?? true} />}
+      {localLaunchApp && <LocalLaunchMenu key={localLaunchApp.id} app={localLaunchApp} onClose={() => setLocalLaunchApp(null)} onStart={options => {
+        setLocalLaunchApp(null);
+        triggerLaunch(localLaunchApp, recentRef.current, options);
+      }} />}
       {closeRequest && (
         <ConfirmModal
           message={closeRequest.force

@@ -35,6 +35,6 @@ export function StreamAudioFields({ value, onChange, moonlight }: {
         {available.map(device => <option key={device.id} value={device.id}>{device.name}</option>)}
       </select></label>;
     })}
-    <p className="crete-stream-field-wide">{failed ? "Windows audio devices are unavailable." : moonlight ? "Moonlight uses the selected output. The microphone choice applies to local Windows apps." : "Audio selections apply during this stream."}</p>
+    <p className="crete-stream-field-wide">{failed ? "Windows audio devices are unavailable." : moonlight ? "Moonlight uses the selected output. The microphone choice applies to local Windows apps." : "Audio selections apply during this session."}</p>
   </div>;
 }

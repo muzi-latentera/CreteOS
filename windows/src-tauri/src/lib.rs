@@ -68,6 +68,7 @@ mod native_artwork;
 mod stream_wifi;
 mod host_moonlight_route;
 mod stream_audio;
+mod launch_display;
 mod asobi;
 mod asobi_session;
 mod moondeck;
@@ -9976,6 +9977,12 @@ fn force_close_launched(name: String, launch_path: String, source: String) -> Cl
     }
 }
 
+#[derive(Default, Deserialize)]
+struct LocalLaunchOptions {
+    audio: Option<stream_audio::Choice>,
+    display: Option<launch_display::Mode>,
+}
+
 #[tauri::command]
 async fn launch_app(
     path: String,
@@ -9984,6 +9991,8 @@ async fn launch_app(
     app_type: String,
     source: String,
     run_as_admin: Option<bool>,
+    options: Option<LocalLaunchOptions>,
+    window: tauri::Window,
     app_handle: tauri::AppHandle,
 ) -> Result<LaunchAppResult, String> {
     let watch_generation = LAUNCH_WATCH_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
@@ -9996,6 +10005,16 @@ async fn launch_app(
     let watch_path = path.clone();
     let watch_source = source.clone();
     let watch_is_game = app_type == "game";
+    let is_luna = source.eq_ignore_ascii_case("cloud") && luna::luna_url(&path);
+    let (audio, wifi, display) = tauri::async_runtime::spawn_blocking(move || -> Result<_, String> {
+        let configured = options.is_some();
+        let options = options.unwrap_or_default();
+        let audio = stream_audio::prepare(options.audio)?;
+        let wifi = if is_luna { stream_wifi::prepare("luna") }
+            else if configured { stream_wifi::prepare("local") } else { None };
+        let display = launch_display::prepare(&window, options.display)?;
+        Ok((audio, wifi, display))
+    }).await.map_err(|e| e.to_string())??;
     let mut recents = load_recents();
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -10054,10 +10073,6 @@ async fn launch_app(
             focus_external_window(windows::Win32::Foundation::HWND(window.hwnd as _));
         }
     }
-    let luna_wifi = if source.eq_ignore_ascii_case("cloud") && luna::luna_url(&path) {
-        // Network preparation can wait for association; keep it off the UI executor.
-        tauri::async_runtime::spawn_blocking(|| stream_wifi::prepare("luna")).await.map_err(|e| e.to_string())?
-    } else { None };
     let cloud_kiosk_pid = if source.eq_ignore_ascii_case("cloud") {
         match launch_cloud_game_kiosk(&path) {
             Ok(pid) => {
@@ -10381,10 +10396,10 @@ async fn launch_app(
             return;
         }
         if found != 0 {
-            if let Some(wifi) = luna_wifi {
-                // Track the actual PWA HWND, never chrome_proxy.exe or all Chrome tabs.
+            if audio.is_some() || wifi.is_some() || display.is_some() {
+                // Hold overrides against the matched game/app window, not a launcher proxy.
                 std::thread::spawn(move || {
-                    let _wifi = wifi;
+                    let _settings = (audio, wifi, display);
                     let hwnd = windows::Win32::Foundation::HWND(found as _);
                     let mut owner = 0;
                     unsafe { windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, Some(&mut owner)); }
@@ -10493,6 +10508,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             stream_wifi::get_stream_wifi_preferences,
             stream_audio::get_stream_audio_devices,
+            launch_display::get_local_display_modes,
             stream_wifi::get_stream_network_status,
             asobi::get_asobi_games,
             asobi::open_asobi_client,

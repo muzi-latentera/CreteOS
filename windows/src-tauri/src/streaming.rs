@@ -93,16 +93,18 @@ fn next_session() -> u64 {
 }
 
 #[tauri::command]
-pub async fn launch_luna_session(window:tauri::Window, game_id:String, game_name:String, url:String) -> Result<(),String> {
+pub async fn launch_luna_session(window:tauri::Window, game_id:String, game_name:String, url:String, audio:Option<super::stream_audio::Choice>, display:Option<super::launch_display::Mode>) -> Result<(),String> {
     if !super::luna::luna_url(&url) || game_id.is_empty() || game_id.len()>1024 {return Err("Invalid Luna game".into());}
     tauri::async_runtime::spawn_blocking(move||{
+        let audio=super::stream_audio::prepare(audio)?;
+        let display=super::launch_display::prepare(&window,display)?;
         let wifi=super::stream_wifi::prepare("luna");
         let nonce=super::luna_session::begin(&game_id,&url)?;
         let epoch=launch_epoch();
         let generation=next_session();
         if let Err(error)=super::luna::launch(&url).ok_or("Invalid Luna launch")? {super::luna_session::finish(&nonce);return Err(error);}
         std::thread::spawn(move||{
-            let _wifi=wifi;let started=std::time::Instant::now();let mut found=0isize;let mut owner=0u32;let mut observed=false;let mut previous=None;
+            let _settings=(audio,display,wifi);let started=std::time::Instant::now();let mut found=0isize;let mut owner=0u32;let mut observed=false;let mut previous=None;
             while session_current(generation) && launch_current(epoch) {
                 if found==0 {if let Some((target,_))=super::best_launch_window(&game_name,&url,"cloud"){found=target.hwnd;owner=target.pid;}}
                 let phase=super::luna_session::phase();
@@ -360,7 +362,7 @@ fn nvidia_new_activity(line:&str)->bool{
 
 fn close_idle_geforce(note: impl Fn(&str)) -> Result<(), String> {
     if !super::is_process_running("GeForceNOW.exe") && !nvidia_streamer_running() { return Ok(()); }
-    let root = dirs::data_local_dir().ok_or("No local data folder")?.join("NVIDIA Corporation/GeForceNOW/CEF/GeForceNOW.exe");
+    let root = client_path("geforceNow")?;
     let candidates = || super::collect_launch_windows().into_iter().filter(|target| target.exe_path.as_deref().is_some_and(|path| gfn_process_guard::same_path(&root.to_string_lossy(),path))).collect::<Vec<_>>();
     let closed_background=candidates().is_empty()&&!nvidia_streamer_running()&&gfn_process_guard::shutdown_complete(&nvidia_log_tail());
     // Window-close can leave NVIDIA's tray/background client alive. Reopen
@@ -518,19 +520,15 @@ pub async fn launch_geforce_game(window: tauri::Window, game_url: String, source
     if play.unwrap_or(true) {
         if let Ok(display) = get_geforce_profile(window.clone()) {
             if let Some(key) = display["displayKey"].as_str() {
-                if uses_tv_vsync(key) || geforce_profiles().get(GFN_PRE_TV_VSYNC).is_some() {
-                    let profile = serde_json::from_value(display["profile"].clone()).map_err(|e| e.to_string())?;
-                    return start_geforce_game(window, game_url, key.to_owned(), profile, source, None).await;
-                }
+                let profile = serde_json::from_value(display["profile"].clone()).map_err(|e| e.to_string())?;
+                return start_geforce_game(window, game_url, key.to_owned(), profile, source, None).await;
             }
         }
+        return Err("CreteOS could not read this display's GeForce NOW profile. Open the game's launch settings and retry.".into());
     }
     tauri::async_runtime::spawn_blocking(move || {
         let (client, argument) = geforce_launch(&game_url, source.as_deref(), play.unwrap_or(true))?;
-        let wifi = if play.unwrap_or(true) { super::stream_wifi::prepare("geforceNow") } else { None };
-        let log = super::stream_readiness::LogCursor::new(nvidia_console());
         spawn_geforce(&client, &argument)?;
-        if play.unwrap_or(true) { watch_geforce_exit(window, log, next_session(), wifi, None); }
         Ok(())
     }).await.map_err(|e| e.to_string())?
 }
@@ -796,13 +794,13 @@ fn prepare_host_steam(host: &str) -> Result<(), String> {
     let output = bounded_output_timeout(command, Some(include_bytes!("host_steam_preflight.py")), 45)?;
     let result: serde_json::Value = serde_json::from_slice(&output.stdout).map_err(|_| "Could not check Steam's desktop on Bosgame. Check SSH access, then retry.")?;
     match result["status"].as_str() {
-        Some("ready" | "moved") if output.status.success() => Ok(()),
-        Some("gameRunning") => Err("Steam is busy with a game or installation on Bosgame's regular desktop. Let setup finish or close the running game, then retry Moonlight.".into()),
-        Some("streamActive") => Err("Another Moonlight stream is connected to Bosgame. End that session before moving Steam to the streaming desktop.".into()),
+        Some("ready" | "closed") if output.status.success() => Ok(()),
+        Some("gameRunning") => Err("Steam is busy with a game or installation on Bosgame. Let setup finish or close the running game, then retry Moonlight.".into()),
+        Some("streamActive") => Err("Another Moonlight stream is connected to Bosgame. End that session before starting a new one.".into()),
         Some("shutdownPending") => Err("Steam is waiting to close on Bosgame, possibly for a download or save-sync prompt. Finish that prompt and retry. Nothing was forcibly stopped.".into()),
         Some("processCheckUnavailable") => Err("CreteOS could not confirm that Steam can safely move to Bosgame's streaming desktop. Finish any game installation or setup on Bosgame, then retry Moonlight.".into()),
         Some("shutdownCheckPending") => Err("Steam is closing on Bosgame, but CreteOS could not yet confirm the desktop change. Wait a moment and retry. Nothing was forcibly stopped.".into()),
-        Some("desktopUnknown" | "targetUnavailable") => Err("Bosgame's streaming desktop is not ready or its display identity is unavailable. Check its streaming desktop service, then retry.".into()),
+        Some("targetUnavailable") => Err("Bosgame's streaming desktop is not ready or its display identity is unavailable. Check its streaming desktop service, then retry.".into()),
         Some("preflightBusy") => Err("Another launch is already preparing Steam on Bosgame. Wait for it to finish, then retry.".into()),
         Some("commandFailed") => Err("Steam could not close normally on Bosgame. Check its download or save-sync prompts; nothing was forcibly stopped.".into()),
         _ => Err("CreteOS could not safely check or move Steam on Bosgame. Check SSH and the streaming desktop helper, then retry; Steam was not forcibly stopped.".into()),
@@ -1008,7 +1006,7 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
             }
         }
         if steam_id.is_some() {
-            progress(&window, "Checking Steam on Bosgame and preparing the streaming desktop…");
+            progress(&window, "Closing idle Steam on Bosgame for a clean launch…");
             prepare_host_steam(&profile.host)?;
             check_launch(epoch)?;
         }

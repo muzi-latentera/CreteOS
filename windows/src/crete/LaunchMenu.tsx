@@ -5,17 +5,30 @@ import { IoChevronDownOutline } from "react-icons/io5";
 import { useCreteText } from "./text";
 import { invoke } from "@tauri-apps/api/core";
 import { getBestGamepad, readGpState } from "../utils/gamepad";
-import type { useStreaming, MoonlightProfile } from "./useStreaming";
+import { useStreaming, type MoonlightProfile } from "./useStreaming";
 
-import { HomeWifiSelect } from "./HomeWifiSelect";
+import { HomeWifiSelect, type WifiProvider } from "./HomeWifiSelect";
 import { StreamAudioFields, type StreamAudioChoice } from "./StreamAudioFields";
-import { asobiLabel, type AsobiProvider } from "./asobi";
+import { asobiLabel, asobiProvider, type AsobiProvider } from "./asobi";
+import { LocalDisplayField, type LocalDisplayMode } from "./LocalDisplayField";
+import type { App } from "../types";
+import type { LocalLaunchOptions } from "../hooks/useLaunchApp";
+
+export function LocalLaunchMenu({ app, onClose, onStart }: {
+  app: App; onClose: () => void; onStart: (options: LocalLaunchOptions) => void;
+}) {
+  const streaming = useStreaming(app, false);
+  const provider = asobiProvider(app) ?? (/^https:\/\/luna\.amazon\.(co\.uk|com)(?:\/|$)/.test(app.launch_path) ? "luna" : "local");
+  return <LaunchMenu streaming={streaming} open={false} setOpen={() => {}} local={() => {}} localLabel="" localEnabled={false}
+    manage={() => {}} manageLabel="" block={() => {}} localSetup={{ name: app.name, provider, onClose, onStart }} />;
+}
 
 type Streaming = ReturnType<typeof useStreaming>;
-export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, localEnabled, manage, manageLabel, block, restorePlayFocus, loading = false, copies = [] }: {
+export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, localEnabled, manage, manageLabel, block, restorePlayFocus, loading = false, copies = [], localSetup }: {
   streaming: Streaming; open: boolean; setOpen: (open: boolean) => void; local: () => void;
   localLabel: string; localEnabled: boolean; manage: () => void; manageLabel: string; block: (blocked: boolean) => void; restorePlayFocus?: () => void; loading?: boolean;
   copies?: { key: string; label: string; onClick: () => void }[];
+  localSetup?: { name: string; provider: WifiProvider; onClose: () => void; onStart: (options: LocalLaunchOptions) => void };
 }) {
   const text = useCreteText();
   const root = useRef<HTMLDivElement>(null);
@@ -24,6 +37,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [sound, setSound] = useState(false);
   const [audio, setAudio] = useState<StreamAudioChoice>({ input: null, output: null });
+  const [localMode, setLocalMode] = useState<LocalDisplayMode | null>(null);
   const [tools, setTools] = useState(false);
   const [displayPreset, setDisplayPreset] = useState("auto");
   const anchor = useRef<HTMLButtonElement>(null);
@@ -59,16 +73,17 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   }, [choices, busy]);
   const gfn = s.geforceConfigure;
   useEffect(() => {
-    if (s.configure || gfn || ps) return;
+    if (s.configure || gfn || ps || localSetup) return;
     setPresetsOpen(false);
     setSound(false);
     setAudio({ input: null, output: null });
-  }, [s.configure, gfn, ps]);
+    setLocalMode(null);
+  }, [s.configure, gfn, ps, !!localSetup]);
   const activeDisplay = gfn ? s.geforceDisplay : s.display;
   const nativeResolution = activeDisplay.nativeResolution ?? "1920x1080";
   const nativeLabel = activeDisplay.displayLabel ?? "Handheld";
   const nativeFps = activeDisplay.nativeFps === 90 && gfn ? 60 : activeDisplay.nativeFps ?? 120;
-  const active = open || s.configure || gfn || wifiOnly || !!ps;
+  const active = open || s.configure || gfn || wifiOnly || !!ps || !!localSetup;
   useEffect(() => { block(active); return () => block(false); }, [active, block]);
   useEffect(() => {
     if (!s.configure && !gfn) return;
@@ -79,10 +94,12 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     setTarget(s.moonlightGame || (s.steamId && s.apps.includes("MoonDeckStream") ? "MoonDeckStream" : undefined) || s.apps.find(name => name === "Steam Big Picture") || s.apps[0] || "");
   }, [s.configure, s.apps, s.moonlightGame]);
   const close = () => {
+    if (localSetup) { localSetup.onClose(); return; }
     const returnFocus = s.configure || gfn || wifiOnly || ps ? root.current?.closest('[data-crete-detail-slot="primary-actions"], .crete-hero')?.querySelector<HTMLButtonElement>('[data-launch-btn], .crete-play') ?? anchor.current : anchor.current;
     setOpen(false); setWifiOnly(false); s.setConfigure(false); s.setGeforceConfigure(false); s.setAsobiConfigure(null); choicesRef.current = null; selectFocus.current = null; setChoices(null);
     restoreAfterLaunch.current = false;
     setSound(false); setAudio({ input: null, output: null });
+    setLocalMode(null);
     restorePlayFocus?.();
     returnFocus?.focus({ preventScroll: true });
   };
@@ -183,7 +200,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     };
     frame = requestAnimationFrame(poll);
     return () => { clearTimeout(timer); cancelAnimationFrame(frame); window.removeEventListener("keydown", key, true); window.removeEventListener("keyup", release, true); window.removeEventListener("pointerdown", outside); };
-  }, [active, s.configure, gfn, wifiOnly, ps]);
+  }, [active, s.configure, gfn, wifiOnly, ps, !!localSetup]);
   useEffect(() => {
     if (!choices) return;
     const timer = window.setTimeout(() => {
@@ -223,7 +240,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     setProfile(p => ({ ...p, resolution, fps, bitrate: gfn ? p.bitrate : 80000 }));
   };
   return <div ref={root} className="crete-launch-menu">
-    {!loading && <button ref={anchor} type="button" className="crete-details-manage" aria-label={text("Launch options")} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><IoChevronDownOutline /></button>}
+    {!loading && !localSetup && <button ref={anchor} type="button" className="crete-details-manage" aria-label={text("Launch options")} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><IoChevronDownOutline /></button>}
     {open && !loading && <div className="crete-launch-popover" role="menu" aria-label={text("Launch options")}>
       {s.provider !== "ps5RemotePlay" && s.provider !== "playstationCloud" && row(localLabel, "local", "#c9482a", local, !localEnabled)}
       {(["ps5RemotePlay", "playstationCloud"] as AsobiProvider[]).filter(provider => s.asobiGames.some(game => game.provider === provider)).map(provider => row(asobiLabel(provider), provider, "#368bea", () => s.setAsobiConfigure(provider), false, provider))}
@@ -238,18 +255,28 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       const select = event.target instanceof Element ? event.target.closest("select") : null;
       if (select instanceof HTMLSelectElement && !select.disabled) { event.preventDefault(); openChoices(select); }
     }}>
+    {localSetup && <div className="crete-stream-backdrop" data-local-launch-dialog onClick={event => { if (event.target === event.currentTarget) close(); }}><section role="dialog" aria-modal="true" aria-label="Launch settings" className="crete-stream-settings crete-stream-dialog">
+      <header className="crete-stream-heading"><h2>{localSetup.name}</h2></header>
+      <div className="crete-stream-body">
+        <HomeWifiSelect provider={localSetup.provider} saving={setBusy} />
+        <LocalDisplayField value={localMode} onChange={setLocalMode} />
+        {soundOptions()}
+      </div>
+      <footer className="crete-stream-buttons"><button type="button" onClick={close}>{text("Cancel")}</button><button data-launch-primary type="button" disabled={busy} onClick={() => localSetup.onStart({ audio, display: localMode })}>{text("Play")}</button></footer>
+    </section></div>}
     {ps && <div className="crete-stream-backdrop" onClick={event => { if (event.target === event.currentTarget) close(); }}><section role="dialog" aria-modal="true" aria-label={`${asobiLabel(ps)} settings`} className="crete-stream-settings crete-stream-dialog">
       <header className="crete-stream-heading"><span className="crete-stream-eyebrow">PLAYSTATION</span><h2>{asobiLabel(ps)}</h2><p>{ps === "ps5RemotePlay" ? "Your PS5, on this screen." : "Your PlayStation cloud library."}</p></header>
       <div className="crete-stream-body">
         <HomeWifiSelect provider={ps} saving={setBusy} />
         <label>Game shortcut<select aria-label="ASOBI shortcut" value={psTarget} onChange={event => setPsTarget(event.target.value)}>{psGames.map(game => <option key={game.id} value={game.id}>{game.label}</option>)}</select></label>
+        <LocalDisplayField value={localMode} onChange={setLocalMode} />
         <p>Uses your saved ASOBI picture and controller settings.</p>
         <button className="crete-stream-text-action" type="button" disabled={busy} onClick={() => { close(); void invoke("open_asobi_client").catch(() => {}); }}>Open ASOBI settings</button>
         {soundOptions()}
         {s.asobiError && <p role="alert">{s.asobiError}</p>}
         {!psGames.length && <p role="status">Add this game's shortcut in ASOBI, restart Steam, then refresh your library.</p>}
       </div>
-      <footer className="crete-stream-buttons"><button type="button" onClick={close}>{text("Cancel")}</button><button data-launch-primary type="button" disabled={busy || !psTarget || !s.online} onClick={() => startStream(() => s.startAsobi(psTarget, audio))}>{text(busy ? "Connecting…" : "Play")}</button></footer>
+      <footer className="crete-stream-buttons"><button type="button" onClick={close}>{text("Cancel")}</button><button data-launch-primary type="button" disabled={busy || !psTarget || !s.online} onClick={() => startStream(() => s.startAsobi(psTarget, audio, localMode))}>{text(busy ? "Connecting…" : "Play")}</button></footer>
     </section></div>}
     {(s.configure || gfn || wifiOnly) && <div className="crete-stream-backdrop" onClick={event => { if (event.target === event.currentTarget) close(); }}><section role="dialog" aria-modal="true" aria-label={text(wifiOnly ? "Amazon Luna Wi-Fi" : gfn ? "GeForce NOW stream settings" : "Moonlight stream settings")} className="crete-stream-settings crete-stream-dialog">
       <header className="crete-stream-heading">

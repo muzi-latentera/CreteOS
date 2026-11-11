@@ -217,7 +217,7 @@ fn close_idle(targets:&[(u32,u64)]){
 struct Owned;
 impl Drop for Owned{fn drop(&mut self){OWNED.store(false,std::sync::atomic::Ordering::SeqCst);}}
 #[tauri::command]
-pub async fn launch_asobi_game(window:tauri::Window,shortcut_id:String,audio:Option<super::stream_audio::Choice>)->Result<(),String>{
+pub async fn launch_asobi_game(window:tauri::Window,shortcut_id:String,audio:Option<super::stream_audio::Choice>,display:Option<super::launch_display::Mode>)->Result<(),String>{
     use tauri::Emitter;
     tauri::async_runtime::spawn_blocking(move||{
         let game=games()?.into_iter().find(|g|g.id==shortcut_id).ok_or("This ASOBI shortcut is no longer registered. Export it from ASOBI and restart Steam, then refresh CreteOS.")?;
@@ -233,10 +233,11 @@ pub async fn launch_asobi_game(window:tauri::Window,shortcut_id:String,audio:Opt
         let uri=format!("steam://rungameid/{}",((id as u64)<<32)|0x02000000);
         let steam=PathBuf::from(super::get_steam_install_path().ok_or("Steam is not installed")?).join("steam.exe");
         let audio=super::stream_audio::prepare(audio)?;
+        let display=super::launch_display::prepare(&window,display)?;
         std::process::Command::new(steam).arg(uri).spawn().map_err(|_|"Could not open the registered ASOBI shortcut")?;
         std::thread::spawn(move||{
             let _owned=owned;let _lease=lease;
-            let _audio=audio;
+            let _settings=(audio,display);
             use super::asobi_session::{Phase,State};
             let mut state=State::default();let mut last_credit:Option<std::time::Instant>=None;let mut played_at=0;let mut targets=Vec::new();let mut returning=false;let mut attention_shown=false;
             let started=std::time::Instant::now();let mut seen_client=was_open;
