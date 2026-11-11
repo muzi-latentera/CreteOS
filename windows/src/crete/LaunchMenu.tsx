@@ -130,7 +130,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       for (const control of controls()) {
         const group = control.closest(".crete-stream-fields, .crete-stream-tools > div, .crete-stream-buttons");
         const { top, bottom } = control.getBoundingClientRect();
-        const row = rows.at(-1);
+        const row = rows[rows.length - 1];
         if (group && row?.group === group && top < row.bottom && bottom > row.top) {
           row.controls.push(control);
         } else {
@@ -144,7 +144,8 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       if (direction === "left" || direction === "right") {
         focus(row.controls[row.controls.indexOf(focused) + (direction === "right" ? 1 : -1)]);
       } else if (direction === "up") {
-        focus(rows[rowIndex - 1]?.controls[0] ?? rows.at(-1)?.controls.at(-1));
+        const last = rows[rows.length - 1].controls;
+        focus(rows[rowIndex - 1]?.controls[0] ?? last[last.length - 1]);
       } else if (rowIndex < rows.length - 1) {
         focus(rows[rowIndex + 1].controls[0]);
       } else if (!row.group?.matches(".crete-stream-buttons") || focused.hasAttribute("data-launch-primary") || row.controls.length === 1) {
