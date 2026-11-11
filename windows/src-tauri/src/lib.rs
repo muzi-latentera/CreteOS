@@ -9028,6 +9028,9 @@ fn match_launch_window_score(
     launch_path: &str,
     source: &str,
 ) -> u32 {
+    if asobi::is_client_uri(launch_path) {
+        return if asobi::matches_client_exe(candidate.exe_path.as_deref()) { 100 } else { 0 };
+    }
     let source_lower = source.to_lowercase();
     let is_launcher_source = ["steam", "xbox", "uwp", "battle.net", "battlenet", "epic"]
         .iter()
@@ -10028,7 +10031,7 @@ async fn launch_app(
     // not race the check. If Steam is already up, skip straight to the game phase.
     let is_steam_launch = path.starts_with("steam://");
     let is_asobi_client = asobi::is_client_uri(&path);
-    let asobi_was_open = is_asobi_client && asobi::client_window().is_some();
+    let asobi_was_open = is_asobi_client && best_launch_window(&name_for_tracking, &path, &source).is_some();
     let steam_was_running = is_steam_launch && is_process_running("steam.exe");
     let mut steam_log_watcher = (is_steam_launch && !asobi_was_open)
         .then(|| SteamLaunchLogWatcher::new(&path))
@@ -10324,12 +10327,9 @@ async fn launch_app(
                 }
             }
             // 1) Preferred: a window that specifically matches this game.
-            let target = if is_asobi_client {
-                asobi::client_window().map(|hwnd| (hwnd, 100))
-            } else {
+            if let Some((hwnd, score)) =
                 poll_for_matched_window(&watch_name, &watch_path, &watch_source)
-            };
-            if let Some((hwnd, score)) = target {
+            {
                 // Let the exact matching game window settle behind the launch
                 // artwork. A transient launcher/splash must not end the cover.
                 if score >= 45 {

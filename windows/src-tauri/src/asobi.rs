@@ -130,7 +130,7 @@ pub(crate) fn is_client_uri(uri: &str) -> bool {
     uri == "steam://rungameid/4505440"
 }
 
-pub(crate) fn client_window() -> Option<isize> {
+fn client_window() -> Option<isize> {
     windows().first().map(|window| window.hwnd)
 }
 
@@ -189,9 +189,22 @@ fn process_created(pid:u32)->Option<u64>{unsafe{
     let result=GetProcessTimes(handle,&mut c,&mut e,&mut k,&mut u);let _=CloseHandle(handle);
     result.ok()?;Some((u64::from(c.dwHighDateTime)<<32)|u64::from(c.dwLowDateTime))
 }}
-fn windows()->Vec<super::LaunchWindowCandidate>{
-    let paths=super::steam_library_paths().into_iter().map(|p|PathBuf::from(p).join("common/Asobi/asobideck.exe")).collect::<Vec<_>>();
-    super::collect_launch_windows().into_iter().filter(|w|w.exe_path.as_ref().is_some_and(|p|paths.iter().any(|expected|super::streaming::gfn_process_guard::same_path(p,&expected.to_string_lossy())))).collect()
+pub(crate) fn matches_client_exe(path: Option<&str>) -> bool {
+    let Some(path) = path.filter(|path| {
+        super::file_name_lower(path).as_deref() == Some("asobideck.exe")
+    }) else {
+        return false;
+    };
+    super::steam_library_paths().into_iter().any(|library| {
+        let expected = PathBuf::from(library).join("common/Asobi/asobideck.exe");
+        super::streaming::gfn_process_guard::same_path(path, &expected.to_string_lossy())
+    })
+}
+
+fn windows() -> Vec<super::LaunchWindowCandidate> {
+    super::collect_launch_windows().into_iter()
+        .filter(|window| matches_client_exe(window.exe_path.as_deref()))
+        .collect()
 }
 fn close_idle(targets:&[(u32,u64)]){
     use windows::Win32::{Foundation::{HWND,WPARAM,LPARAM},UI::WindowsAndMessaging::{PostMessageW,WM_CLOSE}};
