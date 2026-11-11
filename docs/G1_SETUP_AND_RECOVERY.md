@@ -4,7 +4,7 @@ Maintained device record, updated 11 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
-**Standalone ASOBI launch.** Open Apps → Asobi: Remote Play. CreteOS uses Steam in the background when needed and confirms the native ASOBI window. The previous Steam-title watcher could miss it. [Dated build and verification](journal/2026-11-11-asobi-client-launch-pending-sync.md).
+**Standalone ASOBI launch.** Open Apps → Asobi: Remote Play. CreteOS uses Steam in the background when needed and confirms the native ASOBI window. The previous Steam-title watcher could miss it. The installed G1 build opened ASOBI from CreteOS and returned to Home without a launch warning. Steam was already running for that check. [Dated build and verification](journal/2026-11-11-asobi-client-launch-pending-sync.md).
 
 Installed CreteOS source `5ca60cc6cf97c53bc0b01b3efe390c5a593c13dc`, SHA-256 `4D6FD4CDCAFC169C90F887A4A13F9791C35E7A364FE791EEA60D8577FEA3A180` at 2026-11-11T14:40:22.1983103+00:00. Production build, TypeScript check and bundled asset verification passed on the G1. The installer verified 8 saved profile files and retained the previous executable under the native app-updates folder. Verified private snapshot `CreteOS-G1-profile-backup-20261111-144046.zip` contains 1583 manifested files, including the new executable, windowless Smart Lid and OneXConsole profile. Archive SHA-256 `090e27999c32766eac06509b67f9524a8ea6b067d31a6eb0689dbf6eaa958dae`. The previous 141310 snapshot is retained.
 

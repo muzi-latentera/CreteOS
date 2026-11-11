@@ -11,3 +11,5 @@ Installed CreteOS source `5ca60cc6cf97c53bc0b01b3efe390c5a593c13dc`, SHA-256 `4D
 The new local replacement pack is `CreteOS-Recovery-20261111-Asobi`. Its package and copy receipt identify the deployed app and branch HEAD. When the SanDisk is connected, copy and verify it before updating the root START-HERE pointer. The previous USB pack includes the quiet Smart Lid and OneXConsole changes but predates this application build.
 
 Canonical vault sync pending.
+
+Deployed UI smoke test at 14:42–14:44 GMT: selected the local Asobi: Remote Play entry (Steam App ID 4505440) from CreteOS Home, then pressed Play in its details. Steam tracked the new asobideck.exe and its Asobi home screen came to the foreground. The test left the PS5 in standby. Closed the test instance normally and observed CreteOS Home without a launch warning or cover. Steam was already running. The profile's current category override is Game, so the test used the local game's details route. The shared exact matcher also covers the same launch URI when its category is App.
