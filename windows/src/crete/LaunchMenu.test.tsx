@@ -63,7 +63,7 @@ it("saves local network choice and hands display and sound overrides to the app 
   await choose("Home connection", "Hyperoptic Extra");
   expect(invoke).toHaveBeenCalledWith("set_stream_wifi_preference", { provider: "local", choice: "gaming" });
   await choose("Display mode", "1920 × 1200");
-  await click(Array.from(document.querySelectorAll("button")).find(button => button.textContent === "Sound")!);
+  expect(Array.from(document.querySelectorAll("button")).some(button => button.textContent === "Sound")).toBe(false);
   await choose("Audio output", "Arctis Nova 7");
   await click(document.querySelector("[data-launch-primary]"));
   expect(start).toHaveBeenCalledWith({ audio: { input: null, output: "headphones" }, display: { width: 1920, height: 1200, hz: 60 } });

@@ -260,7 +260,8 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       <div className="crete-stream-body">
         <HomeWifiSelect provider={localSetup.provider} saving={setBusy} />
         <LocalDisplayField value={localMode} onChange={setLocalMode} />
-        {soundOptions()}
+        <h3 className="crete-stream-local-sound">Sound</h3>
+        <StreamAudioFields value={audio} onChange={setAudio} />
       </div>
       <footer className="crete-stream-buttons"><button type="button" onClick={close}>{text("Cancel")}</button><button data-launch-primary type="button" disabled={busy} onClick={() => localSetup.onStart({ audio, display: localMode })}>{text("Play")}</button></footer>
     </section></div>}

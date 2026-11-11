@@ -58,6 +58,8 @@ test.beforeEach(async ({ page }) => {
       spotify_devices: { devices: [] },
       get_system_volume: { percent: 45, muted: false },
       get_brightness: 40,
+      get_local_display_modes: { current: { width: 2560, height: 1600, hz: 144 }, modes: [{ width: 2560, height: 1600, hz: 60 }] },
+      get_stream_audio_devices: { output: [{ id: "tv", name: "Philips FTV" }], input: [{ id: "mic", name: "G1 microphone" }], defaultOutput: "tv", defaultInput: "mic" },
       ensure_lofi_media: "C:\\Users\\test\\AppData\\Local\\CreteOS\\media\\lofi\\lofi_dog.mp4",
       get_storage_info: Array.from({ length: 8 }, (_, index) => ({ mountPoint: `${String.fromCharCode(67 + index)}:/`, label: index === 0 ? "System" : "Games", totalBytes: 1000000000000, freeBytes: 400000000000, isDefaultInstallDrive: index === 0 })),
       "plugin:window|is_focused": true,
@@ -1712,6 +1714,25 @@ for (const size of [{width:1280,height:800},{width:1280,height:600},{width:1920,
     expect(await page.evaluate(()=>(window as any).__invokeCounts.launch_moonlight||0)).toBe(0);
   });
 }
+
+test("local launch keeps sound visible and insets dropdown arrows", async ({ page }) => {
+  await page.setViewportSize({ width: 960, height: 540 });
+  await page.goto("/?crete&rich");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.locator('[data-tab-pane="games"]').getByRole("button", { name: "Portal 2", exact: true }).click();
+  await page.locator('[data-crete-details="true"]').getByRole("button", { name: "Play", exact: true }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Launch settings" });
+  const output = dialog.getByRole("combobox", { name: "Audio output" });
+  await expect(output).toContainText("Philips FTV");
+  await expect(dialog.getByRole("combobox", { name: "Microphone" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Sound", exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole("combobox", { name: "Display mode" })).toContainText("144 Hz");
+  await expect(output).toHaveCSS("appearance", "none");
+  await expect(output).toHaveCSS("background-position-x", "right 14px");
+  await expect(dialog.getByRole("button", { name: "Play", exact: true })).toBeFocused();
+  expect(await page.evaluate(() => (window as any).__invokeCounts.launch_app ?? 0)).toBe(0);
+});
 
 test("launch menu polish highlights controller option without saving until confirmed",async({page},info)=>{
   await page.setViewportSize({width:1280,height:600});

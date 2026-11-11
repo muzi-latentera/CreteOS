@@ -766,7 +766,9 @@ export function useGamepadNavigation(
     showLofiScenePickerRef.current = false;
   };
 
+  const localLaunchOwnsInput = () => !!document.querySelector("[data-local-launch-dialog]");
   const modalOwnsInput = () =>
+    localLaunchOwnsInput() ||
     !!showOnboardingRef.current
     || !!launchingAppRef.current
     || !!showHideModalRef?.current
@@ -824,7 +826,7 @@ export function useGamepadNavigation(
 
   // ── handleNav ─────────────────────────────────────────────────
   const handleNav = (key) => {
-    if (document.querySelector("[data-local-launch-dialog]")) return;
+    if (localLaunchOwnsInput()) return;
     inputTrace("handler", { key, tab: tabRef.current, modalOwnsInput: modalOwnsInput(), contextMenu: !!contextMenuRef.current });
     // Onboarding owns its own poll and must never fall through to main nav.
     if (showOnboardingRef.current) return;
@@ -1815,7 +1817,8 @@ export function useGamepadNavigation(
           rsLatchRef.current = { up: false, down: false, left: false, right: false };
         }
 
-        const canNavigate = !showOnboardingRef.current
+        const canNavigate = !localLaunchOwnsInput()
+          && !showOnboardingRef.current
           && !launchingAppRef.current
           && !showHideModalRef?.current
           && !showLibraryActionsRef?.current
