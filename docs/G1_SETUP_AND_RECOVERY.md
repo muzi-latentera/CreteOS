@@ -4,6 +4,12 @@ Maintained device record, updated 11 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**Launch summaries and Moonlight layout.** Launch headers show the selected display mode, audio output and microphone. The Moonlight header places the host at left and the dot-separated stream settings in the middle. The G1 and Bosgame selectors share one Home connection row when space permits, with Sound above Display preset. [Layout and verification record](journal/2026-11-11-launch-header-pending-sync.md).
+
+Installed on the G1 at 2026-11-11T22:30:13.9188767+00:00 from `9dcc92740dae66ec9cfef5fd76234795c2d1d7d2`, executable SHA-256 `6472E3D47E0C1FD516A629FC8CBE6E8ABC4C89DAB7B4EB69E9727A62CE856D56`. Bundled assets and 8 existing profiles passed verification. Executable rollback is at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Launch-header-20261111-223010`.
+
+Verified private archive `CreteOS-G1-profile-backup-20261111-223034.zip`, SHA-256 `a097e0869e11baa621f7e9a27169f1b9231af903bc81d0c8e7d1c47384fe5a4d`, contains 1618 manifested payloads, including the deployed executable and muted UI settings. The preceding `CreteOS-G1-profile-backup-20261111-212613.zip` and its Bosgame Lutris reference are retained. The local replacement pack is `CreteOS-Recovery-20261111-LaunchHeader`. Its USB receipt identifies the last verified SanDisk copy.
+
 **Local launch layout.** The Wi-Fi, display mode, output and microphone controls are visible when the local launch dialog opens. Dropdown chevrons have extra inset across the launch dialogs. Streaming dialogs retain their Sound disclosure. [Layout and verification record](journal/2026-11-11-launch-polish-audio-pending-sync.md).
 
 Installed on the G1 at 2026-11-11T21:25:51.8856105+00:00 from `472574e5a8abac2fc883f8580ddf4c0097607dda`, executable SHA-256 `49A62DDC064E3E5D9CF71DEB3207A869635AC5CB377E7F29674A0E5B4F202F50`. Bundled assets and 8 existing profiles passed verification. Executable rollback is at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Launch-polish-20261111-212548`.
