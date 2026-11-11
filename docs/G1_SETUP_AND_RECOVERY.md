@@ -4,6 +4,12 @@ Maintained device record, updated 11 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**Local launch layout.** The Wi-Fi, display mode, output and microphone controls are visible when the local launch dialog opens. Dropdown chevrons have extra inset across the launch dialogs. Streaming dialogs retain their Sound disclosure. [Layout and verification record](journal/2026-11-11-launch-polish-audio-pending-sync.md).
+
+Installed on the G1 at 2026-11-11T21:25:51.8856105+00:00 from `472574e5a8abac2fc883f8580ddf4c0097607dda`, executable SHA-256 `49A62DDC064E3E5D9CF71DEB3207A869635AC5CB377E7F29674A0E5B4F202F50`. Bundled assets and 8 existing profiles passed verification. Executable rollback is at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Launch-polish-20261111-212548`.
+
+Verified private archive `CreteOS-G1-profile-backup-20261111-212613.zip`, SHA-256 `887a47156d6146648300f0cf35e582b876b0112385c06fe7cda1e4edf7db3566`, contains 1616 manifested payloads, including the exact executable and silent UI profile. The preceding `CreteOS-G1-profile-backup-20261111-211628.zip` and its Bosgame Lutris reference are retained. The replacement pack is `CreteOS-Recovery-20261111-LocalLaunchPolish`. Its USB copy receipt and root START-HERE file identify the pack verified on the SanDisk.
+
 **Clean streaming launches and dock audio.** MoonDeck Steam launches close idle Steam on Bosgame before Buddy starts it. GeForce NOW game routes share the guarded idle-client restart. When Windows exposes Philips FTV audio, CreteOS uses it as the default output and offers temporary sound overrides. Local apps and games, including the ASOBI app, use the launch dialog for Wi-Fi, Windows display mode and sound. ASOBI game routes have the same display and audio controls. Local Steam uses its normal Windows launch behavior. [Launch behavior, evidence and restore notes](journal/2026-11-11-launch-dock-audio-pending-sync.md).
 
 Installed on the G1 at 2026-11-11T21:15:45.2464100+00:00 from `945af6036968b03c13b1efab028b81fc3712cc4c`, executable SHA-256 `FE551B8C3A7D6A767C1ABCE1A7FC52B8DAC02A5B688A65477E4A5E1C16288782`. Bundled assets and 8 existing profiles passed verification. Executable rollback is at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Launch-dock-20261111-211539`.
