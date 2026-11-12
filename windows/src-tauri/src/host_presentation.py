@@ -59,6 +59,22 @@ def game_window(node, app_id):
     return process_matches(node.get("pid"), app_id)
 
 
+def covers_output(node, output_rect):
+    rect = node.get("rect") or {}
+    if not node.get("visible") or not all(key in rect for key in ("x", "y", "width", "height")):
+        return False
+    return (rect["x"] <= output_rect["x"] and rect["y"] <= output_rect["y"]
+            and rect["x"] + rect["width"] >= output_rect["x"] + output_rect["width"]
+            and rect["y"] + rect["height"] >= output_rect["y"] + output_rect["height"])
+
+
+def ready_to_retire_artwork(games, output_rect, elapsed):
+    # Some games deliberately remain windowed. Retire the artwork before
+    # handing off to them too, but give Sway time to finish fullscreen first.
+    return any(covers_output(game, output_rect) for game in games) or (
+        elapsed >= 3 and any(game.get("visible") for game in games))
+
+
 def process_matches(pid, app_id, proc=Path("/proc")):
     """Follow only this window's same-owner ancestry, bounded to 16 processes.
 
@@ -338,6 +354,8 @@ def present(token):
     wallpaper = subprocess.Popen(["swaybg", "-o", "HEADLESS-1", "-i", str(folder / "background.png"), "-m", "fill"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     moved = {}
     seen = False
+    first_game_at = None
+    retiring_at = None
     positioned = False
     attention = False
     attention_reason = None
@@ -407,6 +425,7 @@ def present(token):
 
     def tick():
         nonlocal seen, positioned, attention, attention_reason, closed_at, log_offset, pending, waiting_at, last_output_check, login_waiting_at
+        nonlocal output, first_game_at, retiring_at
         try:
             now = time.monotonic()
             if (folder / "finish").exists() or now - began > 86400:
@@ -435,6 +454,7 @@ def present(token):
             nodes = list(windows(ipc(4)))
             if now - last_output_check >= 1 and not seen:
                 # Sunshine applies the selected client mode after staging.
+                output = next((o for o in ipc(3) if o.get("name") == "HEADLESS-1" and o.get("active")), output)
                 ipc(0, f"[pid={os.getpid()}] move position center")
                 last_output_check = now
             # "waiting for user response" also covers asynchronous Steam UI
@@ -455,21 +475,33 @@ def present(token):
                 login_waiting_at = None
             games = [node for node, _ in nodes if game_window(node, config["appId"])]
             if games:
-                if not seen:
-                    seen = True
-                    attention = False
-                    window.hide()
-                    write_state(folder, "playing")
                 closed_at = None
                 for game in games:
                     if game['id'] not in game_containers:
                         ipc(0, f"[con_id={game['id']}] border none, fullscreen enable, focus")
                         game_containers.add(game['id'])
+                if not seen:
+                    if first_game_at is None:
+                        first_game_at = now
+                        output = next((o for o in ipc(3) if o.get("name") == "HEADLESS-1" and o.get("active")), output)
+                    if retiring_at is None and ready_to_retire_artwork(games, output["rect"], now - first_game_at):
+                        window.hide()
+                        wallpaper.terminate()
+                        retiring_at = now
+                    if retiring_at is not None:
+                        if wallpaper.poll() is None and now - retiring_at >= 1:
+                            wallpaper.kill()  # Only our own swaybg child.
+                        if wallpaper.poll() is not None:
+                            seen = True
+                            attention = False
+                            write_state(folder, "playing")
             elif seen:
                 if closed_at is None:
                     closed_at = now
                     window.hide()
                     write_state(folder, "returning")
+            else:
+                first_game_at = None
             if attention and not seen:
                 window.hide()
                 restore()

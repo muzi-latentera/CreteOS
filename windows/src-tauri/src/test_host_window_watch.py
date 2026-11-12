@@ -1,8 +1,16 @@
 import unittest
-from host_window_watch import WindowPresence, has_game_window, preparation_phase, environment_matches
+from host_window_watch import WindowPresence, has_game_window, preparation_phase, environment_matches, presentation_released
 
 
 class HostWindowLifecycleTests(unittest.TestCase):
+    def test_game_presence_cannot_bypass_host_artwork_handoff(self):
+        tracker = WindowPresence()
+        for now, phase in ((0, None), (1, "ready"), (2, "ready")):
+            self.assertIsNone(tracker.sample(presentation_released("token", phase), now))
+        self.assertIsNone(tracker.sample(presentation_released("token", "playing"), 3))
+        self.assertEqual(tracker.sample(presentation_released("token", "playing"), 3.25), "visible")
+        self.assertTrue(presentation_released(None, None))
+
     def test_nonsteam_64bit_game_id_matches_only_exact_registered_shortcut(self):
         app_id='3137199813'
         values=[b'SteamAppId=0', ('SteamGameId='+str((int(app_id)<<32)|0x02000000)).encode()]

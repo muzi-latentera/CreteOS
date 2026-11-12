@@ -3,10 +3,20 @@ from unittest.mock import patch
 import tempfile
 from pathlib import Path
 import json
-from host_presentation import conceal_library, game_window, needs_attention, restore_saved, steam_library, steam_on_other_display, windows, launch_blocker, login_blocker, LoginLog, login_window
+from host_presentation import conceal_library, game_window, needs_attention, ready_to_retire_artwork, restore_saved, steam_library, steam_on_other_display, windows, launch_blocker, login_blocker, LoginLog, login_window
 
 
 class PresentationIsolationTests(unittest.TestCase):
+    def test_handoff_waits_for_full_display_or_allows_windowed_game_after_grace(self):
+        output = {"x": 0, "y": 0, "width": 1920, "height": 1200}
+        half = {"visible": True, "rect": {**output, "x": 960, "width": 960}}
+        full = {"visible": True, "rect": output}
+        self.assertFalse(ready_to_retire_artwork([half], output, .25))
+        self.assertTrue(ready_to_retire_artwork([full], output, .25))
+        self.assertTrue(ready_to_retire_artwork([half], output, 3))
+        self.assertFalse(ready_to_retire_artwork([{**full, "visible": False}], output, 4))
+        self.assertFalse(ready_to_retire_artwork([], output, 4))
+
     def test_existing_login_dialog_is_distinct_from_the_main_library(self):
         node={'visible':True,'name':'Sign in to Steam','window_properties':{'class':'Steam'}}
         self.assertTrue(login_window([(node,None)]))

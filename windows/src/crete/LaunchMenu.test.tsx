@@ -7,7 +7,7 @@ vi.mock("@tauri-apps/api/core",()=>({invoke:vi.fn(async(command:string)=>{
   if (command === "get_stream_network_status") return { wired: false };
   if (command === "get_local_display_modes") return { current: { width: 2560, height: 1600, hz: 144 }, modes: [{ width: 1920, height: 1200, hz: 60 }] };
   if (command === "get_stream_audio_devices") return {
-    output: [{ id: "headphones", name: "Arctis Nova 7" }, { id: "tv", name: "1 - Philips FTV (AMD High Definition Audio Device)" }],
+    output: [{ id: "headphones", name: "Arctis Nova 7" }, { id: "tv", name: "1 - Philips FTV (AMD High Definition Audio Device)" }, { id: "xreal", name: "XREAL 1S" }, { id: "g1", name: "Speakers (3- Realtek(R) Audio)" }],
     input: [{ id: "mic", name: "Arctis mic" }, { id: "g1-mic", name: "Microphone (3- Realtek(R) Audio)" }], defaultOutput: "tv", defaultInput: "g1-mic",
   };
   return { moonlight: "automatic", luna: "automatic", ps5RemotePlay: "automatic" };
@@ -34,7 +34,7 @@ it("keeps host tools out of the default view and retains the exact launch profil
   expect(document.body.textContent).not.toContain("Refresh host");
   expect(document.querySelector(".crete-stream-heading .crete-stream-summary")?.textContent).toBe("2560 × 1600 · 90 FPS · 80 Mbps");
   expect(document.querySelector(".crete-stream-audio-summary")?.textContent).toContain("Audio output: Philips TV");
-  expect(document.querySelector(".crete-stream-audio-summary")?.textContent).toContain("Microphone: G1 mic");
+  expect(document.querySelector(".crete-stream-audio-summary")?.textContent).toContain("Microphone: G1");
   expect(Array.from(document.querySelectorAll(".crete-stream-disclosure")).map(item => item.textContent)).toEqual(["Sound", "Display preset", "Stream options", "Host & connection tools"]);
   await click(document.querySelector('[data-launch-primary]'));
   expect(s.stream).toHaveBeenCalledWith("MoonDeckStream",s.display.profile,{input:null,output:null});
@@ -70,9 +70,12 @@ it("saves local network choice and hands display and sound overrides to the app 
   expect(invoke).toHaveBeenCalledWith("set_stream_wifi_preference", { provider: "local", choice: "gaming" });
   await choose("Display mode", "1920 × 1200");
   expect(Array.from(document.querySelectorAll("button")).some(button => button.textContent === "Sound")).toBe(false);
-  await choose("Audio output", "Arctis Nova 7");
+  await choose("Audio output", "Speakers (3- Realtek(R) Audio)");
+  expect(document.querySelector(".crete-stream-audio-summary")?.textContent).toContain("Audio output: G1");
+  await choose("Audio output", "XREAL 1S");
+  expect(document.querySelector(".crete-stream-audio-summary")?.textContent).toContain("Audio output: X");
   await click(document.querySelector("[data-launch-primary]"));
-  expect(start).toHaveBeenCalledWith({ audio: { input: null, output: "headphones" }, display: { width: 1920, height: 1200, hz: 60 } });
+  expect(start).toHaveBeenCalledWith({ audio: { input: null, output: "xreal" }, display: { width: 1920, height: 1200, hz: 60 } });
 });
 
 it("passes separate output and microphone choices to a stream",async()=>{

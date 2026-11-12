@@ -35,11 +35,9 @@ function defaultDevice(devices: Devices | undefined, flow: keyof StreamAudioChoi
 }
 
 function shortDeviceName(name: string, flow: keyof StreamAudioChoice) {
+  if (/\bxreal\b/i.test(name)) return "X";
   if (/philips\s+ftv/i.test(name)) return "Philips TV";
-  if (/realtek\(r\) audio/i.test(name)) {
-    if (/^speakers/i.test(name)) return "G1 speakers";
-    if (/^microphone/i.test(name)) return "G1 mic";
-  }
+  if (/^(speakers|microphone)\b/i.test(name) && /realtek\(r\) audio/i.test(name)) return "G1";
   const arctis = name.match(/Arctis (?:Nova )?7\w*/i);
   return arctis ? `${arctis[0]}${/\bchat\b/i.test(name) && flow === "output" ? " Chat" : ""}` : name;
 }

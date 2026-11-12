@@ -85,7 +85,7 @@ pub async fn get_stream_audio_devices() -> Result<serde_json::Value, String> {
         let output = devices(&api, eRender).map_err(|e| e.to_string())?;
         let input = devices(&api, eCapture).map_err(|e| e.to_string())?;
         Ok(serde_json::json!({"output": output, "input": input,
-            "defaultOutput": philips_tv(&output).map(|device| device.id.clone()).or_else(|| default_id(&api, eRender, eConsole)),
+            "defaultOutput": display_output(&output).map(|device| device.id.clone()).or_else(|| default_id(&api, eRender, eConsole)),
             "defaultInput": default_id(&api, eCapture, eConsole)}))
     }).await.map_err(|e| e.to_string())?
 }
@@ -173,7 +173,10 @@ pub fn prepare(choice: Option<Choice>) -> Result<Option<Session>, String> {
             if prior != selected { changes.push(Change { capture, role: index, prior, selected: selected.clone() }); }
         }
     }
-    if changes.is_empty() { return Ok(None); }
+    if changes.is_empty() {
+        *busy = true;
+        return Ok(Some(Session));
+    }
     let path = journal();
     let temporary = path.with_extension("tmp");
     std::fs::write(&temporary, serde_json::to_vec(&changes).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
@@ -196,14 +199,15 @@ fn built_in(devices: &[Device], capture: bool) -> Option<&Device> {
     })
 }
 
-fn philips_tv(outputs: &[Device]) -> Option<&Device> {
-    outputs.iter().find(|device| device.name.to_ascii_lowercase().contains("philips"))
+fn display_output(outputs: &[Device]) -> Option<&Device> {
+    outputs.iter().find(|device| device.name.to_ascii_lowercase().contains("xreal"))
+        .or_else(|| outputs.iter().find(|device| device.name.to_ascii_lowercase().contains("philips")))
 }
 
 fn dock_output(api: &IMMDeviceEnumerator, previously_docked: bool) -> windows::core::Result<bool> {
     let outputs = devices(api, eRender)?;
-    let tv = philips_tv(&outputs);
-    let preferred = tv.or_else(|| previously_docked.then(|| built_in(&outputs, false)).flatten());
+    let display = display_output(&outputs);
+    let preferred = display.or_else(|| previously_docked.then(|| built_in(&outputs, false)).flatten());
     if let Some(device) = preferred {
         for role in ROLES {
             if default_id(api, eRender, role).as_deref() != Some(device.id.as_str()) {
@@ -211,7 +215,7 @@ fn dock_output(api: &IMMDeviceEnumerator, previously_docked: bool) -> windows::c
             }
         }
     }
-    Ok(tv.is_some())
+    Ok(display.is_some())
 }
 
 fn arctis_defaults(api: &IMMDeviceEnumerator, seen: &mut BTreeSet<String>) -> windows::core::Result<()> {
@@ -249,14 +253,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn finds_the_philips_hdmi_endpoint_among_other_outputs() {
+    fn prefers_xreal_then_philips_among_other_outputs() {
         let outputs = vec![
             Device { id: "headset".into(), name: "Headphones (Arctis Nova 7)".into() },
             Device { id: "built-in".into(), name: "Speakers (3- Realtek(R) Audio)".into() },
             Device { id: "tv".into(), name: "1 - Philips FTV (AMD High Definition Audio Device)".into() },
+            Device { id: "glasses".into(), name: "XREAL 1S (AMD High Definition Audio Device)".into() },
         ];
-        assert_eq!(philips_tv(&outputs).unwrap().id, "tv");
-        assert!(philips_tv(&outputs[..2]).is_none());
+        assert_eq!(display_output(&outputs).unwrap().id, "glasses");
+        assert_eq!(display_output(&outputs[..3]).unwrap().id, "tv");
+        assert!(display_output(&outputs[..2]).is_none());
         assert_eq!(built_in(&outputs[..2], false).unwrap().id, "built-in");
     }
 

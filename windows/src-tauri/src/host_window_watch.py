@@ -80,6 +80,10 @@ def has_game_window(node, app_id, pid_matches):
                for child in node.get("nodes", []) + node.get("floating_nodes", []))
 
 
+def presentation_released(presentation, phase):
+    return presentation is None or phase in ("playing", "returning", "finished", "failed")
+
+
 def read_exact(stream, count):
     result = b""
     while len(result) < count:
@@ -178,6 +182,7 @@ def main():
     progress = None
     while time.monotonic() - started < 86400:
         now = time.monotonic()
+        presentation_phase = None
         if not tracker.seen:
             phase = preparation_phase(app_id, read_new(logs / "shader_log.txt", offsets), read_new(logs / "content_log.txt", offsets))
             if phase and phase != progress:
@@ -187,6 +192,7 @@ def main():
             (presentation / "lease").touch()
             try:
                 state = json.loads((presentation / "state.json").read_text())
+                presentation_phase = state.get('phase')
                 reason = state.get('reason')
                 event = 'attention-' + reason if reason in ('cloud-sync', 'cloud-conflict', 'signin') else 'attention'
                 if state['phase'] == 'attention' and attention_sent != event:
@@ -194,7 +200,8 @@ def main():
                     attention_sent = event
             except (OSError, ValueError, KeyError):
                 pass
-        event = tracker.sample(has_game_window(get_tree(paths[0]), app_id, pid_matches), now)
+        present = has_game_window(get_tree(paths[0]), app_id, pid_matches)
+        event = tracker.sample(present and (tracker.seen or presentation_released(presentation, presentation_phase)), now)
         if event:
             emit(event)
             if event == "closed":
