@@ -4,7 +4,11 @@ Maintained device record, updated 12 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
-**Game launch and exit artwork.** CreteOS keeps its artwork above the incoming window during focus handoff. GeForce NOW normally waits for the cloud game's fullscreen window and can start the return cover from the confirmed cloud game exit. Moonlight keeps artwork through owned-client cleanup. Local games use artwork during restoration of the CreteOS window. [Device checks and limitations](journal/2026-11-12-game-transitions-pending-sync.md).
+**Lutris play history reset.** All 14 games on Bosgame and in CreteOS now have zero playtime and no last-played date. Tracking resumes on the next session. The private archive includes the reset Bosgame database and matching G1 cache. Other Bosgame reference files were carried forward from the last verified snapshot because the full live export could not find the recorded Phantom Blade Zero OptiScaler DLL. [Reset and verification record](journal/2026-11-12-lutris-history-reset-pending-sync.md).
+
+Verified private archive `CreteOS-G1-profile-backup-20261112-081540.zip`, SHA-256 `dd844c62758cb61d71ab81758a43a4de54ee2df5084c141ff8ee8d076185142e`, contains 1638 manifested payloads. The preceding `CreteOS-G1-profile-backup-20261112-021610.zip` is retained. Replacement package `CreteOS-Recovery-20261112-LutrisHistoryReset` uses the fresh archive.
+
+**Game launch and exit artwork.** CreteOS keeps its artwork above the incoming window during focus handoff. GeForce NOW normally waits for the cloud game's fullscreen window and can start the return cover from the confirmed cloud game exit. Moonlight keeps artwork through owned-client cleanup. Local games show the selected hero artwork with loading messages before launch and use artwork during restoration of the CreteOS window. A game without a hero image uses the dark launch background. [Device checks and limitations](journal/2026-11-12-game-transitions-pending-sync.md).
 
 Installed on the G1 at 2026-11-12T02:09:39.3021523+00:00 from `8bf81bc81ca528cc9c0814d490c4a0b0b7fbe166`, executable SHA-256 `D59B377CBA07749BF73FA920E1B4F82CD3CF857438F02E3905FF5F9F2CFD22BB`. Bundled assets and 8 existing profiles passed verification. Executable rollback is at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Game-transitions-20261112-020936`.
 
