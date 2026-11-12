@@ -4,6 +4,10 @@ Maintained device record, updated 12 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**G1 Wi-Fi discovery.** When the preferred network is missing, the helper polls the Windows scan for up to four seconds before deciding whether to fall back. A scan failure, a completed scan without the SSID, and a connection that could not be confirmed are recorded separately. [Scan verification and Bosgame route comparison](journal/2026-11-12-moonlight-wifi-scan-pending-sync.md).
+
+Verified private archive `CreteOS-G1-profile-backup-20261112-200052.zip`, SHA-256 `020fd9bdaa3337840566004ac9058a18463305dbc6ba5882b2bf70fa770216f6`, contains 1643 manifested payloads. The preceding `CreteOS-G1-profile-backup-20261112-194514.zip` is retained. The replacement package is `CreteOS-Recovery-20261112-MoonlightWifiScan`.
+
 **Bosgame streaming GPU.** The dedicated streaming compositor now waits up to 35 seconds per start for the RX 9070 XT. It fails the start if the card is unavailable and systemd retains its normal restart policy. Sunshine's encoder and MoonDeck Buddy were verified on the RX 9070 XT after restarting the idle streaming services. [Deployment, stream incident and rollback](journal/2026-11-12-bosgame-egpu-required-pending-sync.md).
 
 Verified private archive `CreteOS-G1-profile-backup-20261112-194514.zip`, SHA-256 `54f740e883bf2626dadeb482278d46d6148385f0a53d8c024560df1da6a42b41`, contains 1642 manifested payloads. The preceding `CreteOS-G1-profile-backup-20261112-081540.zip` is retained. The replacement package is `CreteOS-Recovery-20261112-BosgameEgpu`.

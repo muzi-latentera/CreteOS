@@ -37,16 +37,28 @@ function Available($Profile) {
  $lines=& "$env:SystemRoot\System32\netsh.exe" wlan show networks "interface=$($config.Interface)"
  return [bool]($lines|Where-Object {$_ -match '^\s*SSID\s+\d+\s*:\s*(.+)$' -and $Matches[1].Trim() -eq $Profile})
 }
-function Refresh-VisibleProfiles {
+function Find-VisibleProfile($Target) {
  try {
   if(-not ('CreteOSWifiNativeScan' -as [type])){
    Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class CreteOSWifiNativeScan { [DllImport("wlanapi.dll")] public static extern uint WlanOpenHandle(uint v, IntPtr r, out uint n, out IntPtr h); [DllImport("wlanapi.dll")] public static extern uint WlanScan(IntPtr h, ref Guid g, IntPtr s, IntPtr i, IntPtr r); [DllImport("wlanapi.dll")] public static extern uint WlanCloseHandle(IntPtr h, IntPtr r); }'
   }
   [uint32]$version=0;[IntPtr]$handle=[IntPtr]::Zero
-  if([CreteOSWifiNativeScan]::WlanOpenHandle(2,[IntPtr]::Zero,[ref]$version,[ref]$handle) -ne 0){return}
-  try {$guid=[Guid]$config.InterfaceGuid;$result=[CreteOSWifiNativeScan]::WlanScan($handle,[ref]$guid,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero)}finally{[void][CreteOSWifiNativeScan]::WlanCloseHandle($handle,[IntPtr]::Zero)}
-  if($result -eq 0){Start-Sleep -Seconds 2}else{Write-Event 'scan-unavailable' ([string]$result) ''}
- } catch {Write-Event 'scan-unavailable' 'scan-api-error' ''}
+  $open=[CreteOSWifiNativeScan]::WlanOpenHandle(2,[IntPtr]::Zero,[ref]$version,[ref]$handle)
+  if($open -ne 0){Write-Event 'scan-unavailable' "open-$open" $Target;return $false}
+  try {
+   $guid=[Guid]$config.InterfaceGuid
+   $result=[CreteOSWifiNativeScan]::WlanScan($handle,[ref]$guid,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero)
+   if($result -ne 0){Write-Event 'scan-unavailable' ([string]$result) $Target;return $false}
+   # WlanScan returns before Windows has populated its network list.
+   $deadline=[DateTime]::UtcNow.AddSeconds(4)
+   do {
+    Start-Sleep -Milliseconds 350
+    if(Available $Target){return $true}
+   } while([DateTime]::UtcNow -lt $deadline)
+   Write-Event 'scan-no-match' 'ssid-not-listed-after-refresh' $Target
+  } finally {[void][CreteOSWifiNativeScan]::WlanCloseHandle($handle,[IntPtr]::Zero)}
+ } catch {Write-Event 'scan-unavailable' 'scan-api-error' $Target}
+ return $false
 }
 function Connect-Profile($Target,$Reason,[bool]$Preparing=$false) {
  $locked=$false
@@ -57,8 +69,7 @@ function Connect-Profile($Target,$Reason,[bool]$Preparing=$false) {
   if((Get-StreamNetwork $RouteTarget).wired){Write-Event 'held' 'ethernet-active' $current;return $true}
   if($current -eq $Target){return $true}
   if($homeProfiles -notcontains $current -or (Is-Streaming $(if($Preparing){$Token}else{''}))){Write-Event 'held' 'outside-home-or-active-stream' $current;return $false}
-  if(!(Available $Target)){Refresh-VisibleProfiles}
-  if(!(Available $Target)){Write-Event 'unavailable' $Reason $Target;return $false}
+  if(!(Available $Target) -and !(Find-VisibleProfile $Target)){Write-Event 'unavailable' $Reason $Target;return $false}
   if(Is-Streaming $(if($Preparing){$Token}else{''})){Write-Event 'held' 'stream-started-during-preparation' $current;return $false}
   & "$env:SystemRoot\System32\netsh.exe" wlan connect "name=$Target" "interface=$($config.Interface)" *> $null
   if($LASTEXITCODE -ne 0){Write-Event 'failed' $Reason $Target;return $false}
