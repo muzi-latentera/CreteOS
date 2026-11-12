@@ -9482,7 +9482,16 @@ pub(crate) fn close_owned_moonlight_client(pid: u32, current: impl Fn() -> bool)
     }
 }
 
-pub(crate) fn finish_stream_session(window: tauri::Window, provider: &str, mut current: impl FnMut() -> bool) {
+pub(crate) fn hold_geforce_return_cover() {
+    let mut pid = 0;
+    unsafe { GetWindowThreadProcessId(GetForegroundWindow(), Some(&mut pid)); }
+    if process_exe_path(pid).is_some_and(|path| launch_cover::stream_process("geforceNow", &path)) {
+        native_artwork::raise_if_visible();
+    }
+}
+
+pub(crate) fn finish_stream_session(window: tauri::Window, provider: &str, return_generation: Option<u64>, mut current: impl FnMut() -> bool) {
+    use windows::Win32::{Foundation::HWND, UI::WindowsAndMessaging::{ShowWindowAsync, SW_HIDE, SW_SHOWNOACTIVATE}};
     let Ok(ours) = window.hwnd() else { return; };
     let foreground = unsafe { GetForegroundWindow() }.0 as isize;
     let nvidia_windows = || -> Vec<LaunchWindowCandidate> {
@@ -9501,22 +9510,58 @@ pub(crate) fn finish_stream_session(window: tauri::Window, provider: &str, mut c
     if provider == "geforceNow" {
         let start = Instant::now();
         let mut closed = HashSet::new();
+        let mut hidden = HashMap::new();
         let mut quiet_since = Instant::now();
+        let same_process = |hwnd: HWND, pid, created| {
+            let mut owner = 0;
+            unsafe { GetWindowThreadProcessId(hwnd, Some(&mut owner)); }
+            owner == pid && streaming::gfn_process_created(pid).ok() == Some(created)
+        };
         // Done can precede NVIDIA's idle window. Keep looking for late windows
         // instead of abandoning return after one 350ms check. Never act on a
         // replacement session, and post a normal close once per window/PID.
         while current() && start.elapsed() < Duration::from_secs(8) {
+            let covered = return_generation.is_some_and(streaming::return_cover_painted)
+                && launch_cover::independent();
+            if covered { hold_geforce_return_cover(); }
             let candidates = nvidia_windows();
-            if !candidates.is_empty() { quiet_since = Instant::now(); }
+            hidden.retain(|&(raw, pid), &mut created| same_process(HWND(raw as _), pid, created));
+            if !candidates.is_empty() || !hidden.is_empty() { quiet_since = Instant::now(); }
             for target in candidates {
-                if !current() { return; }
-                if closed.insert((target.hwnd, target.pid)) {
-                    unsafe { let _ = PostMessageW(Some(windows::Win32::Foundation::HWND(target.hwnd as _)), WM_CLOSE, WPARAM(0), LPARAM(0)); }
+                if !current() { break; }
+                let identity = (target.hwnd, target.pid);
+                let hwnd = HWND(target.hwnd as _);
+                if covered {
+                    if let Ok(created) = streaming::gfn_process_created(target.pid) {
+                        if same_process(hwnd, target.pid, created) && unsafe { ShowWindowAsync(hwnd, SW_HIDE).as_bool() }
+                            && hidden.insert(identity, created).is_none() {
+                            fse_watcher::log_stream_transition(window.app_handle(), "geforce-return-hide-requested");
+                        }
+                    }
+                }
+                if closed.insert(identity) {
+                    unsafe { let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0)); }
                 }
             }
             if start.elapsed() >= Duration::from_secs(2) && quiet_since.elapsed() >= Duration::from_millis(1200) { break; }
-            std::thread::sleep(Duration::from_millis(100));
+            std::thread::sleep(Duration::from_millis(if covered { 25 } else { 100 }));
         }
+        // A hung client or superseded return must never leave a live window hidden.
+        let mut restored = false;
+        for ((raw, pid), created) in hidden {
+            let hwnd = HWND(raw as _);
+            if same_process(hwnd, pid, created) {
+                restored = true;
+                unsafe { let _ = ShowWindowAsync(hwnd, SW_SHOWNOACTIVATE); }
+            }
+        }
+        fse_watcher::log_stream_transition(window.app_handle(), if restored {
+            "geforce-return-window-restored"
+        } else if current() && nvidia_windows().is_empty() {
+            "geforce-return-client-closed"
+        } else {
+            "geforce-return-cleanup-incomplete"
+        });
     }
     if !current() || !return_focus { return; } // Respect a deliberate Alt-Tab/new session.
     // A client can finish while the user switches away; re-check before raising.

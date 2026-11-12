@@ -109,6 +109,18 @@ pub fn visible(show:bool,x:i32,y:i32,width:i32,height:i32)->Result<(),String>{
         else{let _=ShowWindow(hwnd,SW_HIDE);}
     }Ok(())
 }
+
+pub(crate) fn raise_if_visible() {
+    let Some(Ok(raw)) = HANDLE.get() else { return; };
+    if !owned(*raw) { return; }
+    let hwnd = HWND(*raw as _);
+    unsafe {
+        if IsWindowVisible(hwnd).as_bool() {
+            let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
+    }
+}
 #[cfg(test)]mod tests{
 use super::*;
 #[test]fn playful_text_rotates_but_never_replaces_errors_or_return_art(){

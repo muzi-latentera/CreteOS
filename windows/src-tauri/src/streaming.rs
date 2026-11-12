@@ -138,6 +138,11 @@ pub async fn launch_luna_session(window:tauri::Window, game_id:String, game_name
 pub(crate) fn new_session_generation()->u64 { SESSION_GENERATION.fetch_add(1,Ordering::SeqCst)+1 }
 pub(crate) fn session_current(generation: u64) -> bool { SESSION_GENERATION.load(Ordering::SeqCst) == generation }
 
+pub(crate) fn return_cover_painted(generation: u64) -> bool {
+    session_current(generation) && RETURN_COVER.load(Ordering::SeqCst) == generation
+        && RETURN_PAINTED.load(Ordering::SeqCst) == generation && super::launch_cover::active()
+}
+
 pub(crate) fn begin_return(window: &tauri::Window, provider: &str, generation: u64) {
     if !session_current(generation) || !super::can_return_from_stream(window, provider) { return; }
     if RETURN_COVER.compare_exchange(0, generation, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
@@ -187,6 +192,7 @@ pub fn present_stream_return_cover(window: tauri::Window, provider: String, sess
     if !matches!(provider.as_str(), "moonlight" | "geforceNow" | "luna" | "ps5RemotePlay" | "playstationCloud") { return Err("Unknown streaming client".into()); }
     let _presentation = RETURN_PRESENTATION.lock().map_err(|_| "Return presentation unavailable")?;
     if !session_current(session) || RETURN_COVER.load(Ordering::SeqCst) != session { return Ok(false); }
+    if provider == "geforceNow" && return_cover_painted(session) { return Ok(true); }
     // The client may close between the ending event and the paint ack. Only a
     // request originating from our own foreground stream can reach this point.
     if !super::can_return_from_stream(&window, &provider) && !super::foreground_is_desktop() { return Ok(false); }
@@ -245,7 +251,7 @@ fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::L
             if session.ending && !returning {begin_return(&window,"geforceNow",generation);returning=true;}
             if session.ended {
                 begin_return(&window, "geforceNow", generation);
-                super::finish_stream_session(window.clone(), "geforceNow", || {
+                super::finish_stream_session(window.clone(), "geforceNow", Some(generation), || {
                     for line in log.lines() { session.observe(&line); }
                     session_current(generation) && session.ended
                 });
@@ -257,7 +263,10 @@ fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::L
             // its selected network while the native streamer is still open.
             if !session.started && start.elapsed() > std::time::Duration::from_secs(180)
                 && !nvidia_streamer_running() { return; }
-            std::thread::sleep(std::time::Duration::from_millis(100));
+            if returning && return_cover_painted(generation) {
+                super::hold_geforce_return_cover();
+            }
+            std::thread::sleep(std::time::Duration::from_millis(if returning { 25 } else { 100 }));
         }
     });
 }
@@ -328,7 +337,7 @@ fn gfn_process_instances() -> Result<std::collections::BTreeMap<u32,u64>,String>
     Ok(result)
 }
 
-fn gfn_process_created(pid:u32)->Result<u64,String>{
+pub(crate) fn gfn_process_created(pid:u32)->Result<u64,String>{
     #[cfg(windows)] unsafe {
         use windows::Win32::{Foundation::{CloseHandle,FILETIME},System::Threading::{OpenProcess,GetProcessTimes,PROCESS_QUERY_LIMITED_INFORMATION}};
         let handle=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,false,pid).map_err(|_|"Could not verify NVIDIA process age")?;
@@ -1117,7 +1126,7 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
                 if client.lock().is_ok_and(|mut child| child.try_wait().ok().flatten().is_some()) {
                     if let Some(token) = &presentation { finish_host_presentation(&profile.host, token); }
                     if lutris_id.is_some() { let _=super::lutris::refresh(&profile.host); use tauri::Emitter; let _=window.emit("library-rescan-needed",()); }
-                    if session_current(generation) { super::finish_stream_session(window.clone(), "moonlight", || session_current(generation)); }
+                    if session_current(generation) { super::finish_stream_session(window.clone(), "moonlight", None, || session_current(generation)); }
                     end_return(&window, "moonlight", generation);
                     return;
                 }

@@ -287,7 +287,7 @@ pub async fn launch_asobi_game(window:tauri::Window,shortcut_id:String,audio:Opt
                         for line in log.lines(){if super::asobi_session::new_activity(&line){new_session=true;}}
                         if !new_session {
                             close_idle(&targets);
-                            super::finish_stream_session(window.clone(),&game.provider,||super::streaming::session_current(generation));
+                            super::finish_stream_session(window.clone(),&game.provider,None,||super::streaming::session_current(generation));
                         }
                         std::thread::sleep(std::time::Duration::from_millis(250));
                         super::streaming::end_return(&window,&game.provider,generation);
