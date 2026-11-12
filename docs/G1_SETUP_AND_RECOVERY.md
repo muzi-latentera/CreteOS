@@ -4,6 +4,12 @@ Maintained device record, updated 12 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**GeForce NOW return artwork.** CreteOS keeps the artwork in front through NVIDIA's shutdown. Once NVIDIA confirms the stream has ended, CreteOS hides the departing windows behind the artwork and asks them to close normally. If shutdown stalls, surviving windows are made available again. [Live test and recovery record](journal/2026-11-12-geforce-return-pending-sync.md).
+
+Installed on the G1 at 2026-11-12T00:42:54.4064211+00:00 from `afbfc78070f1046f4b6d6394a3c7960ebc064ae0`, executable SHA-256 `396B88F193F9E75344AF69F0D296F21B871AEF26BB0518A3E5B4A182060C72CB`. Bundled assets and 8 existing profiles passed verification. Executable rollback is at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\GeForce-return-20261112-004251`.
+
+Verified private archive `CreteOS-G1-profile-backup-20261112-005133.zip`, SHA-256 `27aab8c5a39e4e36816924c482dbf5318fd3ab64e87506d0cd87d7f43762e3eb`, contains 1636 manifested payloads including the deployed executable. The preceding `CreteOS-G1-profile-backup-20261112-000828.zip` is retained. The replacement pack is `CreteOS-Recovery-20261112-GeForceReturn`.
+
 **XREAL audio and Moonlight handoff.** Windows' active XREAL audio endpoint is the default output when available, then Philips FTV. The header labels XREAL as X and the built-in endpoints as G1. Moonlight keeps the launch cover until the host presenter clears its wallpaper after the game fills the output or reaches the windowed fallback. [Audio and handoff record](journal/2026-11-12-xreal-handoff-pending-sync.md).
 
 Installed on the G1 at 2026-11-12T00:08:16.6044554+00:00 from `c6f61807d8ef3d991c677d30b3492dd134195ead`, executable SHA-256 `4911D7437C8E75496AA8D6DE0C75A0953E365F71D9488BEC001CD6B512FE60C0`. Bundled assets and 8 existing profiles passed verification. Executable rollback is at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Xreal-handoff-20261112-000813`.
