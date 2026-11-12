@@ -39,6 +39,9 @@ def main():
     for name in ['reset-resolution.sh','set-resolution.sh']:
         file=home/'.config/sway-sunshine'/name
         if file.is_file():payloads['sway-sunshine/'+name]=file.read_bytes()
+    route_config = pathlib.Path('/etc/sysctl.d/91-creteos-bosgame-arp.conf')
+    if route_config.is_file() and not route_config.is_symlink() and route_config.stat().st_size < 4096:
+        payloads['network/91-creteos-bosgame-arp.conf'] = route_config.read_bytes()
     # GPU routing is scoped to gaming services, not the user's global desktop
     # or LLM environment. Export only these helpers/settings, never Sunshine
     # credentials, pairing keys, or model secrets.

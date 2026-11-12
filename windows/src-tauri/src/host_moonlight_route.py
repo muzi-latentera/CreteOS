@@ -10,6 +10,7 @@ import sys
 
 
 TABLE = '214'
+FILTER = 'creteos_moonlight_lease'
 PRIORITY = 12150
 PORTS = (('tcp', '47984'), ('tcp', '47989'), ('tcp', '48010'),
          ('udp', '47998-48000'), ('udp', '48002'), ('udp', '48010'),
@@ -18,6 +19,25 @@ PORTS = (('tcp', '47984'), ('tcp', '47989'), ('tcp', '48010'),
 
 def ip(*args, check=True):
     return subprocess.run(['/usr/bin/ip', '-4', *args], check=check, capture_output=True, text=True).stdout
+
+
+def nft(*args, commands=None, check=True):
+    return subprocess.run(['/usr/bin/nft', *args], input=commands, check=check, capture_output=True, text=True)
+
+
+def allow_selected_endpoint(peer, source):
+    # The paired Moonlight client polls every saved/discovered address even
+    # when the CLI was given a literal IP. Refuse alternate addresses for this
+    # peer only, so the client can immediately try the selected address.
+    nft('delete', 'table', 'ip', FILTER, check=False)
+    nft('-f', '-', commands=f"""
+add table ip {FILTER}
+add set ip {FILTER} peer {{ type ipv4_addr; flags timeout; timeout 25s; }}
+add element ip {FILTER} peer {{ {peer} }}
+add chain ip {FILTER} input {{ type filter hook input priority -5; policy accept; }}
+add rule ip {FILTER} input ip saddr @peer ip daddr != {source} tcp dport {{ 47984, 47989, 48010 }} reject with tcp reset
+add rule ip {FILTER} input ip saddr @peer ip daddr != {source} udp dport {{ 47998-48000, 48002, 48010 }} drop
+""")
 
 
 def interface_address(interface, peer):
@@ -60,10 +80,12 @@ def hold(mode, peer):
             actual = json.loads(ip('-j', 'route', 'get', str(peer), 'from', source, 'ipproto', protocol, 'sport', port, 'dport', '55000'))
             if actual[0].get('dev') != interface:
                 raise ValueError('routeVerificationFailed')
+        allow_selected_endpoint(peer, source)
         print(json.dumps({'address': source, 'interface': interface}), flush=True)
         while select.select([sys.stdin], [], [], 15)[0] and os.read(sys.stdin.fileno(), 4096):
-            pass
+            nft('-f', '-', commands=f"delete element ip {FILTER} peer {{ {peer} }}\nadd element ip {FILTER} peer {{ {peer} }}\n")
     finally:
+        nft('delete', 'table', 'ip', FILTER, check=False)
         for rule in reversed(active_rules):
             ip('rule', 'del', *rule, check=False)
         ip('route', 'del', *route, check=False)
