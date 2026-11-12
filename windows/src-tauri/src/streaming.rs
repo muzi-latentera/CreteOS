@@ -223,12 +223,19 @@ fn nvidia_console() -> PathBuf {
 }
 
 #[derive(Default)]
-struct NvidiaSession { started: bool, ending: bool, ended: bool }
+struct NvidiaSession { started: bool, ending: bool, ended: bool, quit_prompt: bool }
 impl NvidiaSession {
     fn observe(&mut self, line: &str) {
         let line = line.split_whitespace().collect::<Vec<_>>().join(" ");
         if line.contains("NvCameraService streaming state change: Streaming") || line.contains("got onStreamingFirstFrame event") {
-            self.started = true; self.ending=false; self.ended = false;
+            self.started = true; self.ending=false; self.ended = false; self.quit_prompt = false;
+        } else if self.started && line.ends_with("gfn/streamingUi Showing quit dialog") {
+            self.quit_prompt = true;
+        } else if self.started && line.ends_with("gfn/streamingUi Completing pending quit with: quit") {
+            self.quit_prompt = false;
+            self.ending = true;
+        } else if line.ends_with("gfn/streamingUi Completing pending quit with: cancel") {
+            self.quit_prompt = false;
         } else if self.started && (line.contains("NvCameraService streaming state change: PostSessionConnection") || line.contains("NvCameraService streaming state change: PostStreaming")) { self.ending=true;
         } else if self.started && line.contains("NvCameraService streaming state change: Done") { self.ended = true; }
         else if self.ended && line.contains("NvCameraService streaming state change:") {
@@ -285,7 +292,7 @@ fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::L
             if returning.is_some() && return_cover_painted(generation) {
                 super::hold_geforce_return_cover();
             }
-            std::thread::sleep(std::time::Duration::from_millis(if returning.is_some() { 25 } else { 100 }));
+            std::thread::sleep(std::time::Duration::from_millis(if returning.is_some() || session.quit_prompt { 25 } else { 100 }));
         }
     });
 }
@@ -1255,6 +1262,13 @@ mod tests {
         session.observe("NvCameraService streaming state change: Done");
         assert!(!session.ended);
         session.observe("NvCameraService streaming state change: Streaming");
+        session.observe("INFO  gfn/streamingUi  Showing quit dialog");
+        assert!(session.quit_prompt && !session.ending);
+        session.observe("INFO  gfn/streamingUi  Completing pending quit with:  cancel");
+        assert!(!session.quit_prompt && !session.ending);
+        session.observe("INFO  gfn/streamingUi  Showing quit dialog");
+        session.observe("INFO  gfn/streamingUi  Completing pending quit with:  quit");
+        assert!(session.ending && !session.quit_prompt && !session.ended);
         session.observe("NvCameraService streaming state change: PostStreaming");
         assert!(!session.ended);
         session.observe("NvCameraService streaming state change: Done");
