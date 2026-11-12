@@ -109,7 +109,7 @@ fn prepare_surface(handle: &OnceLock<Result<isize,String>>, staged: bool)->Resul
 }).clone().and_then(|raw|if owned(raw){Ok(raw)}else{Err("Native artwork handle is no longer owned by CreteOS".into())})}
 pub fn visible(show:bool,x:i32,y:i32,width:i32,height:i32)->Result<(),String>{
     let hwnd=HWND(prepare()? as _);unsafe{
-        if show{SetWindowPos(hwnd,Some(HWND_TOPMOST),x,y,width,height,SWP_NOACTIVATE|SWP_SHOWWINDOW).map_err(|_|"Native artwork positioning failed")?;let _=InvalidateRect(Some(hwnd),None,false);let _=UpdateWindow(hwnd);}
+        if show{SetWindowPos(hwnd,Some(HWND_TOPMOST),x,y,width,height,SWP_NOACTIVATE).map_err(|_|"Native artwork positioning failed")?;let _=InvalidateRect(Some(hwnd),None,false);let _=ShowWindow(hwnd,SW_SHOWNOACTIVATE);let _=UpdateWindow(hwnd);}
         else{let _=ShowWindow(hwnd,SW_HIDE);}
     }Ok(())
 }
