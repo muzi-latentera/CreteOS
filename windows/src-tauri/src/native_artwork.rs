@@ -110,6 +110,21 @@ pub fn visible(show:bool,x:i32,y:i32,width:i32,height:i32)->Result<(),String>{
     }Ok(())
 }
 
+pub(crate) fn stage_behind(game: HWND, x: i32, y: i32, width: i32, height: i32) -> Result<(), String> {
+    let hwnd = HWND(prepare()? as _);
+    unsafe {
+        if GetForegroundWindow() != game { return Err("The game no longer owns foreground".into()); }
+        SetWindowPos(hwnd, Some(HWND_NOTOPMOST), 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_HIDEWINDOW | SWP_NOACTIVATE).map_err(|e| e.to_string())?;
+        let after = if GetWindowLongPtrW(game, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize == 0 { game } else { HWND_TOP };
+        SetWindowPos(hwnd, Some(after), x, y, width, height,
+            SWP_SHOWWINDOW | SWP_NOACTIVATE | SWP_NOOWNERZORDER).map_err(|e| e.to_string())?;
+        let _ = InvalidateRect(Some(hwnd), None, false);
+        let _ = UpdateWindow(hwnd);
+    }
+    Ok(())
+}
+
 pub(crate) fn raise_if_visible() {
     let Some(Ok(raw)) = HANDLE.get() else { return; };
     if !owned(*raw) { return; }

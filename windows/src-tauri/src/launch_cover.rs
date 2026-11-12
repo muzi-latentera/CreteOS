@@ -7,24 +7,35 @@ static INDEPENDENT:AtomicBool=AtomicBool::new(false);
 pub fn independent()->bool {INDEPENDENT.load(Ordering::SeqCst)}
 static UNTIL: AtomicU64 = AtomicU64::new(0);
 static GENERATION: AtomicU64 = AtomicU64::new(0);
+static LOCAL_STAGED: AtomicBool = AtomicBool::new(false);
 static Z_ORDER: Mutex<()> = Mutex::new(());
 fn now() -> u64 { SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() }
 pub fn active() -> bool { UNTIL.load(Ordering::SeqCst) > now() }
+pub(crate) fn generation() -> u64 { GENERATION.load(Ordering::SeqCst) }
 
 pub(crate) struct LocalReturnCover {
     window: tauri::Window,
     generation: u64,
 }
 impl LocalReturnCover {
-    pub(crate) fn show(window: &tauri::Window) -> Option<Self> {
+    pub(crate) fn stage(window: &tauri::Window, expected: u64, game: windows::Win32::Foundation::HWND) -> Option<Self> {
         let _lock = Z_ORDER.lock().ok()?;
-        if active() { return None; }
-        crate::stream_artwork::visible(window, true).ok()?;
-        let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+        if generation() != expected || active() { return None; }
+        crate::stream_artwork::stage_behind(window, game).ok()?;
+        LOCAL_STAGED.store(true, Ordering::SeqCst);
+        crate::fse_watcher::log_stream_transition(window.app_handle(), "local-return-cover-staged");
+        Some(Self { window: window.clone(), generation: expected })
+    }
+
+    pub(crate) fn show(window: &tauri::Window, expected: u64, staged: &mut Option<Self>) {
+        let Ok(_lock) = Z_ORDER.lock() else { return; };
+        if generation() != expected || active() { return; }
+        if crate::stream_artwork::visible(window, true).is_err() { return; }
+        LOCAL_STAGED.store(false, Ordering::SeqCst);
         UNTIL.store(now() + 15, Ordering::SeqCst);
         INDEPENDENT.store(true, Ordering::SeqCst);
         crate::fse_watcher::log_stream_transition(window.app_handle(), "local-return-cover-shown");
-        Some(Self { window: window.clone(), generation })
+        if staged.is_none() { *staged = Some(Self { window: window.clone(), generation: expected }); }
     }
 }
 impl Drop for LocalReturnCover {
@@ -32,9 +43,10 @@ impl Drop for LocalReturnCover {
         let Ok(_lock) = Z_ORDER.lock() else { return; };
         if GENERATION.load(Ordering::SeqCst) != self.generation { return; }
         let _ = crate::stream_artwork::visible(&self.window, false);
-        INDEPENDENT.store(false, Ordering::SeqCst);
+        LOCAL_STAGED.store(false, Ordering::SeqCst);
+        let shown = INDEPENDENT.swap(false, Ordering::SeqCst);
         UNTIL.store(0, Ordering::SeqCst);
-        crate::fse_watcher::log_stream_transition(self.window.app_handle(), "local-return-cover-released");
+        if shown { crate::fse_watcher::log_stream_transition(self.window.app_handle(), "local-return-cover-released"); }
     }
 }
 fn cover_seconds(provider:Option<&str>)->u64 {
@@ -90,6 +102,7 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
     let until = if active { now() + cover_seconds } else { 0 };
     UNTIL.store(until, Ordering::SeqCst);
     let had_independent = INDEPENDENT.swap(false, Ordering::SeqCst);
+    if LOCAL_STAGED.swap(false, Ordering::SeqCst) { let _ = crate::stream_artwork::visible(&window, false); }
     if active && had_independent && stream_provider.is_none() { let _ = crate::stream_artwork::visible(&window, false); }
     if active { crate::stream_readiness::begin(); }
     if !active { let _=crate::stream_artwork::visible(&window,false); }

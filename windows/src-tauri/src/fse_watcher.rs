@@ -1250,7 +1250,8 @@ pub fn start_gpu_release_watch(
 }
 
 pub(crate) fn watch_local_game(window: tauri::Window, game_hwnd: isize, allow_suspend: bool) {
-    watch_game_window(window.app_handle().clone(), 0, Some(game_hwnd), allow_suspend, Some(window));
+    let cover_generation = crate::launch_cover::generation();
+    watch_game_window(window.app_handle().clone(), 0, Some(game_hwnd), allow_suspend, Some((window, cover_generation)));
 }
 
 fn watch_game_window(
@@ -1258,7 +1259,7 @@ fn watch_game_window(
     our_hwnd: isize,
     preferred_game_hwnd: Option<isize>,
     allow_suspend: bool,
-    local_return: Option<tauri::Window>,
+    local_return: Option<(tauri::Window, u64)>,
 ) {
     #[cfg(not(windows))]
     {
@@ -1387,7 +1388,7 @@ fn watch_game_window(
                 let alive = unsafe { IsWindow(Some(game_hwnd)).as_bool()
                     && (local_return.is_none() || IsWindowVisible(game_hwnd).as_bool()) };
                 if !alive {
-                    if let Some(window) = &local_return {
+                    if let Some((window, cover_generation)) = &local_return {
                         let fg = unsafe { GetForegroundWindow() };
                         let mut pid = 0;
                         unsafe { GetWindowThreadProcessId(fg, Some(&mut pid)); }
@@ -1395,7 +1396,7 @@ fn watch_game_window(
                             path.rsplit(['\\', '/']).next().is_some_and(|exe| exe.eq_ignore_ascii_case("steam.exe"))
                         });
                         if hwnd_value(fg) == our_hwnd || crate::foreground_is_desktop() || launcher {
-                            cover = crate::launch_cover::LocalReturnCover::show(window);
+                            crate::launch_cover::LocalReturnCover::show(window, *cover_generation, &mut cover);
                         } else if pid != game_pid {
                             // The player switched to an unrelated app. Resume
                             // rendering in the background without reclaiming focus.
@@ -1459,6 +1460,15 @@ fn watch_game_window(
 
                 let foreground = hwnd_value(unsafe { GetForegroundWindow() });
                 let covered = hwnd_from_value(our_hwnd).is_some_and(|ours| target_covers_main(ours, game_hwnd));
+                if let Some((window, cover_generation)) = &local_return {
+                    if covered && foreground == hwnd_value(game_hwnd) {
+                        if cover.is_none() {
+                            cover = crate::launch_cover::LocalReturnCover::stage(window, *cover_generation, game_hwnd);
+                        }
+                    } else {
+                        drop(cover.take());
+                    }
+                }
                 let should_suspend = allow_suspend && should_suspend_for_target(our_hwnd, hwnd_value(game_hwnd), foreground, covered, crate::launch_cover::active());
                 if !should_suspend { keep_main_borderless(&app); }
                 if !should_suspend && webview_suspended {

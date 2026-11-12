@@ -65,6 +65,15 @@ fn owned_hwnd()->Result<windows::Win32::Foundation::HWND,String>{
     if found.len()!=1{return Err("Dedicated streaming artwork HWND is unavailable".into());}
     Ok(HWND(found[0] as _))
 }
+pub(crate) fn stage_behind(window: &tauri::Window, game: windows::Win32::Foundation::HWND) -> Result<(), String> {
+    if !NATIVE_READY.load(Ordering::SeqCst) { return Err("Native artwork is unavailable".into()); }
+    let monitor = window.current_monitor().map_err(|e| e.to_string())?.ok_or("Artwork monitor unavailable")?;
+    let position = monitor.position();
+    let size = monitor.size();
+    crate::native_artwork::stage_behind(game, position.x, position.y, size.width as i32, size.height as i32)?;
+    NATIVE_SHOWN.store(true, Ordering::SeqCst);
+    Ok(())
+}
 pub fn visible(window:&tauri::Window,show:bool)->Result<(),String>{
     if !show && NATIVE_SHOWN.swap(false,Ordering::SeqCst){return crate::native_artwork::visible(false,0,0,0,0);}
     if show && NATIVE_READY.load(Ordering::SeqCst) {
