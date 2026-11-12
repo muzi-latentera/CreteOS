@@ -4,6 +4,10 @@ Maintained device record, updated 12 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**OneXConsole desktop power.** The Desktop process preset is saved at 18 W on external power and 6 W on battery. This uses the same external-power policy for the TV dock and other chargers. A new OneXConsole session loads the saved preset. [Verification and rollback](journal/2026-11-12-onexconsole-desktop-18w-pending-sync.md).
+
+Verified private archive `CreteOS-G1-profile-backup-20261112-204027.zip`, SHA-256 `5c26099db07430a53785d70ab29021470ddbd26bd5f007e067079e11e1c6eb12`, contains 1645 manifested payloads. The preceding `CreteOS-G1-profile-backup-20261112-203252.zip` is retained. The replacement pack is `CreteOS-Recovery-20261112-Desktop18W`.
+
 **Dock-aware Moonlight and Bosgame routing.** Automatic uses E433 on the G1 with the configured dock and Extra undocked. A working G1 Ethernet route takes precedence. Bosgame Automatic selects Ethernet and the two controls retain independent overrides. Launch discovery gets up to ten seconds. Moonlight and Buddy share the verified Bosgame address for the lifetime of a home session. The docked Phantom Blade Zero launch and return passed. [Deployment, rollback and 30-session review](journal/2026-11-12-moonlight-dock-route-audit-pending-sync.md).
 
 Verified private archive `CreteOS-G1-profile-backup-20261112-203252.zip`, SHA-256 `a34575b627a831bf2518b7ea44a1301ec18c7026211177123efe194da6f557f0`, contains 1644 manifested payloads. The preceding `CreteOS-G1-profile-backup-20261112-200052.zip` is retained. Replacement package `CreteOS-Recovery-20261112-MoonlightDockRoute` contains the current G1 build, helper, profiles and source.
