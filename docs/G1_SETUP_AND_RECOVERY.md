@@ -4,6 +4,14 @@ Maintained device record, updated 12 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**Game launch and exit artwork.** CreteOS keeps its artwork above the incoming window during focus handoff. GeForce NOW normally waits for the cloud game's fullscreen window and can start the return cover from the confirmed cloud game exit. Moonlight keeps artwork through owned-client cleanup. Local games use artwork during restoration of the CreteOS window. [Device checks and limitations](journal/2026-11-12-game-transitions-pending-sync.md).
+
+Installed on the G1 at 2026-11-12T02:09:39.3021523+00:00 from `8bf81bc81ca528cc9c0814d490c4a0b0b7fbe166`, executable SHA-256 `D59B377CBA07749BF73FA920E1B4F82CD3CF857438F02E3905FF5F9F2CFD22BB`. Bundled assets and 8 existing profiles passed verification. Executable rollback is at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Game-transitions-20261112-020936`.
+
+Verified private archive `CreteOS-G1-profile-backup-20261112-021610.zip`, SHA-256 `9fe95c9a28e61645f8cdaf98f721b0df884801b9098a60e7df1598561c7c9a83`, contains 1637 manifested payloads including the deployed executable. The preceding `CreteOS-G1-profile-backup-20261112-005133.zip` is retained. The replacement pack is `CreteOS-Recovery-20261112-GameTransitions`.
+
+**XREAL audio label.** The launch header spells out `XREAL` for the glasses. The Windows endpoint name remains available in the Sound picker.
+
 **GeForce NOW return artwork.** CreteOS keeps the artwork in front through NVIDIA's shutdown. Once NVIDIA confirms the stream has ended, CreteOS hides the departing windows behind the artwork and asks them to close normally. If shutdown stalls, surviving windows are made available again. [Live test and recovery record](journal/2026-11-12-geforce-return-pending-sync.md).
 
 Installed on the G1 at 2026-11-12T00:42:54.4064211+00:00 from `afbfc78070f1046f4b6d6394a3c7960ebc064ae0`, executable SHA-256 `396B88F193F9E75344AF69F0D296F21B871AEF26BB0518A3E5B4A182060C72CB`. Bundled assets and 8 existing profiles passed verification. Executable rollback is at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\GeForce-return-20261112-004251`.
