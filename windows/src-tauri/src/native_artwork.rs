@@ -114,7 +114,7 @@ pub(crate) fn stage_behind(game: HWND, x: i32, y: i32, width: i32, height: i32) 
     let hwnd = HWND(prepare()? as _);
     unsafe {
         if GetForegroundWindow() != game { return Err("The game no longer owns foreground".into()); }
-        SetWindowPos(hwnd, Some(HWND_NOTOPMOST), 0, 0, 0,
+        SetWindowPos(hwnd, Some(HWND_NOTOPMOST), 0, 0, 0, 0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_HIDEWINDOW | SWP_NOACTIVATE).map_err(|e| e.to_string())?;
         let after = if GetWindowLongPtrW(game, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize == 0 { game } else { HWND_TOP };
         SetWindowPos(hwnd, Some(after), x, y, width, height,
