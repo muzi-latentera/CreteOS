@@ -4,6 +4,10 @@ Maintained device record, updated 12 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
+**Bosgame streaming GPU.** The dedicated streaming compositor now waits up to 35 seconds per start for the RX 9070 XT. It fails the start if the card is unavailable and systemd retains its normal restart policy. Sunshine's encoder and MoonDeck Buddy were verified on the RX 9070 XT after restarting the idle streaming services. [Deployment, stream incident and rollback](journal/2026-11-12-bosgame-egpu-required-pending-sync.md).
+
+Verified private archive `CreteOS-G1-profile-backup-20261112-194514.zip`, SHA-256 `54f740e883bf2626dadeb482278d46d6148385f0a53d8c024560df1da6a42b41`, contains 1642 manifested payloads. The preceding `CreteOS-G1-profile-backup-20261112-081540.zip` is retained. The replacement package is `CreteOS-Recovery-20261112-BosgameEgpu`.
+
 **Lutris play history reset.** All 14 games on Bosgame and in CreteOS now have zero playtime and no last-played date. Tracking resumes on the next session. The private archive includes the reset Bosgame database and matching G1 cache. Other Bosgame reference files were carried forward from the last verified snapshot because the full live export could not find the recorded Phantom Blade Zero OptiScaler DLL. [Reset and verification record](journal/2026-11-12-lutris-history-reset-pending-sync.md).
 
 Verified private archive `CreteOS-G1-profile-backup-20261112-081540.zip`, SHA-256 `dd844c62758cb61d71ab81758a43a4de54ee2df5084c141ff8ee8d076185142e`, contains 1638 manifested payloads. The preceding `CreteOS-G1-profile-backup-20261112-021610.zip` is retained. Replacement package `CreteOS-Recovery-20261112-LutrisHistoryReset` uses the fresh archive.

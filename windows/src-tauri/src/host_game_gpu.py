@@ -3,26 +3,42 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
 
 
 def choose(devices):
-    for wanted in ('0x7550', '0x1586'):
-        matches = [d for d in devices if d['vendor'] == '0x1002' and d['device'] == wanted]
-        if len(matches) > 1:
-            raise RuntimeError('Ambiguous gaming GPU; refusing to select by index')
-        if matches:
-            return matches[0]
-    raise RuntimeError('Neither RX 9070 XT nor supported fallback iGPU is available')
+    matches = [d for d in devices if d['vendor'] == '0x1002' and d['device'] == '0x7550']
+    if len(matches) > 1:
+        raise RuntimeError('Ambiguous RX 9070 XT; refusing to select by index')
+    return matches[0] if matches else None
+
+
+def render_devices(sys_drm):
+    for node in sys_drm.glob('renderD*'):
+        device = node / 'device'
+        render = Path('/dev/dri') / node.name
+        try:
+            if render.is_char_device():
+                yield {'vendor': (device / 'vendor').read_text().strip(),
+                       'device': (device / 'device').read_text().strip(),
+                       'render': str(render), 'pci': device.resolve(strict=True).name}
+        except FileNotFoundError:
+            continue  # The driver can remove or recreate the device during boot.
+
+
+def wait_for_gpu(discover, timeout=35, clock=time.monotonic, sleep=time.sleep):
+    deadline = clock() + timeout
+    while True:
+        selected = choose(discover())
+        if selected:
+            return selected
+        if clock() >= deadline:
+            raise RuntimeError('RX 9070 XT render device unavailable; gaming services require the external GPU')
+        sleep(.25)
 
 
 def gaming_environment(sys_drm=Path('/sys/class/drm'), state=None):
-    devices=[]
-    for node in sys_drm.glob('renderD*'):
-        device=node/'device'
-        devices.append({'vendor':(device/'vendor').read_text().strip(),
-                        'device':(device/'device').read_text().strip(),
-                        'render':'/dev/dri/'+node.name,'pci':device.resolve().name})
-    selected=choose(devices)
+    selected = wait_for_gpu(lambda: render_devices(sys_drm))
     state=state or Path.home()/'.local/state/creteos-host/gpu'
     state.mkdir(parents=True,exist_ok=True)
     temporary=state/('game-render.'+str(os.getpid()))

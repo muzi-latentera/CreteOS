@@ -1,0 +1,15 @@
+# 12 November 2026 — Bosgame RX 9070 XT startup requirement
+
+Pending vault sync.
+
+Sunshine logs show the RX 9070 XT in a 9 November stream and the Radeon 8060S in streams after the later fallback. On 11 November, the dedicated Sway helper selected the 8060S at 11:22:56 while the external card was logging amdgpu timeouts. The RX 9070 XT render node was recreated at 11:23:12 after GPU initialization. The helper had already selected a GPU for that service lifetime. On 12 November a direct hardware test on the RX 9070 XT encoded 120 synthetic frames at 3840 x 2160 and 60 fps input. Vulkan exposed the discrete device.
+
+At 19:27 Phantom Blade Zero streamed at 3840 x 2160 / 60 Hz, HEVC VAAPI on the 8060S, with Moonlight requesting 80 Mbps and Sunshine reporting about 63 Mbps video bitrate. G1 was on Hyperoptic Extra after E433 was unavailable. Moonlight lost 61.60 percent of network frames, averaged 141 ms network latency, and received 22.25 fps. Loss began before the game started and before the Steam shader-cache download. An earlier 80 Mbps stream using the same 8060S encoder delivered 90 fps with no network loss at 2560 x 1600. No specific access point or Wi-Fi signal cause was confirmed.
+
+Steam closed normally before the first launch. Phantom Blade Zero exited around 19:30:07 and Steam began a roughly 2.6 GB shader-cache job. The second attempt stopped at Buddy connectivity before Steam preflight. The third stopped on the preflight process-read guard before Steam shutdown. Steam's cache work overlapped both retries and finished by 19:31:37. The exact unreadable process and the reported sharing prompt were not captured. No network policy or Steam preflight code was changed.
+
+Installed the strict host helper at 2026-11-12T19:43:57.077076+00:00, SHA-256 `e9e55f4ef43ae6cb0db8b754014b6941ee26c9a57466a3e4494c795947515740`. Rollback helper is at `/home/muzidube/.local/share/creteos-host/gpu-backups/20261112-194357/host_game_gpu.py`. Waits up to 35 seconds for the unique AMD 1002:7550 render device, then fails startup if unavailable, with no iGPU fallback. Scope is the dedicated Sway, Sunshine, Buddy and their gaming descendants. Model GPU routing and the physical desktop were untouched. On the idle service restart Steam preflight closed Steam normally, Sunshine probed VAAPI on RX 9070 XT, and Buddy inherited DRI_PRIME=1002:7550!. Four GPU and ten Steam preflight tests passed. No post-deployment game or TV stream was run. The installed G1 executable remains source `8bf81bc81ca528cc9c0814d490c4a0b0b7fbe166`, SHA-256 `D59B377CBA07749BF73FA920E1B4F82CD3CF857438F02E3905FF5F9F2CFD22BB`.
+
+The archive refresh replaces the GPU helper and its receipts in the prior verified host reference. Other host reference files retain the previous snapshot, including the reset Lutris database.
+
+Verified private archive `CreteOS-G1-profile-backup-20261112-194514.zip`, SHA-256 `54f740e883bf2626dadeb482278d46d6148385f0a53d8c024560df1da6a42b41`, contains 1642 manifested payloads. The preceding `CreteOS-G1-profile-backup-20261112-081540.zip` is retained. The replacement package is `CreteOS-Recovery-20261112-BosgameEgpu`.
