@@ -10390,6 +10390,12 @@ async fn launch_app(
         let started = std::time::Instant::now();
         let mut found: isize = 0;
         let mut ready_candidate: Option<(isize, Instant)> = None;
+        let game_window_ready = |hwnd, since: Instant| {
+            let age = since.elapsed();
+            age >= Duration::from_secs(2) && (!watch_is_game || !launch_cover::active()
+                || age >= Duration::from_secs(12)
+                || fse_watcher::target_covers_main(windows::Win32::Foundation::HWND(our_hwnd as _), windows::Win32::Foundation::HWND(hwnd as _)))
+        };
 
         loop {
             if LAUNCH_WATCH_GENERATION.load(Ordering::SeqCst) != watch_generation {
@@ -10425,7 +10431,7 @@ async fn launch_app(
                 if score >= 45 {
                     let ready = ready_candidate.get_or_insert((hwnd, Instant::now()));
                     if ready.0 != hwnd { *ready = (hwnd, Instant::now()); }
-                    if ready.1.elapsed() >= Duration::from_secs(2) { found = hwnd; break; }
+                    if game_window_ready(hwnd, ready.1) { found = hwnd; break; }
                     if Instant::now() >= deadline { break; }
                     std::thread::sleep(Duration::from_millis(250));
                     continue;
@@ -10438,7 +10444,7 @@ async fn launch_app(
                 if hwnd != 0 {
                     let ready = ready_candidate.get_or_insert((hwnd, Instant::now()));
                     if ready.0 != hwnd { *ready = (hwnd, Instant::now()); }
-                    if !watch_is_game || ready.1.elapsed() >= Duration::from_secs(2) { found = hwnd; break; }
+                    if !watch_is_game || game_window_ready(hwnd, ready.1) { found = hwnd; break; }
                     if Instant::now() >= deadline { break; }
                     std::thread::sleep(Duration::from_millis(250));
                     continue;
@@ -10458,7 +10464,7 @@ async fn launch_app(
                         {
                             let ready = ready_candidate.get_or_insert((foreground_value, Instant::now()));
                             if ready.0 != foreground_value { *ready = (foreground_value, Instant::now()); }
-                            if !watch_is_game || ready.1.elapsed() >= Duration::from_secs(2) { found = foreground_value; break; }
+                            if !watch_is_game || game_window_ready(foreground_value, ready.1) { found = foreground_value; break; }
                             if Instant::now() >= deadline { break; }
                             std::thread::sleep(Duration::from_millis(250));
                             continue;

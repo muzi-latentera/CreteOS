@@ -73,7 +73,7 @@ it("saves local network choice and hands display and sound overrides to the app 
   await choose("Audio output", "Speakers (3- Realtek(R) Audio)");
   expect(document.querySelector(".crete-stream-audio-summary")?.textContent).toContain("Audio output: G1");
   await choose("Audio output", "XREAL 1S");
-  expect(document.querySelector(".crete-stream-audio-summary")?.textContent).toContain("Audio output: X");
+  expect(document.querySelector(".crete-stream-audio-device")?.textContent).toBe("Audio output: XREAL");
   await click(document.querySelector("[data-launch-primary]"));
   expect(start).toHaveBeenCalledWith({ audio: { input: null, output: "xreal" }, display: { width: 1920, height: 1200, hz: 60 } });
 });

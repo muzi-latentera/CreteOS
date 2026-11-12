@@ -36,6 +36,17 @@ impl LocalReturnCover {
         INDEPENDENT.store(true, Ordering::SeqCst);
         crate::fse_watcher::log_stream_transition(window.app_handle(), "local-return-cover-shown");
         if staged.is_none() { *staged = Some(Self { window: window.clone(), generation: expected }); }
+        let Ok(ours) = window.hwnd() else { return; };
+        let ours = ours.0 as isize;
+        std::thread::spawn(move || loop {
+            {
+                let Ok(_lock) = Z_ORDER.lock() else { return; };
+                if generation() != expected || !active() || !independent() { return; }
+                let foreground = unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() }.0 as isize;
+                if foreground == ours || crate::foreground_is_desktop() { crate::native_artwork::raise_if_visible(); }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        });
     }
 }
 impl Drop for LocalReturnCover {
