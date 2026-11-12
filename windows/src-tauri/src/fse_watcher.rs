@@ -690,6 +690,10 @@ fn tap_alt_key_for_foreground_unlock() {
 
 #[cfg(windows)]
 fn raise_window(hwnd: HWND) {
+    if crate::launch_cover::independent() {
+        crate::focus_external_window_with_cover(hwnd, true);
+        return;
+    }
     unsafe {
         // Put CreteOS in the always-on-top band first so it can sit above a
         // topmost fullscreen game, then force activation through the foreground lock.
@@ -1240,9 +1244,23 @@ pub fn start_gpu_release_watch(
     our_hwnd: isize,
     preferred_game_hwnd: Option<isize>,
 ) {
+    watch_game_window(app, our_hwnd, preferred_game_hwnd, true, None);
+}
+
+pub(crate) fn watch_local_game(window: tauri::Window, game_hwnd: isize, allow_suspend: bool) {
+    watch_game_window(window.app_handle().clone(), 0, Some(game_hwnd), allow_suspend, Some(window));
+}
+
+fn watch_game_window(
+    app: AppHandle,
+    our_hwnd: isize,
+    preferred_game_hwnd: Option<isize>,
+    allow_suspend: bool,
+    local_return: Option<tauri::Window>,
+) {
     #[cfg(not(windows))]
     {
-        let _ = (app, our_hwnd, preferred_game_hwnd);
+        let _ = (app, our_hwnd, preferred_game_hwnd, allow_suspend, local_return);
     }
 
     #[cfg(windows)]
@@ -1257,7 +1275,7 @@ pub fn start_gpu_release_watch(
                 app.state::<FseWatch>().finish(&cancel);
                 return;
             };
-            if our_hwnd != hwnd_value(managed_hwnd) {
+            if our_hwnd != 0 && our_hwnd != hwnd_value(managed_hwnd) {
                 fse_log(&format!(
                     "game watch corrected main HWND: cached=0x{our_hwnd:x} managed=0x{:x}",
                     hwnd_value(managed_hwnd)
@@ -1334,12 +1352,15 @@ pub fn start_gpu_release_watch(
 
             let mut webview_suspended = false;
             let covered = hwnd_from_value(our_hwnd).is_some_and(|ours| target_covers_main(ours, game_hwnd));
-            if should_suspend_for_target(our_hwnd, hwnd_value(game_hwnd), hwnd_value(unsafe { GetForegroundWindow() }), covered, crate::launch_cover::active()) {
+            if allow_suspend && should_suspend_for_target(our_hwnd, hwnd_value(game_hwnd), hwnd_value(unsafe { GetForegroundWindow() }), covered, crate::launch_cover::active()) {
                 if !suspend_webview(&app) {
-                    let _ = app.emit("fse:no-foreground", ()); app.state::<FseWatch>().cancel(); return;
+                    if local_return.is_none() {
+                        let _ = app.emit("fse:no-foreground", ()); app.state::<FseWatch>().cancel(); return;
+                    }
+                } else {
+                    webview_suspended = true;
+                    let _ = app.emit("fse:gpu-suspended", ());
                 }
-                webview_suspended = true;
-                let _ = app.emit("fse:gpu-suspended", ());
             }
             if let Some(hwnd) = hwnd_from_value(our_hwnd) {
                 fse_log(&format!(
@@ -1349,6 +1370,9 @@ pub fn start_gpu_release_watch(
                 ));
             }
 
+            let mut cover = None;
+            let mut game_pid = 0;
+            unsafe { GetWindowThreadProcessId(game_hwnd, Some(&mut game_pid)); }
             loop {
                 if cancel.load(Ordering::SeqCst) {
                     if webview_suspended {
@@ -1358,8 +1382,26 @@ pub fn start_gpu_release_watch(
                     return;
                 }
 
-                let alive = unsafe { IsWindow(Some(game_hwnd)).as_bool() };
+                let alive = unsafe { IsWindow(Some(game_hwnd)).as_bool()
+                    && (local_return.is_none() || IsWindowVisible(game_hwnd).as_bool()) };
                 if !alive {
+                    if let Some(window) = &local_return {
+                        let fg = unsafe { GetForegroundWindow() };
+                        let mut pid = 0;
+                        unsafe { GetWindowThreadProcessId(fg, Some(&mut pid)); }
+                        let launcher = crate::process_exe_path(pid).is_some_and(|path| {
+                            path.rsplit(['\\', '/']).next().is_some_and(|exe| exe.eq_ignore_ascii_case("steam.exe"))
+                        });
+                        if hwnd_value(fg) == our_hwnd || crate::foreground_is_desktop() || launcher {
+                            cover = crate::launch_cover::LocalReturnCover::show(window);
+                        } else if pid != game_pid {
+                            // The player switched to an unrelated app. Resume
+                            // rendering in the background without reclaiming focus.
+                            if webview_suspended { let _ = resume_webview_verified(&app); }
+                            app.state::<FseWatch>().finish(&cancel);
+                            return;
+                        }
+                    }
                     // Resume rendering now, not after the successor grace period.
                     // The game window is already gone, so the user is already
                     // looking at CreteOS's surface. Staying suspended through the
@@ -1384,8 +1426,11 @@ pub fn start_gpu_release_watch(
 
                         let fg = unsafe { GetForegroundWindow() };
                         let fg_value = hwnd_value(fg);
+                        let mut fg_pid = 0;
+                        unsafe { GetWindowThreadProcessId(fg, Some(&mut fg_pid)); }
                         if fg_value != 0
                             && fg_value != our_hwnd
+                            && (local_return.is_none() || fg_pid == game_pid)
                             && unsafe { IsWindowVisible(fg).as_bool() }
                             && is_fullscreen_like(fg)
                         {
@@ -1398,9 +1443,10 @@ pub fn start_gpu_release_watch(
                     }
 
                     if reacquired {
+                        drop(cover.take());
                         // A successor fullscreen window took the foreground.
                         // Hand the GPU back to it.
-                        if !webview_suspended && hwnd_from_value(our_hwnd).is_some_and(|ours| target_covers_main(ours, game_hwnd)) && !crate::launch_cover::active() && suspend_webview(&app) {
+                        if allow_suspend && !webview_suspended && hwnd_from_value(our_hwnd).is_some_and(|ours| target_covers_main(ours, game_hwnd)) && !crate::launch_cover::active() && suspend_webview(&app) {
                             webview_suspended = true;
                             let _ = app.emit("fse:gpu-suspended", ());
                         }
@@ -1411,7 +1457,7 @@ pub fn start_gpu_release_watch(
 
                 let foreground = hwnd_value(unsafe { GetForegroundWindow() });
                 let covered = hwnd_from_value(our_hwnd).is_some_and(|ours| target_covers_main(ours, game_hwnd));
-                let should_suspend = should_suspend_for_target(our_hwnd, hwnd_value(game_hwnd), foreground, covered, crate::launch_cover::active());
+                let should_suspend = allow_suspend && should_suspend_for_target(our_hwnd, hwnd_value(game_hwnd), foreground, covered, crate::launch_cover::active());
                 if !should_suspend { keep_main_borderless(&app); }
                 if !should_suspend && webview_suspended {
                     if resume_webview_verified(&app) {
@@ -1431,6 +1477,7 @@ pub fn start_gpu_release_watch(
 
             // Confirmed exit always runs recovery, even after an early resume.
             restore_after_game_exit(&app, our_hwnd, generation);
+            drop(cover);
             app.state::<FseWatch>().finish(&cancel);
         });
     }

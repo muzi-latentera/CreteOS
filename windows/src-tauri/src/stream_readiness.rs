@@ -77,12 +77,77 @@ impl StreamCursor {
         else { Signal::Waiting }
     }
 }
+
+// NVIDIA reports remote foreground and process exit separately from decoded
+// frames. Steam itself can be fullscreen, so use the game process type.
+pub(crate) struct NvidiaGameWindow {
+    log: LogCursor,
+    game_pid: Option<u64>,
+    pub foreground: bool,
+    pub exited: bool,
+}
+impl NvidiaGameWindow {
+    pub(crate) fn new() -> Self {
+        let path = PathBuf::from(std::env::var_os("LOCALAPPDATA").unwrap_or_default())
+            .join("NVIDIA Corporation/GeForceNOW/CxNative_GeForceNOW.log");
+        Self { log: LogCursor::new(path), game_pid: None, foreground: false, exited: false }
+    }
+    pub(crate) fn poll(&mut self) {
+        for line in self.log.lines() {
+            self.observe(&line);
+        }
+    }
+    fn observe(&mut self, line: &str) {
+        let Some((_, payload)) = line.split_once("RTSP message: ") else { return; };
+        if !payload.contains("rtsp://Serenity/AppInfo/v.1.0/Notification") { return; }
+        let Ok(event) = serde_json::from_str::<serde_json::Value>(payload.trim()) else { return; };
+        if event["url"] != "rtsp://Serenity/AppInfo/v.1.0/Notification" { return; }
+        let pid = event["processId"].as_u64().filter(|&pid| pid != 0);
+        match event["event"].as_str() {
+            Some("foregroundWindow") => {
+                self.foreground = pid.is_some() && event["processType"] == 1 && event["fullscreen"] == true;
+                if self.foreground {
+                    self.game_pid = pid;
+                    self.exited = false;
+                }
+            }
+            Some("process") if event["action"] == 3 && pid.is_some() && pid == self.game_pid => {
+                self.foreground = false;
+                self.exited = true;
+            }
+            _ => {}
+        }
+    }
+}
+
+static GAME_CURSOR: Mutex<Option<NvidiaGameWindow>> = Mutex::new(None);
+pub(crate) fn begin_game_window() {
+    if let Ok(mut saved) = GAME_CURSOR.lock() { *saved = Some(NvidiaGameWindow::new()); }
+}
+pub(crate) fn take_game_window() -> NvidiaGameWindow {
+    GAME_CURSOR.lock().ok().and_then(|mut saved| saved.take()).unwrap_or_else(NvidiaGameWindow::new)
+}
 static CURSOR: Mutex<Option<StreamCursor>> = Mutex::new(None);
 pub fn begin() { if let Ok(mut saved) = CURSOR.lock() { *saved = Some(StreamCursor::new()); } }
 pub fn take() -> StreamCursor { CURSOR.lock().ok().and_then(|mut saved| saved.take()).unwrap_or_else(StreamCursor::new) }
 
 #[cfg(test)] mod tests {
     use super::*;
+    #[test] fn remote_steam_does_not_count_as_game_and_exit_matches_game_pid() {
+        let mut game = NvidiaGameWindow::new();
+        let event = |body: &str| format!(r#"RTSP message: {{"url":"rtsp://Serenity/AppInfo/v.1.0/Notification",{body}}}"#);
+        game.observe(&event(r#""event":"foregroundWindow","processType":4,"processId":6,"fullscreen":true"#));
+        assert!(!game.foreground);
+        game.observe(&event(r#""event":"foregroundWindow","processType":1,"processId":9,"fullscreen":false"#));
+        assert!(!game.foreground);
+        game.observe(&event(r#""event":"foregroundWindow","processType":1,"processId":9,"fullscreen":true"#));
+        assert!(game.foreground);
+        game.observe(&event(r#""event":"foregroundWindow","processType":0,"processId":0,"fullscreen":false"#));
+        game.observe(&event(r#""event":"process","action":3,"processId":6"#));
+        assert!(!game.foreground && !game.exited);
+        game.observe(&event(r#""event":"process","action":3,"processId":9"#));
+        assert!(game.exited);
+    }
     #[test] fn first_frame_is_distinct_from_starting_or_loading() {
         assert_eq!(signal("INFO streamingService gfnStart returned: true"), Signal::Waiting);
         assert_eq!(signal("NvCameraService streaming state change: Loading"), Signal::Waiting);

@@ -115,9 +115,17 @@ pub(crate) fn raise_if_visible() {
     if !owned(*raw) { return; }
     let hwnd = HWND(*raw as _);
     unsafe {
-        if IsWindowVisible(hwnd).as_bool() {
-            let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        if !IsWindowVisible(hwnd).as_bool() { return; }
+        let foreground = GetForegroundWindow();
+        let mut above = hwnd;
+        for _ in 0..64 {
+            let Ok(previous) = GetWindow(above, GW_HWNDPREV) else { break; };
+            if previous == foreground {
+                let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                break;
+            }
+            above = previous;
         }
     }
 }

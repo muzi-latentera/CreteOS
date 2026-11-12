@@ -144,7 +144,7 @@ pub(crate) fn return_cover_painted(generation: u64) -> bool {
 }
 
 pub(crate) fn begin_return(window: &tauri::Window, provider: &str, generation: u64) {
-    if !session_current(generation) || !super::can_return_from_stream(window, provider) { return; }
+    if !session_current(generation) || (!super::can_return_from_stream(window, provider) && !super::foreground_is_desktop()) { return; }
     if RETURN_COVER.compare_exchange(0, generation, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
         use tauri::Emitter;
         let _ = window.emit("stream-return-phase", serde_json::json!({"provider":provider,"phase":"ending","session":generation}));
@@ -169,14 +169,19 @@ pub(crate) fn begin_return(window: &tauri::Window, provider: &str, generation: u
     }
 }
 
-pub(crate) fn end_return(window: &tauri::Window, provider: &str, generation: u64) {
+fn release_return_cover(window: &tauri::Window, provider: &str, generation: u64) {
     let Ok(_presentation) = RETURN_PRESENTATION.lock() else { return; };
     if RETURN_COVER.compare_exchange(generation, 0, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
         use tauri::Emitter;
+        RETURN_PAINTED.store(0, Ordering::SeqCst);
         let _ = super::launch_cover::set_launch_cover(window.clone(), false, None, None);
         super::fse_watcher::log_stream_transition(window.app_handle(), "return-cover-released");
         let _ = window.emit("stream-return-phase", serde_json::json!({"provider":provider,"phase":"ended","session":generation}));
     }
+}
+
+pub(crate) fn end_return(window: &tauri::Window, provider: &str, generation: u64) {
+    release_return_cover(window, provider, generation);
     // Session completion is data, not a foreground/presentation operation.
     // Alt-Tab may legitimately prevent begin_return from displaying artwork.
     if session_current(generation) && ENDED_SESSION_GENERATION.fetch_max(generation, Ordering::SeqCst) < generation {
@@ -192,7 +197,7 @@ pub fn present_stream_return_cover(window: tauri::Window, provider: String, sess
     if !matches!(provider.as_str(), "moonlight" | "geforceNow" | "luna" | "ps5RemotePlay" | "playstationCloud") { return Err("Unknown streaming client".into()); }
     let _presentation = RETURN_PRESENTATION.lock().map_err(|_| "Return presentation unavailable")?;
     if !session_current(session) || RETURN_COVER.load(Ordering::SeqCst) != session { return Ok(false); }
-    if provider == "geforceNow" && return_cover_painted(session) { return Ok(true); }
+    if return_cover_painted(session) { return Ok(true); }
     // The client may close between the ending event and the paint ack. Only a
     // request originating from our own foreground stream can reach this point.
     if !super::can_return_from_stream(&window, &provider) && !super::foreground_is_desktop() { return Ok(false); }
@@ -234,21 +239,32 @@ impl NvidiaSession {
     }
 }
 
-fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::LogCursor, generation: u64, wifi: Option<super::stream_wifi::Session>, audio: Option<super::stream_audio::Session>) {
+fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::LogCursor, mut game: super::stream_readiness::NvidiaGameWindow, generation: u64, wifi: Option<super::stream_wifi::Session>, audio: Option<super::stream_audio::Session>) {
     std::thread::spawn(move || {
         let _wifi = wifi;
         let _audio = audio;
         let mut session = NvidiaSession::default();
-        let mut returning=false;
+        let mut returning = None;
+        let mut early_exit_covered = false;
         let start = std::time::Instant::now();
         while session_current(generation) && start.elapsed() < std::time::Duration::from_secs(86400) {
             for line in log.lines() { session.observe(&line); }
-            if returning && !session.ending && !session.ended {
-                // A new provider session superseded the one returning. Release
-                // artwork without closing either provider window.
-                end_return(&window,"geforceNow",generation);return;
+            game.poll();
+            let game_exited = session.started && game.exited;
+            if returning.is_some_and(|since: std::time::Instant| !session.ending && !session.ended
+                && (!game_exited || since.elapsed() >= std::time::Duration::from_secs(12))) {
+                // NVIDIA may keep a cloud VM open after a game quits. Give its
+                // UI back if it does not proceed to shutdown.
+                release_return_cover(&window, "geforceNow", generation);
+                returning = None;
             }
-            if session.ending && !returning {begin_return(&window,"geforceNow",generation);returning=true;}
+            if !game_exited { early_exit_covered = false; }
+            if (session.ending || (game_exited && !early_exit_covered && !super::launch_cover::active())) && returning.is_none() {
+                if game_exited { super::fse_watcher::log_stream_transition(window.app_handle(), "geforce-remote-game-exit"); }
+                begin_return(&window,"geforceNow",generation);
+                returning = Some(std::time::Instant::now());
+                early_exit_covered = game_exited;
+            }
             if session.ended {
                 begin_return(&window, "geforceNow", generation);
                 super::finish_stream_session(window.clone(), "geforceNow", Some(generation), || {
@@ -258,15 +274,18 @@ fn watch_geforce_exit(window: tauri::Window, mut log: super::stream_readiness::L
                 end_return(&window, "geforceNow", generation);
                 return;
             }
-            if session.started && !nvidia_streamer_running() && !super::is_process_running("GeForceNOW.exe") { return; }
+            if session.started && !nvidia_streamer_running() && !super::is_process_running("GeForceNOW.exe") {
+                end_return(&window, "geforceNow", generation);
+                return;
+            }
             // A membership queue can legitimately outlast three minutes. Keep
             // its selected network while the native streamer is still open.
             if !session.started && start.elapsed() > std::time::Duration::from_secs(180)
                 && !nvidia_streamer_running() { return; }
-            if returning && return_cover_painted(generation) {
+            if returning.is_some() && return_cover_painted(generation) {
                 super::hold_geforce_return_cover();
             }
-            std::thread::sleep(std::time::Duration::from_millis(if returning { 25 } else { 100 }));
+            std::thread::sleep(std::time::Duration::from_millis(if returning.is_some() { 25 } else { 100 }));
         }
     });
 }
@@ -709,10 +728,12 @@ pub async fn start_geforce_game(window: tauri::Window, game_url: String, display
             return Err("NVIDIA changed the selected profile during startup. No game was started; check its Custom quality settings.".into());
         }
         let log = super::stream_readiness::LogCursor::new(nvidia_console());
+        let game = super::stream_readiness::NvidiaGameWindow::new();
+        super::stream_readiness::begin_game_window();
         check_launch(epoch)?;
         let launch = spawn_geforce(&client, &argument);
         if let Err(error) = launch { let _ = std::fs::write(&path, original); return Err(error.to_string()); }
-        watch_geforce_exit(window, log, generation, wifi, audio);
+        watch_geforce_exit(window, log, game, generation, wifi, audio);
         profiles[display_key] = serde_json::to_value(profile).map_err(|e| e.to_string())?;
         std::fs::write(profiles_path, serde_json::to_vec(&profiles).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         Ok(())
@@ -1124,10 +1145,11 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
             let start = std::time::Instant::now();
             while session_current(generation) && start.elapsed() < std::time::Duration::from_secs(86400) {
                 if client.lock().is_ok_and(|mut child| child.try_wait().ok().flatten().is_some()) {
+                    if started { begin_return(&window, "moonlight", generation); }
                     if let Some(token) = &presentation { finish_host_presentation(&profile.host, token); }
-                    if lutris_id.is_some() { let _=super::lutris::refresh(&profile.host); use tauri::Emitter; let _=window.emit("library-rescan-needed",()); }
                     if session_current(generation) { super::finish_stream_session(window.clone(), "moonlight", None, || session_current(generation)); }
                     end_return(&window, "moonlight", generation);
+                    if lutris_id.is_some() { let _=super::lutris::refresh(&profile.host); use tauri::Emitter; let _=window.emit("library-rescan-needed",()); }
                     return;
                 }
                 std::thread::sleep(std::time::Duration::from_millis(300));

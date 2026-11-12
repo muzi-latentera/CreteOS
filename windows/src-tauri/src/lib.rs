@@ -9572,7 +9572,7 @@ pub(crate) fn finish_stream_session(window: tauri::Window, provider: &str, retur
         }
     }
     unsafe { let _ = ShowWindow(ours, SW_SHOW); }
-    focus_external_window(ours);
+    focus_external_window_with_cover(ours, launch_cover::independent());
     fse_watcher::focus_foreground_webview(window.app_handle());
     fse_watcher::force_webview_resume(window.app_handle().clone());
 }
@@ -9584,7 +9584,10 @@ async fn wait_stream_window(provider: String) -> Result<bool, String> {
         let start = Instant::now(); let mut candidate: Option<(isize, Instant)> = None;
         let mut log = stream_readiness::take();
         let mut stream_ready = false;
-        let budget = if matches!(provider.as_str(),"moonlight"|"luna") { 180 } else { 45 };
+        let mut nvidia_game = (provider == "geforceNow").then(stream_readiness::take_game_window);
+        let mut nvidia_video_at = None;
+        let mut game_foreground_at = None;
+        let budget = if matches!(provider.as_str(),"moonlight"|"luna") { 180 } else if nvidia_game.is_some() { 75 } else { 45 };
         while start.elapsed() < Duration::from_secs(budget) {
             if provider == "moonlight" && streaming::moonlight_game_closed() { return Ok(false); }
             if !launch_cover::active() { return Ok(false); }
@@ -9610,12 +9613,22 @@ async fn wait_stream_window(provider: String) -> Result<bool, String> {
                     _=>{}
                 }
             }
-            if provider == "geforceNow" {
+            if let Some(game) = &mut nvidia_game {
                 match log.poll() {
-                    stream_readiness::Signal::FirstFrame => stream_ready = true,
+                    stream_readiness::Signal::FirstFrame => { nvidia_video_at.get_or_insert_with(Instant::now); }
                     stream_readiness::Signal::NeedsAttention => return Ok(false),
                     stream_readiness::Signal::Waiting => {},
                 }
+                game.poll();
+                if game.foreground {
+                    game_foreground_at.get_or_insert_with(Instant::now);
+                } else {
+                    game_foreground_at = None;
+                }
+                stream_ready = nvidia_video_at.is_some() && game_foreground_at.is_some_and(|since| since.elapsed() >= Duration::from_millis(750));
+                // A cloud login or update can require user input before a game
+                // window exists. Release to that client after a bounded wait.
+                if !stream_ready && nvidia_video_at.is_some_and(|since| since.elapsed() >= Duration::from_secs(35)) { return Ok(false); }
             }
             if let Some(window) = stream_window(&provider) {
                 let ready = candidate.get_or_insert((window.hwnd, Instant::now()));
@@ -9662,7 +9675,7 @@ async fn focus_stream_window(window: tauri::Window, provider: String) -> Result<
         // While our cover was topmost the stream could already own keyboard
         // foreground without being visible. Always perform the complete
         // show/restore/raise sequence once after releasing that cover.
-        focus_external_window(windows::Win32::Foundation::HWND(target.hwnd as _));
+        focus_external_window_with_cover(windows::Win32::Foundation::HWND(target.hwnd as _), launch_cover::independent());
         fse_watcher::log_stream_transition(window.app_handle(), "handoff-window-restored-raised");
         let start = Instant::now();
         let mut stable_since = None;
@@ -9692,7 +9705,7 @@ async fn focus_stream_window(window: tauri::Window, provider: String) -> Result<
                 if foreground != ours && foreground != 0 && !can_return_from_stream(&window, &provider) && !foreground_is_desktop() {
                     return Err("Streaming started; you switched to another app. Return to the stream when ready.".into());
                 }
-                focus_external_window(windows::Win32::Foundation::HWND(target.hwnd as _));
+                focus_external_window_with_cover(windows::Win32::Foundation::HWND(target.hwnd as _), launch_cover::independent());
             }
             fse_watcher::keep_main_borderless(window.app_handle());
             std::thread::sleep(Duration::from_millis(75));
@@ -9706,7 +9719,7 @@ pub(crate) fn show_stream_return(window: &tauri::Window) -> Result<(), String> {
     window.set_decorations(false).map_err(|e| e.to_string())?;
     fse_watcher::keep_main_borderless(window.app_handle());
     let ours = window.hwnd().map_err(|e| e.to_string())?;
-    focus_external_window(ours);
+    focus_external_window_with_cover(ours, launch_cover::independent());
     fse_watcher::log_stream_transition(window.app_handle(), "return-to-crete");
     if unsafe { GetForegroundWindow() } != ours {
         return Err("Windows did not bring CreteOS forward. Return using the task switcher.".into());
@@ -9715,7 +9728,15 @@ pub(crate) fn show_stream_return(window: &tauri::Window) -> Result<(), String> {
 }
 
 fn focus_external_window(hwnd: windows::Win32::Foundation::HWND) {
+    focus_external_window_with_cover(hwnd, false);
+}
+
+fn focus_external_window_with_cover(hwnd: windows::Win32::Foundation::HWND, covered: bool) {
     unsafe {
+        if covered {
+            use windows::Win32::UI::WindowsAndMessaging::SWP_NOACTIVATE;
+            let _ = SetWindowPos(hwnd, Some(HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
         if IsIconic(hwnd).as_bool() {
             let _ = ShowWindow(hwnd, SW_RESTORE);
         } else {
@@ -9723,7 +9744,7 @@ fn focus_external_window(hwnd: windows::Win32::Foundation::HWND) {
         }
     }
     for attempt in 0..6 {
-        focus_external_window_attempt(hwnd);
+        focus_window_attempt(hwnd, covered);
         let focused = unsafe { GetForegroundWindow().0 as isize == hwnd.0 as isize };
         if focused {
             break;
@@ -9746,6 +9767,10 @@ fn focus_external_window(hwnd: windows::Win32::Foundation::HWND) {
 }
 
 fn focus_external_window_attempt(hwnd: windows::Win32::Foundation::HWND) {
+    focus_window_attempt(hwnd, false);
+}
+
+fn focus_window_attempt(hwnd: windows::Win32::Foundation::HWND, covered: bool) {
     unsafe {
         let foreground = GetForegroundWindow();
         let our_thread = GetCurrentThreadId();
@@ -9769,16 +9794,10 @@ fn focus_external_window_attempt(hwnd: windows::Win32::Foundation::HWND) {
             std::thread::sleep(Duration::from_millis(20));
         }
 
-        let _ = SetWindowPos(
-            hwnd,
-            Some(HWND_TOPMOST),
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
-        );
-        let _ = BringWindowToTop(hwnd);
+        if !covered {
+            let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            let _ = BringWindowToTop(hwnd);
+        }
         let _ = SetForegroundWindow(hwnd);
         let _ = SetActiveWindow(hwnd);
         let _ = SetFocus(Some(hwnd));
@@ -9800,13 +9819,22 @@ fn handoff_launched_app(name: String, launch_path: String, source: String, app_t
             .map(|_| unsafe { GetForegroundWindow().0 as isize })
     });
     let Some(target) = target else { return false; };
-    if launch_cover::set_launch_cover(window, false, None, None).is_err() { return false; }
+    let luna = source.eq_ignore_ascii_case("cloud") && luna::luna_url(&launch_path);
+    if luna && launch_cover::set_launch_cover(window.clone(), false, None, None).is_err() { return false; }
     if unsafe { GetForegroundWindow().0 as isize } != target {
-        focus_external_window(windows::Win32::Foundation::HWND(target as _));
+        focus_external_window_with_cover(windows::Win32::Foundation::HWND(target as _), !luna && launch_cover::active());
     }
-    if source.eq_ignore_ascii_case("cloud") && luna::luna_url(&launch_path) { let _ = luna::request_fullscreen(target); }
+    if luna { let _ = luna::request_fullscreen(target); }
     if unsafe { GetForegroundWindow().0 as isize } != target { return false; }
-    if app_type.as_deref() == Some("game") && load_settings_inner().hide_on_launch { fse_watcher::start_gpu_release_watch(app_handle, OUR_HWND.load(Ordering::Relaxed), Some(target)); }
+    if !luna && launch_cover::set_launch_cover(window.clone(), false, None, None).is_err() { return false; }
+    if app_type.as_deref() == Some("game") {
+        let hide = load_settings_inner().hide_on_launch;
+        if !luna && !launch_path.starts_with("https://") && !launch_path.starts_with("http://") {
+            fse_watcher::watch_local_game(window, target, hide);
+        } else if hide {
+            fse_watcher::start_gpu_release_watch(app_handle, OUR_HWND.load(Ordering::Relaxed), Some(target));
+        }
+    }
     true
 }
 
@@ -10402,14 +10430,18 @@ async fn launch_app(
                     std::thread::sleep(Duration::from_millis(250));
                     continue;
                 }
-            } else { ready_candidate = None; }
+            }
 
             // 2) Fallback for direct-exe games with a real PID: the old PID match.
             if child_pid != 0 {
                 let hwnd = poll_for_window(child_pid, &existing, our_hwnd);
                 if hwnd != 0 {
-                    found = hwnd;
-                    break;
+                    let ready = ready_candidate.get_or_insert((hwnd, Instant::now()));
+                    if ready.0 != hwnd { *ready = (hwnd, Instant::now()); }
+                    if !watch_is_game || ready.1.elapsed() >= Duration::from_secs(2) { found = hwnd; break; }
+                    if Instant::now() >= deadline { break; }
+                    std::thread::sleep(Duration::from_millis(250));
+                    continue;
                 }
             }
 
@@ -10424,13 +10456,18 @@ async fn launch_app(
                         if aumid_family(&foreground_aumid)
                             .eq_ignore_ascii_case(aumid_family(target_aumid))
                         {
-                            found = foreground_value;
-                            break;
+                            let ready = ready_candidate.get_or_insert((foreground_value, Instant::now()));
+                            if ready.0 != foreground_value { *ready = (foreground_value, Instant::now()); }
+                            if !watch_is_game || ready.1.elapsed() >= Duration::from_secs(2) { found = foreground_value; break; }
+                            if Instant::now() >= deadline { break; }
+                            std::thread::sleep(Duration::from_millis(250));
+                            continue;
                         }
                     }
                 }
             }
 
+            ready_candidate = None;
             if std::time::Instant::now() >= deadline {
                 break;
             }

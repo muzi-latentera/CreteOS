@@ -10,6 +10,33 @@ static GENERATION: AtomicU64 = AtomicU64::new(0);
 static Z_ORDER: Mutex<()> = Mutex::new(());
 fn now() -> u64 { SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() }
 pub fn active() -> bool { UNTIL.load(Ordering::SeqCst) > now() }
+
+pub(crate) struct LocalReturnCover {
+    window: tauri::Window,
+    generation: u64,
+}
+impl LocalReturnCover {
+    pub(crate) fn show(window: &tauri::Window) -> Option<Self> {
+        let _lock = Z_ORDER.lock().ok()?;
+        if active() { return None; }
+        crate::stream_artwork::visible(window, true).ok()?;
+        let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+        UNTIL.store(now() + 15, Ordering::SeqCst);
+        INDEPENDENT.store(true, Ordering::SeqCst);
+        crate::fse_watcher::log_stream_transition(window.app_handle(), "local-return-cover-shown");
+        Some(Self { window: window.clone(), generation })
+    }
+}
+impl Drop for LocalReturnCover {
+    fn drop(&mut self) {
+        let Ok(_lock) = Z_ORDER.lock() else { return; };
+        if GENERATION.load(Ordering::SeqCst) != self.generation { return; }
+        let _ = crate::stream_artwork::visible(&self.window, false);
+        INDEPENDENT.store(false, Ordering::SeqCst);
+        UNTIL.store(0, Ordering::SeqCst);
+        crate::fse_watcher::log_stream_transition(self.window.app_handle(), "local-return-cover-released");
+    }
+}
 fn cover_seconds(provider:Option<&str>)->u64 {
     if matches!(provider,Some("moonlight"|"luna")) {240} else {120}
 }
@@ -42,7 +69,8 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
     let cover_seconds = cover_seconds(stream_provider.as_deref());
     let until = if active { now() + cover_seconds } else { 0 };
     UNTIL.store(until, Ordering::SeqCst);
-    INDEPENDENT.store(false,Ordering::SeqCst);
+    let had_independent = INDEPENDENT.swap(false, Ordering::SeqCst);
+    if active && had_independent && stream_provider.is_none() { let _ = crate::stream_artwork::visible(&window, false); }
     if active { crate::stream_readiness::begin(); }
     if !active { let _=crate::stream_artwork::visible(&window,false); }
     if let Some(provider)=stream_provider.clone().filter(|_|active && !allow_external_focus.unwrap_or(false)) {
@@ -60,8 +88,9 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
             while GENERATION.load(Ordering::SeqCst)==generation && self::active() {
                 use windows::Win32::UI::{WindowsAndMessaging::GetForegroundWindow,Input::{KeyboardAndMouse::{GetAsyncKeyState,VK_ESCAPE},XboxController::{XInputGetState,XINPUT_STATE}}};
                 let ours=unsafe{GetForegroundWindow()}.0 as isize==hwnd;
-                let eligible=ours || crate::can_return_from_stream(&window,&provider);
+                let eligible=ours || crate::can_return_from_stream(&window,&provider) || crate::foreground_is_desktop();
                 if shown!=eligible {let _=crate::stream_artwork::visible(&window,eligible);shown=eligible;}
+                if eligible { crate::native_artwork::raise_if_visible(); }
                 let mut down=unsafe{GetAsyncKeyState(VK_ESCAPE.0 as i32)}<0;
                 for index in 0..4 {let mut state=XINPUT_STATE::default();if unsafe{XInputGetState(index,&mut state)}==0{down|=state.Gamepad.wButtons.0 & 0x2000!=0;}}
                 if eligible && down && !cancel_was_down {use tauri::Emitter;let _=window.emit("stream-launch-cancel",());let _=crate::streaming::cancel_stream_launch(window.clone());return;}
@@ -153,7 +182,7 @@ pub(crate) fn stream_process(provider: &str, path: &str) -> bool {
 #[cfg(test)] mod tests {
     #[test] fn cover_outlasts_readiness_and_foreground_handoff() {
         for provider in ["moonlight","luna"] {assert!(super::cover_seconds(Some(provider))>180+10+3);}
-        assert!(super::cover_seconds(Some("geforceNow"))>45+10+3);
+        assert!(super::cover_seconds(Some("geforceNow"))>75+10+3);
     }
     #[test] fn artwork_guard_only_covers_the_requested_stream_client() {
         assert!(super::stream_process("moonlight", r"C:\Apps\Moonlight.exe"));
