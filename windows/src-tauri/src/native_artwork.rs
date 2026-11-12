@@ -15,6 +15,7 @@ fn display_message(state:&State)->&str{
     if state.playful && !state.message.is_empty() && !waiting.contains(&state.message){&playful_lines()[state.step%playful_lines().len()]}else{&state.message}
 }
 static HANDLE:OnceLock<Result<isize,String>>=OnceLock::new();
+static STAGED_HANDLE:OnceLock<Result<isize,String>>=OnceLock::new();
 fn owned(raw:isize)->bool{unsafe{let hwnd=HWND(raw as _);let mut pid=0;GetWindowThreadProcessId(hwnd,Some(&mut pid));IsWindow(Some(hwnd)).as_bool()&&pid==std::process::id()}}
 pub fn cover_rect(iw:i32,ih:i32,w:i32,h:i32)->(i32,i32,i32,i32){
     let scale=(w as f64/iw.max(1) as f64).max(h as f64/ih.max(1) as f64);
@@ -90,16 +91,19 @@ unsafe extern "system" fn procedure(hwnd:HWND,msg:u32,wp:WPARAM,lp:LPARAM)->LRES
     }
     DefWindowProcW(hwnd,msg,wp,lp)
 }
-pub fn prepare()->Result<isize,String>{HANDLE.get_or_init(||{
+pub fn prepare()->Result<isize,String>{prepare_surface(&HANDLE, false)}
+fn prepare_surface(handle: &OnceLock<Result<isize,String>>, staged: bool)->Result<isize,String>{handle.get_or_init(||{
     let(tx,rx)=std::sync::mpsc::channel();
     std::thread::spawn(move||unsafe{
         let result=(||->windows::core::Result<HWND>{
             let instance=HINSTANCE(GetModuleHandleW(None)?.0);
-            let class=WNDCLASSW{lpfnWndProc:Some(procedure),hInstance:instance,lpszClassName:w!("CreteOSNativeArtwork"),..Default::default()};
+            let name = if staged { w!("CreteOSStagedArtwork") } else { w!("CreteOSNativeArtwork") };
+            let style = WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | if staged { WINDOW_EX_STYLE(0) } else { WS_EX_TOPMOST };
+            let class=WNDCLASSW{lpfnWndProc:Some(procedure),hInstance:instance,lpszClassName:name,..Default::default()};
             if RegisterClassW(&class)==0{return Err(windows::core::Error::from_win32());}
-            CreateWindowExW(WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW|WS_EX_TOPMOST,w!("CreteOSNativeArtwork"),w!("CreteOS native streaming artwork"),WS_POPUP,0,0,800,600,None,None,Some(instance),None)
+            CreateWindowExW(style,name,w!("CreteOS native streaming artwork"),WS_POPUP,0,0,800,600,None,None,Some(instance),None)
         })();
-        match result{Ok(hwnd)=>{SetTimer(Some(hwnd),1,3500,None);let _=tx.send(Ok(hwnd.0 as isize));let mut msg=MSG::default();while GetMessageW(&mut msg,None,0,0).0>0{let _=TranslateMessage(&msg);DispatchMessageW(&msg);}},Err(_)=>{let _=tx.send(Err("Native artwork window could not be created".into()));}}
+        match result{Ok(hwnd)=>{if !staged {SetTimer(Some(hwnd),1,3500,None);}let _=tx.send(Ok(hwnd.0 as isize));let mut msg=MSG::default();while GetMessageW(&mut msg,None,0,0).0>0{let _=TranslateMessage(&msg);DispatchMessageW(&msg);}},Err(_)=>{let _=tx.send(Err("Native artwork window could not be created".into()));}}
     });
     rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap_or(Err("Native artwork initialization timed out".into()))
 }).clone().and_then(|raw|if owned(raw){Ok(raw)}else{Err("Native artwork handle is no longer owned by CreteOS".into())})}
@@ -111,7 +115,7 @@ pub fn visible(show:bool,x:i32,y:i32,width:i32,height:i32)->Result<(),String>{
 }
 
 pub(crate) fn stage_behind(game: HWND, x: i32, y: i32, width: i32, height: i32) -> Result<(), String> {
-    let hwnd = HWND(prepare()? as _);
+    let hwnd = HWND(prepare_surface(&STAGED_HANDLE, true)? as _);
     unsafe {
         if GetForegroundWindow() != game { return Err("The game no longer owns foreground".into()); }
         SetWindowPos(hwnd, Some(HWND_NOTOPMOST), 0, 0, 0, 0,
@@ -123,6 +127,12 @@ pub(crate) fn stage_behind(game: HWND, x: i32, y: i32, width: i32, height: i32) 
         let _ = UpdateWindow(hwnd);
     }
     Ok(())
+}
+
+pub(crate) fn hide_staged() {
+    if let Some(Ok(raw)) = STAGED_HANDLE.get().filter(|surface| surface.as_ref().is_ok_and(|raw| owned(*raw))) {
+        unsafe { let _ = ShowWindow(HWND(*raw as _), SW_HIDE); }
+    }
 }
 
 pub(crate) fn raise_if_visible() {

@@ -70,9 +70,7 @@ pub(crate) fn stage_behind(window: &tauri::Window, game: windows::Win32::Foundat
     let monitor = window.current_monitor().map_err(|e| e.to_string())?.ok_or("Artwork monitor unavailable")?;
     let position = monitor.position();
     let size = monitor.size();
-    crate::native_artwork::stage_behind(game, position.x, position.y, size.width as i32, size.height as i32)?;
-    NATIVE_SHOWN.store(true, Ordering::SeqCst);
-    Ok(())
+    crate::native_artwork::stage_behind(game, position.x, position.y, size.width as i32, size.height as i32)
 }
 pub fn visible(window:&tauri::Window,show:bool)->Result<(),String>{
     if !show && NATIVE_SHOWN.swap(false,Ordering::SeqCst){return crate::native_artwork::visible(false,0,0,0,0);}

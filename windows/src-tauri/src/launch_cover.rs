@@ -31,7 +31,7 @@ impl LocalReturnCover {
         let Ok(_lock) = Z_ORDER.lock() else { return; };
         if generation() != expected || active() { return; }
         if crate::stream_artwork::visible(window, true).is_err() { return; }
-        LOCAL_STAGED.store(false, Ordering::SeqCst);
+        if LOCAL_STAGED.swap(false, Ordering::SeqCst) { crate::native_artwork::hide_staged(); }
         UNTIL.store(now() + 15, Ordering::SeqCst);
         INDEPENDENT.store(true, Ordering::SeqCst);
         crate::fse_watcher::log_stream_transition(window.app_handle(), "local-return-cover-shown");
@@ -53,11 +53,13 @@ impl Drop for LocalReturnCover {
     fn drop(&mut self) {
         let Ok(_lock) = Z_ORDER.lock() else { return; };
         if GENERATION.load(Ordering::SeqCst) != self.generation { return; }
-        let _ = crate::stream_artwork::visible(&self.window, false);
-        LOCAL_STAGED.store(false, Ordering::SeqCst);
+        if LOCAL_STAGED.swap(false, Ordering::SeqCst) { crate::native_artwork::hide_staged(); }
         let shown = INDEPENDENT.swap(false, Ordering::SeqCst);
         UNTIL.store(0, Ordering::SeqCst);
-        if shown { crate::fse_watcher::log_stream_transition(self.window.app_handle(), "local-return-cover-released"); }
+        if shown {
+            let _ = crate::stream_artwork::visible(&self.window, false);
+            crate::fse_watcher::log_stream_transition(self.window.app_handle(), "local-return-cover-released");
+        }
     }
 }
 fn cover_seconds(provider:Option<&str>)->u64 {
@@ -113,7 +115,7 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
     let until = if active { now() + cover_seconds } else { 0 };
     UNTIL.store(until, Ordering::SeqCst);
     let had_independent = INDEPENDENT.swap(false, Ordering::SeqCst);
-    if LOCAL_STAGED.swap(false, Ordering::SeqCst) { let _ = crate::stream_artwork::visible(&window, false); }
+    if LOCAL_STAGED.swap(false, Ordering::SeqCst) { crate::native_artwork::hide_staged(); }
     if active && had_independent && stream_provider.is_none() { let _ = crate::stream_artwork::visible(&window, false); }
     if active { crate::stream_readiness::begin(); }
     if !active { let _=crate::stream_artwork::visible(&window,false); }
