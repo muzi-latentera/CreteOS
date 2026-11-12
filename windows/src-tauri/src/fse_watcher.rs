@@ -734,7 +734,9 @@ fn raise_window_and_hold(hwnd: HWND) {
 
 #[cfg(windows)]
 fn clear_topmost(hwnd: HWND) {
+    use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TOPMOST};
     unsafe {
+        if GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST.0 as isize == 0 { return; }
         let _ = SetWindowPos(
             hwnd,
             Some(HWND_NOTOPMOST),
@@ -859,7 +861,7 @@ fn should_suspend_for_target(ours: isize, game: isize, foreground: isize, fully_
     !launching && ours != 0 && game != 0 && game != ours && foreground == game && fully_covered
 }
 #[cfg(windows)]
-fn target_covers_main(ours: HWND, target: HWND) -> bool {
+pub(crate) fn target_covers_main(ours: HWND, target: HWND) -> bool {
     is_fullscreen_like(target) && monitor_rect(ours).zip(monitor_rect(target)).is_some_and(|(ours, target)| ours == target)
 }
 

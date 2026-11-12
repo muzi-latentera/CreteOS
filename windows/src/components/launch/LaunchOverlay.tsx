@@ -63,6 +63,7 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
     const launchTarget = app;
     const done = onDone;
     const success = onSuccess;
+    let handedOff = false;
     mounted.current = true;
     const lunaLaunch = launchTarget.source === "cloud" && /^https:\/\/luna\.amazon\.(co\.uk|com)(?:\/|$)/.test(launchTarget.launch_path);
     const coverReady = Promise.resolve(invoke("set_launch_cover", { active: true, ...(lunaLaunch ? { allowExternalFocus: true } : {}) })).catch(() => {});
@@ -116,9 +117,10 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
           return;
         }
         if (minimal) {
-          const handedOff = await invoke<boolean>("handoff_launched_app", { name: launchTarget.name, launchPath: launchTarget.launch_path, source: launchTarget.source, appType: launchTarget.app_type });
+          const confirmed = await invoke<boolean>("handoff_launched_app", { name: launchTarget.name, launchPath: launchTarget.launch_path, source: launchTarget.source, appType: launchTarget.app_type });
           if (!mounted.current) return;
-          if (!handedOff) { setStatus("unconfirmed"); return; }
+          if (!confirmed) { setStatus("unconfirmed"); return; }
+          handedOff = true;
           success?.(); rumble("launch", hapticEnabled); setStatus("focused"); done();
           return;
         }
@@ -244,7 +246,7 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
 
     return () => {
       mounted.current = false;
-      void Promise.resolve(invoke("set_launch_cover", { active: false })).then(() => {
+      if (!handedOff) void Promise.resolve(invoke("set_launch_cover", { active: false })).then(() => {
         if (!minimal && statusRef.current === "focused") return invoke("try_focus_launched_app", { name: launchTarget.name, launchPath: launchTarget.launch_path, source: launchTarget.source, appType: launchTarget.app_type });
       }).catch(() => {});
       document.getElementById("launch-overlay-styles")?.remove();

@@ -9695,7 +9695,7 @@ async fn focus_stream_window(window: tauri::Window, provider: String) -> Result<
                 if stable.elapsed() >= Duration::from_millis(500) {
                     fse_watcher::log_stream_transition(window.app_handle(), "handoff-stable");
                     if provider=="luna" {let _=luna::request_fullscreen(target.hwnd);}
-                    launch_cover::set_launch_cover(window.clone(),false,None,None)?;
+                    launch_cover::finish_handoff(&window, target.hwnd)?;
                     return Ok(());
                 }
             } else {
@@ -9826,7 +9826,7 @@ fn handoff_launched_app(name: String, launch_path: String, source: String, app_t
     }
     if luna { let _ = luna::request_fullscreen(target); }
     if unsafe { GetForegroundWindow().0 as isize } != target { return false; }
-    if !luna && launch_cover::set_launch_cover(window.clone(), false, None, None).is_err() { return false; }
+    if !luna && launch_cover::finish_handoff(&window, target).is_err() { return false; }
     if app_type.as_deref() == Some("game") {
         let hide = load_settings_inner().hide_on_launch;
         if !luna && !launch_path.starts_with("https://") && !launch_path.starts_with("http://") {

@@ -44,13 +44,33 @@ fn cover_seconds(provider:Option<&str>)->u64 {
 // Changing cover z-order must never activate CreteOS during external handoff
 // or delayed overlay cleanup. Work only on the command's own managed window.
 fn topmost_without_activation(raw: isize, topmost: bool) -> Result<(), String> {
-    use windows::Win32::UI::WindowsAndMessaging::{GetWindowThreadProcessId, SetWindowPos, HWND_TOPMOST, HWND_NOTOPMOST, SWP_NOMOVE, SWP_NOSIZE, SWP_NOACTIVATE, SWP_NOOWNERZORDER};
+    use windows::Win32::UI::WindowsAndMessaging::{GetWindowLongPtrW, GetWindowThreadProcessId, SetWindowPos, GWL_EXSTYLE, WS_EX_TOPMOST, HWND_TOPMOST, HWND_NOTOPMOST, SWP_NOMOVE, SWP_NOSIZE, SWP_NOACTIVATE, SWP_NOOWNERZORDER};
     let hwnd = windows::Win32::Foundation::HWND(raw as _);
     let mut pid = 0;
     unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)); }
     if pid != std::process::id() { return Err("Launch cover window is no longer owned by CreteOS".into()); }
+    if !topmost && unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) } & WS_EX_TOPMOST.0 as isize == 0 { return Ok(()); }
     unsafe { SetWindowPos(hwnd, Some(if topmost { HWND_TOPMOST } else { HWND_NOTOPMOST }), 0, 0, 0, 0,
         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER).map_err(|e| e.to_string()) }
+}
+
+pub(crate) fn finish_handoff(window: &tauri::Window, target: isize) -> Result<(), String> {
+    use windows::Win32::{Foundation::HWND, UI::WindowsAndMessaging::{GetForegroundWindow, SetWindowPos, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE}};
+    let ours = window.hwnd().map_err(|e| e.to_string())?;
+    let _lock = Z_ORDER.lock().map_err(|_| "Launch cover state unavailable")?;
+    let target = HWND(target as _);
+    if ours == target || unsafe { GetForegroundWindow() } != target {
+        return Err("The game window lost focus during handoff".into());
+    }
+    // Position CreteOS directly below the game. Moving a non-topmost window
+    // to HWND_NOTOPMOST again puts it above ordinary windows, including the game.
+    unsafe { SetWindowPos(ours, Some(target), 0, 0, 0, 0,
+        SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOOWNERZORDER).map_err(|e| e.to_string())?; }
+    GENERATION.fetch_add(1, Ordering::SeqCst);
+    UNTIL.store(0, Ordering::SeqCst);
+    INDEPENDENT.store(false, Ordering::SeqCst);
+    let _ = crate::stream_artwork::visible(window, false);
+    Ok(())
 }
 
 // Window operations can synchronously wait on the UI thread. Never make that
