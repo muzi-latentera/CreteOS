@@ -75,6 +75,17 @@ def steam_snapshot(proc=Path('/proc')):
     return steam
 
 
+def wait_for_snapshot(inspect, timeout=5, clock=time.monotonic, sleep=time.sleep):
+    deadline = clock() + timeout
+    while True:
+        try:
+            return inspect()
+        except RuntimeError as error:
+            if str(error) != 'processCheckUnavailable' or clock() >= deadline:
+                raise
+            sleep(.25)
+
+
 def restart_idle(target, stream_active=lambda: False, run=subprocess.run, inspect=snapshot, sleep=time.sleep, clock=time.monotonic):
     steam, games = inspect()
     if games:
@@ -140,9 +151,9 @@ def main():
         # A connected client may belong to another handheld.
         if stream_active():
             return 'streamActive'
-        if not steam_snapshot():
+        if not wait_for_snapshot(steam_snapshot):
             return 'ready'
-        return restart_idle(target, stream_active)
+        return restart_idle(target, stream_active, inspect=lambda: wait_for_snapshot(snapshot))
 
 
 if __name__ == '__main__':

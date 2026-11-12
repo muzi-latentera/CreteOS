@@ -2,6 +2,7 @@
 // Public service certificate: FrogTheFrog/moondeck-keys (not a private key).
 use base64::Engine;
 use serde_json::{json, Value};
+use std::net::SocketAddr;
 
 fn state_is(value: &Value, number: u64, name: &str) -> bool {
     value.as_u64() == Some(number) || value.as_str() == Some(name)
@@ -41,21 +42,37 @@ fn client_at(endpoint: Option<(&str, std::net::SocketAddr)>) -> Result<reqwest::
     let mut builder = reqwest::blocking::Client::builder().tls_built_in_root_certs(false).add_root_certificate(cert)
         .danger_accept_invalid_hostnames(true).timeout(std::time::Duration::from_secs(5))
         .redirect(reqwest::redirect::Policy::none());
-    if let Some((host, address)) = endpoint { builder = builder.resolve(host, address); }
+    if let Some((host, address)) = endpoint { builder = builder.no_proxy().resolve(host, address); }
     builder.build().map_err(|e| e.to_string())
 }
 
-fn request(host: &str, endpoint: &str, body: Option<Value>) -> Result<Value, String> {
+pub struct Buddy {
+    host: String,
+    peer: Option<SocketAddr>,
+    client: reqwest::blocking::Client,
+}
+
+impl Buddy {
+pub fn new(host: &str, peer: Option<SocketAddr>) -> Result<Self, String> {
+    let client = match peer {
+        Some(address) => client_at(Some((host, address)))?,
+        None => client()?,
+    };
+    Ok(Self { host: host.to_owned(), peer, client })
+}
+
+fn request(&self, endpoint: &str, body: Option<Value>) -> Result<Value, String> {
+    let host = &self.host;
     let id = identity(host)?;
     let auth = base64::engine::general_purpose::STANDARD.encode(id.as_bytes());
     let url = format!("https://{host}:59999/{endpoint}");
-    let client = client()?;
+    let client = &self.client;
     let builder = if let Some(body) = body {
         if endpoint == "appData" { client.get(url).json(&body) } else { client.post(url).json(&body) }
     } else { client.get(url) };
     // Steam initialization/update dialogs can take longer than a status poll.
     // Send launch commands once; never replay a timed-out launch POST.
-    let timeout=if matches!(endpoint,"launchSteam"|"launchSteamApp"){30}else{5};
+    let timeout=if matches!(endpoint,"launchSteam"|"launchSteamApp"){30}else{10};
     let response = builder.timeout(std::time::Duration::from_secs(timeout)).header("Authorization", format!("basic {auth}")).send()
         .map_err(|error| if error.is_timeout() && matches!(endpoint,"launchSteam"|"launchSteamApp") {
             "MoonDeck Buddy is taking too long to prepare Steam on Bosgame. Steam may still be signing in or updating; check the host screen before retrying.".to_owned()
@@ -66,7 +83,12 @@ fn request(host: &str, endpoint: &str, body: Option<Value>) -> Result<Value, Str
         let route = endpoint.split('/').next().unwrap_or("request");
         return Err(request_error(route, response.status().as_u16()));
     }
+    if self.peer.zip(response.remote_addr()).is_some_and(|(selected, actual)| selected != actual) {
+        return Err("MoonDeck Buddy answered on a different address from the selected stream route.".into());
+    }
     response.json().map_err(|_| "Invalid MoonDeck Buddy response".to_owned())
+}
+
 }
 
 fn request_error(route: &str, code: u16) -> String {
@@ -84,27 +106,30 @@ fn app_data_request(version: u64, steam_id: Option<&str>) -> (&'static str, Opti
     else { ("appData", steam_id.map(|id| json!({"app_id":id}))) }
 }
 
-fn app_data(host: &str, version: u64, steam_id: Option<&str>) -> Result<Value, String> {
+fn app_data(buddy: &Buddy, version: u64, steam_id: Option<&str>) -> Result<Value, String> {
     let (route, body) = app_data_request(version, steam_id);
-    request(host, route, body)
+    buddy.request(route, body)
 }
 
 fn requested_app_running(data: &Value, steam_id: &str) -> bool {
     data["data"]["app_id"].as_str() == Some(steam_id) && state_is(&data["data"]["app_state"], 1, "Running")
 }
 
-pub fn status(host: &str) -> Result<Value, String> {
-    let version = request(host, "apiVersion", None)?;
+impl Buddy {
+    pub fn status(&self) -> Result<Value, String> {
+    let version = self.request("apiVersion", None)?;
     if !matches!(version["version"].as_u64(), Some(8 | 9)) { return Err("Unsupported MoonDeck Buddy API version".into()); }
-    let id = identity(host)?;
-    let pairing = request(host, &format!("pairingState/{id}"), None)?;
+    let id = identity(&self.host)?;
+    let pairing = self.request(&format!("pairingState/{id}"), None)?;
     Ok(json!({"paired":state_is(&pairing["state"], 0, "Paired"),"version":version["version"]}))
+}
+
 }
 
 #[tauri::command]
 pub async fn get_moondeck_status(host: String) -> Result<Value, String> {
     super::streaming::validate_host(&host)?;
-    tauri::async_runtime::spawn_blocking(move || status(&host)).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || Buddy::new(&host, None)?.status()).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -114,7 +139,7 @@ pub async fn pair_moondeck(host: String, pin: u32) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let id = identity(&host)?;
         let hashed = base64::engine::general_purpose::STANDARD.encode(format!("{id}{pin}"));
-        let result = request(&host, "pair", Some(json!({"id":id,"hashed_id":hashed})))?;
+        let result = Buddy::new(&host, None)?.request("pair", Some(json!({"id":id,"hashed_id":hashed})))?;
         if result["result"] == true { Ok(()) } else { Err("Buddy refused pairing. Check the host.".into()) }
     }).await.map_err(|e| e.to_string())?
 }
@@ -123,42 +148,42 @@ fn valid_app_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 20 && id.bytes().all(|c| c.is_ascii_digit()) && id.parse::<u64>().is_ok_and(|id| id > 0)
 }
 
-pub fn launch(host: &str, steam_id: &str, current: impl Fn() -> bool, note: impl Fn(&str)) -> Result<(), String> {
+pub fn launch(client: &Buddy, steam_id: &str, current: impl Fn() -> bool, note: impl Fn(&str)) -> Result<(), String> {
     if !valid_app_id(steam_id) {
         return Err("Invalid Steam app ID".into());
     }
     let connected = || if current() { Ok(()) } else { Err("Moonlight closed or disconnected before the game started. Check the stream connection and try again.".to_string()) };
     connected()?;
-    let buddy = status(host)?;
+    let buddy = client.status()?;
     if buddy["paired"] != true { return Err("Pair CreteOS with MoonDeck Buddy first".into()); }
     let version = buddy["version"].as_u64().ok_or("Missing Buddy API version")?;
     let deadline = std::time::Instant::now();
-    while !state_is(&request(host, "streamState", None)?["state"], 1, "Streaming") {
+    while !state_is(&client.request("streamState", None)?["state"], 1, "Streaming") {
         connected()?;
-        if deadline.elapsed() > std::time::Duration::from_secs(20) { return Err("MoonDeckStream did not become ready".into()); }
+        if deadline.elapsed() > std::time::Duration::from_secs(30) { return Err("MoonDeckStream did not become ready".into()); }
         std::thread::sleep(std::time::Duration::from_millis(300));
     }
     connected()?;
-    if request(host, "launchSteam", Some(json!({"big_picture_mode":false,"username":null})))?["result"] != true {
+    if client.request("launchSteam", Some(json!({"big_picture_mode":false,"username":null})))?["result"] != true {
         return Err("Buddy could not start Steam".into());
     }
     let deadline = std::time::Instant::now();
     loop {
         connected()?;
-        let mode = request(host, "steamUiMode", None)?;
+        let mode = client.request("steamUiMode", None)?;
         if state_is(&mode["mode"], 1, "Desktop") || state_is(&mode["mode"], 2, "BigPicture") { break; }
-        if deadline.elapsed() > std::time::Duration::from_secs(20) { return Err("Steam did not become ready".into()); }
+        if deadline.elapsed() > std::time::Duration::from_secs(30) { return Err("Steam did not become ready".into()); }
         std::thread::sleep(std::time::Duration::from_millis(300));
     }
     connected()?;
-    if request(host, "launchSteamApp", Some(json!({"app_id":steam_id})))?["result"] != true {
+    if client.request("launchSteamApp", Some(json!({"app_id":steam_id})))?["result"] != true {
         return Err("Buddy could not launch this game".into());
     }
     note("buddy-game-launch-requested");
     let deadline = std::time::Instant::now();
     loop {
         connected()?;
-        let data = app_data(host, version, Some(steam_id))?;
+        let data = app_data(client, version, Some(steam_id))?;
         if requested_app_running(&data, steam_id) { note("buddy-game-running"); break; }
         if deadline.elapsed() > std::time::Duration::from_secs(120) {
             note("buddy-game-launch-timeout");
@@ -214,15 +239,19 @@ fn exit_notification(value: &Value, id: &str) -> ExitNotification {
 
 // Follow MoonDeck's notifyOnChanges feed instead of waiting for two sequential
 // HTTP polls. Retain polling if this Buddy version/connection cannot subscribe.
-fn watch_exit_notifications(host: &str, id: &str, gate: &mut ExitGate, deadline: std::time::Instant, current: &impl Fn() -> bool, ending: &impl Fn(), note: &impl Fn(&str)) -> Option<bool> {
+fn watch_exit_notifications(client: &Buddy, id: &str, gate: &mut ExitGate, deadline: std::time::Instant, current: &impl Fn() -> bool, ending: &impl Fn(), note: &impl Fn(&str)) -> Option<bool> {
     use std::net::{TcpStream, ToSocketAddrs};
     use std::time::{Duration, Instant};
     use tungstenite::{client::IntoClientRequest, Connector, Message};
     let cert = native_tls::Certificate::from_pem(include_bytes!("moondeck_cert.pem")).ok()?;
     let tls = native_tls::TlsConnector::builder().disable_built_in_roots(true)
         .add_root_certificate(cert).danger_accept_invalid_hostnames(true).build().ok()?;
-    let address = (host, 59999).to_socket_addrs().ok()?.take(4)
-        .find_map(|address| TcpStream::connect_timeout(&address, Duration::from_secs(2)).ok())?;
+    let host = &client.host;
+    let address = match client.peer {
+        Some(peer) => TcpStream::connect_timeout(&peer, Duration::from_secs(5)).ok()?,
+        None => (host.as_str(), 59999).to_socket_addrs().ok()?.take(4)
+            .find_map(|address| TcpStream::connect_timeout(&address, Duration::from_secs(2)).ok())?,
+    };
     let peer = address.peer_addr().ok()?;
     address.set_read_timeout(Some(Duration::from_secs(3))).ok()?;
     address.set_write_timeout(Some(Duration::from_secs(3))).ok()?;
@@ -301,12 +330,12 @@ fn request_end_stream(host: &str, peer: Option<std::net::SocketAddr>, note: &imp
     }
 }
 
-pub fn watch_exit(host: &str, id: &str, already_running: bool, current: impl Fn() -> bool, ending: impl Fn(), note: impl Fn(&str)) -> bool {
+pub fn watch_exit(client: &Buddy, id: &str, already_running: bool, current: impl Fn() -> bool, ending: impl Fn(), note: impl Fn(&str)) -> bool {
         let mut gate = ExitGate { started: already_running };
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
-        if let Some(ended) = watch_exit_notifications(host, id, &mut gate, deadline, &current, &ending, &note) { return ended; }
+        if let Some(ended) = watch_exit_notifications(client, id, &mut gate, deadline, &current, &ending, &note) { return ended; }
         note("buddy-poll-fallback");
-        let Ok(buddy) = status(host) else { return false; };
+        let Ok(buddy) = client.status() else { return false; };
         let Some(version) = buddy["version"].as_u64() else { return false; };
         let mut exited_samples = 0;
         let mut failures = 0;
@@ -316,9 +345,9 @@ pub fn watch_exit(host: &str, id: &str, already_running: bool, current: impl Fn(
             if !gate.started && std::time::Instant::now() > deadline { return false; }
             std::thread::sleep(std::time::Duration::from_millis(500));
             if !current() { return false; }
-            let result = request(host, "streamState", None).and_then(|state| {
+            let result = client.request("streamState", None).and_then(|state| {
                 if !state_is(&state["state"], 1, "Streaming") { return Ok(None); }
-                app_data(host, version, None).map(Some)
+                app_data(client, version, None).map(Some)
             });
             match result {
                 Ok(None) => { if gate.started { ending(); return true; } }
@@ -332,7 +361,7 @@ pub fn watch_exit(host: &str, id: &str, already_running: bool, current: impl Fn(
                     }
                     if exited_samples >= 2 && current() {
                         ending();
-                        return request_end_stream(host, None, &note, &current);
+                        return request_end_stream(&client.host, client.peer, &note, &current);
                     }
                 }
                 Err(_) => { exited_samples = 0; failures += 1; if failures >= 5 { return false; } }
@@ -341,10 +370,11 @@ pub fn watch_exit(host: &str, id: &str, already_running: bool, current: impl Fn(
         false
 }
 
-pub fn prepare(host: &str, steam_id: &str) -> Result<(), String> {
-    let buddy = status(host)?;
+pub fn prepare(client: &Buddy, steam_id: &str) -> Result<(), String> {
+    let buddy = client.status()?;
+    if buddy["paired"] != true { return Err("Pair CreteOS with MoonDeck Buddy first".into()); }
     let version = buddy["version"].as_u64().ok_or("Missing Buddy API version")?;
-    let active = app_data(host, version, None)?;
+    let active = app_data(client, version, None)?;
     if let Some(id) = active["data"]["app_id"].as_str() {
         if id != steam_id { return Err("Bosgame is already streaming a different game. End that session first.".into()); }
     }
@@ -358,11 +388,11 @@ mod tests {
         assert!(super::valid_app_id("13474170597885870080"));
         assert!(super::valid_app_id("2638890"));
         for id in ["0", "18446744073709551616", "-1", "1/launch", ""] {assert!(!super::valid_app_id(id));}
-        assert!(super::launch("invalid.invalid", "13474170597885870080", || false, |_| {}).unwrap_err().contains("closed or disconnected"));
+        assert!(super::launch(&super::Buddy::new("invalid.invalid", None).unwrap(), "13474170597885870080", || false, |_| {}).unwrap_err().contains("closed or disconnected"));
     }
     #[test]
     fn a_closed_client_cancels_launch_before_any_host_request() {
-        let result = super::launch("invalid.invalid", "2638890", || false, |_| panic!("no launch phase expected"));
+        let result = super::launch(&super::Buddy::new("invalid.invalid", None).unwrap(), "2638890", || false, |_| panic!("no launch phase expected"));
         assert!(result.unwrap_err().contains("closed or disconnected"));
     }
     use serde_json::Value;

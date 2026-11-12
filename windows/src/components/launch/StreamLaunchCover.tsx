@@ -195,7 +195,7 @@ export function StreamLaunchCover({ heroArt, customHeroArt }: { heroArt: Record<
   useEffect(() => {
     if (!cover) return;
     // Never leave an unresponsive launch behind indefinite artwork.
-    const timeout = window.setTimeout(() => dismiss(), 180_000);
+    const timeout = window.setTimeout(() => dismiss(), lastStream?.provider === "moonlight" ? 270_000 : 180_000);
     const key = (event: KeyboardEvent) => { event.preventDefault(); event.stopImmediatePropagation(); if (event.key === "Escape") dismiss(); };
     window.addEventListener("keydown", key, true);
     let frame = 0; let previous = true;

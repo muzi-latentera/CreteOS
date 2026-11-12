@@ -63,7 +63,7 @@ impl Drop for LocalReturnCover {
     }
 }
 fn cover_seconds(provider:Option<&str>)->u64 {
-    if matches!(provider,Some("moonlight"|"luna")) {240} else {120}
+    match provider { Some("moonlight") => 300, Some("luna") => 240, _ => 120 }
 }
 
 // Changing cover z-order must never activate CreteOS during external handoff

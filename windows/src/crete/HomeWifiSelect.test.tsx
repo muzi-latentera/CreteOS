@@ -46,9 +46,17 @@ it("previews the automatic Bosgame route and saves a separate override", async (
   const remote = host.querySelector<HTMLSelectElement>('select[aria-label="Bosgame connection"]')!;
   expect(remote.options[0].text).toBe("Automatic · Ethernet");
   await act(async () => { local.value = "download"; local.dispatchEvent(new Event("change", { bubbles: true })); });
-  expect(remote.options[0].text).toBe("Automatic · Wi-Fi");
+  expect(remote.options[0].text).toBe("Automatic · Ethernet");
   await act(async () => { remote.value = "ethernet"; remote.dispatchEvent(new Event("change", { bubbles: true })); });
   expect(invoke).toHaveBeenCalledWith("set_bosgame_connection_preference", { choice: "ethernet" });
   expect(local.value).toBe("download");
   expect(remote.value).toBe("ethernet");
+});
+it("defaults to E433 only when Moonlight detects the dock", async () => {
+  vi.mocked(invoke).mockImplementation(async command => command === "get_stream_network_status" ? { docked: true } : { moonlight: "automatic", bosgameConnection: "automatic" });
+  host = document.createElement("div"); root = createRoot(host);
+  await act(async () => root.render(<HomeWifiSelect provider="moonlight" host="Bosgame" saving={() => {}} />));
+  const local = host.querySelector<HTMLSelectElement>('select[aria-label="G1 connection"]')!;
+  expect(local.options[0].text).toContain("Fibre E433");
+  expect(local.value).toBe("automatic");
 });

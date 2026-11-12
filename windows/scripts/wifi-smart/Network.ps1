@@ -1,3 +1,13 @@
+function Test-StreamDock {
+ try {
+  $path=Join-Path (Split-Path $PSScriptRoot) 'SmartLid/config.json'
+  $ids=@((Get-Content -LiteralPath $path -Raw | ConvertFrom-Json).DockIds | Where-Object {$_})
+  if($ids.Count -lt 2){return $false}
+  $present=@(Get-PnpDevice -PresentOnly -InstanceId $ids -ErrorAction SilentlyContinue)
+  return @($ids | Where-Object {$_ -notin $present.InstanceId}).Count -eq 0
+ } catch {return $false}
+}
+
 # A connected cable alone is insufficient: inspect the route Windows will use.
 function Get-StreamNetwork([string]$RouteTarget='1.1.1.1') {
  try {

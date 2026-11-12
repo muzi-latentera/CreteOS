@@ -12,7 +12,8 @@ import sys
 TABLE = '214'
 PRIORITY = 12150
 PORTS = (('tcp', '47984'), ('tcp', '47989'), ('tcp', '48010'),
-         ('udp', '47998-48000'), ('udp', '48002'), ('udp', '48010'))
+         ('udp', '47998-48000'), ('udp', '48002'), ('udp', '48010'),
+         ('tcp', '59999'))
 
 
 def ip(*args, check=True):
@@ -55,7 +56,7 @@ def hold(mode, peer):
             rule = ('priority', str(PRIORITY + index), 'to', prefix, 'ipproto', protocol, 'sport', port, 'table', TABLE)
             ip('rule', 'add', *rule)
             active_rules.append(rule)
-        for protocol, port in (('tcp', '47989'), ('udp', '47998')):
+        for protocol, port in (('tcp', '47989'), ('udp', '47998'), ('tcp', '59999')):
             actual = json.loads(ip('-j', 'route', 'get', str(peer), 'from', source, 'ipproto', protocol, 'sport', port, 'dport', '55000'))
             if actual[0].get('dev') != interface:
                 raise ValueError('routeVerificationFailed')

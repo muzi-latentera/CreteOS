@@ -1,5 +1,9 @@
 [
   "Steam is downloading or updating game files…",
   "Steam is preparing shaders…",
-  "Loading NVIDIA streaming settings…"
+  "Loading NVIDIA streaming settings…",
+  "Preparing the G1 network connection…",
+  "Verifying Bosgame Ethernet for Moonlight and Buddy…",
+  "Verifying Bosgame Wi-Fi for Moonlight and Buddy…",
+  "Checking MoonDeck Buddy on the verified route…"
 ]

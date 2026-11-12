@@ -828,14 +828,14 @@ const STEAM_WRONG_DESKTOP: &str = "Steam is open on Bosgame's regular desktop. F
 fn prepare_host_steam(host: &str) -> Result<(), String> {
     let mut command = host_command(host)?;
     command.arg("python3 -");
-    let output = bounded_output_timeout(command, Some(include_bytes!("host_steam_preflight.py")), 45)?;
+    let output = bounded_output_timeout(command, Some(include_bytes!("host_steam_preflight.py")), 58)?;
     let result: serde_json::Value = serde_json::from_slice(&output.stdout).map_err(|_| "Could not check Steam's desktop on Bosgame. Check SSH access, then retry.")?;
     match result["status"].as_str() {
         Some("ready" | "closed") if output.status.success() => Ok(()),
         Some("gameRunning") => Err("Steam is busy with a game or installation on Bosgame. Let setup finish or close the running game, then retry Moonlight.".into()),
         Some("streamActive") => Err("Another Moonlight stream is connected to Bosgame. End that session before starting a new one.".into()),
         Some("shutdownPending") => Err("Steam is waiting to close on Bosgame, possibly for a download or save-sync prompt. Finish that prompt and retry. Nothing was forcibly stopped.".into()),
-        Some("processCheckUnavailable") => Err("CreteOS could not confirm that Steam can safely move to Bosgame's streaming desktop. Finish any game installation or setup on Bosgame, then retry Moonlight.".into()),
+        Some("processCheckUnavailable") => Err("Bosgame did not let CreteOS read the process state needed to close Steam safely. CreteOS waited and left Steam running. Try again once Bosgame has settled.".into()),
         Some("shutdownCheckPending") => Err("Steam is closing on Bosgame, but CreteOS could not yet confirm the desktop change. Wait a moment and retry. Nothing was forcibly stopped.".into()),
         Some("targetUnavailable") => Err("Bosgame's streaming desktop is not ready or its display identity is unavailable. Check its streaming desktop service, then retry.".into()),
         Some("preflightBusy") => Err("Another launch is already preparing Steam on Bosgame. Wait for it to finish, then retry.".into()),
@@ -1020,9 +1020,33 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
     if display_key.len() > 512 { return Err("Invalid display".into()); }
     if app_name.starts_with('-') || app_name.chars().any(char::is_control) { return Err("Invalid host app name".into()); }
     tauri::async_runtime::spawn_blocking(move || {
+        use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+        let requested_route = super::stream_wifi::bosgame_route(&profile.host);
+        let before = requested_route.and_then(|_| super::stream_wifi::network_status(Some(&profile.host)).ok()).unwrap_or_default();
+        progress(&window, "Preparing the G1 network connection…");
         let wifi = super::stream_wifi::prepare_for_host("moonlight",&profile.host);
         check_launch(epoch)?;
-        if !query_apps(&profile.host)?.contains(&app_name) { return Err("This app is no longer advertised by the host. Refresh the Moonlight list.".into()); }
+        let after = requested_route.and_then(|_| super::stream_wifi::network_status(Some(&profile.host)).ok()).unwrap_or_default();
+        super::stream_wifi::confirm_moonlight_network(&before, &after)?;
+        let route = if let Some((choice, manual)) = requested_route {
+            let interface = if choice == super::host_moonlight_route::Choice::Wifi { "Wi-Fi" } else { "Ethernet" };
+            progress(&window, &format!("Verifying Bosgame {interface} for Moonlight and Buddy…"));
+            match super::host_moonlight_route::prepare(&profile.host, choice) {
+                Ok(route) => {
+                    super::fse_watcher::log_stream_transition(window.app_handle(), if interface == "Wi-Fi" { "bosgame-route-wifi" } else { "bosgame-route-ethernet" });
+                    Some(route)
+                }
+                Err(error) if manual || before["home"] == true || after["home"] == true => return Err(error),
+                Err(_) => None, // A different network may reach Bosgame over a routed VPN.
+            }
+        } else { None };
+        check_launch(epoch)?;
+        let peer = if let Some(lease) = &route { IpAddr::V4(lease.address) } else {
+            (profile.host.as_str(), 59999).to_socket_addrs().map_err(|_| "Could not resolve the Moonlight host.")?
+                .next().ok_or("Could not resolve the Moonlight host.")?.ip()
+        };
+        let endpoint = peer.to_string();
+        if !query_apps(&endpoint)?.contains(&app_name) { return Err("This app is no longer advertised by the host. Refresh the Moonlight list.".into()); }
         check_launch(epoch)?;
         let steam_id = if let Some(id)=&lutris_id {Some(super::lutris::launch_id(&profile.host,id,game_id.as_deref())?)} else {
             if game_id.as_deref().is_some_and(|id|id.starts_with("lutris:")){return Err("Missing Lutris launch identity".into());}
@@ -1032,11 +1056,15 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
             Some(id) if lutris_id.is_some() => Some(super::lutris::buddy_id(id)?),
             _ => steam_id.clone(),
         };
+        let buddy = if buddy_id.is_some() { Some(super::moondeck::Buddy::new(&profile.host, Some(SocketAddr::new(peer, 59999)))?) } else { None };
         if steam_id.is_some() {
             if app_name != "MoonDeckStream" { return Err("Direct Steam launching requires MoonDeckStream".into()); }
-            if super::moondeck::status(&profile.host)?["paired"] != true { return Err("Pair CreteOS with MoonDeck Buddy first".into()); }
             check_launch(epoch)?;
-            super::moondeck::prepare(&profile.host, buddy_id.as_deref().unwrap_or_default())?;
+            if let (Some(buddy), Some(id)) = (&buddy, &buddy_id) {
+                progress(&window, "Checking MoonDeck Buddy on the verified route…");
+                super::moondeck::prepare(buddy, id)?;
+                super::fse_watcher::log_stream_transition(window.app_handle(), "buddy-preflight-route-confirmed");
+            }
             check_launch(epoch)?;
             if lutris_id.is_none() && !host_games(&profile.host)?.iter().any(|game| Some(&game.steam_app_id) == steam_id.as_ref()) {
                 return Err("This game is not installed on Bosgame. Choose local install or GeForce NOW.".into());
@@ -1054,22 +1082,6 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         std::fs::write(path, serde_json::to_vec_pretty(&profiles).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         let generation = next_session();
         let audio = super::stream_audio::prepare(audio)?;
-        let route = if let Some((choice, manual)) = super::stream_wifi::bosgame_route(&profile.host) {
-            match super::host_moonlight_route::prepare(&profile.host, choice) {
-                Ok(route) => {
-                    let interface = if choice == super::host_moonlight_route::Choice::Wifi { "Wi-Fi" } else { "Ethernet" };
-                    progress(&window, &format!("Using Bosgame {interface} for the stream…"));
-                    super::fse_watcher::log_stream_transition(window.app_handle(), if interface == "Wi-Fi" { "bosgame-route-wifi" } else { "bosgame-route-ethernet" });
-                    Some(route)
-                }
-                Err(error) if manual => return Err(error),
-                Err(_) => {
-                    progress(&window, "Bosgame Wi-Fi is unavailable. Using its normal route…");
-                    super::fse_watcher::log_stream_transition(window.app_handle(), "bosgame-route-fallback");
-                    None
-                }
-            }
-        } else { None };
         let presentation = if let Some(id) = steam_id.as_ref() {
             match stage_host_presentation(&profile.host, id, &profile.resolution, game_id.as_deref(), game_name.as_deref(), generation) {
                 Ok(token) => { super::fse_watcher::log_stream_transition(window.app_handle(), "host-artwork-ready"); Some(token) },
@@ -1082,7 +1094,6 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
             return Err(error);
         }
         let mut command = std::process::Command::new(client_path("moonlight")?);
-        let endpoint = route.as_ref().map(|lease| lease.address.to_string()).unwrap_or_else(|| profile.host.clone());
         command.args(["stream", &endpoint, &app_name,
             "--resolution", &profile.resolution, "--fps", &profile.fps.to_string(), "--bitrate", &profile.bitrate.to_string(),
             "--video-codec", &profile.codec, "--display-mode", "borderless", "--quit-after"]);
@@ -1105,8 +1116,8 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
         }
         let monitor_active = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         if let Some(id) = &steam_id { watch_host_game_window(window.clone(), profile.host.clone(), id.clone(), presentation.clone(), generation, monitor_active.clone()); }
-        let launch_result = if let Some(id) = &buddy_id {
-            super::moondeck::launch(&profile.host, id,
+        let launch_result = if let (Some(buddy), Some(id)) = (&buddy, &buddy_id) {
+            super::moondeck::launch(buddy, id,
                 || launch_current(epoch) && session_current(generation) && client.lock().is_ok_and(|mut child| child.try_wait().ok().flatten().is_none()),
                 |phase| {
                     super::fse_watcher::log_stream_transition(window.app_handle(), phase);
@@ -1128,12 +1139,12 @@ pub async fn launch_moonlight(window: tauri::Window, app_name: String, display_k
             let _wifi = wifi;
             let _audio = audio;
             let _route = route;
-            if let Some(id) = buddy_id {
+            if let (Some(buddy), Some(id)) = (buddy, buddy_id) {
                 let exit_confirmed = std::sync::atomic::AtomicBool::new(false);
                 // A failed/disconnected client can exit before Buddy ever
                 // observes Running. Stop watching it too, rather than waiting
                 // for a remote game event while the handheld has lost focus.
-                let ended = super::moondeck::watch_exit(&profile.host, &id, started, || session_current(generation) && client.lock().is_ok_and(|mut child| child.try_wait().ok().flatten().is_none()), || {
+                let ended = super::moondeck::watch_exit(&buddy, &id, started, || session_current(generation) && client.lock().is_ok_and(|mut child| child.try_wait().ok().flatten().is_none()), || {
                     exit_confirmed.store(true, Ordering::SeqCst);
                     begin_return(&window, "moonlight", generation);
                 }, |phase| super::fse_watcher::log_stream_transition(window.app_handle(), phase));

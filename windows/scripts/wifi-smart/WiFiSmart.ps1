@@ -1,9 +1,8 @@
-param([ValidateSet('Monitor','Status','NetworkStatus','DryRun','PrepareSession','PrepareGaming','Gaming','Download','Auto','Pause')][string]$Mode='Monitor', [ValidateSet('Gaming','Download','Current')][string]$Preference='Gaming', [ValidatePattern('^[0-9]+-[0-9]+$')][string]$Token='0-0', [string]$RouteTarget='1.1.1.1')
+param([ValidateSet('Monitor','Status','NetworkStatus','DryRun','PrepareSession','PrepareGaming','Gaming','Download','Auto','Pause')][string]$Mode='Monitor', [ValidateSet('Gaming','Download','Current','MoonlightAuto')][string]$Preference='Gaming', [ValidatePattern('^[0-9]+-[0-9]+$')][string]$Token='0-0', [string]$RouteTarget='1.1.1.1')
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Policy.ps1')
 . (Join-Path $PSScriptRoot 'Sessions.ps1')
 . (Join-Path $PSScriptRoot 'Network.ps1')
-if($Mode -eq 'NetworkStatus'){Get-StreamNetwork $RouteTarget|ConvertTo-Json -Compress;exit 0}
 $sessionFolder=Join-Path $PSScriptRoot 'sessions'
 $configPath=Join-Path $PSScriptRoot 'config.json'
 $controlPath=Join-Path $PSScriptRoot 'control.json'
@@ -50,10 +49,16 @@ function Find-VisibleProfile($Target) {
    $result=[CreteOSWifiNativeScan]::WlanScan($handle,[ref]$guid,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero)
    if($result -ne 0){Write-Event 'scan-unavailable' ([string]$result) $Target;return $false}
    # WlanScan returns before Windows has populated its network list.
-   $deadline=[DateTime]::UtcNow.AddSeconds(4)
+   $deadline=[DateTime]::UtcNow.AddSeconds($(if($Mode -eq 'PrepareSession'){10}else{4}))
+   $nextScan=[DateTime]::UtcNow.AddSeconds(4)
    do {
     Start-Sleep -Milliseconds 350
     if(Available $Target){return $true}
+    if([DateTime]::UtcNow -ge $nextScan -and $nextScan -lt $deadline){
+     $nextScan=$deadline
+     $result=[CreteOSWifiNativeScan]::WlanScan($handle,[ref]$guid,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero)
+     if($result -ne 0){Write-Event 'scan-unavailable' "retry-$result" $Target}
+    }
    } while([DateTime]::UtcNow -lt $deadline)
    Write-Event 'scan-no-match' 'ssid-not-listed-after-refresh' $Target
   } finally {[void][CreteOSWifiNativeScan]::WlanCloseHandle($handle,[IntPtr]::Zero)}
@@ -118,8 +123,19 @@ function Receive-Counter {
  return [double]$adapter.GetIPv4Statistics().BytesReceived
 }
 if($Mode -eq 'Status'){if(Test-Path $statePath){Get-Content $statePath -Raw}else{'No monitor status yet'};exit 0}
+if($Mode -eq 'NetworkStatus'){
+ $network=Get-StreamNetwork $RouteTarget
+ $network.docked=Test-StreamDock
+ $network.profile=Current-Profile
+ $network.home=$network.profile -in $homeProfiles
+ $network.gaming=$network.profile -eq $config.GamingProfile
+ $network.e433=$network.profile -eq $config.DownloadProfile
+ $network|ConvertTo-Json -Compress
+ exit 0
+}
 if($Mode -eq 'PrepareSession') {
  if((Get-StreamNetwork $RouteTarget).wired){Write-Event 'session-held' 'ethernet-active' (Current-Profile);exit 0}
+ if($Preference -eq 'MoonlightAuto'){$Preference=if(Test-StreamDock){'Download'}else{'Gaming'}}
  $current=Current-Profile;$control=Read-Control
  if(!$config.Enabled -or $control.Paused -or $homeProfiles -notcontains $current){Write-Event 'session-held' 'paused-or-away' $current;exit 0}
  $target=Get-WifiSessionTarget $Preference $current $config.GamingProfile $config.DownloadProfile

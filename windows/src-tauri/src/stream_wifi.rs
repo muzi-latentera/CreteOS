@@ -29,7 +29,7 @@ pub async fn get_stream_network_status(host: Option<String>) -> Result<serde_jso
     tauri::async_runtime::spawn_blocking(move || network_status(host.as_deref())).await.map_err(|e| e.to_string())?
 }
 
-fn network_status(host: Option<&str>) -> Result<serde_json::Value, String> {
+pub(crate) fn network_status(host: Option<&str>) -> Result<serde_json::Value, String> {
     let folder = dirs::data_local_dir().ok_or("No profile folder")?.join("CreteOS-Bootstrap/WiFiSmart");
     let helper = folder.join("WiFiSmart.ps1");
     if !helper.is_file() { return Ok(serde_json::json!({"wired":false})); }
@@ -41,9 +41,9 @@ fn network_status(host: Option<&str>) -> Result<serde_json::Value, String> {
         command.args(["-RouteTarget", host]);
     }
     #[cfg(windows)] { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
-    let output = crate::streaming::bounded_output_timeout(command, None, 5)?;
+    let output = crate::streaming::bounded_output_timeout(command, None, 9)?;
     let mut status: serde_json::Value = serde_json::from_slice(&output.stdout).map_err(|_| "Could not read active network")?;
-    if host.is_some() && status["wired"] != true {
+    if host.is_some() && status["wired"] != true && status.get("e433").is_none() {
         let mut command = std::process::Command::new(system.join("System32/netsh.exe"));
         command.args(["wlan", "show", "interfaces"]);
         #[cfg(windows)] { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
@@ -71,7 +71,7 @@ fn active_profile<'a>(output: &'a str, interface: &str) -> Option<&'a str> {
 pub fn bosgame_route(host: &str) -> Option<(HostChoice, bool)> {
     if !host.trim_end_matches('.').eq_ignore_ascii_case("Bosgame") { return None; }
     match read().bosgame_connection {
-        HostChoice::Automatic => (network_status(Some(host)).ok()?["e433"] == true).then_some((HostChoice::Wifi, false)),
+        HostChoice::Automatic => Some((HostChoice::Ethernet, false)),
         manual => Some((manual, true)),
     }
 }
@@ -106,6 +106,20 @@ pub fn prepare(provider: &str) -> Option<Session> {
     prepare_choice(provider, choice, None)
 }
 pub fn prepare_for_host(provider:&str,host:&str)->Option<Session>{prepare_choice(provider,selection(&read(),provider).ok()?,Some(host))}
+
+pub fn confirm_moonlight_network(before: &serde_json::Value, after: &serde_json::Value) -> Result<(), String> {
+    if before["home"] != true || after["wired"] == true { return Ok(()); }
+    let target = match read().moonlight {
+        Choice::Current => return Ok(()),
+        Choice::Automatic if before["docked"] != true => "gaming",
+        Choice::Gaming => "gaming",
+        Choice::Automatic | Choice::Download => "e433",
+    };
+    if after[target] == true { return Ok(()); }
+    let name = if target == "e433" { "Hyperoptic Fibre E433" } else { "Hyperoptic Extra" };
+    let current = after["profile"].as_str().filter(|name| !name.is_empty()).unwrap_or("disconnected");
+    Err(format!("The G1 could not confirm {name}. Current Wi-Fi is {current}. Retry or choose Keep current connection."))
+}
 pub fn prepare_current(provider: &str) -> Option<Session> {
     selection(&read(),provider).ok()?;
     prepare_choice(provider,Choice::Current,None)
@@ -126,8 +140,9 @@ fn prepare_choice(provider:&str,choice:Choice,route_target:Option<&str>)->Option
     let guard = Session { lease };
     let system = std::env::var_os("SystemRoot")?;
     let mut command = std::process::Command::new(PathBuf::from(system).join("System32/WindowsPowerShell/v1.0/powershell.exe"));
+    let preference = if provider == "moonlight" && route_target.is_some() && choice == Choice::Automatic { "MoonlightAuto" } else { mode(choice, provider) };
     command.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File"])
-        .arg(helper).args(["-Mode", "PrepareSession", "-Preference", mode(choice, provider), "-Token", &token]);
+        .arg(helper).args(["-Mode", "PrepareSession", "-Preference", preference, "-Token", &token]);
     if let Some(target)=route_target {command.args(["-RouteTarget",target]);}
     command.stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
     #[cfg(windows)] { use std::os::windows::process::CommandExt; command.creation_flags(0x08000000); }
@@ -136,7 +151,7 @@ fn prepare_choice(provider:&str,choice:Choice,route_target:Option<&str>)->Option
         let start = std::time::Instant::now();
         loop {
             if !matches!(child.try_wait(), Ok(None)) { break; }
-            if start.elapsed() > std::time::Duration::from_secs(22) { let _ = child.kill(); let _ = child.wait(); break; }
+            if start.elapsed() > std::time::Duration::from_secs(36) { let _ = child.kill(); let _ = child.wait(); break; }
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
     }

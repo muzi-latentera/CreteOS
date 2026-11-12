@@ -18,11 +18,11 @@ export function HomeWifiSelect({ provider, host, saving }: { provider: WifiProvi
     }
   }, [ready]);
   const [wired,setWired]=useState(false);
-  const [e433,setE433]=useState(false);
+  const [docked,setDocked]=useState(false);
   const bosgame = provider === "moonlight" && /^bosgame\.?$/i.test(host ?? "");
   useEffect(()=>{
     let active=true;
-    const refresh=()=>void invoke<{wired?:boolean; e433?:boolean}>("get_stream_network_status", {host}).then(status=>{if(active){setWired(status?.wired===true);setE433(status?.e433===true);}}).catch(()=>{});
+    const refresh=()=>void invoke<{wired?:boolean; docked?:boolean}>("get_stream_network_status", {host}).then(status=>{if(active){setWired(status?.wired===true);setDocked(status?.docked===true);}}).catch(()=>{});
     refresh();const timer=window.setInterval(refresh,10_000);
     return()=>{active=false;window.clearInterval(timer);};
   },[host]);
@@ -41,10 +41,9 @@ export function HomeWifiSelect({ provider, host, saving }: { provider: WifiProvi
       .finally(() => { saving(false); setReady(true); });
   };
   const localLabel = bosgame ? "G1 connection" : wired ? "Wi-Fi fallback" : "Home connection";
-  const hostAutomatic = !wired && (choice === "download" || (choice === "current" && e433)) ? "Wi-Fi" : "Ethernet";
-  const preferredWifi = provider === "moonlight" || provider === "ps5RemotePlay" ? "Extra" : "Fibre E433";
+  const preferredWifi = (provider === "moonlight" && !docked) || provider === "ps5RemotePlay" ? "Extra" : "Fibre E433";
   const automaticLabel = provider === "local" ? "Automatic · normal network rules"
-    : bosgame && wired ? "Auto · Wired → Extra"
+    : bosgame && wired ? `Auto · Wired → ${preferredWifi}`
     : `Automatic · ${wired ? "Ethernet first · " : ""}${preferredWifi}`;
   const localField = <label>{bosgame ? "G1" : localLabel}<select aria-label={localLabel} disabled={!ready} value={choice} onChange={event => {
       const next = event.target.value as Choice;
@@ -65,7 +64,7 @@ export function HomeWifiSelect({ provider, host, saving }: { provider: WifiProvi
           const next = event.target.value as HostChoice;
           save(event.currentTarget, "set_bosgame_connection_preference", {choice:next}, () => setHostChoice(next));
         }}>
-          <option value="automatic">Automatic · {hostAutomatic}</option>
+          <option value="automatic">Automatic · Ethernet</option>
           <option value="ethernet">Ethernet</option>
           <option value="wifi">Wi-Fi · E433</option>
         </select></label>
