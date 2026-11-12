@@ -1,8 +1,14 @@
 # CreteOS on OneXPlayer G1 — setup, history and recovery
 
-Maintained device record, updated 11 November 2026 (Europe/London). Covers this G1 installation from 17 October onward. Use this as the entry point for another Windows handheld; use the dated journals for detailed evidence. Earlier GPD results and the USB's pre-17-October history are references, not acceptance results for this G1.
+Maintained device record, updated 12 November 2026 (Europe/London). Covers this G1 installation from 17 October onward. Use this as the entry point for another Windows handheld; use the dated journals for detailed evidence. Earlier GPD results and the USB's pre-17-October history are references, not acceptance results for this G1.
 
 ## Current state
+
+**XREAL audio and Moonlight handoff.** Windows' active XREAL audio endpoint is the default output when available, then Philips FTV. The header labels XREAL as X and the built-in endpoints as G1. Moonlight keeps the launch cover until the host presenter clears its wallpaper after the game fills the output or reaches the windowed fallback. [Audio and handoff record](journal/2026-11-12-xreal-handoff-pending-sync.md).
+
+Installed on the G1 at 2026-11-12T00:08:16.6044554+00:00 from `c6f61807d8ef3d991c677d30b3492dd134195ead`, executable SHA-256 `4911D7437C8E75496AA8D6DE0C75A0953E365F71D9488BEC001CD6B512FE60C0`. Bundled assets and 8 existing profiles passed verification. Executable rollback is at `C:\Users\Muzi\AppData\Local\CreteOS-Bootstrap\app-updates\Xreal-handoff-20261112-000813`.
+
+Verified private archive `CreteOS-G1-profile-backup-20261112-000828.zip`, SHA-256 `04ad4e7020a2e33469af0c12666732a310e7088624e1d4a630f9f138dbfd3732`, contains 1635 manifested payloads including the deployed executable. The preceding `CreteOS-G1-profile-backup-20261111-234020.zip` and its Bosgame Lutris reference are retained. The replacement pack is `CreteOS-Recovery-20261112-XrealHandoff`. Its USB receipt identifies the verified SanDisk copy.
 
 **Launch controller navigation.** Left and Right move within each visible row. Up and Down move between rows. Down from Start stream returns to the first available field. Back from Launch options restores the whole Play control's outline. [Controller and recovery record](journal/2026-11-11-launch-navigation-pending-sync.md).
 
