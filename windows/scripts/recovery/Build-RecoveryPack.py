@@ -96,6 +96,11 @@ FINISH ON THE NEW DEVICE:
   GFN/Luna/PS Cloud default FibreE433; hold during play, away networks untouched.
 - Generate a NEW SSH key on the new device, authorize it on Bosgame and restore
   the reviewed alias/host identity. No old private SSH key is included.
+- Game saves: open any game's Launch options > Manage saves once to unpack the
+  bundled Ludusavi/rclone, then authorize the same Google account with that
+  rclone (guide: Game save recovery). Windows backups use the Drive folder
+  ludusavi-backup-G1-Windows; never point a Windows device at Bosgame's
+  ludusavi-backup. Google authorization is per device and not in this pack.
 - Check vendor TDP/controller mappings/AnyFSE, choose desired startup behavior,
   and review power/wake settings locally. Never import another model's hardware
   power database or force the G1 AX210 driver onto unrelated hardware.

@@ -97,3 +97,30 @@ Verification:
 - There is no standalone Windows game installed on the G1, so the standalone route can't be exercised here.
 
 The full-app audit against SteamOS is in `docs/AUDIT_2026-11-13_SAVES_AND_EXPERIENCE.md`.
+## Installed: Manage saves and batch 1 fixes (23:31 GMT)
+
+Installed on the G1 at 2026-11-13T23:31:45Z:
+- App source `ca93352ffed8f0c8134131f0713f68473a7b5b1e`, SHA-256 `4A3CD6A57A6D4A96AB99A71D9F3A27789A925B69F0E75890A9019C9917CF07AB`, built locally between 23:24:51 and 23:30:51.
+- The previous executable (`844C6B02…`, source `9b05ea0`) is kept as `C:\Users\Muzi\AppData\Local\CreteOS\creteos.exe.before-manage-saves-20261113-233142`.
+- CreteOS restarted from the installed path.
+
+Checks before the build:
+- TypeScript passed.
+- 291 frontend tests passed, including the held-A regression test, which was confirmed to fail without the fix.
+- 169 Rust tests passed.
+
+On-device check, driving the CreteOS window:
+- Library search → Mouse → Launch options showed **Manage saves**.
+- Opening it ran the read-only check: **Saves match**, Save last modified 23 Oct 2026 23:50, Latest backup created 13 Nov 2026 00:19, 1 version kept.
+- The last backup activity showed the 22:45 hook run ("Save unchanged… Google Drive is up to date").
+- Escape stepped out of the dialog, then out of the game page.
+
+Known issues, queued for batch 2 in `docs/ROADMAP_CRETEOS_1_0.md`:
+- The screen's Drive date read "Couldn't reach Google Drive", because its quick Drive read times out against Bosgame's 60–100 s rclone.
+- The match message says "this device" for Bosgame.
+- The splash shows "Checking your Steam library" for a 27 s start-up scan (`scan_timing.log`: Steam 20.7 s).
+
+Not performed: no game was launched, and no save was backed up or restored from the UI on real games.
+
+The host export now also captures `~/.local/bin/creteos-saves` and Bosgame's Ludusavi `config.yaml`; rclone tokens are never included. The recovery pack's START-HERE checklist gained the Google Drive step for game saves.
+Verified private archive CreteOS-G1-profile-backup-20261113-234129.zip, SHA-256 3dc28300f010c79637db7bd6260ce97e8a05de6b5ec3f5cd2a2b75c29f92a0f7, contains 1655 manifested payloads (SQLite integrity ok). Its Recovery/creteos.exe matches 4A3CD6A5…07AB, and its host export contains `creteos-saves` and Bosgame's Ludusavi `config.yaml`. The first attempt failed on Bosgame's missing PBZ `dxgi.dll` (OptiScaler not currently installed). The export now records missing deployment files in `pbz-optiscaler/status.json`, and still refuses changed ones. The preceding archive is retained. The replacement pack is CreteOS-Recovery-20261113-ManageSaves.

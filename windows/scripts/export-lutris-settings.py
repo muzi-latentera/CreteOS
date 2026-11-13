@@ -26,6 +26,11 @@ def main():
     for key, file in {
         'lutris/system.yml': root/'system.yml',
         'lutris/creteos-lutris-save-backup': home/'.local/bin/creteos-lutris-save-backup',
+        # The hook's helper (CreteOS lutris_save_check.py) and Ludusavi's own
+        # settings (retention, roots, remote name). rclone.conf holds the Google
+        # token and is deliberately never exported.
+        'lutris/creteos-saves': home/'.local/bin/creteos-saves',
+        'ludusavi/config.yaml': home/'.config/ludusavi/config.yaml',
     }.items():
         if file.is_file() and not file.is_symlink() and file.stat().st_size < 65536:
             payloads[key]=file.read_bytes()
@@ -70,6 +75,7 @@ def main():
             raise RuntimeError('Unexpected PBZ OptiScaler deployment; review backup allowlist')
         binary=pathlib.Path('/mnt/games/Games/Steam/steamapps/common/PBZ/platform/steam')
         total=0
+        missing=[]
         for item in deployment['files']:
             relative=pathlib.PurePosixPath(item['path'])
             allowed=(str(relative) in ['dxgi.dll','OptiScaler.ini','OptiScaler/Streamlined_fetcher_windows.bat'] or
@@ -78,6 +84,11 @@ def main():
             if relative.is_absolute() or '..' in relative.parts or not allowed:
                 raise RuntimeError('Unexpected PBZ OptiScaler payload path')
             file=binary/relative
+            # A removed file means the mod is not deployed right now (for example
+            # after a game update). Record that; a *changed* file still stops.
+            if not file.exists() and not file.is_symlink():
+                missing.append(str(relative))
+                continue
             if file.is_symlink() or not file.resolve().is_relative_to(binary.resolve()):
                 raise RuntimeError('Linked PBZ OptiScaler payload')
             data=file.read_bytes();total+=len(data)
@@ -91,6 +102,8 @@ def main():
             if not file.is_file() or file.is_symlink() or file.stat().st_size>1024*1024:
                 raise RuntimeError('Missing/unexpected PBZ OptiScaler recovery record')
             payloads['pbz-optiscaler/'+name]=file.read_bytes()
+        payloads['pbz-optiscaler/status.json']=json.dumps({'deployedNow':not missing,'missingFiles':missing,
+            'note':'Missing files mean OptiScaler is not currently installed in PBZ; reapply from the payload and pbz-optiscaler.py only after review.'},indent=2).encode()
     # Other mod records/settings are references for the existing host. Patched
     # game archives, other DLLs, Wine prefixes and saves remain excluded.
     tools=home/'.local/share/creteos-host/mod-tools/mgsv'
