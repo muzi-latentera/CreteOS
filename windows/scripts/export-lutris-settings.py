@@ -23,6 +23,12 @@ def main():
                     raise RuntimeError('Lutris database integrity check failed')
         payloads['lutris/pga.db']=snapshot.read_bytes()
     configs=list((root/'games').glob('*.yml'))
+    for key, file in {
+        'lutris/system.yml': root/'system.yml',
+        'lutris/creteos-lutris-save-backup': home/'.local/bin/creteos-lutris-save-backup',
+    }.items():
+        if file.is_file() and not file.is_symlink() and file.stat().st_size < 65536:
+            payloads[key]=file.read_bytes()
     if len(configs)>1000:raise RuntimeError('Unexpected configuration count')
     for file in configs:
         if file.stat().st_size>1024*1024:raise RuntimeError('Unexpected large game configuration')

@@ -39,11 +39,11 @@ fn title(name: &str) -> Result<Option<String>, String> {
 fn backup(name: &str) -> Result<String, String> {
     let _guard = BACKUP_LOCK.lock().map_err(|_| "Save backup unavailable")?;
     let Some(title) = title(name)? else { return Ok("No matching Ludusavi title".into()); };
-    let data = query(&["backup", "--api", "--force", "--no-force-cloud-conflict", "--full-limit", "10", "--", &title])?;
+    let data = query(&["backup", "--api", "--force", "--no-force-cloud-conflict", "--ask-downgrade", "--full-limit", "10", "--", &title])?;
     if data["errors"].as_object().is_some_and(|errors| !errors.is_empty()) {
         return Err("Ludusavi reported a backup or sync conflict. Check Ludusavi.".into());
     }
-    if data["games"].as_object().is_some_and(|games| !games.is_empty()) {
+    if data["overall"]["processedGames"].as_u64().unwrap_or(0) > 0 {
         Ok("Save backup checked".into())
     } else {
         Ok("No matching save files found".into())

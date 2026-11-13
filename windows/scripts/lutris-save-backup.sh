@@ -31,7 +31,7 @@ fi
 report=$(mktemp "$state/lutris-save-report.XXXXXX")
 trap 'rm -f -- "$report"' EXIT
 result=0
-timeout 240s "$tool" --no-manifest-update backup --api --force --no-force-cloud-conflict --cloud-sync --full-limit 10 -- "$title" </dev/null >"$report" || result=$?
+timeout 240s "$tool" --no-manifest-update backup --api --force --no-force-cloud-conflict --ask-downgrade --cloud-sync --full-limit 10 -- "$title" </dev/null >"$report" || result=$?
 python3 - "$report" "$result" <<'PY'
 import json, sys
 
