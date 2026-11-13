@@ -651,7 +651,7 @@ export function GameDetailsModal({
   }, [focusIdx]);
 
   useEffect(() => {
-    if (activeTab !== "details" || !scrollRef.current) return;
+    if (!scrollRef.current) return;
     scrollRef.current.scrollTop = 0;
   }, [activeTab, controlsRevealed, app.id]);
 
@@ -1244,11 +1244,13 @@ export function GameDetailsModal({
                   swallowLaunchBack.current = true;
                   setFocusedIndex(0);
                 }} copies={actions.filter(action => action.key.startsWith("copy-"))} local={handleLocalAction} localLabel={installed ? "Local" : installing ? "Cancel installation" : storeAccountGame ? storeClientLabel : "Install locally"}
-                saveGame={app.source === "lutris" || (installed && hasLocalSaveBackup(app)) ? { name: app.name, remote: app.source === "lutris" } : undefined}
-                manageLabel={activeTab === "manage" ? "Game information" : "Manage game"}
+                saveGame={app.source === "lutris" || (installed && hasLocalSaveBackup(app)) ? app : undefined}
+                manageLabel={hasStoreContent && activeTab === "manage" ? "Game information" : "Manage game"}
                 localEnabled={installed || canInstall || canXboxInstall || storeAccountGame || installing} manage={() => {
-                  revealControls(); const next = activeTab === "manage" ? "details" : "manage";
+                  revealControls(); const next = hasStoreContent && activeTab === "manage" ? "details" : "manage";
                   activeTabRef.current = next; setActiveTab(next); setFocusedIndex(next === "details" ? 0 : 1);
+                  if (scrollRef.current) scrollRef.current.scrollTop = 0;
+                  if (next === "manage") requestAnimationFrame(() => focusRefs.current[1]?.focus({ preventScroll: true }));
                 }} />}
               </div>
               {hasStoreContent && controlsRevealed && (
@@ -1468,8 +1470,8 @@ export function GameDetailsModal({
                       </>
                     )}
                   </div>
-                ) : actionGrid
-            ) : actionGrid}
+                ) : <div><h3 data-details-section-label="manage">{creteText("Manage game")}</h3>{actionGrid}</div>
+            ) : <div><h3 data-details-section-label="manage">{creteText("Manage game")}</h3>{actionGrid}</div>}
           </div>
         </div>
         {xboxConfirmOpen && (

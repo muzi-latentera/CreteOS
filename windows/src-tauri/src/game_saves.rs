@@ -1,7 +1,8 @@
 //! Ludusavi owns save discovery, versioning, and explicit restores.
 use serde_json::Value;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use sha2::{Digest, Sha256};
-use std::{io::Write, os::windows::process::CommandExt, path::{Path, PathBuf}, process::{Command, Stdio}, sync::{Mutex, OnceLock}};
+use std::{io::Write, path::{Path, PathBuf}, process::{Command, Stdio}, sync::{Mutex, OnceLock}};
 use windows::Win32::{
     Foundation::{CloseHandle, WAIT_OBJECT_0},
     System::Threading::{OpenProcess, WaitForSingleObject, INFINITE, PROCESS_SYNCHRONIZE},
@@ -136,11 +137,141 @@ pub fn watch_exit(hwnd: isize, name: String) {
     });
 }
 
+#[derive(serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+struct SaveSources {
+    known: bool,
+    scan_ok: bool,
+    active: Option<i64>,
+    local_change: Option<String>,
+    versions: Vec<String>,
+    cloud_status: String,
+    cloud_mapping: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveComparison {
+    active: Option<i64>,
+    versions: Vec<i64>,
+    cloud: Option<i64>,
+    scan_ok: bool,
+    cloud_status: String,
+    message: &'static str,
+}
+
+fn time(value: &str) -> Option<i64> {
+    chrono::DateTime::parse_from_rfc3339(value.trim().trim_matches(['"', '\'']))
+        .ok().map(|stamp| stamp.timestamp())
+}
+
+fn compare(sources: SaveSources) -> SaveComparison {
+    let mut versions: Vec<_> = sources.versions.iter().filter_map(|stamp| time(stamp)).collect();
+    versions.sort_unstable_by(|a, b| b.cmp(a));
+    let cloud = sources.cloud_mapping.as_deref().and_then(|mapping| mapping.lines()
+        .filter_map(|line| time(line.trim().strip_prefix("when:")?)).max());
+    let cloud_status = if sources.cloud_status == "ok" && cloud.is_none() {
+        "unavailable".into()
+    } else { sources.cloud_status };
+    let message = match (sources.active, versions.first().copied(), cloud) {
+        _ if !sources.known => "No save locations are known for this game.",
+        _ if !sources.scan_ok => "The active save could not be checked.",
+        (Some(active), _, Some(drive)) if drive > active && sources.local_change.as_deref() != Some("Same") =>
+            "The Drive backup is newer by timestamp.",
+        (Some(active), _, Some(drive)) if active > drive => "The active save is newer by timestamp.",
+        (_, Some(local), Some(drive)) if local != drive =>
+            if local > drive { "The device backup is newer than the Drive backup." } else { "The Drive backup is newer than the device backup." },
+        (None, _, Some(_)) => "Drive has a backup. No active save file was detected.",
+        (Some(_), Some(local), Some(drive)) if local == drive && sources.local_change.as_deref() == Some("Same") =>
+            "The active save matches the device backup. Drive has the same backup timestamp.",
+        (Some(_), Some(_), _) if sources.local_change.as_deref() == Some("Same") => "The active save matches the device backup.",
+        (Some(active), Some(local), _) if active > local => "The active save is newer than the device backup by timestamp.",
+        (Some(active), Some(local), _) if local > active => "The device backup is newer by timestamp.",
+        (None, Some(_), _) => "A device backup exists. No active save file was detected.",
+        (Some(_), None, None) => "An active save was found. No backup could be confirmed.",
+        _ => "No save or backup could be confirmed.",
+    };
+    SaveComparison { active: sources.active, versions, cloud, scan_ok: sources.scan_ok, cloud_status, message }
+}
+
+fn read(args: &[&str], timeout: u64) -> Result<Value, String> {
+    let mut cmd = command()?;
+    cmd.arg("--no-manifest-update").args(args);
+    let output = super::streaming::bounded_output_timeout(cmd, None, timeout)?;
+    serde_json::from_slice(&output.stdout).map_err(|_| "Could not read the save report.".into())
+}
+
+fn game_folder(title: &str) -> String {
+    title.chars().enumerate().map(|(i, c)| {
+        if c.is_control() || "<>:\"/\\|?*".contains(c) || c == '.' && (i == 0 || i + 1 == title.chars().count()) { '_' } else { c }
+    }).collect()
+}
+
+fn local_sources(name: &str) -> Result<SaveSources, String> {
+    let _guard = BACKUP_LOCK.try_lock().map_err(|_| "A backup is in progress. Check again in a moment.")?;
+    let found = read(&["find", "--backup", "--normalized", "--api", "--", name], 8)?;
+    let Some(title) = found["games"].as_object().and_then(|games| games.keys().next()) else {
+        return Ok(SaveSources { scan_ok: true, cloud_status: "unavailable".into(), ..Default::default() });
+    };
+    let (scan, history, config) = std::thread::scope(|scope| {
+        let scan = scope.spawn(|| read(&["backup", "--preview", "--api", "--", title], 12));
+        let history = scope.spawn(|| read(&["backups", "--api", "--", title], 9));
+        let config = read(&["config", "show", "--api"], 6);
+        (scan.join().unwrap(), history.join().unwrap(), config)
+    });
+    let active = scan.as_ref().ok().and_then(|data| data["games"][title]["files"].as_object())
+        .and_then(|files| files.iter().filter(|(_, info)| info["ignored"] != true && info["change"] != "Removed")
+            .filter_map(|(file, _)| std::fs::metadata(file).ok()?.modified().ok()?
+                .duration_since(std::time::UNIX_EPOCH).ok().map(|duration| duration.as_secs() as i64)).max());
+    let local_change = scan.as_ref().ok().and_then(|data| data["games"][title]["change"].as_str()).map(str::to_owned);
+    let history = history.unwrap_or_default();
+    let versions = history["games"][title]["backups"].as_array().into_iter().flatten()
+        .filter_map(|backup| backup["when"].as_str().map(str::to_owned)).collect();
+    let folder = history["games"][title]["backupPath"].as_str()
+        .and_then(|path| Path::new(path).file_name()?.to_str()).map(str::to_owned).unwrap_or_else(|| game_folder(title));
+    let mut sources = SaveSources { known: true, scan_ok: scan.is_ok(), active, local_change, versions,
+        cloud_status: "unavailable".into(), cloud_mapping: None };
+    if let Ok(config) = config {
+        if let (Some(remote), Some(path)) = (config["cloud"]["remote"]["Custom"]["id"].as_str(), config["cloud"]["path"].as_str()) {
+            if !path.is_empty() && !folder.is_empty() && folder != "." && folder != ".." {
+                let mut cmd = Command::new(tools()?.join("rclone.exe"));
+                cmd.stdin(Stdio::null()).args(["cat", &format!("{remote}:{path}/{folder}/mapping.yaml"),
+                    "--retries", "1", "--low-level-retries", "2", "--timeout", "7s"]);
+                if let Ok(result) = super::streaming::bounded_output_timeout(cmd, None, 11) {
+                    match result.status.code() {
+                        Some(0) => {
+                            sources.cloud_status = "ok".into();
+                            sources.cloud_mapping = String::from_utf8(result.stdout).ok();
+                        }
+                        Some(3 | 4) => sources.cloud_status = "missing".into(),
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+    Ok(sources)
+}
+
+fn lutris_sources(id: &str) -> Result<SaveSources, String> {
+    let (host, game) = super::lutris::save_target(id)?;
+    let mut command = super::streaming::host_command(&host)?;
+    let script = STANDARD.encode(include_bytes!("lutris_save_check.py"));
+    command.arg(format!("python3 -c 'import base64; exec(base64.b64decode(\"{script}\"))'"));
+    let input = serde_json::to_vec(&serde_json::json!({"name": game.name})).map_err(|error| error.to_string())?;
+    let result = super::streaming::bounded_output_timeout(command, Some(&input), 35)?;
+    if !result.status.success() { return Err("Bosgame could not check this game's saves.".into()); }
+    serde_json::from_slice(&result.stdout).map_err(|_| "Bosgame returned an invalid save report.".into())
+}
+
 #[tauri::command]
-pub fn open_game_saves() -> Result<(), String> {
-    command()?
-        .arg("gui").creation_flags(super::CREATE_NO_WINDOW).spawn().map_err(|error| error.to_string())?;
-    Ok(())
+pub async fn compare_game_saves(id: String, name: String, app_type: String, source: String, path: String) -> Result<SaveComparison, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let sources = if source == "lutris" { lutris_sources(&id)? }
+            else if eligible(&app_type, &source, &path) { local_sources(&name)? }
+            else { return Err("Save checks are unavailable for this game.".into()); };
+        Ok(compare(sources))
+    }).await.map_err(|error| error.to_string())?
 }
 
 #[derive(serde::Serialize)]

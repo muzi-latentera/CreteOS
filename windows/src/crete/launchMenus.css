@@ -64,3 +64,15 @@
 @media(max-width:500px) { .crete-stream-connection-fields { grid-template-columns:minmax(0,1fr); } }
 @media(max-width:440px) { .crete-stream-fields { grid-template-columns:minmax(0,1fr); } .crete-launch-layer .crete-stream-body label { flex-direction:column; align-items:stretch; gap:8px; } .crete-launch-layer .crete-stream-body select { width:100%; max-width:100%; } .crete-stream-heading { padding-inline:20px; } .crete-stream-body { padding-inline:20px; } .crete-launch-layer .crete-stream-buttons { padding-inline:20px; } }
 @media(prefers-reduced-motion:reduce) { .crete-stream-disclosure svg { transition:none; } }
+.crete-save-comparison {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.65rem 1rem;
+  margin: 0.75rem 0;
+}
+
+.crete-save-comparison dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

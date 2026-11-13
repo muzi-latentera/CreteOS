@@ -18,11 +18,11 @@ vi.mock("../utils/gamepad",()=>({getBestGamepad:()=>null,readGpState:()=>({})}))
 let root:Root; let host:HTMLDivElement;
 beforeEach(()=>{Element.prototype.scrollIntoView=vi.fn();(globalThis as {IS_REACT_ACT_ENVIRONMENT?:boolean}).IS_REACT_ACT_ENVIRONMENT=true;});
 afterEach(async()=>{await act(async()=>root?.unmount());host?.remove();vi.clearAllMocks();});
-async function render(overrides:Record<string,unknown>={}, menuOpen=false, restorePlayFocus?:()=>void, localSetup?: Parameters<typeof LaunchMenu>[0]["localSetup"]) {
+async function render(overrides:Record<string,unknown>={}, menuOpen=false, restorePlayFocus?:()=>void, localSetup?: Parameters<typeof LaunchMenu>[0]["localSetup"], saveGame?: Parameters<typeof LaunchMenu>[0]["saveGame"]) {
   const profile={host:"Bosgame",resolution:"2560x1600",fps:90,bitrate:80000,codec:"auto"};
   const streaming={display:{profile},geforceDisplay:{profile},configure:true,geforceConfigure:false,asobiConfigure:null,asobiGames:[],apps:["MoonDeckStream","Desktop"],steamId:"123",moonlightGame:null,buddy:{paired:true},hostInstalled:true,online:true,pcGame:true,clients:{moonlight:true},error:null,hostError:null,checking:false,setConfigure:vi.fn(),setGeforceConfigure:vi.fn(),setAsobiConfigure:vi.fn(),stream:vi.fn(async()=>{}),geforceStream:vi.fn(async()=>{}),startAsobi:vi.fn(async()=>{}),refresh:vi.fn(),...overrides};
   host=document.createElement("div");document.body.append(host);root=createRoot(host);
-  await act(async()=>root.render(<LaunchMenu streaming={streaming as unknown as Parameters<typeof LaunchMenu>[0]["streaming"]} open={menuOpen} setOpen={()=>{}} local={()=>{}} localLabel="Local" localEnabled manage={()=>{}} manageLabel="Manage" block={()=>{}} restorePlayFocus={restorePlayFocus} localSetup={localSetup}/>));
+  await act(async()=>root.render(<LaunchMenu streaming={streaming as unknown as Parameters<typeof LaunchMenu>[0]["streaming"]} open={menuOpen} setOpen={()=>{}} local={()=>{}} localLabel="Local" localEnabled manage={()=>{}} manageLabel="Manage" block={()=>{}} restorePlayFocus={restorePlayFocus} localSetup={localSetup} saveGame={saveGame}/>));
   return streaming;
 }
 async function click(el:Element|null){expect(el).not.toBeNull();await act(async()=>(el as HTMLElement).click());}
@@ -91,6 +91,17 @@ it("checks a standalone game's saves and waits for an explicit choice on diverge
   expect(document.querySelector("[role=status]")?.textContent).toContain("Drive has a different backup.");
   await click(document.querySelector("[data-launch-primary]"));
   expect(start).toHaveBeenCalledOnce();
+});
+
+it("checks a Lutris title in the save dialog without launching a game or another app", async () => {
+  const id = "lutris:bosgame:1";
+  await render({ configure: false }, true, undefined, undefined, { id, name: "Mouse", source: "lutris", launch_path: "lutris://bosgame/1" });
+  await click(Array.from(document.querySelectorAll('[role="menuitem"]')).find(item => item.textContent?.includes("Save backups"))!);
+  vi.mocked(invoke).mockResolvedValueOnce({ active: 1700000000, versions: [1700000300], cloud: 1700000400, scanOk: true, cloudStatus: "ok", message: "The Drive backup is newer by timestamp." });
+  await click(document.querySelector('[aria-label="Save backups"] [data-launch-primary]'));
+  expect(invoke).toHaveBeenCalledWith("compare_game_saves", { id, name: "Mouse", appType: "game", source: "lutris", path: "lutris://bosgame/1" });
+  expect(document.querySelector('[aria-label="Save backups"]')?.textContent).toContain("The Drive backup is newer by timestamp.");
+  expect(invoke).not.toHaveBeenCalledWith("open_game_saves", expect.anything());
 });
 
 it("passes separate output and microphone choices to a stream",async()=>{

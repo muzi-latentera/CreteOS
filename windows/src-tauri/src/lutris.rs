@@ -43,6 +43,14 @@ fn configured_host()->Option<String> {
     let value:serde_json::Value=serde_json::from_slice(bytes.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&bytes)).ok()?;
     let host=value["host"].as_str()?.to_owned();super::streaming::validate_host(&host).ok()?;Some(host)
 }
+pub fn save_target(game_id: &str) -> Result<(String, Game), String> {
+    let host = configured_host().ok_or("Bosgame SSH is not configured.")?;
+    let cache = load();
+    let game = cache.games.into_iter().find(|game| identity(&host, &game.id) == game_id)
+        .ok_or("Refresh the Lutris library to check this game's saves.")?;
+    if !cache.host.eq_ignore_ascii_case(&host) { return Err("Refresh the Lutris library for this host.".into()); }
+    Ok((host, game))
+}
 pub fn refresh(host:&str)->Result<(Vec<Game>,bool),String> {
     let games=query(host)?;let _lock=CACHE_WRITE.lock().map_err(|_|"Lutris cache unavailable")?;let old=load();let changed=old.host!=host || old.games!=games;
     let cache=Cache{host:host.to_owned(),attempted:now(),games:games.clone()};
