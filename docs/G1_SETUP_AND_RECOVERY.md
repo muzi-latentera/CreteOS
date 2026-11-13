@@ -1,8 +1,19 @@
 # CreteOS on OneXPlayer G1 — setup, history and recovery
 
-Maintained device record, updated 12 November 2026 (Europe/London). Covers this G1 installation from 17 October onward. Use this as the entry point for another Windows handheld; use the dated journals for detailed evidence. Earlier GPD results and the USB's pre-17-October history are references, not acceptance results for this G1.
+Maintained device record, updated 13 November 2026 (Europe/London). Covers this G1 installation from 17 October onward. Use this as the entry point for another Windows handheld; use the dated journals for detailed evidence. Earlier GPD results and the USB's pre-17-October history are references, not acceptance results for this G1.
 
 ## Current state
+
+**Game saves with Ludusavi.** Open **Game details → Launch options → Save backups** for eligible non-Steam Windows games and Bosgame Lutris entries. The Windows game process exit and Lutris post-exit hooks make versioned backups. Use Ludusavi to preview and explicitly restore the version you want. Backups retain up to ten full versions per game on automatic runs. See [save recovery steps](#game-save-recovery) and [verification and limitations](journal/2026-11-13-ludusavi-saves-pending-sync.md).
+
+## Game save recovery
+
+- On a new Windows device, install Ludusavi and rclone. Place the Ludusavi executable at `%LOCALAPPDATA%\Programs\Ludusavi\ludusavi.exe` for CreteOS. Authorize the same Google account on that device. The Windows backup location on Drive is `ludusavi-backup-G1-Windows`. Bosgame keeps its existing `ludusavi-backup` location. Keep the two repositories independent so Wine and Windows copies of a title cannot replace each other's history. Google authorization is per device.
+- Install the game, close it, and back up any live progress. Copy the other device's game backup into an empty staging directory, such as with rclone `copy` or a transfer over SSH. Point Ludusavi's **Restore** tab at that directory. For Windows and Wine, add a restore redirect from the archived Wine save directory to the game's Windows save directory. Preview the paths and file changes, choose a version, and confirm. Use another retained version if necessary. For Windows to Wine, use the inverse direction after confirming the destination prefix and path. Native Linux ports, different editions and different game versions can use incompatible saves.
+- If a title has no detected saves, check the Ludusavi manifest title and the game's save directory. Add a custom entry for that game when needed. Streaming from Bosgame uses its existing files regardless of which device runs Moonlight.
+- To restore the Bosgame hook, copy the verified `lutris/creteos-lutris-save-backup` from the nested host archive to `~/.local/bin/creteos-lutris-save-backup`, make it executable and add it as Lutris's global post-exit command. Merge the single `system.postexit_command` setting into the existing Lutris system file to preserve its other settings. On Bosgame, `~/.local/state/creteos/lutris-saves.log` reports backup outcomes. The G1 records automatic backup outcomes in `%LOCALAPPDATA%\CreteOS\game-save-backup.log`.
+
+## Other current settings
 
 **OneXConsole desktop power.** The Desktop process preset is saved at 18 W on external power and 6 W on battery. This uses the same external-power policy for the TV dock and other chargers. A new OneXConsole session loads the saved preset. [Verification and rollback](journal/2026-11-12-onexconsole-desktop-18w-pending-sync.md).
 
