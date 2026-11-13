@@ -60,7 +60,7 @@ it("PlayStation keeps the exported ASOBI route and primary action",async()=>{
 
 it("saves local network choice and hands display and sound overrides to the app launch", async () => {
   const start = vi.fn();
-  await render({ configure: false }, false, undefined, { name: "ASOBI", provider: "local", onClose: vi.fn(), onStart: start });
+  await render({ configure: false }, false, undefined, { app: { id: "asobi", name: "ASOBI", app_type: "app" }, provider: "local", onClose: vi.fn(), onStart: start });
   const choose = async (field: string, value: string) => {
     const select = document.querySelector<HTMLSelectElement>(`select[aria-label="${field}"]`)!;
     await act(async () => select.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true })));
@@ -76,6 +76,21 @@ it("saves local network choice and hands display and sound overrides to the app 
   expect(document.querySelector(".crete-stream-audio-device")?.textContent).toBe("Audio output: XREAL");
   await click(document.querySelector("[data-launch-primary]"));
   expect(start).toHaveBeenCalledWith({ audio: { input: null, output: "xreal" }, display: { width: 1920, height: 1200, hz: 60 } });
+});
+
+it("checks a standalone game's saves and waits for an explicit choice on divergence", async () => {
+  const start = vi.fn();
+  await render({ configure: false }, false, undefined, {
+    app: { id: "drm-free", name: "DRM-free game", app_type: "game", source: "desktop", launch_path: "C:/Games/Example.exe" },
+    provider: "local", onClose: vi.fn(), onStart: start,
+  });
+  vi.mocked(invoke).mockImplementationOnce(async () => ({ review: true, message: "Drive has a different backup." }));
+  await click(document.querySelector("[data-launch-primary]"));
+  expect(invoke).toHaveBeenCalledWith("check_game_saves", { name: "DRM-free game", appType: "game", source: "desktop", path: "C:/Games/Example.exe" });
+  expect(start).not.toHaveBeenCalled();
+  expect(document.querySelector("[role=status]")?.textContent).toContain("Drive has a different backup.");
+  await click(document.querySelector("[data-launch-primary]"));
+  expect(start).toHaveBeenCalledOnce();
 });
 
 it("passes separate output and microphone choices to a stream",async()=>{

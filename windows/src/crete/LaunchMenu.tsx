@@ -13,6 +13,7 @@ import { asobiLabel, asobiProvider, type AsobiProvider } from "./asobi";
 import { LocalDisplayField, localDisplayLabel, useLocalDisplayModes, type LocalDisplayMode } from "./LocalDisplayField";
 import type { App } from "../types";
 import type { LocalLaunchOptions } from "../hooks/useLaunchApp";
+import { hasLocalSaveBackup } from "./gameSaves";
 
 export function LocalLaunchMenu({ app, onClose, onStart }: {
   app: App; onClose: () => void; onStart: (options: LocalLaunchOptions) => void;
@@ -20,7 +21,7 @@ export function LocalLaunchMenu({ app, onClose, onStart }: {
   const streaming = useStreaming(app, false);
   const provider = asobiProvider(app) ?? (/^https:\/\/luna\.amazon\.(co\.uk|com)(?:\/|$)/.test(app.launch_path) ? "luna" : "local");
   return <LaunchMenu streaming={streaming} open={false} setOpen={() => {}} local={() => {}} localLabel="" localEnabled={false}
-    manage={() => {}} manageLabel="" block={() => {}} localSetup={{ name: app.name, provider, onClose, onStart }} />;
+    manage={() => {}} manageLabel="" block={() => {}} localSetup={{ app, provider, onClose, onStart }} />;
 }
 
 type Streaming = ReturnType<typeof useStreaming>;
@@ -28,7 +29,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   streaming: Streaming; open: boolean; setOpen: (open: boolean) => void; local: () => void;
   localLabel: string; localEnabled: boolean; manage: () => void; manageLabel: string; block: (blocked: boolean) => void; restorePlayFocus?: () => void; loading?: boolean;
   copies?: { key: string; label: string; onClick: () => void }[];
-  localSetup?: { name: string; provider: WifiProvider; onClose: () => void; onStart: (options: LocalLaunchOptions) => void };
+  localSetup?: { app: App; provider: WifiProvider; onClose: () => void; onStart: (options: LocalLaunchOptions) => void };
   saveGame?: { name: string; remote: boolean };
 }) {
   const text = useCreteText();
@@ -42,6 +43,9 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   const [tools, setTools] = useState(false);
   const [savesOpen, setSavesOpen] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [saveReview, setSaveReview] = useState("");
+  const checkingSaves = useRef(false);
+  const localCancelled = useRef(false);
   const [displayPreset, setDisplayPreset] = useState("auto");
   const anchor = useRef<HTMLButtonElement>(null);
   const [profile, setProfile] = useState<MoonlightProfile>(s.display.profile);
@@ -101,7 +105,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     setTarget(s.moonlightGame || (s.steamId && s.apps.includes("MoonDeckStream") ? "MoonDeckStream" : undefined) || s.apps.find(name => name === "Steam Big Picture") || s.apps[0] || "");
   }, [s.configure, s.apps, s.moonlightGame]);
   const close = () => {
-    if (localSetup) { localSetup.onClose(); return; }
+    if (localSetup) { localCancelled.current = true; localSetup.onClose(); return; }
     const returnFocus = root.current?.closest('[data-crete-detail-slot="primary-actions"], .crete-hero')
       ?.querySelector<HTMLButtonElement>('[data-launch-btn]:not(:disabled), .crete-play:not(:disabled)') ?? anchor.current;
     setOpen(false); setSavesOpen(false); setSaveError(""); setWifiOnly(false); s.setConfigure(false); s.setGeforceConfigure(false); s.setAsobiConfigure(null); choicesRef.current = null; selectFocus.current = null; setChoices(null);
@@ -234,6 +238,27 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       setBusy(false);
     });
   };
+  const startLocal = async () => {
+    if (!localSetup || checkingSaves.current) return;
+    const { app } = localSetup;
+    const options = { audio, display: localMode };
+    if (saveReview || !hasLocalSaveBackup(app)) { localSetup.onStart(options); return; }
+    checkingSaves.current = true;
+    setBusy(true);
+    try {
+      const result = await invoke<{ review: boolean; message: string }>("check_game_saves", {
+        name: app.name, appType: app.app_type, source: app.source ?? "", path: app.launch_path ?? "",
+      });
+      if (localCancelled.current) return;
+      if (result.review) setSaveReview(result.message);
+      else localSetup.onStart(options);
+    } catch {
+      if (!localCancelled.current) setSaveReview("Save check unavailable. You can play using this device’s save.");
+    } finally {
+      checkingSaves.current = false;
+      setBusy(false);
+    }
+  };
   const choose = (action: () => void) => { setOpen(false); action(); };
   const soundOptions = (moonlight = false) => <>
     <button className="crete-stream-disclosure" type="button" aria-expanded={sound} onClick={() => setSound(value => !value)}><span>Sound</span><IoChevronDownOutline /></button>
@@ -274,7 +299,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       <footer className="crete-stream-buttons"><button type="button" onClick={close}>Back</button><button data-launch-primary type="button" onClick={() => void invoke("open_game_saves").catch(error => setSaveError(String(error)))}>Open Ludusavi</button></footer>
     </section></div>}
     {localSetup && <div className="crete-stream-backdrop" data-local-launch-dialog onClick={event => { if (event.target === event.currentTarget) close(); }}><section role="dialog" aria-modal="true" aria-label="Launch settings" className="crete-stream-settings crete-stream-dialog">
-      <header className="crete-stream-heading"><h2>{localSetup.name}</h2>
+      <header className="crete-stream-heading"><h2>{localSetup.app.name}</h2>
         <div className="crete-stream-heading-meta crete-stream-heading-meta-pair"><p className="crete-stream-summary">{localDisplaySummary}</p>{audioSummary}</div>
       </header>
       <div className="crete-stream-body">
@@ -282,8 +307,14 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
         <LocalDisplayField value={localMode} onChange={setLocalMode} display={localDisplay} />
         <h3 className="crete-stream-local-sound">Sound</h3>
         <StreamAudioFields value={audio} onChange={setAudio} {...audioDevices} />
+        {saveReview && <p role="status"><IoSaveOutline aria-hidden="true" /> {saveReview}</p>}
+        {saveError && <p role="alert">{saveError}</p>}
       </div>
-      <footer className="crete-stream-buttons"><button type="button" onClick={close}>{text("Cancel")}</button><button data-launch-primary type="button" disabled={busy} onClick={() => localSetup.onStart({ audio, display: localMode })}>{text("Play")}</button></footer>
+      <footer className="crete-stream-buttons">
+        <button type="button" onClick={close}>{text("Cancel")}</button>
+        {saveReview && <button type="button" onClick={() => void invoke("open_game_saves").catch(error => setSaveError(String(error)))}>Review backups</button>}
+        <button data-launch-primary type="button" disabled={busy} onClick={() => void startLocal()}>{checkingSaves.current ? "Checking saves…" : saveReview ? "Play with local save" : text("Play")}</button>
+      </footer>
     </section></div>}
     {ps && <div className="crete-stream-backdrop" onClick={event => { if (event.target === event.currentTarget) close(); }}><section role="dialog" aria-modal="true" aria-label={`${asobiLabel(ps)} settings`} className="crete-stream-settings crete-stream-dialog">
       <header className="crete-stream-heading"><span className="crete-stream-eyebrow">PLAYSTATION</span><h2>{asobiLabel(ps)}</h2>

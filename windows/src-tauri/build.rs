@@ -1,5 +1,13 @@
 fn main() {
     println!("cargo:rerun-if-env-changed=GITHUB_SHA");
+    println!("cargo:rerun-if-changed=../scripts/Prepare-GameSaveTools.ps1");
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        let tools = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("Cargo output directory")).join("game-save-tools");
+        let status = std::process::Command::new("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "../scripts/Prepare-GameSaveTools.ps1", "-OutputDirectory"])
+            .arg(&tools).status().expect("start game save tool preparation");
+        assert!(status.success(), "prepare bundled game save tools");
+    }
     // Load SGDB_API_KEY from src-tauri/.env if present, then fall back to the
     // actual environment. This keeps the key out of source control.
     let env_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".env");

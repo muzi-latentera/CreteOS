@@ -10601,6 +10601,7 @@ pub fn run() {
             stream_wifi::get_stream_wifi_preferences,
             stream_audio::get_stream_audio_devices,
             game_saves::open_game_saves,
+            game_saves::check_game_saves,
             launch_display::get_local_display_modes,
             stream_wifi::get_stream_network_status,
             asobi::get_asobi_games,

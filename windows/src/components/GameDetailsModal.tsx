@@ -3,6 +3,7 @@ import { useCreteText } from "../crete/text";
 import { sourceLabel } from "../crete/model";
 import { CreteDetailsInfo } from "../crete/CreteDetailsInfo";
 import { LaunchMenu } from "../crete/LaunchMenu";
+import { hasLocalSaveBackup } from "../crete/gameSaves";
 import { LaunchLoading } from "../crete/LaunchLoading";
 import { useStreaming } from "../crete/useStreaming";
 import { useReviewVideos, reviewChoices } from "../crete/useReviewVideos";
@@ -1243,7 +1244,7 @@ export function GameDetailsModal({
                   swallowLaunchBack.current = true;
                   setFocusedIndex(0);
                 }} copies={actions.filter(action => action.key.startsWith("copy-"))} local={handleLocalAction} localLabel={installed ? "Local" : installing ? "Cancel installation" : storeAccountGame ? storeClientLabel : "Install locally"}
-                saveGame={app.source === "lutris" || (installed && app.app_type === "game" && ["desktop", "other", "custom", "manual", "local", "gog", "humble"].includes(app.source ?? "") && /^(?:[a-z]:[\\/]|\\\\|goggalaxy:\/\/)/i.test(app.launch_path)) ? { name: app.name, remote: app.source === "lutris" } : undefined}
+                saveGame={app.source === "lutris" || (installed && hasLocalSaveBackup(app)) ? { name: app.name, remote: app.source === "lutris" } : undefined}
                 manageLabel={activeTab === "manage" ? "Game information" : "Manage game"}
                 localEnabled={installed || canInstall || canXboxInstall || storeAccountGame || installing} manage={() => {
                   revealControls(); const next = activeTab === "manage" ? "details" : "manage";
