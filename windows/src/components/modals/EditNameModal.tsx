@@ -32,7 +32,7 @@ export default function EditNameModal({ app, onConfirm, onClose }: Props) {
     let rafId: number;
     let suppressFrames = 20;
     const poll = () => {
-      if (suppressFrames > 0) { suppressFrames--; rafId = requestAnimationFrame(poll); return; }
+      if (suppressFrames > 0) { suppressFrames--; const held = getBestGamepad(); if (held) Object.assign(last, readGpState(held)); rafId = requestAnimationFrame(poll); return; }
       if (showKbRef.current) {
         const gp = getBestGamepad();
         if (gp) Object.assign(last, readGpState(gp));

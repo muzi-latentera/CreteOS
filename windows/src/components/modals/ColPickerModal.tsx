@@ -51,7 +51,7 @@ export default function ColPickerModal({ app, collections, memberships, onToggle
     let rafId: number;
     let suppressFrames = 20;
     const poll = (now: number) => {
-      if (suppressFrames > 0) { suppressFrames--; rafId = requestAnimationFrame(poll); return; }
+      if (suppressFrames > 0) { suppressFrames--; const held = getBestGamepad(); if (held) Object.assign(last, readGpState(held)); rafId = requestAnimationFrame(poll); return; }
       if (showKbRef.current) {
         const gp = getBestGamepad();
         if (gp) Object.assign(last, readGpState(gp));

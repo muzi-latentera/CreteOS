@@ -38,3 +38,62 @@ Installed at 11/13/2026 21:31:00, app source 9b05ea0969920c2baf12f46ae16857a104a
 Check now compares active save file modification times, device backup history and the latest timestamp in the matching Google Drive backup index. The local pre-launch review opens the same CreteOS dialog. Comparison never launches games, restores files, or writes a backup. A timestamp comparison does not establish which save is further into a game. Manual backup and restore controls are outside this change. Manage game resets the action pane's scroll and focuses its first control.
 
 Verified private archive CreteOS-G1-profile-backup-20261113-213115.zip, SHA-256 35f8998de3e3000bd0ceceeaa85d3825b76518f7e2942ad9de34047772b51abf, contains 1655 manifested payloads. The preceding bundled-tools archive is retained. The replacement pack is CreteOS-Recovery-20261113-SaveComparison.
+
+## Saves and product audit (late 13 November)
+
+This was a read-only audit, recorded in [AUDIT_2026-11-13_SAVES_AND_EXPERIENCE.md](../AUDIT_2026-11-13_SAVES_AND_EXPERIENCE.md). Nothing was built, installed, restored or uploaded, and the SanDisk pack is unchanged. The installed build is still `9b05ea0`.
+
+Measured on the G1:
+- Ludusavi has no Windows backups.
+- It finds saves for 11 installed Steam Cloud titles (45.7 MB), which the exit hook excludes by design.
+
+Measured on Bosgame:
+- The hook log holds only the 01:45 Mouse setup entry.
+- The config says `retention.full: 5`, while the hook passes `--full-limit 10`.
+
+The uncommitted manual backup, restore preview and restore backend remains unwired and unbuilt. Its use of `--no-cloud-sync`, combined with the automatic hooks' `--no-force-cloud-conflict`, would leave every later automatic Drive upload declined. Fix that before shipping. The audit also confirmed a Manage game focus-clamp bug in `GameDetailsModal.tsx:549-551,1251`.
+## Manage saves, safe Drive sync and first full-app fixes (late 13 November)
+
+Source changes:
+
+- Windows (`game_saves.rs`):
+  - Exit backups, manual backups and pre-restore checkpoints all write locally with `--no-cloud-sync`, then run `sync_cloud`.
+  - `sync_cloud` uploads only when this device alone has new versions, downloads only when Drive alone does, and refuses a real conflict.
+  - The rules come from Ludusavi 0.31 previews measured in an isolated config, with a local rclone remote standing in for Drive. In the upload preview, a Drive-only version shows as `Removed`; in the download preview, a device-only version shows as `Removed`; `mapping.yaml` changes on either side. Cloud reports arrive on stderr.
+  - Checkpoints run with `--full-limit 255`, so the chosen version is never pruned. The checkpoint is then locked with the comment `CreteOS: before restore`, and three are kept. A sandbox check showed a locked version surviving `--full-limit 1`.
+  - Results are recorded in `%LOCALAPPDATA%\CreteOS\game-saves-status.json`.
+  - chrono gains its `std` feature for timestamps; Cargo.lock is unchanged.
+- Bosgame:
+  - `lutris_save_check.py` implements the same rules, plus `--after-exit` mode for the Lutris hook. It catches errors and returns reasons.
+  - Status is recorded in `~/.local/state/creteos/lutris-saves-status.json`.
+  - Drive previews take 57–98 s on Bosgame's shared rclone client, so one preview settles the common cases and each preview allows 150 s.
+- UI:
+  - New `ManageSaves.tsx` (replacing Save backups): automatic read-only check, Back up now, Restore a version with preview and confirm, and Sync with Google Drive.
+  - Back and Escape step out of sub-views. The dialog can't be dismissed during work. Labels are explicit.
+  - The Launch options menu no longer disappears during the streaming check.
+  - Manage game focus bounds now follow the tab being opened.
+- Other fixes from the full audit:
+  - `set_launch_cover` now accepts the PlayStation providers. Before this, ASOBI tiles failed at the cover.
+  - Dialogs with their own controller loop mark `data-owns-input`, so the "Close game?" confirm (and Manage saves opened from the Play dialog) no longer leaks presses to the screen behind.
+  - ConfirmModal gained Enter and Esc.
+
+Verification:
+
+- Tests: TypeScript passed, 290 frontend tests passed, and 169 Rust tests passed.
+- Bosgame sandbox (isolated HOME, local rclone remote, fixture game and Lutris DB, removed afterwards) passed all of these:
+  - backup and upload
+  - after-exit
+  - preview
+  - restore with the unbacked current save preserved as a locked checkpoint
+  - conflict refusal that kept the Drive-only version
+  - running-game refusal
+  - unknown-game message
+- Bosgame deployment at 22:40 GMT:
+  - Backups were kept as `*.before-safe-sync-20261113` for the hook and Ludusavi config.
+  - `~/.local/bin/creteos-saves` installed, SHA-256 `405155608816cb41915b99ac282e891e4a550224de365e7d8d2df5d2b8a94ac2` after the timeout revision.
+  - The new hook (SHA-256 `53de7f1480e96fb0578852a8d432f3b17d2ce4b745391a99364ed9fb15e59d09`, mode 0700) was installed.
+  - Retention went from 5 to 10.
+- The live hook run for Mouse, without launching the game, reported "Save unchanged since the last backup. Google Drive is up to date." in 12 s, and the version count stayed at 1. The first live run, with 45 s preview limits, reported Drive unavailable. That run was the reason for the timeout revision.
+- There is no standalone Windows game installed on the G1, so the standalone route can't be exercised here.
+
+The full-app audit against SteamOS is in `docs/AUDIT_2026-11-13_SAVES_AND_EXPERIENCE.md`.

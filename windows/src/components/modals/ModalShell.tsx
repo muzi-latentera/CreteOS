@@ -86,8 +86,9 @@ export default function ModalShell({
         aria-hidden="true"
         style={{
           position: "absolute", inset: 0,
-          background: "rgba(0,0,0,0.7)",
-          backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
+          // Crete dims instead of blurring the whole screen; see cretePanel().
+          background: resolvedTheme === "crete" ? "rgba(3,6,9,0.80)" : "rgba(0,0,0,0.7)",
+          ...(resolvedTheme === "crete" ? {} : { backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)" }),
           pointerEvents: "none",
         }}
       />

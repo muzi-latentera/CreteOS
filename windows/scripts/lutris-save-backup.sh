@@ -20,31 +20,12 @@ if pgrep -u "$(id -u)" -x ludusavi >/dev/null; then
     echo "Ludusavi is already open or busy. Run a backup after it finishes."
     exit 1
 fi
-title=$(timeout 30s "$tool" --no-manifest-update find --backup --normalized --api -- "$GAME_NAME" </dev/null |
-    python3 -c 'import json,sys; print(next(iter(json.load(sys.stdin)["games"]), ""))')
-if [[ -z $title ]]; then
-    echo "No exact Ludusavi title match. Check the title or add a custom game."
+# creteos-saves is CreteOS's lutris_save_check.py. It always writes the local
+# version first, then syncs Google Drive only in a direction that cannot discard
+# a version, and records the result for CreteOS's Manage saves screen.
+helper="$HOME/.local/bin/creteos-saves"
+if [[ ! -r $helper ]]; then
+    echo "CreteOS save helper is missing: $helper"
     exit 1
 fi
-
-# An unattended cloud conflict must leave the remote copy alone.
-report=$(mktemp "$state/lutris-save-report.XXXXXX")
-trap 'rm -f -- "$report"' EXIT
-result=0
-timeout 240s "$tool" --no-manifest-update backup --api --force --no-force-cloud-conflict --ask-downgrade --cloud-sync --full-limit 10 -- "$title" </dev/null >"$report" || result=$?
-python3 - "$report" "$result" <<'PY'
-import json, sys
-
-try:
-    with open(sys.argv[1]) as report:
-        data = json.load(report)
-except (OSError, ValueError):
-    data = {}
-overall = data.get("overall", {})
-print(f"exit={sys.argv[2]} files/registry bytes={overall.get('processedBytes', 0)}")
-if data.get("errors"):
-    print("Ludusavi reported:", ", ".join(data["errors"]))
-if not overall.get("processedBytes"):
-    print("No matching save data was backed up.")
-PY
-exit "$result"
+timeout 600s python3 "$helper" --after-exit "$GAME_NAME" </dev/null

@@ -38,7 +38,13 @@ export default function ConfirmModal({ message, confirmLabel, onConfirm, onCance
       rafId = requestAnimationFrame(poll);
     };
     rafId = requestAnimationFrame(poll);
-    return () => cancelAnimationFrame(rafId);
+    const key = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" && event.key !== "Escape") return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (event.key === "Enter") onConfirm(); else onCancel();
+    };
+    window.addEventListener("keydown", key, true);
+    return () => { cancelAnimationFrame(rafId); window.removeEventListener("keydown", key, true); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const shortcuts = [
@@ -47,11 +53,13 @@ export default function ConfirmModal({ message, confirmLabel, onConfirm, onCance
   ];
 
   return (
-    <ModalShell
-      title={message}
-      shortcuts={shortcuts}
-      width={380}
-      zIndex={zIndex}
-    />
+    <div data-owns-input="">
+      <ModalShell
+        title={message}
+        shortcuts={shortcuts}
+        width={380}
+        zIndex={zIndex}
+      />
+    </div>
   );
 }

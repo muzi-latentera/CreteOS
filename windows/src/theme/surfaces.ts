@@ -44,11 +44,14 @@ interface SurfaceThemeArgs {
 
 const STANDALONE_BACKGROUNDS = new Set(["crete", "aurora", "synthwave", "cyberpunk", "lofi", "forest", "webcore", "onyx"]);
 
+// Crete panels sit on dark, already-blurred art. A live backdrop blur under them
+// re-samples the whole screen on every scroll and focus frame on the G1's iGPU
+// while adding almost nothing visible, so Crete uses near-opaque fills instead.
 function cretePanel(background: string): CSSProperties {
   return {
     background,
-    backdropFilter: "blur(18px)",
-    WebkitBackdropFilter: "blur(18px)",
+    backdropFilter: "none",
+    WebkitBackdropFilter: "none",
     border: "1px solid rgba(242,234,219,0.08)",
     boxShadow: "0 12px 32px rgba(0,0,0,0.22)",
   };
@@ -208,7 +211,7 @@ function cyberpunkSurface(accent: AccentColors): CSSProperties {
 
 function buildGlassSurface(args: SurfaceThemeArgs, surface: SurfaceTokens, flat: CSSProperties): CSSProperties {
   const { glassEnabled, surfaceStyle, isDark, cinematicLight, accent, resolvedTheme } = args;
-  if (resolvedTheme === "crete" && surfaceStyle === "glass") return cretePanel("rgba(15,19,23,0.87)");
+  if (resolvedTheme === "crete" && surfaceStyle === "glass") return cretePanel("rgba(15,19,23,0.95)");
   if (!glassEnabled) return flat;
   if (resolvedTheme === "onyx") return {
     background: "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%)",
@@ -258,7 +261,7 @@ function buildGlassSurface(args: SurfaceThemeArgs, surface: SurfaceTokens, flat:
 
 function buildGlassBarSurface(args: SurfaceThemeArgs, surface: SurfaceTokens, flat: CSSProperties): CSSProperties {
   const { glassEnabled, surfaceStyle, isDark, cinematicLight, accent, resolvedTheme } = args;
-  if (resolvedTheme === "crete" && surfaceStyle === "glass") return cretePanel("rgba(11,14,17,0.80)");
+  if (resolvedTheme === "crete" && surfaceStyle === "glass") return cretePanel("rgba(11,14,17,0.93)");
   if (!glassEnabled) return flat;
   if (resolvedTheme === "onyx") return {
     background: "linear-gradient(180deg, rgba(0,0,0,0.34), rgba(0,0,0,0.22)), linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.05))",
@@ -314,7 +317,7 @@ function buildGlassBarSurface(args: SurfaceThemeArgs, surface: SurfaceTokens, fl
 
 function buildSettingsRowSurface(args: SurfaceThemeArgs, surface: SurfaceTokens, flat: CSSProperties): CSSProperties {
   const { glassEnabled, surfaceStyle, isDark, accent, resolvedTheme } = args;
-  if (resolvedTheme === "crete" && surfaceStyle === "glass") return cretePanel("rgba(20,24,29,0.73)");
+  if (resolvedTheme === "crete" && surfaceStyle === "glass") return cretePanel("rgba(20,24,29,0.90)");
   if (!glassEnabled) return flat;
   const tintTop = `${accent.glow}0.025)`;
   const tintBot = `${accent.glow}0.010)`;

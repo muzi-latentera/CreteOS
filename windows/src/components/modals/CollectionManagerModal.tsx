@@ -69,7 +69,7 @@ export default function CollectionManagerModal({ collections, onCreateCollection
     let suppressFrames = 20;
 
     const poll = (now: number) => {
-      if (suppressFrames > 0) { suppressFrames--; rafId = requestAnimationFrame(poll); return; }
+      if (suppressFrames > 0) { suppressFrames--; const held = getBestGamepad(); if (held) Object.assign(last, readGpState(held)); rafId = requestAnimationFrame(poll); return; }
       const gp = getBestGamepad();
       if (showKbRef.current || confirmDeleteRef.current) {
         if (gp) Object.assign(last, readGpState(gp));

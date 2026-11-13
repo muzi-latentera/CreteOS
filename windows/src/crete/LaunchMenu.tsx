@@ -14,31 +14,7 @@ import { LocalDisplayField, localDisplayLabel, useLocalDisplayModes, type LocalD
 import type { App } from "../types";
 import type { LocalLaunchOptions } from "../hooks/useLaunchApp";
 import { hasLocalSaveBackup } from "./gameSaves";
-
-interface SaveComparison {
-  active: number | null;
-  versions: number[];
-  cloud: number | null;
-  scanOk: boolean;
-  cloudStatus: string;
-  message: string;
-}
-
-function SaveComparisonResult({ result, remote }: { result: SaveComparison; remote: boolean }) {
-  const date = (value: number) => new Date(value * 1000).toLocaleString();
-  return <div role="status">
-    <p>{result.message}</p>
-    <dl className="crete-save-comparison">
-      <dt>{remote ? "Active save on Bosgame" : "Active save on this PC"}</dt>
-      <dd>{result.active ? date(result.active) : result.scanOk ? "No save file detected" : "Unavailable"}</dd>
-      <dt>{remote ? "Bosgame backup" : "This PC’s backup"}</dt>
-      <dd>{result.versions.length ? date(result.versions[0]) : "No backup found"}</dd>
-      <dt>Google Drive backup</dt>
-      <dd>{result.cloud ? date(result.cloud) : result.cloudStatus === "missing" ? "No backup found" : "Unavailable"}</dd>
-    </dl>
-    {result.versions.length > 1 && <p>Older backups · {result.versions.slice(1).map(date).join(" · ")}</p>}
-  </div>;
-}
+import { ManageSaves, type ManageSavesControl } from "./ManageSaves";
 
 export function LocalLaunchMenu({ app, onClose, onStart }: {
   app: App; onClose: () => void; onStart: (options: LocalLaunchOptions) => void;
@@ -67,10 +43,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   const [localMode, setLocalMode] = useState<LocalDisplayMode | null>(null);
   const [tools, setTools] = useState(false);
   const [savesOpen, setSavesOpen] = useState(false);
-  const [saveError, setSaveError] = useState("");
-  const [saveResult, setSaveResult] = useState<SaveComparison>();
-  const [comparing, setComparing] = useState(false);
-  const saveCheckId = useRef(0);
+  const savesControl = useRef<ManageSavesControl | null>(null);
   const [saveReview, setSaveReview] = useState("");
   const checkingSaves = useRef(false);
   const localCancelled = useRef(false);
@@ -133,8 +106,8 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     setTarget(s.moonlightGame || (s.steamId && s.apps.includes("MoonDeckStream") ? "MoonDeckStream" : undefined) || s.apps.find(name => name === "Steam Big Picture") || s.apps[0] || "");
   }, [s.configure, s.apps, s.moonlightGame]);
   const close = () => {
-    saveCheckId.current++;
-    setComparing(false); setSaveResult(undefined); setSaveError("");
+    // Back steps out of a save sub-view, and never abandons a running backup or restore.
+    if (savesOpen && savesControl.current?.back()) return;
     if (localSetup && savesOpen) {
       setSavesOpen(false);
       return;
@@ -142,7 +115,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     if (localSetup) { localCancelled.current = true; localSetup.onClose(); return; }
     const returnFocus = root.current?.closest('[data-crete-detail-slot="primary-actions"], .crete-hero')
       ?.querySelector<HTMLButtonElement>('[data-launch-btn]:not(:disabled), .crete-play:not(:disabled)') ?? anchor.current;
-    setOpen(false); setSavesOpen(false); setSaveError(""); setWifiOnly(false); s.setConfigure(false); s.setGeforceConfigure(false); s.setAsobiConfigure(null); choicesRef.current = null; selectFocus.current = null; setChoices(null);
+    setOpen(false); setSavesOpen(false); setWifiOnly(false); s.setConfigure(false); s.setGeforceConfigure(false); s.setAsobiConfigure(null); choicesRef.current = null; selectFocus.current = null; setChoices(null);
     restoreAfterLaunch.current = false;
     setSound(false); setAudio({ input: null, output: null });
     setLocalMode(null);
@@ -293,22 +266,6 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       setBusy(false);
     }
   };
-  const compareSaves = async () => {
-    const app = saveGame ?? localSetup?.app;
-    if (!app || comparing) return;
-    const check = ++saveCheckId.current;
-    setComparing(true); setSaveError(""); setSaveResult(undefined);
-    try {
-      const result = await invoke<SaveComparison>("compare_game_saves", {
-        id: app.id, name: app.name, appType: app.app_type ?? "game", source: app.source ?? "", path: app.launch_path ?? "",
-      });
-      if (check === saveCheckId.current) setSaveResult(result);
-    } catch (error) {
-      if (check === saveCheckId.current) setSaveError(String(error));
-    } finally {
-      if (check === saveCheckId.current) setComparing(false);
-    }
-  };
   const saveTarget = saveGame ?? localSetup?.app;
   const choose = (action: () => void) => { setOpen(false); action(); };
   const soundOptions = (moonlight = false) => <>
@@ -324,32 +281,26 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     setProfile(p => ({ ...p, resolution, fps, bitrate: gfn ? p.bitrate : 80000 }));
   };
   return <div ref={root} className="crete-launch-menu">
-    {!loading && !localSetup && <button ref={anchor} type="button" className="crete-details-manage" aria-label={text("Launch options")} aria-haspopup="menu" aria-expanded={open} onClick={() => open ? close() : setOpen(true)}><IoChevronDownOutline /></button>}
-    {open && !loading && <div className="crete-launch-popover" role="menu" aria-label={text("Launch options")}>
-      {s.provider !== "ps5RemotePlay" && s.provider !== "playstationCloud" && row(localLabel, "local", "#c9482a", local, !localEnabled)}
-      {(["ps5RemotePlay", "playstationCloud"] as AsobiProvider[]).filter(provider => s.asobiGames.some(game => game.provider === provider)).map(provider => row(asobiLabel(provider), provider, "#368bea", () => s.setAsobiConfigure(provider), false, provider))}
-      {s.provider === "luna" && row("Amazon Luna Wi-Fi", "", "#b49de5", () => setWifiOnly(true))}
-      {copies.map(copy => row(copy.label, "copy", "#a7a29a", copy.onClick, false, copy.key))}
-      {s.pcGame && row("Moonlight", "moonlight", "#697580", () => s.launch("moonlight"), !s.clients.moonlight)}
-      {s.gameUrl && row("GeForce NOW", "geforceNow", "#7cab00", () => s.launch("geforceNow", true))}
-      {!s.gameUrl && s.clients.geforceNow && row("GeForce NOW library", "", "#7cab00", () => s.launch("geforceNow"))}
-      {saveGame && <button type="button" role="menuitem" onClick={() => choose(() => setSavesOpen(true))}><IoSaveOutline aria-hidden="true" /> Save backups</button>}
+    {!localSetup && <button ref={anchor} type="button" className="crete-details-manage" aria-label={text("Launch options")} aria-haspopup="menu" aria-expanded={open} onClick={() => open ? close() : setOpen(true)}><IoChevronDownOutline /></button>}
+    {open && <div className="crete-launch-popover" role="menu" aria-label={text("Launch options")}>
+      {/* Play routes wait for the streaming check; saves and game management never do. */}
+      {loading ? <button type="button" role="menuitem" disabled><i style={{ background: "#697580" }} />{text("Checking play options…")}</button> : <>
+        {s.provider !== "ps5RemotePlay" && s.provider !== "playstationCloud" && row(localLabel, "local", "#c9482a", local, !localEnabled)}
+        {(["ps5RemotePlay", "playstationCloud"] as AsobiProvider[]).filter(provider => s.asobiGames.some(game => game.provider === provider)).map(provider => row(asobiLabel(provider), provider, "#368bea", () => s.setAsobiConfigure(provider), false, provider))}
+        {s.provider === "luna" && row("Amazon Luna Wi-Fi", "", "#b49de5", () => setWifiOnly(true))}
+        {copies.map(copy => row(copy.label, "copy", "#a7a29a", copy.onClick, false, copy.key))}
+        {s.pcGame && row("Moonlight", "moonlight", "#697580", () => s.launch("moonlight"), !s.clients.moonlight)}
+        {s.gameUrl && row("GeForce NOW", "geforceNow", "#7cab00", () => s.launch("geforceNow", true))}
+        {!s.gameUrl && s.clients.geforceNow && row("GeForce NOW library", "", "#7cab00", () => s.launch("geforceNow"))}
+      </>}
+      {saveGame && <button type="button" role="menuitem" onClick={() => choose(() => setSavesOpen(true))}><IoSaveOutline aria-hidden="true" /> {text("Manage saves")}</button>}
       <button type="button" role="menuitem" onClick={() => choose(manage)}>{text(manageLabel)}</button>
     </div>}
     {createPortal(<div ref={panelRoot} data-theme="crete" className="crete-launch-layer" onPointerDownCapture={event => {
       const select = event.target instanceof Element ? event.target.closest("select") : null;
       if (select instanceof HTMLSelectElement && !select.disabled) { event.preventDefault(); openChoices(select); }
     }}>
-    {savesOpen && saveTarget && <div className="crete-stream-backdrop" onClick={event => { if (event.target === event.currentTarget) close(); }}><section role="dialog" aria-modal="true" aria-label="Save backups" className="crete-stream-settings crete-stream-dialog">
-      <header className="crete-stream-heading"><h2>Save backups</h2><p>{saveTarget.name}</p></header>
-      <div className="crete-stream-body">
-        <p>{saveTarget.source === "lutris" ? "Lutris backs up saves on Bosgame after the game exits." : "CreteOS backs up saves after the Windows game exits."}</p>
-        {saveResult && <SaveComparisonResult result={saveResult} remote={saveTarget.source === "lutris"} />}
-        {comparing && <p role="status">Checking the active save and backups…</p>}
-        {saveError && <p role="alert">{saveError}</p>}
-      </div>
-      <footer className="crete-stream-buttons"><button type="button" onClick={close}>Back</button><button data-launch-primary type="button" aria-disabled={comparing} onClick={() => void compareSaves()}>Check now</button></footer>
-    </section></div>}
+    {savesOpen && saveTarget && <ManageSaves app={saveTarget} onClose={close} control={savesControl} />}
     {localSetup && !savesOpen && <div className="crete-stream-backdrop" data-local-launch-dialog onClick={event => { if (event.target === event.currentTarget) close(); }}><section role="dialog" aria-modal="true" aria-label="Launch settings" className="crete-stream-settings crete-stream-dialog">
       <header className="crete-stream-heading"><h2>{localSetup.app.name}</h2>
         <div className="crete-stream-heading-meta crete-stream-heading-meta-pair"><p className="crete-stream-summary">{localDisplaySummary}</p>{audioSummary}</div>
@@ -360,11 +311,10 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
         <h3 className="crete-stream-local-sound">Sound</h3>
         <StreamAudioFields value={audio} onChange={setAudio} {...audioDevices} />
         {saveReview && <p role="status"><IoSaveOutline aria-hidden="true" /> {saveReview}</p>}
-        {saveError && <p role="alert">{saveError}</p>}
       </div>
       <footer className="crete-stream-buttons">
         <button type="button" onClick={close}>{text("Cancel")}</button>
-        {saveReview && <button type="button" onClick={() => setSavesOpen(true)}>Review backups</button>}
+        {saveReview && <button type="button" onClick={() => setSavesOpen(true)}>{text("Manage saves")}</button>}
         <button data-launch-primary type="button" disabled={busy} onClick={() => void startLocal()}>{checkingSaves.current ? "Checking saves…" : saveReview ? "Play with local save" : text("Play")}</button>
       </footer>
     </section></div>}

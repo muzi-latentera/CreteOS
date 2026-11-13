@@ -149,6 +149,10 @@ export function CreteLibraryView(p: CreteLibraryProps) {
   const wide = p.settings.wide_layout && (appsMode ? p.settings.wide_apps : p.settings.wide_games);
   const baseColumns = gridWidth >= 1500 ? 7 : gridWidth > 0 && gridWidth < 920 ? 4 : 5;
   const columns = Math.max(1, Math.round((baseColumns + (wide ? 2 : 0)) / (scale ?? 1)));
+  // Memoised cards keep their first callbacks, so they call through to the latest ones.
+  const latest = useRef({ openDetails: p.openDetails, setContextMenu: p.setContextMenu });
+  latest.current = { openDetails: p.openDetails, setContextMenu: p.setContextMenu };
+  const pinnedIds = useMemo(() => new Set(p.pins), [p.pins]);
   return <div className="crete-library crete-scroller" ref={p.scrollRef}
     onPointerDownCapture={event => { if (event.pointerType === "touch") takeScroll(); else directScrollRef.current = false; }}
     onWheelCapture={takeScroll}>
@@ -180,9 +184,9 @@ export function CreteLibraryView(p: CreteLibraryProps) {
         {p.settings.show_store_badges !== false && <StoreBadge app={app} inline />}{p.pins.includes(app.id) && <span aria-label={text("Pinned")}>◆</span>}{p.isRunning(app.id) && <span>{text("Running")}</span>}
       </button> : <CreteGameCard key={app.id} app={app}
       art={p.customArt[app.id] || p.gameArt[app.id]} selected={toolbarIndex === null && selected?.id === app.id}
-      pinned={gameCopies(app).some(copy => p.pins.includes(copy.id))} running={p.isRunning(app.id)} showStoreBadge={p.settings.show_store_badges}
-      onContextMenu={event => { event.preventDefault(); p.setContextMenu({ x: event.clientX, y: event.clientY, app }); }}
-      onSelect={() => { setSelectedId(app.id); setToolbarIndex(null); }} onOpen={() => p.openDetails(app)} />)}</div>
+      pinned={gameCopies(app).some(copy => pinnedIds.has(copy.id))} running={p.isRunning(app.id)} showStoreBadge={p.settings.show_store_badges}
+      onContextMenu={event => { event.preventDefault(); latest.current.setContextMenu({ x: event.clientX, y: event.clientY, app }); }}
+      onSelect={() => { setSelectedId(app.id); setToolbarIndex(null); }} onOpen={() => latest.current.openDetails(app)} />)}</div>
     {!items.length && <div className="crete-empty"><h2>{text(appsMode ? "No applications found" : "No games found")}</h2><p>{text(query ? "Try another search." : "Choose another filter or add a source in Settings.")}</p></div>}
   </div>;
 }

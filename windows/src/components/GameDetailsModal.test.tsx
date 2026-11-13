@@ -111,6 +111,33 @@ describe("Game Details modal", () => {
     vi.unstubAllGlobals();
   });
 
+  it("never starts a game from an A press that was already held when the page opened", () => {
+    const onPlay = vi.fn();
+    let pressed: number[] = [0];
+    Object.defineProperty(navigator, "getGamepads", {
+      configurable: true,
+      value: () => [{
+        mapping: "standard", axes: [0, 0, 0, 0],
+        buttons: Array.from({ length: 16 }, (_, index) => ({ pressed: pressed.includes(index), touched: false, value: pressed.includes(index) ? 1 : 0 })),
+      } as unknown as Gamepad],
+    });
+    try {
+      act(() => root.render(<GameDetailsModal {...baseProps()} app={{ id: "local:test", name: "Test Game", source: "desktop", installed: true, launch_path: "C:/Games/Test.exe" }}
+        installed canXboxInstall={false} onPlay={onPlay} />));
+      let time = 0;
+      const step = (frames: number) => { for (let i = 0; i < frames; i += 1) { const frame = nextFrame; time += 16; if (frame) act(() => frame(time)); } };
+      step(40);
+      expect(onPlay).not.toHaveBeenCalled();
+      pressed = [];
+      step(2);
+      pressed = [0];
+      step(2);
+      expect(onPlay).toHaveBeenCalledOnce();
+    } finally {
+      delete (navigator as { getGamepads?: unknown }).getGamepads;
+    }
+  });
+
   function render(props: Partial<ComponentProps<typeof GameDetailsModal>>) {
     act(() => root.render(<GameDetailsModal {...baseProps()} {...props} />));
     const primary = Array.from(container.querySelectorAll("button"))

@@ -329,6 +329,7 @@ export default function CloudGamePickerModal({ onConfirm, onRemove, isInLibrary,
     const poll = (now: number) => {
       if (suppressFrames > 0) {
         suppressFrames--;
+        const held = getBestGamepad(); if (held) Object.assign(last, readGpState(held));
         rafId = requestAnimationFrame(poll);
         return;
       }

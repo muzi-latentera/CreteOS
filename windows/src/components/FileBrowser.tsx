@@ -198,7 +198,7 @@ export default function FileBrowser({ mode = "file", repeatSpeed = "normal", onS
 
     let rafId: number;
     const poll = (now: number) => {
-      if (suppressFrames > 0) { suppressFrames--; requestAnimationFrame(poll); return; }
+      if (suppressFrames > 0) { suppressFrames--; const held = getBestGamepad(); if (held) Object.assign(last, readGpState(held)); requestAnimationFrame(poll); return; }
       const gp = getBestGamepad();
       if (gp) {
         const state = readGpState(gp);

@@ -60,7 +60,9 @@
 .crete-empty p { margin:0; }
 .crete-empty button { border:1px solid var(--crete-accent); color:var(--crete-accent); background:#e9a93c14; border-radius:10px; padding:12px 20px; }
 .crete-home { padding:80px var(--crete-pad) calc(var(--crete-bottom) + 24px); }
-.crete-home-backdrop { position:fixed; inset:-32px; background-position:center; background-size:cover; filter:blur(24px); opacity:.22; pointer-events:none; }
+/* Blur a quarter-size layer and scale it up: the same soft look as blur(24px)
+   over the full screen for about 1/16 of the GPU work when the art changes. */
+.crete-home-backdrop { position:fixed; top:-32px; left:-32px; width:calc((100vw + 64px) / 4); height:calc((100vh + 64px) / 4); transform:scale(4); transform-origin:0 0; background-position:center; background-size:cover; filter:blur(6px); opacity:.22; pointer-events:none; contain:strict; }
 .crete-home-backdrop::after { content:""; position:absolute; inset:0; background:linear-gradient(#08090b44,#08090b 95%); }
 .crete-hero { position:relative; min-height:340px; border-radius:20px; border:1px solid var(--crete-border); overflow:hidden; display:flex; justify-content:space-between; align-items:center; background:linear-gradient(125deg,#252633,#11191e); }
 .crete-hero[data-focused="true"] { border-color:var(--crete-accent); }
@@ -143,6 +145,7 @@
 
 .crete-launch-menu { position: relative; }
 .crete-launch-loading { display:inline-flex; width:180px; height:48px; align-items:center; justify-content:center; background:transparent; }
+.crete-details-play-group:has(> .crete-launch-loading) .crete-details-manage { border-left:0; border-radius:10px; }
 .crete-hero .crete-launch-loading { width:112px; height:44px; }
 .crete-launch-spinner { width:26px; height:26px; border:3px solid #b8bec326; border-top-color:#b8bec3a6; border-radius:50%; animation:crete-launch-spin .8s linear infinite; }
 @keyframes crete-launch-spin { to { transform:rotate(360deg); } }

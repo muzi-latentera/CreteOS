@@ -16,13 +16,14 @@ vi.mock("@tauri-apps/api/event",()=>({listen:vi.fn(async()=>()=>{})}));
 vi.mock("./text",()=>({useCreteText:()=>(label:string)=>label}));
 vi.mock("../utils/gamepad",()=>({getBestGamepad:()=>null,readGpState:()=>({})}));
 let root:Root; let host:HTMLDivElement;
+const baseInvoke = vi.mocked(invoke).getMockImplementation()!;
 beforeEach(()=>{Element.prototype.scrollIntoView=vi.fn();(globalThis as {IS_REACT_ACT_ENVIRONMENT?:boolean}).IS_REACT_ACT_ENVIRONMENT=true;});
-afterEach(async()=>{await act(async()=>root?.unmount());host?.remove();vi.clearAllMocks();});
-async function render(overrides:Record<string,unknown>={}, menuOpen=false, restorePlayFocus?:()=>void, localSetup?: Parameters<typeof LaunchMenu>[0]["localSetup"], saveGame?: Parameters<typeof LaunchMenu>[0]["saveGame"]) {
+afterEach(async()=>{await act(async()=>root?.unmount());host?.remove();vi.clearAllMocks();vi.mocked(invoke).mockImplementation(baseInvoke);});
+async function render(overrides:Record<string,unknown>={}, menuOpen=false, restorePlayFocus?:()=>void, localSetup?: Parameters<typeof LaunchMenu>[0]["localSetup"], saveGame?: Parameters<typeof LaunchMenu>[0]["saveGame"], loading=false) {
   const profile={host:"Bosgame",resolution:"2560x1600",fps:90,bitrate:80000,codec:"auto"};
   const streaming={display:{profile},geforceDisplay:{profile},configure:true,geforceConfigure:false,asobiConfigure:null,asobiGames:[],apps:["MoonDeckStream","Desktop"],steamId:"123",moonlightGame:null,buddy:{paired:true},hostInstalled:true,online:true,pcGame:true,clients:{moonlight:true},error:null,hostError:null,checking:false,setConfigure:vi.fn(),setGeforceConfigure:vi.fn(),setAsobiConfigure:vi.fn(),stream:vi.fn(async()=>{}),geforceStream:vi.fn(async()=>{}),startAsobi:vi.fn(async()=>{}),refresh:vi.fn(),...overrides};
   host=document.createElement("div");document.body.append(host);root=createRoot(host);
-  await act(async()=>root.render(<LaunchMenu streaming={streaming as unknown as Parameters<typeof LaunchMenu>[0]["streaming"]} open={menuOpen} setOpen={()=>{}} local={()=>{}} localLabel="Local" localEnabled manage={()=>{}} manageLabel="Manage" block={()=>{}} restorePlayFocus={restorePlayFocus} localSetup={localSetup} saveGame={saveGame}/>));
+  await act(async()=>root.render(<LaunchMenu streaming={streaming as unknown as Parameters<typeof LaunchMenu>[0]["streaming"]} open={menuOpen} setOpen={()=>{}} local={()=>{}} localLabel="Local" localEnabled manage={()=>{}} manageLabel="Manage" block={()=>{}} restorePlayFocus={restorePlayFocus} localSetup={localSetup} saveGame={saveGame} loading={loading}/>));
   return streaming;
 }
 async function click(el:Element|null){expect(el).not.toBeNull();await act(async()=>(el as HTMLElement).click());}
@@ -93,15 +94,80 @@ it("checks a standalone game's saves and waits for an explicit choice on diverge
   expect(start).toHaveBeenCalledOnce();
 });
 
-it("checks a Lutris title in the save dialog without launching a game or another app", async () => {
-  const id = "lutris:bosgame:1";
-  await render({ configure: false }, true, undefined, undefined, { id, name: "Mouse", source: "lutris", launch_path: "lutris://bosgame/1" });
-  await click(Array.from(document.querySelectorAll('[role="menuitem"]')).find(item => item.textContent?.includes("Save backups"))!);
-  vi.mocked(invoke).mockResolvedValueOnce({ active: 1700000000, versions: [1700000300], cloud: 1700000400, scanOk: true, cloudStatus: "ok", message: "The Drive backup is newer by timestamp." });
-  await click(document.querySelector('[aria-label="Save backups"] [data-launch-primary]'));
-  expect(invoke).toHaveBeenCalledWith("compare_game_saves", { id, name: "Mouse", appType: "game", source: "lutris", path: "lutris://bosgame/1" });
-  expect(document.querySelector('[aria-label="Save backups"]')?.textContent).toContain("The Drive backup is newer by timestamp.");
-  expect(invoke).not.toHaveBeenCalledWith("open_game_saves", expect.anything());
+const mouse = { id: "lutris:bosgame:1", name: "Mouse", source: "lutris", launch_path: "lutris://bosgame/1" };
+const mouseArgs = { id: mouse.id, name: "Mouse", appType: "game", source: "lutris", path: "lutris://bosgame/1" };
+const comparison = {
+  known: true, active: 1761228000, scanOk: true, cloudStatus: "ok", cloud: 1763035200, verdict: "match",
+  message: "The active save matches the latest backup, and Google Drive has the same backup.",
+  versions: [{ name: "backup-20261113T120000Z", when: "2026-11-13T12:00:00Z", locked: false, comment: null },
+    { name: "backup-20261101T090000Z", when: "2026-11-01T09:00:00Z", locked: true, comment: "CreteOS: before restore" }],
+  lastEvent: { when: "2026-11-13T12:00:05Z", message: "Backed up after the game closed.", cloud: "uploaded" },
+};
+async function openSaves(responses: Record<string, unknown>) {
+  vi.mocked(invoke).mockImplementation(async (command: string, payload?: unknown) => {
+    if (command === "compare_game_saves") return comparison;
+    if (command === "manage_game_save") {
+      const action = (payload as { request: { action: string } }).request.action;
+      const value = responses[action];
+      if (value instanceof Error) throw value.message;
+      return value;
+    }
+    return { moonlight: "automatic" };
+  });
+  await render({ configure: false }, true, undefined, undefined, mouse, true);
+  expect(document.querySelector('[role="menuitem"]:disabled')?.textContent).toContain("Checking play options");
+  expect(document.body.textContent).not.toContain("Moonlight");
+  await click(Array.from(document.querySelectorAll('[role="menuitem"]')).find(item => item.textContent?.includes("Manage saves"))!);
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+  return document.querySelector('[aria-label="Manage saves"]')!;
+}
+
+it("opens Manage saves while play options are still loading and checks automatically, read-only", async () => {
+  const dialog = await openSaves({});
+  expect(invoke).toHaveBeenCalledWith("compare_game_saves", mouseArgs);
+  expect(invoke).not.toHaveBeenCalledWith("manage_game_save", expect.anything());
+  expect(dialog.textContent).toContain("Saves match");
+  expect(dialog.textContent).toContain("Save last modified");
+  expect(dialog.textContent).toContain("Latest backup created");
+  expect(dialog.textContent).toContain("Uploaded to Google Drive.");
+  expect(dialog.textContent).not.toContain("Invalid Date");
+});
+
+it("backs up on request and reports the Google Drive result", async () => {
+  const dialog = await openSaves({ backup: { message: "Backed up on Bosgame.", cloud: "uploaded", cloudMessage: "Uploaded to Google Drive." } });
+  await click(dialog.querySelector("[data-launch-primary]"));
+  expect(invoke).toHaveBeenCalledWith("manage_game_save", { request: { ...mouseArgs, action: "backup", version: undefined } });
+  expect(dialog.textContent).toContain("Backed up on Bosgame. Uploaded to Google Drive.");
+});
+
+it("restores only after a preview and an explicit confirmation, and Back steps out one level", async () => {
+  const dialog = await openSaves({
+    preview: { created: "2026-11-01T09:00:00Z", replace: 2, add: 0, same: 1 },
+    restore: { message: "Version restored on Bosgame. Your previous save is kept as “Before restore”.", cloud: "uploaded" },
+  });
+  await click(Array.from(dialog.querySelectorAll("button")).find(button => button.textContent?.includes("Restore a version"))!);
+  const older = Array.from(dialog.querySelectorAll(".crete-save-versions button"));
+  expect(older.map(button => button.textContent)).toEqual([expect.stringContaining("Latest backup"), expect.stringContaining("Before restore")]);
+  await click(older[1]);
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+  expect(invoke).toHaveBeenCalledWith("manage_game_save", { request: { ...mouseArgs, action: "preview", version: "backup-20261101T090000Z" } });
+  expect(invoke).not.toHaveBeenCalledWith("manage_game_save", { request: expect.objectContaining({ action: "restore" }) });
+  expect(dialog.textContent).toContain("2 save files");
+  expect(dialog.textContent).toContain("Before restore");
+  await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  expect(dialog.querySelector(".crete-save-versions")).not.toBeNull();
+  await click(dialog.querySelectorAll(".crete-save-versions button")[1]);
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+  await click(dialog.querySelector("[data-launch-primary]"));
+  expect(invoke).toHaveBeenCalledWith("manage_game_save", { request: { ...mouseArgs, action: "restore", version: "backup-20261101T090000Z" } });
+  expect(dialog.textContent).toContain("Version restored on Bosgame.");
+});
+
+it("shows a refused save action without leaving the dialog", async () => {
+  const dialog = await openSaves({ backup: new Error("Close the game on Bosgame before changing its saves.") });
+  await click(dialog.querySelector("[data-launch-primary]"));
+  expect(dialog.querySelector("[role=alert]")?.textContent).toContain("Close the game on Bosgame");
+  expect(document.querySelector('[aria-label="Manage saves"]')).not.toBeNull();
 });
 
 it("passes separate output and microphone choices to a stream",async()=>{

@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent } from "react";
+import { memo, useRef, useState, type MouseEvent } from "react";
 import type { App } from "../types";
 import { StoreBadge } from "../components/ui/StoreBadge";
 import { useCreteText } from "./text";
@@ -15,7 +15,17 @@ interface Props {
   showStoreBadge?: boolean;
 }
 
-export function CreteGameCard({ app, art, selected, pinned, running, onSelect, onOpen, onContextMenu, showStoreBadge = true }: Props) {
+/**
+ * Rails and the Library grid can hold hundreds of cards, and every D-pad move
+ * re-renders their parent. A card redraws only when something it shows changes.
+ * Callers must route callbacks through stable or latest-value functions; the
+ * comparison deliberately ignores callback identity.
+ */
+export const CreteGameCard = memo(CreteGameCardView, (before, after) =>
+  before.app === after.app && before.art === after.art && before.selected === after.selected
+  && before.pinned === after.pinned && before.running === after.running && before.showStoreBadge === after.showStoreBadge);
+
+function CreteGameCardView({ app, art, selected, pinned, running, onSelect, onOpen, onContextMenu, showStoreBadge = true }: Props) {
   const text = useCreteText();
   const touchRef = useRef(false);
   const [failedUrls, setFailedUrls] = useState<string[]>([]);

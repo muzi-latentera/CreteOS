@@ -42,7 +42,7 @@ export default function FolderManagerModal({ customFolders, onToggle, onDelete, 
     let rafId: number;
     let suppressFrames = 20;
     const poll = (now: number) => {
-      if (suppressFrames > 0) { suppressFrames--; rafId = requestAnimationFrame(poll); return; }
+      if (suppressFrames > 0) { suppressFrames--; const held = getBestGamepad(); if (held) Object.assign(last, readGpState(held)); rafId = requestAnimationFrame(poll); return; }
       if (confirmRef.current) { rafId = requestAnimationFrame(poll); return; }
       const gp = getBestGamepad();
       if (gp) {

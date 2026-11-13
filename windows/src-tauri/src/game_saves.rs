@@ -1,8 +1,12 @@
 //! Ludusavi owns save discovery, versioning, and explicit restores.
+//!
+//! Every backup is written locally first. Google Drive is then brought in line by
+//! `sync_cloud`, which only uploads or downloads when one side merely lacks the
+//! other's versions, and refuses when both sides hold versions the other lacks.
 use serde_json::Value;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use sha2::{Digest, Sha256};
-use std::{io::Write, path::{Path, PathBuf}, process::{Command, Stdio}, sync::{Mutex, OnceLock}};
+use std::{collections::{BTreeMap, HashSet}, io::Write, path::{Path, PathBuf}, process::{Command, Stdio}, sync::{Mutex, OnceLock}};
 use windows::Win32::{
     Foundation::{CloseHandle, WAIT_OBJECT_0},
     System::Threading::{OpenProcess, WaitForSingleObject, INFINITE, PROCESS_SYNCHRONIZE},
@@ -17,6 +21,9 @@ const BUNDLED_TOOLS: &[(&str, &[u8])] = &[
     ("ludusavi-LICENSE.txt", include_bytes!(concat!(env!("OUT_DIR"), "/game-save-tools/ludusavi-LICENSE.txt"))),
     ("rclone-LICENSE.txt", include_bytes!(concat!(env!("OUT_DIR"), "/game-save-tools/rclone-LICENSE.txt"))),
 ];
+/// Comment Ludusavi stores on the locked copy made before each restore.
+const CHECKPOINT: &str = "CreteOS: before restore";
+const CHECKPOINTS_KEPT: usize = 3;
 
 pub fn eligible(app_type: &str, source: &str, path: &str) -> bool {
     app_type == "game" && matches!(source, "" | "desktop" | "other" | "custom" | "manual" | "local" | "gog" | "humble")
@@ -91,29 +98,176 @@ fn query(args: &[&str]) -> Result<Value, String> {
     let output = output(args, 180)?;
     let data: Value = serde_json::from_slice(&output.stdout).map_err(|_| "Ludusavi returned no save report.")?;
     if !output.status.success() && data["games"].as_object().is_none_or(|games| !games.is_empty()) {
-        return Err("Ludusavi reported a save or cloud sync error. Check Ludusavi for details.".into());
+        return Err("Ludusavi reported a save error.".into());
     }
     Ok(data)
 }
 
+fn read(args: &[&str], timeout: u64) -> Result<Value, String> {
+    let mut cmd = command()?;
+    cmd.arg("--no-manifest-update").args(args);
+    let output = super::streaming::bounded_output_timeout(cmd, None, timeout)?;
+    serde_json::from_slice(&output.stdout).map_err(|_| "Could not read the save report.".into())
+}
+
+fn has_errors(data: &Value) -> bool {
+    data["errors"].as_object().is_some_and(|errors| !errors.is_empty())
+}
+
 fn title(name: &str) -> Result<Option<String>, String> {
-    let report = output(&["find", "--backup", "--normalized", "--api", "--", name], 7)?;
+    let report = output(&["find", "--backup", "--normalized", "--api", "--", name], 30)?;
     let data: Value = serde_json::from_slice(&report.stdout).map_err(|_| "Save catalog unavailable.")?;
     Ok(data["games"].as_object().and_then(|games| games.keys().next().cloned()))
 }
 
+/// Interactive paths never wait on a manifest download.
+fn quick_title(name: &str) -> Result<Option<String>, String> {
+    let data = read(&["find", "--backup", "--normalized", "--api", "--", name], 10)?;
+    Ok(data["games"].as_object().and_then(|games| games.keys().next().cloned()))
+}
+
+// ---------------------------------------------------------------- Drive sync
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum SyncPlan { Synced, Upload, Download, Conflict }
+
+/// Decide from Ludusavi's two cloud previews which direction is safe.
+///
+/// Measured on Ludusavi 0.31: a version only this device has is `Removed` in the
+/// download preview; a version only Drive has is `Removed` in the upload preview.
+/// `mapping.yaml` differs whenever either side changed, so it is not evidence of a
+/// direction on its own; mapping-only drift comes from local edits such as locking.
+fn plan_sync(upload: &Value, download: &Value) -> SyncPlan {
+    let (up, down) = (upload.as_object(), download.as_object());
+    let paths: HashSet<&String> = up.into_iter().chain(down).flat_map(|map| map.keys()).collect();
+    if paths.is_empty() { return SyncPlan::Synced; }
+    fn change<'a>(map: Option<&'a serde_json::Map<String, Value>>, path: &str) -> &'a str {
+        map.and_then(|map| map.get(path)).and_then(|entry| entry["change"].as_str()).unwrap_or("")
+    }
+    let (mut here, mut there) = (false, false);
+    for path in paths {
+        if path == "mapping.yaml" || path.ends_with("/mapping.yaml") { continue; }
+        match (change(up, path), change(down, path)) {
+            ("Removed", _) => there = true,
+            (_, "Removed") => here = true,
+            _ => return SyncPlan::Conflict,
+        }
+    }
+    match (here, there) {
+        (true, true) => SyncPlan::Conflict,
+        (false, true) => SyncPlan::Download,
+        _ => SyncPlan::Upload,
+    }
+}
+
+fn cloud_json(args: &[&str], timeout: u64) -> Result<Value, String> {
+    let mut cmd = command()?;
+    cmd.arg("--no-manifest-update").args(args);
+    let output = super::streaming::bounded_output_timeout(cmd, None, timeout)?;
+    if !output.status.success() { return Err("Google Drive could not be reached.".into()); }
+    // Ludusavi prints cloud reports on stderr.
+    serde_json::from_slice(&output.stderr).or_else(|_| serde_json::from_slice(&output.stdout))
+        .map_err(|_| "Google Drive returned no sync report.".into())
+}
+
+fn cloud_enabled() -> bool {
+    read(&["config", "show", "--api"], 8).is_ok_and(|config| config["cloud"]["synchronize"] == true
+        && config["cloud"]["remote"].as_object().is_some_and(|remote| !remote.is_empty()))
+}
+
+/// One Drive preview settles most cases; Bosgame measured 57–98 s per preview.
+fn quick_plan(upload: &Value) -> Option<SyncPlan> {
+    let entries: Vec<&str> = upload.as_object()?.iter()
+        .filter(|(path, _)| path.as_str() != "mapping.yaml" && !path.ends_with("/mapping.yaml"))
+        .map(|(_, entry)| entry["change"].as_str().unwrap_or("")).collect();
+    if upload.as_object()?.is_empty() { return Some(SyncPlan::Synced); }
+    if entries.is_empty() { return Some(SyncPlan::Upload); }
+    // Only Drive-side versions: downloading cannot discard anything here.
+    entries.iter().all(|change| *change == "Removed").then_some(SyncPlan::Download)
+}
+
+fn cloud_plan(title: &str) -> Result<SyncPlan, String> {
+    let upload = cloud_json(&["cloud", "upload", "--preview", "--api", "--", title], 150)?;
+    if let Some(plan) = quick_plan(&upload["cloud"]) { return Ok(plan); }
+    let download = cloud_json(&["cloud", "download", "--preview", "--api", "--", title], 150)?;
+    Ok(plan_sync(&upload["cloud"], &download["cloud"]))
+}
+
+/// Bring Drive in line with this device when that cannot discard any version.
+fn sync_cloud(title: &str) -> &'static str {
+    if !cloud_enabled() { return "off"; }
+    match cloud_plan(title) {
+        Err(_) => "unavailable",
+        Ok(SyncPlan::Synced) => "synced",
+        Ok(SyncPlan::Conflict) => "conflict",
+        Ok(plan) => {
+            let direction = if plan == SyncPlan::Upload { "upload" } else { "download" };
+            match cloud_json(&["cloud", direction, "--force", "--api", "--", title], 240) {
+                Ok(_) if plan == SyncPlan::Upload => "uploaded",
+                Ok(_) => "downloaded",
+                Err(_) => "unavailable",
+            }
+        }
+    }
+}
+
+fn cloud_message(state: &str) -> &'static str {
+    match state {
+        "synced" => "Google Drive is up to date.",
+        "uploaded" => "Uploaded to Google Drive.",
+        "downloaded" => "Downloaded newer versions from Google Drive.",
+        "conflict" => "Google Drive and this device each have versions the other lacks. Nothing was overwritten.",
+        "off" => "Google Drive sync is off.",
+        _ => "Google Drive could not be reached. CreteOS will try again after the next backup.",
+    }
+}
+
+// ---------------------------------------------------------------- Recorded results
+
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct SaveEvent { when: String, message: String, cloud: String }
+
+fn now() -> String { chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now()).to_rfc3339() }
+
+fn status_path() -> PathBuf { super::liftoff_dir().join("game-saves-status.json") }
+
+fn record(title: &str, message: &str, cloud: &str) {
+    let path = status_path();
+    let mut events: BTreeMap<String, SaveEvent> = std::fs::read(&path).ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok()).unwrap_or_default();
+    events.insert(title.to_owned(), SaveEvent { when: now(), message: message.into(), cloud: cloud.into() });
+    if let Ok(bytes) = serde_json::to_vec_pretty(&events) {
+        let temp = path.with_extension(format!("{}.next", std::process::id()));
+        let _ = std::fs::write(&temp, bytes).and_then(|_| std::fs::rename(temp, &path));
+    }
+}
+
+fn last_event(title: &str) -> Option<SaveEvent> {
+    let events: BTreeMap<String, SaveEvent> = serde_json::from_slice(&std::fs::read(status_path()).ok()?).ok()?;
+    events.get(title).cloned()
+}
+
+// ---------------------------------------------------------------- Automatic backup
+
 fn backup(name: &str) -> Result<String, String> {
     let _guard = BACKUP_LOCK.lock().map_err(|_| "Save backup unavailable")?;
     let Some(title) = title(name)? else { return Ok("No matching Ludusavi title".into()); };
-    let data = query(&["backup", "--api", "--force", "--no-force-cloud-conflict", "--ask-downgrade", "--full-limit", "10", "--", &title])?;
-    if data["errors"].as_object().is_some_and(|errors| !errors.is_empty()) {
-        return Err("Ludusavi reported a backup or sync conflict. Check Ludusavi.".into());
+    // Never let an unanswerable cloud prompt stop the local copy.
+    let data = query(&["backup", "--api", "--force", "--ask-downgrade", "--no-cloud-sync", "--full-limit", "10", "--", &title])?;
+    if has_errors(&data) {
+        record(&title, "The automatic backup reported an error.", "unavailable");
+        return Err("Ludusavi reported a backup error.".into());
     }
-    if data["overall"]["processedGames"].as_u64().unwrap_or(0) > 0 {
-        Ok("Save backup checked".into())
-    } else {
-        Ok("No matching save files found".into())
+    if data["overall"]["processedGames"].as_u64().unwrap_or(0) == 0 {
+        record(&title, "No save files were found after the game closed.", "not-needed");
+        return Ok("No matching save files found".into());
     }
+    let changed = data["overall"]["changedGames"]["same"].as_u64().unwrap_or(0) == 0;
+    let cloud = sync_cloud(&title);
+    let message = if changed { "Backed up after the game closed." } else { "Save unchanged since the last backup." };
+    record(&title, message, cloud);
+    Ok(format!("{message} {}", cloud_message(cloud)))
 }
 
 pub fn watch_exit(hwnd: isize, name: String) {
@@ -132,10 +286,12 @@ pub fn watch_exit(hwnd: isize, name: String) {
         let message = backup(&name).unwrap_or_else(|error| error);
         let path = super::liftoff_dir().join("game-save-backup.log");
         if let Ok(mut log) = std::fs::OpenOptions::new().append(true).create(true).open(path) {
-            let _ = writeln!(log, "{name:?}: {message}");
+            let _ = writeln!(log, "{} {name:?}: {message}", now());
         }
     });
 }
+
+// ---------------------------------------------------------------- Comparison
 
 #[derive(serde::Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
@@ -144,20 +300,36 @@ struct SaveSources {
     scan_ok: bool,
     active: Option<i64>,
     local_change: Option<String>,
-    versions: Vec<String>,
+    versions: Vec<BackupVersion>,
     cloud_status: String,
     cloud_mapping: Option<String>,
+    last_event: Option<SaveEvent>,
 }
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveComparison {
+    known: bool,
     active: Option<i64>,
-    versions: Vec<i64>,
+    versions: Vec<BackupVersion>,
     cloud: Option<i64>,
     scan_ok: bool,
     cloud_status: String,
+    /// `match`, `differ`, `unknown` or `none`.
+    verdict: &'static str,
     message: &'static str,
+    last_event: Option<SaveEvent>,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct BackupVersion {
+    name: String,
+    when: String,
+    #[serde(default)]
+    locked: bool,
+    #[serde(default)]
+    comment: Option<String>,
 }
 
 fn time(value: &str) -> Option<i64> {
@@ -166,45 +338,45 @@ fn time(value: &str) -> Option<i64> {
 }
 
 fn compare(sources: SaveSources) -> SaveComparison {
-    let mut versions: Vec<_> = sources.versions.iter().filter_map(|stamp| time(stamp)).collect();
-    versions.sort_unstable_by(|a, b| b.cmp(a));
+    let mut versions = sources.versions;
+    versions.retain(|version| time(&version.when).is_some());
+    versions.sort_by_key(|version| std::cmp::Reverse(time(&version.when)));
     let cloud = sources.cloud_mapping.as_deref().and_then(|mapping| mapping.lines()
         .filter_map(|line| time(line.trim().strip_prefix("when:")?)).max());
     let cloud_status = if sources.cloud_status == "ok" && cloud.is_none() {
         "unavailable".into()
     } else { sources.cloud_status };
-    let message = match (sources.active, versions.first().copied(), cloud) {
-        _ if !sources.known => "No save locations are known for this game.",
-        _ if !sources.scan_ok => "The active save could not be checked.",
-        (Some(active), _, Some(drive)) if drive > active && sources.local_change.as_deref() != Some("Same") =>
-            "The Drive backup is newer by timestamp.",
-        (Some(active), _, Some(drive)) if active > drive => "The active save is newer by timestamp.",
+    let same = sources.local_change.as_deref() == Some("Same");
+    let (verdict, message) = match (sources.active, versions.first().and_then(|version| time(&version.when)), cloud) {
+        _ if !sources.known => ("none", "Ludusavi has no save locations for this game."),
+        _ if !sources.scan_ok => ("unknown", "The active save could not be checked."),
+        (None, None, None) => ("none", "No save files have been found for this game yet."),
+        (Some(active), _, Some(drive)) if drive > active && !same => ("differ", "The Google Drive backup was created after the save was last modified."),
+        (Some(active), _, Some(drive)) if active > drive => ("differ", "The save was modified after the latest Google Drive backup."),
         (_, Some(local), Some(drive)) if local != drive =>
-            if local > drive { "The device backup is newer than the Drive backup." } else { "The Drive backup is newer than the device backup." },
-        (None, _, Some(_)) => "Drive has a backup. No active save file was detected.",
-        (Some(_), Some(local), Some(drive)) if local == drive && sources.local_change.as_deref() == Some("Same") =>
-            "The active save matches the device backup. Drive has the same backup timestamp.",
-        (Some(_), Some(_), _) if sources.local_change.as_deref() == Some("Same") => "The active save matches the device backup.",
-        (Some(active), Some(local), _) if active > local => "The active save is newer than the device backup by timestamp.",
-        (Some(active), Some(local), _) if local > active => "The device backup is newer by timestamp.",
-        (None, Some(_), _) => "A device backup exists. No active save file was detected.",
-        (Some(_), None, None) => "An active save was found. No backup could be confirmed.",
-        _ => "No save or backup could be confirmed.",
+            ("differ", if local > drive { "This device has a backup that is not on Google Drive yet." } else { "Google Drive has a backup that is not on this device." }),
+        (None, _, Some(_)) => ("differ", "Google Drive has a backup, but no active save file was found."),
+        (Some(_), Some(local), Some(drive)) if local == drive && same => ("match", "The active save matches the latest backup, and Google Drive has the same backup."),
+        (Some(_), Some(_), _) if same => ("match", "The active save matches the latest backup on this device."),
+        (Some(active), Some(local), _) if active > local => ("differ", "The save was modified after the latest backup."),
+        (Some(active), Some(local), _) if local > active => ("differ", "The latest backup differs from the active save."),
+        (None, Some(_), _) => ("differ", "A backup exists, but no active save file was found."),
+        (Some(_), None, None) => ("differ", "An active save was found, but it has not been backed up yet."),
+        _ => ("unknown", "No save or backup could be confirmed."),
     };
-    SaveComparison { active: sources.active, versions, cloud, scan_ok: sources.scan_ok, cloud_status, message }
-}
-
-fn read(args: &[&str], timeout: u64) -> Result<Value, String> {
-    let mut cmd = command()?;
-    cmd.arg("--no-manifest-update").args(args);
-    let output = super::streaming::bounded_output_timeout(cmd, None, timeout)?;
-    serde_json::from_slice(&output.stdout).map_err(|_| "Could not read the save report.".into())
+    SaveComparison { known: sources.known, active: sources.active, versions, cloud, scan_ok: sources.scan_ok, cloud_status,
+        verdict, message, last_event: sources.last_event }
 }
 
 fn game_folder(title: &str) -> String {
     title.chars().enumerate().map(|(i, c)| {
         if c.is_control() || "<>:\"/\\|?*".contains(c) || c == '.' && (i == 0 || i + 1 == title.chars().count()) { '_' } else { c }
     }).collect()
+}
+
+fn versions_of(history: &Value, title: &str) -> Vec<BackupVersion> {
+    history["games"][title]["backups"].as_array().into_iter().flatten()
+        .filter_map(|backup| serde_json::from_value(backup.clone()).ok()).collect()
 }
 
 fn local_sources(name: &str) -> Result<SaveSources, String> {
@@ -225,14 +397,14 @@ fn local_sources(name: &str) -> Result<SaveSources, String> {
                 .duration_since(std::time::UNIX_EPOCH).ok().map(|duration| duration.as_secs() as i64)).max());
     let local_change = scan.as_ref().ok().and_then(|data| data["games"][title]["change"].as_str()).map(str::to_owned);
     let history = history.unwrap_or_default();
-    let versions = history["games"][title]["backups"].as_array().into_iter().flatten()
-        .filter_map(|backup| backup["when"].as_str().map(str::to_owned)).collect();
+    let versions = versions_of(&history, title);
     let folder = history["games"][title]["backupPath"].as_str()
         .and_then(|path| Path::new(path).file_name()?.to_str()).map(str::to_owned).unwrap_or_else(|| game_folder(title));
     let mut sources = SaveSources { known: true, scan_ok: scan.is_ok(), active, local_change, versions,
-        cloud_status: "unavailable".into(), cloud_mapping: None };
+        cloud_status: "unavailable".into(), cloud_mapping: None, last_event: last_event(title) };
     if let Ok(config) = config {
-        if let (Some(remote), Some(path)) = (config["cloud"]["remote"]["Custom"]["id"].as_str(), config["cloud"]["path"].as_str()) {
+        if config["cloud"]["synchronize"] != true { sources.cloud_status = "off".into(); }
+        else if let (Some(remote), Some(path)) = (config["cloud"]["remote"]["Custom"]["id"].as_str(), config["cloud"]["path"].as_str()) {
             if !path.is_empty() && !folder.is_empty() && folder != "." && folder != ".." {
                 let mut cmd = Command::new(tools()?.join("rclone.exe"));
                 cmd.stdin(Stdio::null()).args(["cat", &format!("{remote}:{path}/{folder}/mapping.yaml"),
@@ -253,26 +425,145 @@ fn local_sources(name: &str) -> Result<SaveSources, String> {
     Ok(sources)
 }
 
-fn lutris_sources(id: &str) -> Result<SaveSources, String> {
+fn lutris_request(id: &str, action: Option<&str>, version: Option<&str>) -> Result<Value, String> {
     let (host, game) = super::lutris::save_target(id)?;
     let mut command = super::streaming::host_command(&host)?;
     let script = STANDARD.encode(include_bytes!("lutris_save_check.py"));
     command.arg(format!("python3 -c 'import base64; exec(base64.b64decode(\"{script}\"))'"));
-    let input = serde_json::to_vec(&serde_json::json!({"name": game.name})).map_err(|error| error.to_string())?;
-    let result = super::streaming::bounded_output_timeout(command, Some(&input), 35)?;
+    let input = serde_json::to_vec(&serde_json::json!({"name": game.name, "id": game.id, "action": action, "version": version})).map_err(|error| error.to_string())?;
+    // Bosgame stops itself at 420 s, before any restore it could not finish.
+    let result = super::streaming::bounded_output_timeout(command, Some(&input), if action.is_some() { 480 } else { 35 })?;
     if !result.status.success() { return Err("Bosgame could not check this game's saves.".into()); }
-    serde_json::from_slice(&result.stdout).map_err(|_| "Bosgame returned an invalid save report.".into())
+    let data: Value = serde_json::from_slice(&result.stdout).map_err(|_| "Bosgame returned an invalid save report.")?;
+    if let Some(error) = data["error"].as_str() { return Err(error.to_owned()); }
+    Ok(data)
 }
 
 #[tauri::command]
 pub async fn compare_game_saves(id: String, name: String, app_type: String, source: String, path: String) -> Result<SaveComparison, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let sources = if source == "lutris" { lutris_sources(&id)? }
+        let sources = if source == "lutris" { serde_json::from_value(lutris_request(&id, None, None)?).map_err(|_| "Invalid Bosgame save report.")? }
             else if eligible(&app_type, &source, &path) { local_sources(&name)? }
             else { return Err("Save checks are unavailable for this game.".into()); };
         Ok(compare(sources))
     }).await.map_err(|error| error.to_string())?
 }
+
+// ---------------------------------------------------------------- Explicit actions
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveAction {
+    id: String,
+    name: String,
+    app_type: String,
+    source: String,
+    path: String,
+    action: String,
+    version: Option<String>,
+}
+
+/// Lock the newest backup as the pre-restore copy and release older ones beyond the limit.
+fn protect_latest(title: &str) -> Result<(), String> {
+    let mut versions = versions_of(&read(&["backups", "--api", "--", title], 10)?, title);
+    versions.sort_by_key(|version| std::cmp::Reverse(time(&version.when)));
+    let latest = versions.first().ok_or("The current save could not be protected.")?;
+    let locked = read_status(&["backups", "edit", "--lock", "--comment", CHECKPOINT, "--backup", &latest.name, "--", title])?;
+    if !locked { return Err("The current save could not be protected.".into()); }
+    for old in versions.iter().skip(1).filter(|version| version.locked && version.comment.as_deref() == Some(CHECKPOINT)).skip(CHECKPOINTS_KEPT - 1) {
+        let _ = read_status(&["backups", "edit", "--unlock", "--backup", &old.name, "--", title]);
+    }
+    Ok(())
+}
+
+fn read_status(args: &[&str]) -> Result<bool, String> {
+    let mut cmd = command()?;
+    cmd.arg("--no-manifest-update").args(args);
+    Ok(super::streaming::bounded_output_timeout(cmd, None, 15)?.status.success())
+}
+
+fn manage_local(request: &SaveAction) -> Result<Value, String> {
+    let _guard = BACKUP_LOCK.try_lock().map_err(|_| "A backup is in progress. Try again in a moment.")?;
+    let Some(title) = quick_title(&request.name)? else { return Err("Ludusavi has no save locations for this game.".into()); };
+    let ensure_closed = || {
+        let exact_exe = Path::new(&request.path).file_name().and_then(|name| name.to_str())
+            .is_some_and(|name| name.to_ascii_lowercase().ends_with(".exe") && super::is_process_running(name));
+        if exact_exe || super::best_launch_window(&request.name, &request.path, &request.source).is_some_and(|(_, score)| score >= 45) {
+            Err("Close the game before changing its saves.".to_owned())
+        } else { Ok(()) }
+    };
+    match request.action.as_str() {
+        "sync" => {
+            let cloud = sync_cloud(&title);
+            return Ok(serde_json::json!({"message": cloud_message(cloud), "cloud": cloud}));
+        }
+        "backup" => {
+            ensure_closed()?;
+            let result = query(&["backup", "--api", "--force", "--no-cloud-sync", "--full-limit", "10", "--", &title])?;
+            if has_errors(&result) { return Err("Ludusavi reported a backup error.".into()); }
+            if result["overall"]["processedGames"].as_u64().unwrap_or(0) == 0 {
+                return Err("No save files were found for this game on this PC.".into());
+            }
+            let unchanged = result["overall"]["changedGames"]["same"].as_u64().unwrap_or(0) > 0;
+            let cloud = sync_cloud(&title);
+            let message = if unchanged { "The save has not changed since the latest backup." } else { "Backed up on this PC." };
+            record(&title, message, cloud);
+            return Ok(serde_json::json!({"message": message, "cloud": cloud, "cloudMessage": cloud_message(cloud)}));
+        }
+        _ => {}
+    }
+    let version = request.version.as_deref().ok_or("Choose a backup version.")?;
+    let history = read(&["backups", "--api", "--", &title], 10)?;
+    let Some(chosen) = versions_of(&history, &title).into_iter().find(|item| item.name == version) else {
+        return Err("This backup version is no longer available.".into());
+    };
+    let preview = query(&["restore", "--api", "--preview", "--no-cloud-sync", "--backup", version, "--", &title])?;
+    if preview["overall"]["processedGames"].as_u64().unwrap_or(0) == 0 {
+        return Err("This version has no restorable save data.".into());
+    }
+    let entry = &preview["games"][&title];
+    if request.action == "preview" {
+        let count = |key: &str, change: &str| entry[key].as_object().map_or(0, |items| items.values().filter(|item| item["change"] == change).count());
+        return Ok(serde_json::json!({
+            "created": chosen.when,
+            "replace": count("files", "Different") + count("registry", "Different"),
+            "add": count("files", "New") + count("registry", "New"),
+            "same": count("files", "Same") + count("registry", "Same"),
+        }));
+    }
+    if request.action != "restore" { return Err("Unknown save action.".into()); }
+    ensure_closed()?;
+    // No pruning here: the chosen version may be the oldest of the ten.
+    let checkpoint = query(&["backup", "--api", "--force", "--no-cloud-sync", "--full-limit", "255", "--", &title])?;
+    if has_errors(&checkpoint) { return Err("The current save could not be protected, so nothing was restored.".into()); }
+    if checkpoint["overall"]["processedGames"].as_u64().unwrap_or(0) > 0 { protect_latest(&title)?; }
+    ensure_closed()?;
+    let restored = query(&["restore", "--api", "--force", "--no-cloud-sync", "--backup", version, "--", &title])?;
+    if has_errors(&restored) {
+        return Err("The restore did not finish. Your previous save is kept as “Before restore”.".into());
+    }
+    let cloud = sync_cloud(&title);
+    record(&title, "Restored an earlier version.", cloud);
+    Ok(serde_json::json!({"message": "Version restored on this PC. Your previous save is kept as “Before restore”.", "cloud": cloud}))
+}
+
+#[tauri::command]
+pub async fn manage_game_save(request: SaveAction) -> Result<Value, String> {
+    if !matches!(request.action.as_str(), "backup" | "sync" | "preview" | "restore") {
+        return Err("Unknown save action.".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        if request.source == "lutris" {
+            lutris_request(&request.id, Some(&request.action), request.version.as_deref())
+        } else if eligible(&request.app_type, &request.source, &request.path) {
+            manage_local(&request)
+        } else {
+            Err("Save actions are unavailable for this game.".into())
+        }
+    }).await.map_err(|error| error.to_string())?
+}
+
+// ---------------------------------------------------------------- Pre-launch check
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -284,32 +575,29 @@ pub struct SaveCheck {
 fn check(name: &str) -> SaveCheck {
     let result = (|| -> Result<_, String> {
         let _guard = BACKUP_LOCK.try_lock().map_err(|_| "Backup in progress")?;
-        let Some(title) = title(name)? else {
+        let Some(title) = quick_title(name)? else {
             return Ok(SaveCheck { message: "No save locations are known for this title.", review: false });
         };
-        let cloud = output(&["cloud", "download", "--preview", "--api", "--", &title], 10)?;
-        if !cloud.status.success() { return Err("Cloud check failed".into()); }
-        let data: Value = serde_json::from_slice(&cloud.stderr).map_err(|_| "Save comparison unavailable")?;
-        let changed = data["cloud"].as_object().is_some_and(|files| files.values().any(|entry| {
-            matches!(entry["change"].as_str(), Some("New" | "Different"))
-        }));
-        if changed {
-            return Ok(SaveCheck { message: "Drive has a different backup. Review it before playing, or continue with this device’s save.", review: true });
+        if cloud_enabled() {
+            match cloud_plan(&title)? {
+                SyncPlan::Download => return Ok(SaveCheck { message: "Google Drive has a backup that is not on this device. Review it before playing, or play with this device’s save.", review: true }),
+                SyncPlan::Conflict => return Ok(SaveCheck { message: "Google Drive and this device have different backups. Review them before playing, or play with this device’s save.", review: true }),
+                SyncPlan::Synced | SyncPlan::Upload => {}
+            }
         }
-        let local = output(&["restore", "--preview", "--api", "--", &title], 7)?;
-        let data: Value = serde_json::from_slice(&local.stdout).map_err(|_| "Local save comparison unavailable")?;
-        let differs = data["games"].as_object().is_some_and(|games| games.values().any(|game| {
+        let local = read(&["restore", "--preview", "--api", "--", &title], 12)?;
+        let differs = local["games"].as_object().is_some_and(|games| games.values().any(|game| {
             ["files", "registry"].iter().any(|key| game[key].as_object().is_some_and(|items| items.values().any(|entry| {
                 matches!(entry["change"].as_str(), Some("New" | "Different"))
             })))
         }));
         Ok(if differs {
-            SaveCheck { message: "The latest local backup differs from the active save. Review it or play using this device’s save.", review: true }
+            SaveCheck { message: "The latest backup differs from the active save. Review it, or play with this device’s save.", review: true }
         } else {
-            SaveCheck { message: "No newer cloud backup was detected.", review: false }
+            SaveCheck { message: "Saves match the latest backup.", review: false }
         })
     })();
-    result.unwrap_or(SaveCheck { message: "Save check unavailable. You can play using this device’s save.", review: true })
+    result.unwrap_or(SaveCheck { message: "Save check unavailable. You can play with this device’s save.", review: true })
 }
 
 #[tauri::command]
@@ -320,7 +608,8 @@ pub async fn check_game_saves(name: String, app_type: String, source: String, pa
 
 #[cfg(test)]
 mod tests {
-    use super::eligible;
+    use super::{compare, eligible, plan_sync, quick_plan, BackupVersion, SaveSources, SyncPlan};
+    use serde_json::json;
 
     #[test]
     fn backup_targets_are_non_steam_local_games() {
@@ -329,5 +618,46 @@ mod tests {
         assert!(!eligible("game", "steam", "steam://rungameid/12"));
         assert!(!eligible("game", "lutris", "lutris://bosgame/1"));
         assert!(!eligible("app", "desktop", r"C:\Apps\App.exe"));
+    }
+
+    // Previews below are the shapes Ludusavi 0.31.0 produced in an isolated repository.
+    #[test]
+    fn sync_direction_never_discards_a_version() {
+        let none = json!({});
+        assert_eq!(plan_sync(&none, &none), SyncPlan::Synced);
+        let local_only = (json!({"G/backup-2/s.sav": {"change": "Different"}, "G/mapping.yaml": {"change": "Different"}}),
+            json!({"G/backup-2/s.sav": {"change": "Removed"}, "G/mapping.yaml": {"change": "Different"}}));
+        assert_eq!(plan_sync(&local_only.0, &local_only.1), SyncPlan::Upload);
+        let drive_only = (json!({"G/backup-9/o.sav": {"change": "Removed"}, "G/mapping.yaml": {"change": "Different"}}),
+            json!({"G/backup-9/o.sav": {"change": "Different"}, "G/mapping.yaml": {"change": "Different"}}));
+        assert_eq!(plan_sync(&drive_only.0, &drive_only.1), SyncPlan::Download);
+        let both = (json!({"G/backup-2/s.sav": {"change": "Different"}, "G/backup-9/o.sav": {"change": "Removed"}}),
+            json!({"G/backup-2/s.sav": {"change": "Removed"}, "G/backup-9/o.sav": {"change": "Different"}}));
+        assert_eq!(plan_sync(&both.0, &both.1), SyncPlan::Conflict);
+        let same_file = (json!({"G/backup-2/s.sav": {"change": "Different"}}), json!({"G/backup-2/s.sav": {"change": "Different"}}));
+        assert_eq!(plan_sync(&same_file.0, &same_file.1), SyncPlan::Conflict);
+        let mapping_only = json!({"G/mapping.yaml": {"change": "Different"}});
+        assert_eq!(plan_sync(&mapping_only, &mapping_only), SyncPlan::Upload);
+        // The single-preview shortcut must agree, and defer whenever it is ambiguous.
+        assert_eq!(quick_plan(&none), Some(SyncPlan::Synced));
+        assert_eq!(quick_plan(&mapping_only), Some(SyncPlan::Upload));
+        assert_eq!(quick_plan(&drive_only.0), Some(SyncPlan::Download));
+        assert_eq!(quick_plan(&local_only.0), None);
+        assert_eq!(quick_plan(&both.0), None);
+    }
+
+    #[test]
+    fn comparison_labels_are_explicit() {
+        let version = |when: &str| BackupVersion { name: when.into(), when: when.into(), locked: false, comment: None };
+        let matched = compare(SaveSources { known: true, scan_ok: true, active: Some(1_700_000_000), local_change: Some("Same".into()),
+            versions: vec![version("2023-11-14T22:20:00Z"), version("bad")], cloud_status: "ok".into(),
+            cloud_mapping: Some("  when: \"2023-11-14T22:20:00Z\"".into()), last_event: None });
+        assert_eq!((matched.verdict, matched.versions.len()), ("match", 1));
+        let empty = compare(SaveSources { known: true, scan_ok: true, ..Default::default() });
+        assert_eq!(empty.verdict, "none");
+        let unknown = compare(SaveSources { known: false, scan_ok: true, ..Default::default() });
+        assert_eq!(unknown.verdict, "none");
+        let unbacked = compare(SaveSources { known: true, scan_ok: true, active: Some(5), ..Default::default() });
+        assert_eq!(unbacked.verdict, "differ");
     }
 }

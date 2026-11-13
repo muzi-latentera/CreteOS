@@ -49,7 +49,7 @@ export default function ContextMenuModal({ app, items, onClose }: Props) {
     let rafId: number;
     let suppressFrames = 20;
     const poll = (now: number) => {
-      if (suppressFrames > 0) { suppressFrames--; rafId = requestAnimationFrame(poll); return; }
+      if (suppressFrames > 0) { suppressFrames--; const held = getBestGamepad(); if (held) Object.assign(last, readGpState(held)); rafId = requestAnimationFrame(poll); return; }
       const gp = getBestGamepad();
       if (gp) {
         const state = readGpState(gp);

@@ -102,7 +102,7 @@ pub(crate) fn finish_handoff(window: &tauri::Window, target: isize) -> Result<()
 // thread wait for Z_ORDER while the guard holds it for a window operation.
 #[tauri::command(async)]
 pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focus: Option<bool>, stream_provider: Option<String>) -> Result<(), String> {
-    if stream_provider.as_deref().is_some_and(|p| !matches!(p, "moonlight" | "geforceNow" | "luna")) { return Err("Unknown streaming client".into()); }
+    if stream_provider.as_deref().is_some_and(|p| !known_provider(p)) { return Err("Unknown streaming client".into()); }
     let hwnd = window.hwnd().map_err(|e| format!("Launcher handle: {e}"))?.0 as isize;
     let _z_order = Z_ORDER.lock().map_err(|_| "Launch cover state unavailable")?;
     let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
@@ -214,6 +214,12 @@ pub fn set_launch_cover(window: tauri::Window, active: bool, allow_external_focu
     Ok(())
 }
 
+/// Every provider the frontend's `withStreamCover` can pass. ASOBI tiles were
+/// rejected here before 13 November, so PlayStation launches failed at the cover.
+fn known_provider(provider: &str) -> bool {
+    matches!(provider, "moonlight" | "geforceNow" | "luna" | "ps5RemotePlay" | "playstationCloud")
+}
+
 pub(crate) fn stream_process(provider: &str, path: &str) -> bool {
     let name = path.rsplit(['\\', '/']).next().unwrap_or_default();
     match provider {
@@ -226,6 +232,13 @@ pub(crate) fn stream_process(provider: &str, path: &str) -> bool {
 }
 
 #[cfg(test)] mod tests {
+    #[test] fn every_frontend_stream_provider_gets_a_cover() {
+        for provider in ["moonlight", "geforceNow", "luna", "ps5RemotePlay", "playstationCloud"] {
+            assert!(super::known_provider(provider), "{provider}");
+        }
+        assert!(super::stream_process("ps5RemotePlay", r"C:\ASOBI\asobideck.exe"));
+        assert!(!super::known_provider("steam"));
+    }
     #[test] fn cover_outlasts_readiness_and_foreground_handoff() {
         for provider in ["moonlight","luna"] {assert!(super::cover_seconds(Some(provider))>180+10+3);}
         assert!(super::cover_seconds(Some("geforceNow"))>75+10+3);

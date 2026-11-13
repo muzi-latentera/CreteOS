@@ -766,7 +766,9 @@ export function useGamepadNavigation(
     showLofiScenePickerRef.current = false;
   };
 
-  const localLaunchOwnsInput = () => !!document.querySelector("[data-local-launch-dialog]");
+  // Dialogs that run their own controller loop mark themselves, so the main loop
+  // never acts on the same press (for example "Close game?" opened from the tray).
+  const localLaunchOwnsInput = () => !!document.querySelector("[data-local-launch-dialog], [data-owns-input]");
   const modalOwnsInput = () =>
     localLaunchOwnsInput() ||
     !!showOnboardingRef.current

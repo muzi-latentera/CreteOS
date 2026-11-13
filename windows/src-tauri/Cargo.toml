@@ -30,7 +30,7 @@ sha2 = "0.10"
 getrandom = "0.2"
 rsa = "0.9"
 zeroize = "1"
-chrono = { version = "0.4", default-features = false, features = ["serde"] }
+chrono = { version = "0.4", default-features = false, features = ["serde", "std"] }
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "=0.38.2"

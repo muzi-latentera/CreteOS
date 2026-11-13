@@ -664,6 +664,8 @@ export function GameDetailsModal({
     const poll = (now: number) => {
       if (suppressFrames > 0) {
         suppressFrames -= 1;
+        // Record what is already held so a press that opened this view never counts as a new one.
+        const held = getBestGamepad(); if (held) Object.assign(last, readGpState(held));
         rafId = requestAnimationFrame(poll);
         return;
       }
@@ -1248,7 +1250,11 @@ export function GameDetailsModal({
                 manageLabel={hasStoreContent && activeTab === "manage" ? "Game information" : "Manage game"}
                 localEnabled={installed || canInstall || canXboxInstall || storeAccountGame || installing} manage={() => {
                   revealControls(); const next = hasStoreContent && activeTab === "manage" ? "details" : "manage";
-                  activeTabRef.current = next; setActiveTab(next); setFocusedIndex(next === "details" ? 0 : 1);
+                  activeTabRef.current = next; setActiveTab(next);
+                  // Bound focus by the tab being opened, not the one on screen; otherwise
+                  // the highlight can stay on Play and the next A press starts the game.
+                  focusCountRef.current = 1 + (hasStoreContent && next === "details" ? mediaCount : actions.length);
+                  setFocusedIndex(next === "details" ? 0 : 1);
                   if (scrollRef.current) scrollRef.current.scrollTop = 0;
                   if (next === "manage") requestAnimationFrame(() => focusRefs.current[1]?.focus({ preventScroll: true }));
                 }} />}

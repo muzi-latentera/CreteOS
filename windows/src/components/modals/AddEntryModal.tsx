@@ -125,7 +125,7 @@ export default function AddEntryModal({
     const FIRST = isFolderMode ? SECTION_PICKER : SECTION_NAME;
 
     const poll = (now: number) => {
-      if (suppressFrames > 0) { suppressFrames--; rafId = requestAnimationFrame(poll); return; }
+      if (suppressFrames > 0) { suppressFrames--; const held = getBestGamepad(); if (held) Object.assign(last, readGpState(held)); rafId = requestAnimationFrame(poll); return; }
       const gp = getBestGamepad();
       const state: Partial<GpState> = gp ? readGpState(gp) : {};
       if (showKeyboardRef.current) { if (gp) Object.assign(last, state); rafId = requestAnimationFrame(poll); return; }

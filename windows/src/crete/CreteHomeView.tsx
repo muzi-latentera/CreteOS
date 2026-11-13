@@ -156,6 +156,10 @@ export function CreteHomeView(p: CreteHomeProps) {
     if (horizontal) scrollPane(row, { left: row.scrollLeft + horizontal / scale });
   }, [p.active, selection?.row, selection?.id, newsIndex]);
   const context = (event: React.MouseEvent, app: App) => { event.preventDefault(); p.setContextMenu({ x: event.clientX, y: event.clientY, app }); };
+  // Memoised cards keep their first callbacks, so they call through to the latest ones.
+  const latest = useRef({ open, context });
+  latest.current = { open, context };
+  const pinnedIds = useMemo(() => new Set(p.pins), [p.pins]);
   return <div ref={p.scrollRef} className="crete-home crete-scroller" data-home-mode={p.settings.cinematic_home ? "immersive" : p.settings.home_mode}
     data-copy-position={p.settings.hero_content_pos} aria-hidden={!p.active}
     style={{ contentVisibility: p.active ? "visible" : "hidden", pointerEvents: p.active ? "auto" : "none", "--crete-home-cover": `${152 * (p.settings.home_cover_scale ?? 1)}px`, "--crete-section-size": p.settings.home_section_title_size === "large" ? "20px" : p.settings.home_section_title_size === "medium" ? "17px" : "15px" } as CSSProperties}>
@@ -180,8 +184,8 @@ export function CreteHomeView(p: CreteHomeProps) {
         <aside className="crete-hero-info"><span className="crete-eyebrow">{text("Game info")}</span><dl><dt>{text("Developer")}</dt><dd>{meta.data?.developers.join(", ") || "—"}</dd><dt>{text("Publisher")}</dt><dd>{meta.data?.publishers.join(", ") || "—"}</dd><dt>{text("Playtime")}</dt><dd>{playtime(heroProgress?.minutes ?? storeProgress?.minutes ?? hero.playtime_minutes)}</dd><dt>{text("Last played")}</dt><dd>{lastPlayed(Math.max(epochMs(hero.last_played) ?? 0, epochMs(storeProgress?.last_played) ?? 0) || undefined)}</dd></dl></aside>
       </section>}
     {rows.map(row => <section className="crete-rail" key={row.id} data-home-row={row.id} aria-label={row.name}>{(p.settings.show_home_collection_names !== false || !row.id.startsWith("collection:")) && <h2>{row.name}<span /><small>{row.items.length}</small></h2>}
-      <div className="crete-rail-cards" ref={node => { rowsRef.current[row.id] = node; }}>{row.items.map(app => <CreteGameCard key={app.id} app={app} art={p.customArt[app.id] || p.gameArt[app.id]} pinned={gameCopies(app).some(copy => p.pins.includes(copy.id))} running={p.isRunning(app.id)} selected={!onNews && selection?.row === row.id && selection.id === app.id} showStoreBadge={p.settings.show_store_badges}
-        onSelect={() => { setSelection({ row: row.id, id: app.id }); setNewsIndex(-1); }} onContextMenu={event => context(event, app)} onOpen={() => open(app)} />)}</div>
+      <div className="crete-rail-cards" ref={node => { rowsRef.current[row.id] = node; }}>{row.items.map(app => <CreteGameCard key={app.id} app={app} art={p.customArt[app.id] || p.gameArt[app.id]} pinned={gameCopies(app).some(copy => pinnedIds.has(copy.id))} running={p.isRunning(app.id)} selected={!onNews && selection?.row === row.id && selection.id === app.id} showStoreBadge={p.settings.show_store_badges}
+        onSelect={() => { setSelection({ row: row.id, id: app.id }); setNewsIndex(-1); }} onContextMenu={event => latest.current.context(event, app)} onOpen={() => latest.current.open(app)} />)}</div>
     </section>)}
     {news.length > 0 && <section className="crete-rail crete-news"><h2>{text("What's new")}<span /><small>{news.length}</small></h2><div ref={newsRef} className="crete-rail-cards">{news.map((post, i) => <button key={post.id} type="button" className="crete-news-card" data-selected={onNews && newsIndex === i} onFocus={() => { setSelection(null); setNewsIndex(i); }} onClick={() => void openUrl(post.url).catch(() => {})}><NewsArtwork post={post} onImageError={onNewsImageError} /><div><small>{post.subreddit}</small><strong>{post.title}</strong></div></button>)}</div></section>}
   </div>;
