@@ -6,6 +6,8 @@ Maintained device record, updated 13 November 2026 (Europe/London). Covers this 
 
 **Game saves with Ludusavi.** Open **Game details → Launch options → Save backups** for eligible non-Steam Windows games and Bosgame Lutris entries. The Windows game process exit and Lutris post-exit hooks make versioned backups. Use Ludusavi to preview and explicitly restore the version you want. Backups retain up to ten full versions per game on automatic runs. See [save recovery steps](#game-save-recovery) and [verification and limitations](journal/2026-11-13-ludusavi-saves-pending-sync.md).
 
+Verified private archive CreteOS-G1-profile-backup-20261113-014801.zip, SHA-256 a59c398627541069c7f7329e496d8864920b58495055a4616a2229181128586f, contains 1650 manifested payloads. The preceding 12 November profile archive is retained. The replacement pack is CreteOS-Recovery-20261113-Ludusavi. Windows Drive authorization remains pending.
+
 ## Game save recovery
 
 - On a new Windows device, install Ludusavi and rclone. Place the Ludusavi executable at `%LOCALAPPDATA%\Programs\Ludusavi\ludusavi.exe` for CreteOS. Authorize the same Google account on that device. The Windows backup location on Drive is `ludusavi-backup-G1-Windows`. Bosgame keeps its existing `ludusavi-backup` location. Keep the two repositories independent so Wine and Windows copies of a title cannot replace each other's history. Google authorization is per device.

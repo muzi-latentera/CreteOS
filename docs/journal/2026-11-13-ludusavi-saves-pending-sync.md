@@ -10,4 +10,10 @@ Windows CreteOS opens Ludusavi from **Game details → Launch options → Save b
 
 Cross-device test: transferred a copy of the Bosgame Mouse backup over SSH and previewed its two save files on Windows with a restore redirect to a temporary directory. Preview resolved 252 bytes and wrote no live files. This proves the path mapping for those files. It does not establish compatibility for every title, nor verify a game reading a restored save.
 
+The installed hook also checked Mouse on Bosgame after the initial upload process exited. It returned success and found both save files. A direct read of Mouse's Drive mapping matched the host mapping SHA-256. This did not exercise a new upload from a changed game save.
+
+G1 build and install verified at 01:47 GMT. App source `7e1a3c931b2e6761ffd2daf4efbabfd883ac4211`, SHA-256 `F42F74ECCC5BCE90CC7EDF0C9611420DFF85368359109C7C73DFD9735FCB92FB`. The Windows release build, bundled asset checks and 10 focused frontend tests passed. A real Windows game exit is still pending. Ludusavi 0.31.0 and rclone 1.76.0 are installed. G1 Google authorization is pending. The existing Bosgame folder stays in place, and Windows uses a separate repository after authorization. If G1 local backups already exist when authorization completes, verify the destination and perform the first Windows upload before relying on automatic cloud sync.
+
 The full host settings export hit a missing previously recorded Phantom Blade Zero `dxgi.dll`. The private recovery archive uses the last verified host snapshot plus the fresh Lutris system file and save hook. The rest of that host snapshot is historical. No account tokens, OAuth config or game save data were put in the recovery pack.
+
+Verified private archive CreteOS-G1-profile-backup-20261113-014801.zip, SHA-256 a59c398627541069c7f7329e496d8864920b58495055a4616a2229181128586f, contains 1650 manifested payloads. The preceding 12 November profile archive is retained. The replacement pack is CreteOS-Recovery-20261113-Ludusavi. Windows Drive authorization remains pending.
