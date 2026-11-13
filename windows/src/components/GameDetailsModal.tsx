@@ -1243,6 +1243,7 @@ export function GameDetailsModal({
                   swallowLaunchBack.current = true;
                   setFocusedIndex(0);
                 }} copies={actions.filter(action => action.key.startsWith("copy-"))} local={handleLocalAction} localLabel={installed ? "Local" : installing ? "Cancel installation" : storeAccountGame ? storeClientLabel : "Install locally"}
+                saveGame={app.source === "lutris" || (installed && app.app_type === "game" && ["desktop", "other", "custom", "manual", "local", "gog", "humble"].includes(app.source ?? "") && /^(?:[a-z]:[\\/]|\\\\|goggalaxy:\/\/)/i.test(app.launch_path)) ? { name: app.name, remote: app.source === "lutris" } : undefined}
                 manageLabel={activeTab === "manage" ? "Game information" : "Manage game"}
                 localEnabled={installed || canInstall || canXboxInstall || storeAccountGame || installing} manage={() => {
                   revealControls(); const next = activeTab === "manage" ? "details" : "manage";

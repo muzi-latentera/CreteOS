@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./launchMenus.css";
-import { IoChevronDownOutline } from "react-icons/io5";
+import { IoChevronDownOutline, IoSaveOutline } from "react-icons/io5";
 import { useCreteText } from "./text";
 import { invoke } from "@tauri-apps/api/core";
 import { getBestGamepad, readGpState } from "../utils/gamepad";
@@ -24,11 +24,12 @@ export function LocalLaunchMenu({ app, onClose, onStart }: {
 }
 
 type Streaming = ReturnType<typeof useStreaming>;
-export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, localEnabled, manage, manageLabel, block, restorePlayFocus, loading = false, copies = [], localSetup }: {
+export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, localEnabled, manage, manageLabel, block, restorePlayFocus, loading = false, copies = [], localSetup, saveGame }: {
   streaming: Streaming; open: boolean; setOpen: (open: boolean) => void; local: () => void;
   localLabel: string; localEnabled: boolean; manage: () => void; manageLabel: string; block: (blocked: boolean) => void; restorePlayFocus?: () => void; loading?: boolean;
   copies?: { key: string; label: string; onClick: () => void }[];
   localSetup?: { name: string; provider: WifiProvider; onClose: () => void; onStart: (options: LocalLaunchOptions) => void };
+  saveGame?: { name: string; remote: boolean };
 }) {
   const text = useCreteText();
   const root = useRef<HTMLDivElement>(null);
@@ -39,6 +40,8 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   const [audio, setAudio] = useState<StreamAudioChoice>({ input: null, output: null });
   const [localMode, setLocalMode] = useState<LocalDisplayMode | null>(null);
   const [tools, setTools] = useState(false);
+  const [savesOpen, setSavesOpen] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [displayPreset, setDisplayPreset] = useState("auto");
   const anchor = useRef<HTMLButtonElement>(null);
   const [profile, setProfile] = useState<MoonlightProfile>(s.display.profile);
@@ -87,7 +90,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   const nativeResolution = activeDisplay.nativeResolution ?? "1920x1080";
   const nativeLabel = activeDisplay.displayLabel ?? "Handheld";
   const nativeFps = activeDisplay.nativeFps === 90 && gfn ? 60 : activeDisplay.nativeFps ?? 120;
-  const active = open || s.configure || gfn || wifiOnly || !!ps || !!localSetup;
+  const active = open || s.configure || gfn || wifiOnly || !!ps || !!localSetup || savesOpen;
   useEffect(() => { block(active); return () => block(false); }, [active, block]);
   useEffect(() => {
     if (!s.configure && !gfn) return;
@@ -101,7 +104,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     if (localSetup) { localSetup.onClose(); return; }
     const returnFocus = root.current?.closest('[data-crete-detail-slot="primary-actions"], .crete-hero')
       ?.querySelector<HTMLButtonElement>('[data-launch-btn]:not(:disabled), .crete-play:not(:disabled)') ?? anchor.current;
-    setOpen(false); setWifiOnly(false); s.setConfigure(false); s.setGeforceConfigure(false); s.setAsobiConfigure(null); choicesRef.current = null; selectFocus.current = null; setChoices(null);
+    setOpen(false); setSavesOpen(false); setSaveError(""); setWifiOnly(false); s.setConfigure(false); s.setGeforceConfigure(false); s.setAsobiConfigure(null); choicesRef.current = null; selectFocus.current = null; setChoices(null);
     restoreAfterLaunch.current = false;
     setSound(false); setAudio({ input: null, output: null });
     setLocalMode(null);
@@ -204,7 +207,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     };
     frame = requestAnimationFrame(poll);
     return () => { clearTimeout(timer); cancelAnimationFrame(frame); window.removeEventListener("keydown", key, true); window.removeEventListener("keyup", release, true); window.removeEventListener("pointerdown", outside); };
-  }, [active, s.configure, gfn, wifiOnly, ps, !!localSetup]);
+  }, [active, s.configure, gfn, wifiOnly, ps, !!localSetup, savesOpen]);
   useEffect(() => {
     if (!choices) return;
     const timer = window.setTimeout(() => {
@@ -254,12 +257,22 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       {s.pcGame && row("Moonlight", "moonlight", "#697580", () => s.launch("moonlight"), !s.clients.moonlight)}
       {s.gameUrl && row("GeForce NOW", "geforceNow", "#7cab00", () => s.launch("geforceNow", true))}
       {!s.gameUrl && s.clients.geforceNow && row("GeForce NOW library", "", "#7cab00", () => s.launch("geforceNow"))}
+      {saveGame && <button type="button" role="menuitem" onClick={() => choose(() => setSavesOpen(true))}><IoSaveOutline aria-hidden="true" /> Save backups</button>}
       <button type="button" role="menuitem" onClick={() => choose(manage)}>{text(manageLabel)}</button>
     </div>}
     {createPortal(<div ref={panelRoot} data-theme="crete" className="crete-launch-layer" onPointerDownCapture={event => {
       const select = event.target instanceof Element ? event.target.closest("select") : null;
       if (select instanceof HTMLSelectElement && !select.disabled) { event.preventDefault(); openChoices(select); }
     }}>
+    {savesOpen && saveGame && <div className="crete-stream-backdrop" onClick={event => { if (event.target === event.currentTarget) close(); }}><section role="dialog" aria-modal="true" aria-label="Save backups" className="crete-stream-settings crete-stream-dialog">
+      <header className="crete-stream-heading"><h2>Save backups</h2><p>{saveGame.name}</p></header>
+      <div className="crete-stream-body">
+        <p>{saveGame.remote ? "Lutris backs up matching saves on Bosgame after the game exits." : "CreteOS backs up matching saves after the Windows game exits."}</p>
+        <p>Use Ludusavi to preview and choose a version before restoring.</p>
+        {saveError && <p role="alert">{saveError}</p>}
+      </div>
+      <footer className="crete-stream-buttons"><button type="button" onClick={close}>Back</button><button data-launch-primary type="button" onClick={() => void invoke("open_game_saves").catch(error => setSaveError(String(error)))}>Open Ludusavi</button></footer>
+    </section></div>}
     {localSetup && <div className="crete-stream-backdrop" data-local-launch-dialog onClick={event => { if (event.target === event.currentTarget) close(); }}><section role="dialog" aria-modal="true" aria-label="Launch settings" className="crete-stream-settings crete-stream-dialog">
       <header className="crete-stream-heading"><h2>{localSetup.name}</h2>
         <div className="crete-stream-heading-meta crete-stream-heading-meta-pair"><p className="crete-stream-summary">{localDisplaySummary}</p>{audioSummary}</div>

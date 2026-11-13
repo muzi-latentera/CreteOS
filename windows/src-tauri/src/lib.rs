@@ -50,6 +50,7 @@ use windows::{
 };
 
 mod fse_watcher;
+mod game_saves;
 mod lofi_media;
 mod steam_appinfo;
 mod storage_info;
@@ -10484,6 +10485,9 @@ async fn launch_app(
             return;
         }
         if found != 0 {
+            if game_saves::eligible(if watch_is_game { "game" } else { "app" }, &watch_source, &watch_path) {
+                game_saves::watch_exit(found, watch_name.clone());
+            }
             if audio.is_some() || wifi.is_some() || display.is_some() {
                 // Hold overrides against the matched game/app window, not a launcher proxy.
                 std::thread::spawn(move || {
@@ -10596,6 +10600,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             stream_wifi::get_stream_wifi_preferences,
             stream_audio::get_stream_audio_devices,
+            game_saves::open_game_saves,
             launch_display::get_local_display_modes,
             stream_wifi::get_stream_network_status,
             asobi::get_asobi_games,
