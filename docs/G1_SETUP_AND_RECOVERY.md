@@ -4,9 +4,9 @@ Maintained device record, updated 13 November 2026 (Europe/London). Covers this 
 
 ## Current state
 
-**Game saves with Ludusavi.** CreteOS includes Windows Ludusavi and rclone. The CreteOS local Play dialog checks standalone Windows game saves before launch. It pauses for a choice if a backup differs or the check is unavailable. Open **Game details → Launch options → Save backups** for eligible Windows games and Bosgame Lutris entries. The Windows game process exit and Lutris post-exit hooks make versioned backups. Use Ludusavi to preview and explicitly restore the version you want. Backups retain up to ten full versions per game on automatic runs. See [save recovery steps](#game-save-recovery) and [verification and limitations](journal/2026-11-13-ludusavi-saves-pending-sync.md).
+**Game saves with Ludusavi.** CreteOS includes Windows Ludusavi and rclone. Open **Game details → Launch options → Save backups → Check now** for eligible Windows games and Bosgame Lutris entries. CreteOS compares the active save, device backup and matching Google Drive backup without starting a game or writing save data. The local Play dialog can open this same screen when its pre-launch check flags a difference. Windows game exit and Lutris post-exit hooks make versioned backups with up to ten full versions. Manual recovery still uses the included tools and the steps below. See [verification and limitations](journal/2026-11-13-ludusavi-saves-pending-sync.md).
 
-Verified private archive CreteOS-G1-profile-backup-20261113-082055.zip, SHA-256 2d6a9efb0b4002d0755b56ef6277ed4fdb6fd546547d09d8077aca74ddcce909, contains 1651 manifested payloads. The previous Drive-authorized profile archive is retained. The replacement pack is CreteOS-Recovery-20261113-BundledSaves.
+Verified private archive CreteOS-G1-profile-backup-20261113-213115.zip, SHA-256 35f8998de3e3000bd0ceceeaa85d3825b76518f7e2942ad9de34047772b51abf, contains 1655 manifested payloads. The preceding bundled-tools archive is retained. The replacement pack is CreteOS-Recovery-20261113-SaveComparison.
 
 ## Game save recovery
 
