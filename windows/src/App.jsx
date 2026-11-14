@@ -3723,6 +3723,8 @@ export default function App() {
           onExitApp={() => { invoke("exit_app").catch(() => {}); }}
           onRestartDevice={() => { invoke("restart_device").catch(() => {}); }}
           onShutdownDevice={() => { invoke("shutdown_device").catch(() => {}); }}
+          onSleepDevice={() => { invoke("sleep_device").catch((error) => console.warn("Sleep was not available", error)); }}
+          onHibernateDevice={() => { invoke("hibernate_device").catch((error) => console.warn("Hibernate was not available", error)); }}
         />
       )}
       {updateRelease && (

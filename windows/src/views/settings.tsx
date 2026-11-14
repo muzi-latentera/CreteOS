@@ -1150,9 +1150,9 @@ export function SettingsScreen({
           if (item.key === "rerun_onboarding") onRerunOnboarding?.();
           if (item.key === "factory_reset") onFactoryReset?.();
         }}>
-          <span style={{ fontSize: 14, fontWeight: 500, color: item.key === "reset_scale" || item.key === "rerun_onboarding" ? theme.text : "#e84a4a" }}>{item.label}</span>
+          <span style={{ fontSize: 14, fontWeight: 500, color: item.key === "reset_scale" || item.key === "rerun_onboarding" || item.key.startsWith("open_") ? theme.text : "#e84a4a" }}>{item.label}</span>
           <span style={{ fontSize: 12, color: theme.textDim }}>
-            {item.key === "reset_scale" ? t("settings.status.apply") : item.key === "rerun_onboarding" ? t("settings.status.open") : t("settings.status.confirm")}
+            {item.key === "reset_scale" ? t("settings.status.apply") : item.key === "rerun_onboarding" || item.key.startsWith("open_") ? t("settings.status.open") : t("settings.status.confirm")}
           </span>
           {onyxRing}
         </div>

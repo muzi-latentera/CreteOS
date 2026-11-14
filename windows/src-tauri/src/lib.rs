@@ -5740,6 +5740,40 @@ fn restart_device() -> Result<(), String> {
     }
 }
 
+fn sleep_or_hibernate_privilege() -> Result<(), String> {
+    use windows::Win32::Security::{AdjustTokenPrivileges, LookupPrivilegeValueW, LUID_AND_ATTRIBUTES, SE_PRIVILEGE_ENABLED, TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY};
+    use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+    unsafe {
+        let mut token = windows::Win32::Foundation::HANDLE::default();
+        OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &mut token).map_err(|e| e.to_string())?;
+        let mut luid = windows::Win32::Foundation::LUID::default();
+        let name: Vec<u16> = "SeShutdownPrivilege".encode_utf16().chain(std::iter::once(0)).collect();
+        let lookup = LookupPrivilegeValueW(None, windows::core::PCWSTR(name.as_ptr()), &mut luid);
+        let privileges = TOKEN_PRIVILEGES { PrivilegeCount: 1, Privileges: [LUID_AND_ATTRIBUTES { Luid: luid, Attributes: SE_PRIVILEGE_ENABLED }] };
+        let adjusted = lookup.and_then(|_| AdjustTokenPrivileges(token, false, Some(&privileges), 0, None, None));
+        let _ = windows::Win32::Foundation::CloseHandle(token);
+        adjusted.map_err(|e| e.to_string())
+    }
+}
+
+/// Sleep without confirmation, as on SteamOS. On Modern Standby devices (the
+/// G1 supports only S0 low-power idle) Windows maps a sleep request to standby.
+/// The call returns after the device wakes.
+#[tauri::command]
+async fn sleep_device() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        sleep_or_hibernate_privilege()?;
+        let ok = unsafe { windows::Win32::System::Power::SetSuspendState(false, false, false) };
+        if ok { Ok(()) } else { Err(format!("Windows did not sleep ({}).", std::io::Error::last_os_error())) }
+    }).await.map_err(|error| error.to_string())?
+}
+
+/// Hibernate saves the session to disk and powers off; nothing drains overnight.
+#[tauri::command]
+async fn hibernate_device() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(|| run_shutdown_exe(&["/h"])).await.map_err(|error| error.to_string())?
+}
+
 #[tauri::command]
 fn shutdown_device() -> Result<(), String> {
     #[cfg(windows)]
@@ -10860,6 +10894,8 @@ pub fn run() {
             ensure_lofi_media,
             restart_device,
             shutdown_device,
+            sleep_device,
+            hibernate_device,
             show_main_window,
             fse_watcher::show_liftoff,
             fse_watcher::force_webview_resume,

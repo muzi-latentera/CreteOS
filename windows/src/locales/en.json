@@ -335,10 +335,10 @@
       "nav": "Navigation"
     },
     "appearanceGroupDesc": {
-      "style": "Theme, accent, effects, surface",
+      "style": "Motion and sound effects",
       "home": "Hero, pinned, recents, collections",
       "layout": "Wide mode, UI scale, cover sizes",
-      "nav": "Top bar, tab bar, bottom bar"
+      "nav": "Top and bottom bar backgrounds"
     },
     "themePickerTitle": "Choose Theme",
     "lofiScenePickerTitle": "Choose a scene",

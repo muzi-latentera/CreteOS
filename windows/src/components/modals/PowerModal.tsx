@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { IoHardwareChipOutline, IoPower, IoPowerOutline, IoRefresh, IoRefreshCircle } from "react-icons/io5";
+import { IoHardwareChipOutline, IoMoonOutline, IoPower, IoPowerOutline, IoRefresh, IoRefreshCircle, IoSaveOutline } from "react-icons/io5";
 import { getBestGamepad, readGpState, shouldHandleDirectionRepeat, type GpState } from "../../utils/gamepad";
 import { useTheme } from "../../contexts/ThemeContext";
 import ModalShell from "./ModalShell";
@@ -12,6 +12,8 @@ interface PowerModalProps {
   onExitApp: () => void;
   onRestartDevice: () => void;
   onShutdownDevice: () => void;
+  onSleepDevice?: () => void;
+  onHibernateDevice?: () => void;
 }
 
 export default function PowerModal({
@@ -20,6 +22,8 @@ export default function PowerModal({
   onExitApp,
   onRestartDevice,
   onShutdownDevice,
+  onSleepDevice,
+  onHibernateDevice,
 }: PowerModalProps) {
   const { accent, theme, isDark } = useTheme();
   const { t } = useTranslation();
@@ -46,6 +50,22 @@ export default function PowerModal({
       danger: true,
       icon: <IoPower size={18} />,
     },
+    // Sleep needs no confirmation, as on SteamOS; Hibernate keeps the session
+    // with no battery drain. Both appear only when the app can request them.
+    ...(onSleepDevice ? [{
+      key: "sleep_device",
+      group: "device" as const,
+      label: t("power.sleepDevice", { defaultValue: "Sleep" }),
+      run: onSleepDevice,
+      icon: <IoMoonOutline size={18} />,
+    }] : []),
+    ...(onHibernateDevice ? [{
+      key: "hibernate_device",
+      group: "device" as const,
+      label: t("power.hibernateDevice", { defaultValue: "Hibernate" }),
+      run: onHibernateDevice,
+      icon: <IoSaveOutline size={18} />,
+    }] : []),
     {
       key: "restart_device",
       group: "device" as const,
