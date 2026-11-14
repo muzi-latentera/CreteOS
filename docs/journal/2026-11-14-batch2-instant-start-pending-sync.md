@@ -138,3 +138,22 @@ Checkpoint archive `CreteOS-G1-profile-backup-20261114-005428.zip`:
   - This may be related to the unexplained start-up hangs, but that is not proven.
 - **Fix:** `single_instance.rs` holds the `Local\CreteOS-single-instance` mutex. A second launch focuses the running window and exits. Maintenance flags such as `--verify-bundled-assets` are unaffected.
 - **Verified:** install at 02:24 (`F58F361F…336F`). Launching the exe again left only pid 26136. The watchdog relaunch was not exercised; it starts the new copy 2 s after the old one exits, when the mutex is already free.
+- Checkpoint `CreteOS-Recovery-20261114-SingleInstance`:
+  - manifest `6c52d411…7cdb`, 168 files verified on the SanDisk;
+  - profile archive `e9db89b6…140c`, executable `f58f361f…336f`, source `ce4e50e`;
+  - pushed.
+
+## Launch robustness (audit §4.2, 4.3, 4.6, 4.7; source `598b212`, `3ffac74`, `953d0d1`)
+
+- **Time limits by launch type.** Epic, GOG and other launcher links get 120 s; Xbox and Store apps 60 s; direct game programs 45 s. Steam stays at 90 s, apps at 15 s. Before this, everything except Steam got 15 s.
+- **Quiet late watch.** A game that misses its limit now shows "The game hasn't appeared yet. Check <its launcher> for a prompt. CreteOS keeps watching for it." Previously the message always named Steam.
+  - CreteOS then watches for ten more minutes. A late start still gets its exit, save and power-profile watchers.
+  - A late window is never forced to the front.
+- **B cancels.** Closing the launch screen before the game is confirmed calls `cancel_launch_watch`, so the game is never pulled to the front later. The game itself is left alone.
+- **Resume** now re-attaches the local game watcher (`watch_local_game`), so quitting a resumed game gets the return cover.
+- **Busy Bosgame.** When Bosgame is already streaming another game, the Moonlight dialog offers "End Bosgame session". The first press warns that unsaved progress there may be lost; the second asks MoonDeck Buddy to end the stream (`end_host_stream`).
+
+**Verification**
+- 181 Rust and 299 frontend tests passed. New tests cover the per-type limits, cancel versus late-watch on close, and the two-press end-session button.
+- Installs at 02:32 (`40E60616…4903`), 02:37 (`3522F009…225B`) and 02:45 (`E1792882…4078`). Each was responding after start.
+- **Not exercised on the device:** a real game launch, Resume, and ending a Bosgame stream. It was 2–3 am with nobody present, and game audio could wake the household.
