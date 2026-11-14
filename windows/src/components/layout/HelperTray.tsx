@@ -324,7 +324,8 @@ export function HelperTray({
     };
     const handle = (key: string) => {
       if (key === "Escape" && adjustmentKeyRef.current) activateRef.current(adjustmentKeyRef.current);
-      else if (key === "Escape") close();
+      // Menu (Start) opened the tray, so pressing it again closes it, as on SteamOS.
+      else if (key === "Escape" || key === "Start") close();
       else if (key === "Enter") activateRef.current(focusKeyRef.current);
       else if (key === "ArrowUp") moveRef.current("up");
       else if (key === "ArrowDown") moveRef.current("down");
@@ -347,6 +348,7 @@ export function HelperTray({
     const repeating: Record<string, boolean> = {};
     let enterReleased = false;
     let escapeReleased = false;
+    let startReleased = false;
     const poll = (now: number) => {
       if (closedRef.current) return;
       const gp = getBestGamepad();
@@ -354,7 +356,8 @@ export function HelperTray({
         const base = readGpState(gp);
         if (!base.Enter) enterReleased = true;
         if (!base.Escape) escapeReleased = true;
-        const state = { ...base, Enter: enterReleased && base.Enter, Escape: escapeReleased && base.Escape };
+        if (!base.Start) startReleased = true;
+        const state = { ...base, Enter: enterReleased && base.Enter, Escape: escapeReleased && base.Escape, Start: startReleased && base.Start };
         let directionHandled = false;
         (Object.keys(state) as (keyof GpState)[]).forEach((key) => {
           const pressed = state[key];

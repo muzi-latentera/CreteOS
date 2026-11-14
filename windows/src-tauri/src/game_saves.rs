@@ -317,7 +317,7 @@ pub struct SaveComparison {
     cloud_status: String,
     /// `match`, `differ`, `unknown` or `none`.
     verdict: &'static str,
-    message: &'static str,
+    message: String,
     last_event: Option<SaveEvent>,
 }
 
@@ -337,7 +337,7 @@ fn time(value: &str) -> Option<i64> {
         .ok().map(|stamp| stamp.timestamp())
 }
 
-fn compare(sources: SaveSources) -> SaveComparison {
+fn compare(sources: SaveSources, device: &str) -> SaveComparison {
     let mut versions = sources.versions;
     versions.retain(|version| time(&version.when).is_some());
     versions.sort_by_key(|version| std::cmp::Reverse(time(&version.when)));
@@ -354,16 +354,18 @@ fn compare(sources: SaveSources) -> SaveComparison {
         (Some(active), _, Some(drive)) if drive > active && !same => ("differ", "The Google Drive backup was created after the save was last modified."),
         (Some(active), _, Some(drive)) if active > drive => ("differ", "The save was modified after the latest Google Drive backup."),
         (_, Some(local), Some(drive)) if local != drive =>
-            ("differ", if local > drive { "This device has a backup that is not on Google Drive yet." } else { "Google Drive has a backup that is not on this device." }),
+            ("differ", if local > drive { "{device} has a backup that is not on Google Drive yet." } else { "Google Drive has a backup that is not on {device}." }),
         (None, _, Some(_)) => ("differ", "Google Drive has a backup, but no active save file was found."),
         (Some(_), Some(local), Some(drive)) if local == drive && same => ("match", "The active save matches the latest backup, and Google Drive has the same backup."),
-        (Some(_), Some(_), _) if same => ("match", "The active save matches the latest backup on this device."),
+        (Some(_), Some(_), _) if same => ("match", "The active save matches the latest backup on {device}."),
         (Some(active), Some(local), _) if active > local => ("differ", "The save was modified after the latest backup."),
         (Some(active), Some(local), _) if local > active => ("differ", "The latest backup differs from the active save."),
         (None, Some(_), _) => ("differ", "A backup exists, but no active save file was found."),
         (Some(_), None, None) => ("differ", "An active save was found, but it has not been backed up yet."),
         _ => ("unknown", "No save or backup could be confirmed."),
     };
+    let mut message = message.replace("{device}", device);
+    if let Some(first) = message.get(0..1) { message = first.to_uppercase() + &message[1..]; }
     SaveComparison { known: sources.known, active: sources.active, versions, cloud, scan_ok: sources.scan_ok, cloud_status,
         verdict, message, last_event: sources.last_event }
 }
@@ -385,11 +387,13 @@ fn local_sources(name: &str) -> Result<SaveSources, String> {
     let Some(title) = found["games"].as_object().and_then(|games| games.keys().next()) else {
         return Ok(SaveSources { scan_ok: true, cloud_status: "unavailable".into(), ..Default::default() });
     };
-    let (scan, history, config) = std::thread::scope(|scope| {
+    // Config first: `config show` can fail while other Ludusavi processes run,
+    // which would silently report Drive as unreachable.
+    let config = read(&["config", "show", "--api"], 8);
+    let (scan, history) = std::thread::scope(|scope| {
         let scan = scope.spawn(|| read(&["backup", "--preview", "--api", "--", title], 12));
         let history = scope.spawn(|| read(&["backups", "--api", "--", title], 9));
-        let config = read(&["config", "show", "--api"], 6);
-        (scan.join().unwrap(), history.join().unwrap(), config)
+        (scan.join().unwrap(), history.join().unwrap())
     });
     let active = scan.as_ref().ok().and_then(|data| data["games"][title]["files"].as_object())
         .and_then(|files| files.iter().filter(|(_, info)| info["ignored"] != true && info["change"] != "Removed")
@@ -445,7 +449,7 @@ pub async fn compare_game_saves(id: String, name: String, app_type: String, sour
         let sources = if source == "lutris" { serde_json::from_value(lutris_request(&id, None, None)?).map_err(|_| "Invalid Bosgame save report.")? }
             else if eligible(&app_type, &source, &path) { local_sources(&name)? }
             else { return Err("Save checks are unavailable for this game.".into()); };
-        Ok(compare(sources))
+        Ok(compare(sources, if source == "lutris" { "Bosgame" } else { "this PC" }))
     }).await.map_err(|error| error.to_string())?
 }
 
@@ -651,13 +655,20 @@ mod tests {
         let version = |when: &str| BackupVersion { name: when.into(), when: when.into(), locked: false, comment: None };
         let matched = compare(SaveSources { known: true, scan_ok: true, active: Some(1_700_000_000), local_change: Some("Same".into()),
             versions: vec![version("2023-11-14T22:20:00Z"), version("bad")], cloud_status: "ok".into(),
-            cloud_mapping: Some("  when: \"2023-11-14T22:20:00Z\"".into()), last_event: None });
+            cloud_mapping: Some("  when: \"2023-11-14T22:20:00Z\"".into()), last_event: None }, "Bosgame");
+        let local_only = compare(SaveSources { known: true, scan_ok: true, active: Some(1_700_000_000), local_change: Some("Same".into()),
+            versions: vec![version("2023-11-14T22:20:00Z")], cloud_status: "missing".into(), ..Default::default() }, "Bosgame");
+        assert_eq!(local_only.message, "The active save matches the latest backup on Bosgame.");
+        let ahead = compare(SaveSources { known: true, scan_ok: true, active: Some(1_700_000_000), local_change: Some("Same".into()),
+            versions: vec![version("2023-11-14T23:00:00Z")], cloud_status: "ok".into(),
+            cloud_mapping: Some("when: \"2023-11-14T22:20:00Z\"".into()), ..Default::default() }, "this PC");
+        assert_eq!(ahead.message, "This PC has a backup that is not on Google Drive yet.");
         assert_eq!((matched.verdict, matched.versions.len()), ("match", 1));
-        let empty = compare(SaveSources { known: true, scan_ok: true, ..Default::default() });
+        let empty = compare(SaveSources { known: true, scan_ok: true, ..Default::default() }, "this PC");
         assert_eq!(empty.verdict, "none");
-        let unknown = compare(SaveSources { known: false, scan_ok: true, ..Default::default() });
+        let unknown = compare(SaveSources { known: false, scan_ok: true, ..Default::default() }, "this PC");
         assert_eq!(unknown.verdict, "none");
-        let unbacked = compare(SaveSources { known: true, scan_ok: true, active: Some(5), ..Default::default() });
+        let unbacked = compare(SaveSources { known: true, scan_ok: true, active: Some(5), ..Default::default() }, "this PC");
         assert_eq!(unbacked.verdict, "differ");
     }
 }

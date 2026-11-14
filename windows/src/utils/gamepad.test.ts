@@ -65,8 +65,9 @@ describe("readGpState", () => {
   it("supports stick and hat-axis navigation", () => {
     const state = readGpState(gamepad({ axes: [-0.8, 0.7, 0, 0, 1, 0, 1, -1] }));
 
+    // The stick diagonal yields only its stronger axis (left); the hat adds right and up.
     expect(state.ArrowLeft).toBe(true);
-    expect(state.ArrowDown).toBe(true);
+    expect(state.ArrowDown).toBe(false);
     expect(state.ArrowRight).toBe(true);
     expect(state.ArrowUp).toBe(true);
   });
@@ -94,4 +95,20 @@ describe("detectPlatform", () => {
   ])("detects %s", (id, expected) => {
     expect(detectPlatform(id)).toBe(expected);
   });
+});
+
+it("reads the left stick with hysteresis and one dominant direction", () => {
+  const pad = (x: number, y: number) => ({ ...gamepad({ axes: [x, y, 0, 0] }), index: 7, mapping: "standard" } as Gamepad);
+  // A diagonal produces only the stronger axis, never two moves.
+  const diagonal = readGpState(pad(0.7, 0.62));
+  expect([diagonal.ArrowRight, diagonal.ArrowDown]).toEqual([true, false]);
+  // Easing back towards the edge keeps the held direction instead of flickering.
+  expect(readGpState(pad(0.45, 0.66)).ArrowRight).toBe(true);
+  expect(readGpState(pad(0.45, 0.66)).ArrowDown).toBe(false);
+  // Released below the off threshold, then the other axis can take over.
+  expect(readGpState(pad(0.3, 0.2)).ArrowRight).toBe(false);
+  expect(readGpState(pad(0.1, 0.7)).ArrowDown).toBe(true);
+  // A light touch under the on threshold does nothing.
+  expect(readGpState(pad(0, 0)).ArrowDown).toBe(false);
+  expect(readGpState(pad(0.5, 0)).ArrowRight).toBe(false);
 });

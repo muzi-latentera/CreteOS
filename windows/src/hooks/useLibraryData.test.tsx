@@ -44,6 +44,30 @@ it("updates in the background without a blocking scan and joins concurrent refre
   expect(library.libraryRefreshStatus).toBeNull();
 });
 
+it("shows the cached library at once and replaces it with the fresh scan", async () => {
+  act(() => root.unmount());
+  const onLoaded = vi.fn();
+  let finishScan!: (apps: App[]) => void;
+  invoke.mockReset().mockImplementation((command: string) => {
+    if (command === "get_cached_apps") return Promise.resolve([{ ...original, name: "Cached game" }]);
+    if (command === "get_all_apps") return new Promise<App[]>(resolve => { finishScan = resolve; });
+    return Promise.resolve([]);
+  });
+  function CachedHarness() {
+    library = useLibraryData({ fetchGameArt: () => {}, onLoaded });
+    return <span>{library.apps[0]?.name}</span>;
+  }
+  root = createRoot(host);
+  await act(async () => { root.render(<CachedHarness />); await Promise.resolve(); });
+  expect(host.textContent).toBe("Cached game");
+  expect(onLoaded).toHaveBeenCalledOnce();
+  await act(async () => { finishScan([{ ...original, name: "Fresh game" }]); await Promise.resolve(); await Promise.resolve(); });
+  expect(host.textContent).toBe("Fresh game");
+  expect(onLoaded).toHaveBeenCalledOnce();
+  await act(async () => { await vi.advanceTimersByTimeAsync(61_000); });
+  expect(host.textContent).toBe("Fresh game");
+});
+
 it("unpins retained copies through the preferred tile without changing ownership", async () => {
   act(() => { library.pinsRef.current = ["other-copy"]; });
   invoke.mockImplementation(async (command: string, args?: {appId?: string}) => {

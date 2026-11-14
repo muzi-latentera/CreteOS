@@ -168,6 +168,12 @@ def compare(game):
     title = find_title(game["name"])
     if title is None:
         return {"scanOk": True, "cloudStatus": "unavailable", "known": False}
+    # Read the config before any scan starts: `config show` failed while two other
+    # Ludusavi processes ran (13 Nov), which silently reported Drive as unreachable.
+    try:
+        config = ludusavi("config", "show", "--api")["cloud"]
+    except (RuntimeError, subprocess.TimeoutExpired, ValueError, KeyError):
+        config = {}
     with concurrent.futures.ThreadPoolExecutor() as jobs:
         active = jobs.submit(ludusavi, "backup", "--preview", "--api", "--", title)
         history = jobs.submit(ludusavi, "backups", "--api", "--", title)
@@ -175,10 +181,6 @@ def compare(game):
             backup = history.result().get("games", {}).get(title, {})
         except (RuntimeError, subprocess.TimeoutExpired, ValueError):
             backup = {}
-        try:
-            config = ludusavi("config", "show", "--api")["cloud"]
-        except (RuntimeError, subprocess.TimeoutExpired, ValueError, KeyError):
-            config = {}
         remote = (config.get("remote") or {}).get("Custom", {}).get("id")
         folder = pathlib.Path(backup["backupPath"]).name if "backupPath" in backup else game_folder(title)
         cloud = jobs.submit(read_cloud, remote, config.get("path"), folder)

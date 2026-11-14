@@ -302,6 +302,19 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
     boxShadow: focusedAction === action ? `0 0 0 2px ${accent.glow}0.18), 0 0 24px ${accent.glow}0.22)` : "none",
     transform: focusedAction === action ? "translateY(-1px)" : "none",
   });
+  // The Crete cover stays quiet for ordinary launches and only explains a wait
+  // that means something: a long Steam update looked like a hang before.
+  const notablePhase = status === "launching" && ["starting_steam", "syncing_cloud", "updating_game", "waiting_for_steam"].includes(steamPhase ?? "");
+  // In Crete the visible cover is the native artwork window above the WebView,
+  // so a meaningful phase is written there; ordinary launches keep it silent.
+  const nativePhase = minimal && notablePhase && app?.app_type === "game" && !isHttpLaunchPath(app.launch_path) ? steamPhaseText : "";
+  const nativePhaseShown = useRef("");
+  useEffect(() => {
+    if (!minimal || !app || nativePhase === nativePhaseShown.current) return;
+    if (!nativePhase && !nativePhaseShown.current) return;
+    nativePhaseShown.current = nativePhase;
+    invoke("update_stream_artwork", { art: heroArt || art || "", message: nativePhase }).catch(() => {});
+  }, [minimal, app, nativePhase, heroArt, art]);
   const tryFocusAgain = () => {
     if (!app) return;
     invoke("try_focus_launched_app", {
@@ -312,8 +325,9 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
     }).catch(() => {});
   };
 
-  if (minimal && (isBusy || status === "focused")) return <div data-game-launch-cover="" role="status" aria-label={t("launch.launching")} style={{ position: "fixed", inset: 0, zIndex: 9000, display: "grid", placeContent: "center", background: heroArt ? `linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.4)),url(${JSON.stringify(heroArt)}) center/cover` : "rgba(10,13,16,.92)" }}>
+  if (minimal && (isBusy || status === "focused")) return <div data-game-launch-cover="" role="status" aria-label={notablePhase ? steamPhaseText : t("launch.launching")} style={{ position: "fixed", inset: 0, zIndex: 9000, display: "grid", placeContent: "center", justifyItems: "center", background: heroArt ? `linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.4)),url(${JSON.stringify(heroArt)}) center/cover` : "rgba(10,13,16,.92)" }}>
     <LaunchMessages />
+    {notablePhase && <span data-launch-phase="" style={{ color: "rgba(242,234,219,.62)", fontSize: 13, letterSpacing: "0.12em", textTransform: "uppercase", textShadow: "0 2px 12px rgba(0,0,0,.9)" }}>{steamPhaseText}</span>}
   </div>;
   return (
     <div className="launch-overlay" style={{ position: "fixed", inset: 0, zIndex: 9000, background: heroArt ? `linear-gradient(rgba(0,0,0,.35),rgba(0,0,0,.8)),url(${JSON.stringify(heroArt)}) center/cover` : "rgba(0,0,0,0.88)", opacity: status === "focused" ? 0 : 1, transition: "opacity 650ms ease", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20 }}>

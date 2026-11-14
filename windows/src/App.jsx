@@ -1794,6 +1794,24 @@ export default function App() {
     };
   }, [applySteamProgress, watchedSteamAppIds]);
 
+  // Steam downloads that were already running when CreteOS started (or that
+  // outlived a CreteOS restart) get their progress and completion tracked again.
+  useEffect(() => {
+    let disposed = false;
+    invoke("steam_active_downloads")
+      .then((appids) => {
+        if (disposed || !Array.isArray(appids)) return;
+        appids.forEach((appid) => {
+          invoke("steam_install_progress", { appid })
+            .then((payload) => { if (!disposed && payload) applySteamProgress(payload); })
+            .catch(() => {});
+          invoke("steam_watch_install", { appid }).catch(() => {});
+        });
+      })
+      .catch(() => {});
+    return () => { disposed = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!detailsApp || detailsApp.installed !== false || detailsApp.source !== "steam") return;
     const appid = steamAppIdFor(detailsApp);

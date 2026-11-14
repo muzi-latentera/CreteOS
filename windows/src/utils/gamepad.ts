@@ -161,6 +161,26 @@ export function getActiveGamepad(): Gamepad | null {
   return best.g;
 }
 
+// Left stick as a D-pad: a direction starts past STICK_ON and is held until it
+// falls below STICK_OFF, and only the stronger axis counts. A bare 0.5 threshold
+// jittered near the edge and turned diagonals into two moves.
+const STICK_ON = 0.55;
+const STICK_OFF = 0.4;
+type StickDirection = "up" | "down" | "left" | "right" | null;
+const stickLatch = new Map<number | undefined, StickDirection>();
+
+function stickDirection(gp: Gamepad): StickDirection {
+  const x = gp.axes[0] ?? 0;
+  const y = gp.axes[1] ?? 0;
+  const held = stickLatch.get(gp.index) ?? null;
+  const along = (direction: StickDirection) => direction === "left" ? -x : direction === "right" ? x : direction === "up" ? -y : y;
+  if (held && along(held) > STICK_OFF) return held;
+  const next: StickDirection = Math.max(Math.abs(x), Math.abs(y)) <= STICK_ON ? null
+    : Math.abs(x) >= Math.abs(y) ? (x < 0 ? "left" : "right") : (y < 0 ? "up" : "down");
+  stickLatch.set(gp.index, next);
+  return next;
+}
+
 export function readGpState(gp: Gamepad): GpState {
   const btn = (i: number) => !!gp.buttons[i]?.pressed;
   const legacyHat = gp.mapping !== "standard";
@@ -168,11 +188,12 @@ export function readGpState(gp: Gamepad): GpState {
   const hatRight = legacyHat && (gp.axes[6] ?? 0) >  0.5;
   const hatUp    = legacyHat && (gp.axes[7] ?? 0) < -0.5;
   const hatDown  = legacyHat && (gp.axes[7] ?? 0) >  0.5;
+  const stick = stickDirection(gp);
   const state = {
-    ArrowUp:      btn(12) || hatUp    || gp.axes[1] < -0.5,
-    ArrowDown:    btn(13) || hatDown  || gp.axes[1] >  0.5,
-    ArrowLeft:    btn(14) || hatLeft  || gp.axes[0] < -0.5,
-    ArrowRight:   btn(15) || hatRight || gp.axes[0] >  0.5,
+    ArrowUp:      btn(12) || hatUp    || stick === "up",
+    ArrowDown:    btn(13) || hatDown  || stick === "down",
+    ArrowLeft:    btn(14) || hatLeft  || stick === "left",
+    ArrowRight:   btn(15) || hatRight || stick === "right",
     Enter:        btn(0),
     Escape:       btn(1),
     ButtonX:      btn(2),

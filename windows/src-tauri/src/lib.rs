@@ -563,6 +563,23 @@ mod settings_compat_tests {
     use super::Settings;
 
     #[test]
+    fn one_bad_value_keeps_every_other_choice() {
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        let fields = value.as_object_mut().unwrap();
+        fields.insert("theme".into(), serde_json::json!("crete"));
+        fields.insert("sfx_enabled".into(), serde_json::json!(false));
+        fields.insert("ui_scale".into(), serde_json::json!("very big"));
+        fields.insert("repeat_speed".into(), serde_json::json!(7));
+        let raw = serde_json::to_string(&value).unwrap();
+        assert!(serde_json::from_str::<Settings>(&raw).is_err(), "fixture must be invalid as a whole");
+        let settings = super::tolerant_settings(&raw).expect("tolerant load");
+        assert_eq!(settings.theme, "crete");
+        assert!(!settings.sfx_enabled);
+        assert_eq!(settings.ui_scale, Settings::default().ui_scale);
+        assert_eq!(settings.repeat_speed, Settings::default().repeat_speed);
+    }
+
+    #[test]
     fn owned_store_visibility_markers_preserve_legacy_settings() {
         let mut value = serde_json::to_value(Settings::default()).unwrap();
         let fields = value.as_object_mut().unwrap();
@@ -1222,10 +1239,26 @@ fn load_settings_inner() -> Settings {
     if !path.exists() {
         return Settings::default();
     }
-    let Some(raw) = std::fs::read_to_string(&path).ok() else {
+    // A briefly locked file (antivirus, a save in progress) must not read as
+    // "no settings": a later save would then overwrite every choice.
+    let mut raw = None;
+    for attempt in 0..4 {
+        match std::fs::read_to_string(&path) {
+            Ok(text) => { raw = Some(text); break; }
+            Err(_) if attempt < 3 => std::thread::sleep(std::time::Duration::from_millis(60)),
+            Err(_) => {}
+        }
+    }
+    let Some(raw) = raw else {
         return Settings::default();
     };
-    let mut settings: Settings = serde_json::from_str(&raw).unwrap_or_default();
+    let mut settings: Settings = match serde_json::from_str(&raw) {
+        Ok(settings) => settings,
+        Err(_) => {
+            let _ = std::fs::copy(&path, path.with_extension(format!("json.unreadable-{}", std::process::id())));
+            tolerant_settings(&raw).unwrap_or_default()
+        }
+    };
     // A settings file that predates onboarding has no `onboarding_complete`
     // key. Those users have already configured CreteOS, so mark them complete
     // rather than replaying first-run setup after an update.
@@ -1237,6 +1270,24 @@ fn load_settings_inner() -> Settings {
     settings
 }
 
+/// Keep every stored choice that still fits; only fields whose stored value no
+/// longer matches its type fall back to their default. Used only when the whole
+/// file fails to parse, so a normal file loads exactly as before.
+fn tolerant_settings(raw: &str) -> Option<Settings> {
+    let serde_json::Value::Object(stored) = serde_json::from_str::<serde_json::Value>(raw).ok()? else { return None; };
+    let serde_json::Value::Object(defaults) = serde_json::to_value(Settings::default()).ok()? else { return None; };
+    let fits = |key: &str, value: &serde_json::Value| {
+        let mut probe = defaults.clone();
+        probe.insert(key.to_owned(), value.clone());
+        serde_json::from_value::<Settings>(serde_json::Value::Object(probe)).is_ok()
+    };
+    let mut merged = defaults.clone();
+    for (key, value) in stored {
+        if !defaults.contains_key(&key) || fits(&key, &value) { merged.insert(key, value); }
+    }
+    serde_json::from_value(serde_json::Value::Object(merged)).ok()
+}
+
 fn save_settings_inner(settings: &Settings) -> Result<(), String> {
     let path = settings_path();
     if let Some(parent) = path.parent() {
@@ -1245,7 +1296,14 @@ fn save_settings_inner(settings: &Settings) -> Result<(), String> {
     }
     let json = serde_json::to_string(settings)
         .map_err(|e| format!("failed to serialize settings: {e}"))?;
-    std::fs::write(path, json).map_err(|e| format!("failed to save settings: {e}"))
+    // Write beside the file and swap it in, so a crash or power loss mid-save
+    // leaves the previous complete settings rather than a truncated file.
+    let temp = path.with_extension(format!("json.{}.next", std::process::id()));
+    std::fs::write(&temp, json).map_err(|e| format!("failed to save settings: {e}"))?;
+    std::fs::rename(&temp, &path).map_err(|e| {
+        let _ = std::fs::remove_file(&temp);
+        format!("failed to save settings: {e}")
+    })
 }
 
 // Steam QR sign-in ----------------------------------------------------------
@@ -7379,40 +7437,120 @@ mod steam_install_progress_tests {
     }
 }
 
+#[derive(Debug, PartialEq)]
+enum SteamWatch { Continue, Installed, Cancelled, GaveUp }
+
+#[derive(Default)]
+struct SteamWatchState { seen_manifest: bool, saw_active: bool, misses: u32, idle_polls: u32, last_progress: (u64, u64) }
+
+/// Polled once a second. A large download is never abandoned while it moves or
+/// while Steam reports it paused; Steam's install dialog may wait behind
+/// CreteOS, so a missing manifest gets ten minutes; and the final commit (no
+/// download workspace, bytes already fetched) no longer reads as uninstalled.
+fn steam_watch_step(state: &mut SteamWatchState, manifest: Option<&SteamInstallManifest>, installed: bool, paused: impl FnOnce() -> bool) -> SteamWatch {
+    const NO_MANIFEST_POLLS: u32 = 600;
+    const STALLED_POLLS: u32 = 3600;
+    let Some(manifest) = manifest else {
+        if state.seen_manifest { return SteamWatch::Cancelled; }
+        state.misses += 1;
+        return if state.misses > NO_MANIFEST_POLLS { SteamWatch::GaveUp } else { SteamWatch::Continue };
+    };
+    state.seen_manifest = true;
+    state.misses = 0;
+    if installed { return SteamWatch::Installed; }
+    state.saw_active |= manifest.download_active;
+    if state.saw_active && !manifest.download_active && manifest.size_on_disk == 0 && manifest.bytes_downloaded == 0 {
+        return SteamWatch::Cancelled;
+    }
+    let progress = (manifest.bytes_downloaded, manifest.bytes_staged);
+    if progress != state.last_progress {
+        state.last_progress = progress;
+        state.idle_polls = 0;
+    } else if !paused() {
+        state.idle_polls += 1;
+    }
+    if state.idle_polls > STALLED_POLLS { SteamWatch::GaveUp } else { SteamWatch::Continue }
+}
+
 fn spawn_steam_install_watcher(app: tauri::AppHandle, appid: String) {
     std::thread::spawn(move || {
-        let mut misses = 0u32;
-        let mut saw_active_download = false;
-        for _ in 0..4800 {
-            if let Some(manifest) = read_steam_install_manifest(&appid) {
-                misses = 0;
-                let install_dir_present = steam_install_dir_present(&manifest);
-                let installed = steam_is_installed(
-                    manifest.state_flags,
-                    manifest.size_on_disk,
-                    install_dir_present,
-                );
-                if installed {
-                    let _ = app.emit("steam-install-done", SteamInstallDonePayload { appid });
-                    return;
-                }
-                if manifest.download_active {
-                    saw_active_download = true;
-                } else if saw_active_download {
-                    let _ = app.emit("steam-uninstall-done", SteamInstallDonePayload { appid });
-                    return;
-                }
-            } else {
-                misses += 1;
-                if misses > 80 {
-                    let _ = app.emit("steam-install-error", SteamInstallDonePayload { appid });
-                    return;
-                }
-            }
-            std::thread::sleep(Duration::from_millis(500));
+        let mut state = SteamWatchState::default();
+        loop {
+            let manifest = read_steam_install_manifest(&appid);
+            let installed = manifest.as_ref().is_some_and(|manifest| steam_is_installed(
+                manifest.state_flags, manifest.size_on_disk, steam_install_dir_present(manifest)));
+            let event = match steam_watch_step(&mut state, manifest.as_ref(), installed, || steam_install_log_phase(&appid) == Some("paused")) {
+                SteamWatch::Continue => { std::thread::sleep(Duration::from_secs(1)); continue; }
+                SteamWatch::Installed => "steam-install-done",
+                SteamWatch::Cancelled => "steam-uninstall-done",
+                SteamWatch::GaveUp => "steam-install-error",
+            };
+            let _ = app.emit(event, SteamInstallDonePayload { appid });
+            return;
         }
-        let _ = app.emit("steam-install-error", SteamInstallDonePayload { appid });
     });
+}
+
+/// Steam downloads already running when CreteOS starts, so their progress
+/// and completion are tracked again after a restart.
+#[tauri::command]
+fn steam_active_downloads() -> Vec<String> {
+    let mut appids: Vec<String> = steam_library_paths().into_iter()
+        .filter_map(|library| std::fs::read_dir(Path::new(&library).join("downloading")).ok())
+        .flatten().flatten()
+        .filter_map(|entry| entry.file_name().to_str().map(str::to_owned))
+        .filter(|name| !name.is_empty() && name.bytes().all(|byte| byte.is_ascii_digit()))
+        .filter(|appid| read_steam_install_manifest(appid).is_some_and(|manifest| !steam_is_installed(
+            manifest.state_flags, manifest.size_on_disk, steam_install_dir_present(&manifest))))
+        .collect();
+    appids.sort();
+    appids.dedup();
+    appids
+}
+
+#[cfg(test)]
+mod steam_watch_tests {
+    use super::{parse_steam_install_manifest, steam_watch_step, SteamWatch, SteamWatchState};
+
+    fn manifest(downloaded: u64, active: bool) -> super::SteamInstallManifest {
+        let mut manifest = parse_steam_install_manifest(&format!(
+            "\"StateFlags\" \"1026\"\n\"SizeOnDisk\" \"0\"\n\"BytesToDownload\" \"1000\"\n\"BytesDownloaded\" \"{downloaded}\""));
+        manifest.download_active = active;
+        manifest
+    }
+
+    #[test]
+    fn final_commit_is_not_an_uninstall() {
+        let mut state = SteamWatchState::default();
+        assert_eq!(steam_watch_step(&mut state, Some(&manifest(10, true)), false, || false), SteamWatch::Continue);
+        // Steam removes the download workspace while committing; bytes are already fetched.
+        assert_eq!(steam_watch_step(&mut state, Some(&manifest(1000, false)), false, || false), SteamWatch::Continue);
+        assert_eq!(steam_watch_step(&mut state, Some(&manifest(1000, false)), true, || false), SteamWatch::Installed);
+    }
+
+    #[test]
+    fn long_or_paused_downloads_are_kept_and_cancels_are_seen() {
+        let mut state = SteamWatchState::default();
+        for step in 0..5000u64 {
+            assert_eq!(steam_watch_step(&mut state, Some(&manifest(step, true)), false, || false), SteamWatch::Continue);
+        }
+        for _ in 0..5000 {
+            assert_eq!(steam_watch_step(&mut state, Some(&manifest(4999, true)), false, || true), SteamWatch::Continue);
+        }
+        let mut cancelled = SteamWatchState::default();
+        steam_watch_step(&mut cancelled, Some(&manifest(0, true)), false, || false);
+        assert_eq!(steam_watch_step(&mut cancelled, Some(&manifest(0, false)), false, || false), SteamWatch::Cancelled);
+        let mut removed = SteamWatchState::default();
+        steam_watch_step(&mut removed, Some(&manifest(5, true)), false, || false);
+        assert_eq!(steam_watch_step(&mut removed, None, false, || false), SteamWatch::Cancelled);
+    }
+
+    #[test]
+    fn waits_for_steams_install_dialog_then_gives_up() {
+        let mut state = SteamWatchState::default();
+        for _ in 0..600 { assert_eq!(steam_watch_step(&mut state, None, false, || false), SteamWatch::Continue); }
+        assert_eq!(steam_watch_step(&mut state, None, false, || false), SteamWatch::GaveUp);
+    }
 }
 
 fn steam_uninstall_is_complete(
@@ -7432,7 +7570,8 @@ fn steam_uninstall_is_complete(
 
 fn spawn_steam_uninstall_watcher(app: tauri::AppHandle, appid: String, cancelling_download: bool) {
     std::thread::spawn(move || {
-        for _ in 0..240 {
+        // Steam asks for confirmation, possibly behind CreteOS: allow ten minutes.
+        for _ in 0..2400 {
             let manifest = read_steam_install_manifest(&appid);
             if steam_uninstall_is_complete(manifest.as_ref(), cancelling_download) {
                 let _ = app.emit("steam-uninstall-done", SteamInstallDonePayload { appid });
@@ -8615,8 +8754,32 @@ fn get_all_apps_inner(app: tauri::AppHandle) -> Vec<AppEntry> {
     ));
     push_scan_timing(&mut scan_timing, "total", scan_started);
     log_scan_timing(&scan_timing);
+    save_library_snapshot(&apps);
 
     apps
+}
+
+// ── Library snapshot ──────────────────────────────────────────
+// A full scan took 27 s on the G1 (Steam alone 20.7 s, 13 Nov). The last good
+// scan is shown immediately at start-up and the fresh scan replaces it.
+fn library_snapshot_path() -> PathBuf { liftoff_dir().join("library_snapshot.json") }
+
+fn save_library_snapshot(apps: &[AppEntry]) {
+    if apps.is_empty() { return; }
+    let Ok(bytes) = serde_json::to_vec(apps) else { return; };
+    let path = library_snapshot_path();
+    let temp = path.with_extension(format!("json.{}.next", std::process::id()));
+    if std::fs::write(&temp, bytes).and_then(|_| std::fs::rename(&temp, &path)).is_err() {
+        let _ = std::fs::remove_file(&temp);
+    }
+}
+
+#[tauri::command]
+async fn get_cached_apps() -> Vec<AppEntry> {
+    tauri::async_runtime::spawn_blocking(|| std::fs::read(library_snapshot_path()).ok()
+        .and_then(|bytes| serde_json::from_slice::<Vec<AppEntry>>(&bytes).ok()).unwrap_or_default())
+        .await
+        .unwrap_or_default()
 }
 
 // ── Launch window watcher ─────────────────────────────────────
@@ -10057,6 +10220,36 @@ struct LocalLaunchOptions {
     display: Option<launch_display::Mode>,
 }
 
+/// ShellExecuteW reports failure as a value of 32 or less. Launch paths used to
+/// ignore it, so a declined UAC prompt became a silent 15 s wait.
+fn shell_execute(verb: &str, file: &str, directory: Option<&str>) -> Result<(), isize> {
+    let wide = |value: &str| -> Vec<u16> { std::ffi::OsStr::new(value).encode_wide().chain(std::iter::once(0)).collect() };
+    let (verb, file) = (wide(verb), wide(file));
+    let directory = directory.map(wide);
+    let result = unsafe {
+        ShellExecuteW(
+            None,
+            windows::core::PCWSTR(verb.as_ptr()),
+            windows::core::PCWSTR(file.as_ptr()),
+            windows::core::PCWSTR::null(),
+            directory.as_ref().map_or(windows::core::PCWSTR::null(), |dir| windows::core::PCWSTR(dir.as_ptr())),
+            SW_SHOWNORMAL,
+        )
+    };
+    let code = result.0 as isize;
+    if code <= 32 { Err(code) } else { Ok(()) }
+}
+
+fn shell_execute_message(code: isize, what: &str) -> String {
+    match code {
+        // SE_ERR_ACCESSDENIED, which is also what a cancelled UAC prompt returns.
+        5 => format!("Administrator permission was declined, so the {what} did not start."),
+        2 | 3 => format!("Windows could not find this {what}. Check that it is still installed."),
+        31 => format!("Windows has no app set to open this {what}."),
+        _ => format!("Windows could not start this {what} (code {code})."),
+    }
+}
+
 #[tauri::command]
 async fn launch_app(
     path: String,
@@ -10242,46 +10435,12 @@ async fn launch_app(
         // Windows shortcut — ShellExecuteW with "open" lets Windows resolve the
         // .lnk natively, including any arguments embedded in the shortcut target.
         // cmd /C start can drop arguments for complex targets like Discord's updater.
-        unsafe {
-            let op: Vec<u16> = std::ffi::OsStr::new("open")
-                .encode_wide()
-                .chain(std::iter::once(0))
-                .collect();
-            let file: Vec<u16> = std::ffi::OsStr::new(&path)
-                .encode_wide()
-                .chain(std::iter::once(0))
-                .collect();
-            ShellExecuteW(
-                None,
-                windows::core::PCWSTR(op.as_ptr()),
-                windows::core::PCWSTR(file.as_ptr()),
-                windows::core::PCWSTR::null(),
-                windows::core::PCWSTR::null(),
-                SW_SHOWNORMAL,
-            );
-        }
+        shell_execute("open", &path, None).map_err(|code| shell_execute_message(code, "shortcut"))?;
         launch_mode = "shortcut".to_string();
         child_pid = 0;
     } else if path.contains("://") {
         // ShellExecuteW for other URI schemes (https://, etc.)
-        unsafe {
-            let op: Vec<u16> = std::ffi::OsStr::new("open")
-                .encode_wide()
-                .chain(std::iter::once(0))
-                .collect();
-            let file: Vec<u16> = std::ffi::OsStr::new(&path)
-                .encode_wide()
-                .chain(std::iter::once(0))
-                .collect();
-            ShellExecuteW(
-                None,
-                windows::core::PCWSTR(op.as_ptr()),
-                windows::core::PCWSTR(file.as_ptr()),
-                windows::core::PCWSTR::null(),
-                windows::core::PCWSTR::null(),
-                SW_SHOWNORMAL,
-            );
-        }
+        shell_execute("open", &path, None).map_err(|code| shell_execute_message(code, "link"))?;
         if !source.eq_ignore_ascii_case("cloud") {
             launch_mode = "url".to_string();
         }
@@ -10290,38 +10449,32 @@ async fn launch_app(
         // Direct exe launches can either spawn normally or elevate just this process.
         let elevate = run_as_admin.unwrap_or(false);
 
-        if elevate {
-            // ShellExecuteW with "runas" triggers UAC for just this process.
-            // CreteOS itself does not need to be running as admin.
-            unsafe {
-                let op: Vec<u16> = std::ffi::OsStr::new("runas")
-                    .encode_wide()
-                    .chain(std::iter::once(0))
-                    .collect();
-                let file: Vec<u16> = std::ffi::OsStr::new(&path)
-                    .encode_wide()
-                    .chain(std::iter::once(0))
-                    .collect();
-                ShellExecuteW(
-                    None,
-                    windows::core::PCWSTR(op.as_ptr()),
-                    windows::core::PCWSTR(file.as_ptr()),
-                    windows::core::PCWSTR::null(),
-                    windows::core::PCWSTR::null(),
-                    SW_SHOWNORMAL,
-                );
+        // Games that load files relative to themselves need their own folder as
+        // the working directory, as Explorer and Steam provide.
+        let folder = Path::new(&path).parent().filter(|dir| dir.is_dir()).map(Path::to_path_buf);
+        let spawned = if elevate { None } else {
+            let mut command = std::process::Command::new(&path);
+            command.creation_flags(CREATE_NO_WINDOW);
+            if let Some(folder) = &folder { command.current_dir(folder); }
+            Some(command.spawn())
+        };
+        match spawned {
+            Some(Ok(child)) => {
+                child_pid = child.id();
+                launch_mode = "direct".to_string();
+                launch_detail = Some(format!("pid={}", child_pid));
             }
-            // PID not recoverable from ShellExecute; window matching still watches by name.
-            launch_mode = "elevated".to_string();
-            child_pid = 0;
-        } else {
-            let child = std::process::Command::new(&path)
-                .creation_flags(CREATE_NO_WINDOW)
-                .spawn()
-                .map_err(|e| e.to_string())?;
-            child_pid = child.id();
-            launch_mode = "direct".to_string();
-            launch_detail = Some(format!("pid={}", child_pid));
+            // ERROR_ELEVATION_REQUIRED: the game's manifest asks for administrator.
+            Some(Err(error)) if error.raw_os_error() != Some(740) => return Err(error.to_string()),
+            _ => {
+                // ShellExecuteW with "runas" triggers UAC for just this process.
+                // CreteOS itself does not need to be running as admin.
+                shell_execute("runas", &path, folder.as_deref().and_then(Path::to_str))
+                    .map_err(|code| shell_execute_message(code, "game"))?;
+                // PID not recoverable from ShellExecute; window matching still watches by name.
+                launch_mode = "elevated".to_string();
+                child_pid = 0;
+            }
         }
     }
 
@@ -10616,6 +10769,7 @@ pub fn run() {
             xbox_details::get_xbox_game_progress,
             get_apps,
             get_all_apps,
+            get_cached_apps,
             get_install_size,
             get_steam_download_size,
             launch_app,
@@ -10725,6 +10879,7 @@ pub fn run() {
             steam_uninstall,
             steam_verify,
             steam_watch_install,
+            steam_active_downloads,
             steam_install_progress,
             store_metadata::fetch_store_metadata,
             store_metadata::fetch_xbox_store_metadata,

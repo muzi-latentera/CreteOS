@@ -188,13 +188,29 @@ export function useLibraryData({ fetchGameArt, onLoaded, onLoadError }: UseLibra
     });
     let cancelled = false;
     let finished = false;
+    let fresh = false;
     const timer = window.setTimeout(() => {
       if (cancelled || finished) return;
       finished = true;
       onLoadError?.();
     }, LIBRARY_SCAN_TIMEOUT_MS);
+    // Show the last good scan at once; the full rescan below replaces it. A full
+    // scan took 27 s on the G1, which the splash used to cover entirely.
+    Promise.all([invoke<App[]>("get_cached_apps"), invoke<string[]>("get_hidden")]).then(([cached, loadedHidden]) => {
+      if (cancelled || finished || fresh || !Array.isArray(cached) || cached.length === 0) return;
+      finished = true;
+      allAppsRef.current = cached;
+      setHidden(loadedHidden);
+      hiddenRef.current = loadedHidden;
+      const visible = cached.filter(a => !loadedHidden.includes(a.id));
+      setApps(visible);
+      appsRef.current = visible;
+      fetchGameArt(visible.filter(a => a.app_type === "game"));
+      onLoaded?.(visible);
+    }).catch(() => {});
     Promise.all([invoke<App[]>("get_all_apps"), invoke<string[]>("get_hidden")]).then(([all, loadedHidden]) => {
       if (cancelled) return;
+      fresh = true;
       const alreadyEscaped = finished;
       allAppsRef.current = all;
       setHidden(loadedHidden);
