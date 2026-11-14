@@ -1241,6 +1241,28 @@ fn resume_webview(app: &AppHandle) -> bool {
     true
 }
 
+/// Windows Error Reporting and the common engine crash reporters.
+fn is_crash_reporter(path: &str) -> bool {
+    path.rsplit(['\\', '/']).next().is_some_and(|exe| {
+        ["werfault.exe", "werfaultsecure.exe", "crashreportclient.exe", "unitycrashhandler64.exe", "unitycrashhandler32.exe"]
+            .iter().any(|known| exe.eq_ignore_ascii_case(known))
+    })
+}
+
+#[cfg(test)]
+mod crash_reporter_tests {
+    use super::is_crash_reporter;
+
+    #[test]
+    fn recognises_crash_dialogs_only() {
+        assert!(is_crash_reporter("C:\\Windows\\System32\\WerFault.exe"));
+        assert!(is_crash_reporter("D:\\Games\\X\\Engine\\Binaries\\Win64\\CrashReportClient.exe"));
+        assert!(is_crash_reporter("D:\\Games\\Y\\UnityCrashHandler64.exe"));
+        assert!(!is_crash_reporter("C:\\Program Files\\Discord\\Discord.exe"));
+        assert!(!is_crash_reporter("C:\\Windows\\explorer.exe"));
+    }
+}
+
 pub fn start_gpu_release_watch(
     app: AppHandle,
     our_hwnd: isize,
@@ -1392,10 +1414,14 @@ fn watch_game_window(
                         let fg = unsafe { GetForegroundWindow() };
                         let mut pid = 0;
                         unsafe { GetWindowThreadProcessId(fg, Some(&mut pid)); }
-                        let launcher = crate::process_exe_path(pid).is_some_and(|path| {
+                        let foreground_exe = crate::process_exe_path(pid);
+                        let launcher = foreground_exe.as_deref().is_some_and(|path| {
                             path.rsplit(['\\', '/']).next().is_some_and(|exe| exe.eq_ignore_ascii_case("steam.exe"))
                         });
-                        if hwnd_value(fg) == our_hwnd || crate::foreground_is_desktop() || launcher {
+                        // A crash dialog after the game window vanished is a game
+                        // exit, not the player switching apps (audit §4.5).
+                        let crashed = foreground_exe.as_deref().is_some_and(is_crash_reporter);
+                        if hwnd_value(fg) == our_hwnd || crate::foreground_is_desktop() || launcher || crashed {
                             crate::launch_cover::LocalReturnCover::show(window, *cover_generation, &mut cover);
                         } else if pid != game_pid {
                             // The player switched to an unrelated app. Resume
