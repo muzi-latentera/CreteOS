@@ -10115,6 +10115,7 @@ fn try_focus_launched_app(
     source: String,
     app_type: Option<String>,
     app_handle: tauri::AppHandle,
+    main_window: tauri::Window,
 ) -> bool {
     let Some((window, _)) = best_launch_window(&name, &launch_path, &source) else {
         return false;
@@ -10124,8 +10125,12 @@ fn try_focus_launched_app(
     focus_external_window(hwnd);
 
     if app_type.as_deref() == Some("game") {
-        let settings = load_settings_inner();
-        if settings.hide_on_launch {
+        let hide = load_settings_inner().hide_on_launch;
+        // Resuming a local game watches it exactly like a fresh launch, so
+        // quitting it later still gets the return cover (audit §4.7).
+        if !launch_path.starts_with("https://") && !launch_path.starts_with("http://") {
+            fse_watcher::watch_local_game(main_window, window.hwnd, hide);
+        } else if hide {
             fse_watcher::start_gpu_release_watch(
                 app_handle,
                 OUR_HWND.load(Ordering::Relaxed),
