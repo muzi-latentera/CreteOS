@@ -94,6 +94,19 @@
 .crete-launch-layer :is(.crete-save-actions button:disabled, [aria-disabled=true]) { opacity:.55; }
 .crete-launch-popover button:disabled { opacity:.6; }
 
+/* Achievements: unlocked first, newest first; locked ones dimmed. */
+.crete-launch-layer .crete-achievement-bar { height:6px; border-radius:3px; background:#f2eadb18; overflow:hidden; margin:4px 0 12px; }
+.crete-launch-layer .crete-achievement-bar span { display:block; height:100%; background:#efc97f; }
+.crete-launch-layer .crete-achievements { display:flex; flex-direction:column; gap:6px; max-height:52vh; overflow-y:auto; padding-right:4px; }
+.crete-launch-layer .crete-achievements button { display:grid; grid-template-columns:48px minmax(0,1fr) auto; align-items:center; gap:12px; width:100%; min-height:60px; padding:8px 12px; border:1px solid #f2eadb18; border-radius:9px; background:#1a2126; color:#dedfd7; text-align:left; }
+.crete-launch-layer .crete-achievements button[data-unlocked=false] { opacity:.6; }
+.crete-launch-layer .crete-achievements button:focus { outline:none; opacity:1; box-shadow:inset 4px 0 #efc97f; border-color:#efc97f; background:#e8b76324; }
+.crete-launch-layer .crete-achievements img, .crete-launch-layer .crete-achievements svg { width:44px; height:44px; border-radius:6px; justify-self:center; }
+.crete-launch-layer .crete-achievements span { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.crete-launch-layer .crete-achievements strong { font-size:14px; color:#fff6df; }
+.crete-launch-layer .crete-achievements small { font-size:12px; color:#a7aaa8; }
+.crete-launch-layer .crete-achievements em { font-style:normal; font-size:12px; color:#efc97f; white-space:nowrap; font-variant-numeric:tabular-nums; }
+
 /* Performance: one row per setting, − value + with the controller's left/right. */
 .crete-launch-layer .crete-perf { display:flex; flex-direction:column; gap:8px; margin:12px 0 4px; }
 .crete-launch-layer .crete-perf .crete-perf-row { display:grid; grid-template-columns:minmax(0,1fr) 48px minmax(96px,auto) 48px; align-items:center; gap:10px; padding:8px 12px; border:1px solid #f2eadb14; border-radius:10px; background:#141b20; color:#d7d6ce; font-size:14px; }

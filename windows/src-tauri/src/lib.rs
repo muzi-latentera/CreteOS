@@ -54,6 +54,7 @@ mod game_saves;
 mod performance;
 mod watchdog;
 mod single_instance;
+mod steam_achievements;
 mod lofi_media;
 mod steam_appinfo;
 mod storage_info;
@@ -11100,6 +11101,7 @@ pub fn run() {
             store_accounts::store_install_game,
             cancel_launch_watch,
             record_frontend_error,
+            steam_achievements::steam_achievements,
             moondeck::end_host_stream,
             game_saves::get_save_status,
             steam_logout,

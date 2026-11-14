@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./launchMenus.css";
-import { IoChevronDownOutline, IoSaveOutline, IoSpeedometerOutline } from "react-icons/io5";
+import { IoChevronDownOutline, IoSaveOutline, IoSpeedometerOutline, IoTrophyOutline } from "react-icons/io5";
 import { useCreteText } from "./text";
 import { invoke } from "@tauri-apps/api/core";
 import { getBestGamepad, readGpState } from "../utils/gamepad";
@@ -16,6 +16,7 @@ import type { LocalLaunchOptions } from "../hooks/useLaunchApp";
 import { hasLocalSaveBackup } from "./gameSaves";
 import { ManageSaves, type ManageSavesControl } from "./ManageSaves";
 import { PerformanceDialog } from "./PerformanceDialog";
+import { AchievementsDialog } from "./AchievementsDialog";
 
 export function LocalLaunchMenu({ app, onClose, onStart }: {
   app: App; onClose: () => void; onStart: (options: LocalLaunchOptions) => void;
@@ -27,7 +28,7 @@ export function LocalLaunchMenu({ app, onClose, onStart }: {
 }
 
 type Streaming = ReturnType<typeof useStreaming>;
-export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, localEnabled, manage, manageLabel, block, restorePlayFocus, loading = false, copies = [], localSetup, saveGame, performanceGame }: {
+export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, localEnabled, manage, manageLabel, block, restorePlayFocus, loading = false, copies = [], localSetup, saveGame, performanceGame, achievementsGame }: {
   streaming: Streaming; open: boolean; setOpen: (open: boolean) => void; local: () => void;
   localLabel: string; localEnabled: boolean; manage: () => void; manageLabel: string; block: (blocked: boolean) => void; restorePlayFocus?: () => void; loading?: boolean;
   copies?: { key: string; label: string; onClick: () => void }[];
@@ -35,6 +36,8 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   saveGame?: App;
   /** An installed local game whose power profile can be set. */
   performanceGame?: App;
+  /** A game whose achievements CreteOS can list. */
+  achievementsGame?: App;
 }) {
   const text = useCreteText();
   const root = useRef<HTMLDivElement>(null);
@@ -49,6 +52,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   useEffect(() => { if (!s.hostBusy) setEndStep("idle"); }, [s.hostBusy]);
   const [savesOpen, setSavesOpen] = useState(false);
   const [perfOpen, setPerfOpen] = useState(false);
+  const [achievementsOpen, setAchievementsOpen] = useState(false);
   const savesControl = useRef<ManageSavesControl | null>(null);
   const [saveReview, setSaveReview] = useState("");
   const checkingSaves = useRef(false);
@@ -101,7 +105,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   const nativeResolution = activeDisplay.nativeResolution ?? "1920x1080";
   const nativeLabel = activeDisplay.displayLabel ?? "Handheld";
   const nativeFps = activeDisplay.nativeFps === 90 && gfn ? 60 : activeDisplay.nativeFps ?? 120;
-  const active = open || s.configure || gfn || wifiOnly || !!ps || !!localSetup || savesOpen || perfOpen;
+  const active = open || s.configure || gfn || wifiOnly || !!ps || !!localSetup || savesOpen || perfOpen || achievementsOpen;
   useEffect(() => { block(active); return () => block(false); }, [active, block]);
   useEffect(() => {
     if (!s.configure && !gfn) return;
@@ -121,7 +125,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     if (localSetup) { localCancelled.current = true; localSetup.onClose(); return; }
     const returnFocus = root.current?.closest('[data-crete-detail-slot="primary-actions"], .crete-hero')
       ?.querySelector<HTMLButtonElement>('[data-launch-btn]:not(:disabled), .crete-play:not(:disabled)') ?? anchor.current;
-    setOpen(false); setSavesOpen(false); setPerfOpen(false); setWifiOnly(false); s.setConfigure(false); s.setGeforceConfigure(false); s.setAsobiConfigure(null); choicesRef.current = null; selectFocus.current = null; setChoices(null);
+    setOpen(false); setSavesOpen(false); setPerfOpen(false); setAchievementsOpen(false); setWifiOnly(false); s.setConfigure(false); s.setGeforceConfigure(false); s.setAsobiConfigure(null); choicesRef.current = null; selectFocus.current = null; setChoices(null);
     restoreAfterLaunch.current = false;
     setSound(false); setAudio({ input: null, output: null });
     setLocalMode(null);
@@ -224,7 +228,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     };
     frame = requestAnimationFrame(poll);
     return () => { clearTimeout(timer); cancelAnimationFrame(frame); window.removeEventListener("keydown", key, true); window.removeEventListener("keyup", release, true); window.removeEventListener("pointerdown", outside); };
-  }, [active, s.configure, gfn, wifiOnly, ps, !!localSetup, savesOpen, perfOpen]);
+  }, [active, s.configure, gfn, wifiOnly, ps, !!localSetup, savesOpen, perfOpen, achievementsOpen]);
   useEffect(() => {
     if (!choices) return;
     const timer = window.setTimeout(() => {
@@ -300,6 +304,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
         {!s.gameUrl && s.clients.geforceNow && row("GeForce NOW library", "", "#7cab00", () => s.launch("geforceNow"))}
       </>}
       {saveGame && <button type="button" role="menuitem" onClick={() => choose(() => setSavesOpen(true))}><IoSaveOutline aria-hidden="true" /> {text("Manage saves")}</button>}
+      {achievementsGame && <button type="button" role="menuitem" onClick={() => choose(() => setAchievementsOpen(true))}><IoTrophyOutline aria-hidden="true" /> {text("Achievements")}</button>}
       {performanceGame && <button type="button" role="menuitem" onClick={() => choose(() => setPerfOpen(true))}><IoSpeedometerOutline aria-hidden="true" /> {text("Performance")}</button>}
       <button type="button" role="menuitem" onClick={() => choose(manage)}>{text(manageLabel)}</button>
     </div>}
@@ -309,6 +314,7 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
     }}>
     {savesOpen && saveTarget && <ManageSaves app={saveTarget} onClose={close} control={savesControl} />}
     {perfOpen && performanceGame && <PerformanceDialog app={performanceGame} onClose={close} />}
+    {achievementsOpen && achievementsGame && <AchievementsDialog app={achievementsGame} onClose={close} />}
     {localSetup && !savesOpen && <div className="crete-stream-backdrop" data-local-launch-dialog onClick={event => { if (event.target === event.currentTarget) close(); }}><section role="dialog" aria-modal="true" aria-label="Launch settings" className="crete-stream-settings crete-stream-dialog">
       <header className="crete-stream-heading"><h2>{localSetup.app.name}</h2>
         <div className="crete-stream-heading-meta crete-stream-heading-meta-pair"><p className="crete-stream-summary">{localDisplaySummary}</p>{audioSummary}</div>

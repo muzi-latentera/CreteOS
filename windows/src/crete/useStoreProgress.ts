@@ -4,9 +4,32 @@ import { listen } from "@tauri-apps/api/event";
 import type { App } from "../types";
 export interface StoreProgress {
   minutes?: number; last_played?: number; earned?: number; total?: number; xp?: number; total_xp?: number;
-  achievements?: { id: string; name: string; description: string; unlocked: boolean; unlocked_at?: number }[];
+  achievements?: { id: string; name: string; description: string; unlocked: boolean; unlocked_at?: number; icon?: string }[];
+}
+
+/** Steam achievements come from Steam's local cache (no account request). */
+function useSteamAchievements(app: App | undefined, enabled: boolean) {
+  const [progress, setProgress] = useState<StoreProgress | null>(null);
+  const appId = app?.source === "steam" && app.steam_appid ? String(app.steam_appid) : undefined;
+  useEffect(() => {
+    setProgress(null);
+    if (!enabled || !appId) return;
+    let active = true;
+    const read = () => void Promise.resolve(invoke<StoreProgress | null>("steam_achievements", { appId })).then(result => { if (active) setProgress(result ?? null); }).catch(() => {});
+    read();
+    // Steam rewrites its cache when a game closes; read again on return.
+    window.addEventListener("focus", read);
+    return () => { active = false; window.removeEventListener("focus", read); };
+  }, [appId, enabled]);
+  return progress;
 }
 export function useStoreProgress(app: App | undefined, enabled = true) {
+  const steam = useSteamAchievements(app, enabled);
+  const store = useAccountProgress(app, enabled);
+  return app?.source === "steam" ? steam : store;
+}
+
+function useAccountProgress(app: App | undefined, enabled: boolean) {
   const [progress, setProgress] = useState<StoreProgress | null>(null);
   const source = app?.source;
   const gameId = app?.store_id ?? (source === "epic" ? app?.id.replace(/^epic:/, "") : undefined);

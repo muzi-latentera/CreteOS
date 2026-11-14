@@ -1276,6 +1276,7 @@ export function GameDetailsModal({
                 }} copies={actions.filter(action => action.key.startsWith("copy-"))} local={handleLocalAction} localLabel={installed ? "Local" : installing ? "Cancel installation" : storeAccountGame ? storeClientLabel : "Install locally"}
                 saveGame={app.source === "lutris" || (installed && canManageSaves(app)) ? app : undefined}
                 performanceGame={installed && app.app_type === "game" && !["cloud", "lutris", "playstation"].includes(app.source ?? "") ? app : undefined}
+                achievementsGame={app.app_type === "game" && ((app.source === "steam" && !!app.steam_appid) || ["epic", "gog", "lutris"].includes(app.source ?? "")) ? app : undefined}
                 manageLabel={hasStoreContent && activeTab === "manage" ? "Game information" : "Manage game"}
                 localEnabled={installed || canInstall || canXboxInstall || storeAccountGame || installing} manage={() => {
                   revealControls(); const next = hasStoreContent && activeTab === "manage" ? "details" : "manage";
