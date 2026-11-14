@@ -50,6 +50,7 @@ import { SettingsProvider } from "./contexts/SettingsContext";
 import { AppHeader } from "./components/layout/AppHeader";
 import { AppBottomBar } from "./components/layout/AppBottomBar";
 import { HelperTray, getHelperTrayUnderlayFilter } from "./components/layout/HelperTray";
+import { CretePanels } from "./crete/CretePanels";
 import { AppBackground } from "./components/app/AppBackground";
 import { AppMainContent } from "./components/app/AppMainContent";
 import { AppOverlays } from "./components/app/AppOverlays";
@@ -4280,6 +4281,7 @@ export default function App() {
         />
       </div>
 
+      <CretePanels />
       <HelperTray
         open={showHelperTray}
         mode={helperBarMode}

@@ -25,6 +25,8 @@ export interface SteamStatus {
 export const SETTINGS_SECTIONS = [
   { key: "appearance", labelKey: "settings.sections.appearance" },
   { key: "library",    labelKey: "settings.sections.library"    },
+  { key: "performance", labelKey: "settings.sections.performance" },
+  { key: "saves",      labelKey: "settings.sections.saves"      },
   { key: "behavior",   labelKey: "settings.sections.behavior"   },
   { key: "controller", labelKey: "settings.sections.controller" },
   { key: "data",       labelKey: "settings.sections.data"       },
@@ -225,70 +227,79 @@ export function buildSettingsItems(t: TFunction, activeTheme: string): SettingsI
     { key: "custom_folders",  section: 1, label: t("settings.customFolders"),  type: "custom_folders" },
     { key: "refresh_library", section: 1, label: t("settings.refreshLibrary"), type: "refresh" },
 
-    // ── Behavior ─────────────────────────────────────────────────
-    D("navigation", 2),
-    { key: "default_tab",      section: 2, label: t("settings.defaultTab"),      type: "cycle",  options: ["Home","Games","Apps"] },
-    { key: "repeat_speed",     section: 2, label: t("settings.repeatSpeed"),     type: "cycle",  options: ["slow","normal","fast"] },
-    { key: "launch_at_startup",section: 2, label: t("settings.launchAtStartup"), type: "toggle" },
+    // ── Performance (OneXConsole-backed on the G1) ─────────────────
+    D("power", 2),
+    { key: "open_performance", section: 2, label: t("settings.openPerformance", { defaultValue: "Power & fan curves" }), type: "action" },
+    { key: "performance_help", section: 2, label: t("settings.performanceHelp", { defaultValue: "Per-game power, fan and frame limit: open a game → Options → Performance." }), type: "info" },
 
-    D("localization", 2),
-    { key: "language",    section: 2, label: t("settings.language"),   type: "cycle",  options: [...LANGUAGE_OPTIONS] },
-    { key: "time_format", section: 2, label: t("settings.timeFormat"), type: "cycle",  options: ["auto","12h","24h"] },
-    { key: "show_clock",  section: 2, label: t("settings.showClock"),  type: "toggle" },
-    { key: "show_date",   section: 2, label: t("settings.showDate"),   type: "toggle" },
-    { key: "show_battery",section: 2, label: t("settings.showBattery"),type: "toggle" },
+    // ── Game saves ──────────────────────────────────────────────
+    D("saves", 3),
+    { key: "open_saves", section: 3, label: t("settings.openSaves", { defaultValue: "Google Drive & recent backups" }), type: "action" },
+    { key: "saves_help", section: 3, label: t("settings.savesHelp", { defaultValue: "Back up, check or restore a game: open it → Options → Manage saves." }), type: "info" },
 
-    D("media", 2),
-    { key: "animated_heroes", section: 2, label: t("settings.heroArtMode"), type: "cycle", options: ["static","animated","custom"] },
+    // ── Behavior ─────────────────────────────────────────────────    D("navigation", 4),
+    { key: "default_tab",      section: 4, label: t("settings.defaultTab"),      type: "cycle",  options: ["Home","Games","Apps"] },
+    { key: "repeat_speed",     section: 4, label: t("settings.repeatSpeed"),     type: "cycle",  options: ["slow","normal","fast"] },
+    { key: "launch_at_startup",section: 4, label: t("settings.launchAtStartup"), type: "toggle" },
 
-    D("streaming", 2),
-    { key: "moonlight_client", section: 2, label: t("settings.openMoonlight"), type: "link" },
-    { key: "geforce_client", section: 2, label: t("settings.openGeForce"), type: "link" },
-    { key: "streaming_help", section: 2, label: t("settings.streamingHelp"), type: "info" },
-    D("spotify", 2),
-    { key: "spotify", section: 2, label: t("spotify.title"), type: "spotify" },
+    D("localization", 4),
+    { key: "language",    section: 4, label: t("settings.language"),   type: "cycle",  options: [...LANGUAGE_OPTIONS] },
+    { key: "time_format", section: 4, label: t("settings.timeFormat"), type: "cycle",  options: ["auto","12h","24h"] },
+    { key: "show_clock",  section: 4, label: t("settings.showClock"),  type: "toggle" },
+    { key: "show_date",   section: 4, label: t("settings.showDate"),   type: "toggle" },
+    { key: "show_battery",section: 4, label: t("settings.showBattery"),type: "toggle" },
+
+    D("media", 4),
+    { key: "animated_heroes", section: 4, label: t("settings.heroArtMode"), type: "cycle", options: ["static","animated","custom"] },
+
+    D("streaming", 4),
+    { key: "moonlight_client", section: 4, label: t("settings.openMoonlight"), type: "link" },
+    { key: "geforce_client", section: 4, label: t("settings.openGeForce"), type: "link" },
+    { key: "streaming_help", section: 4, label: t("settings.streamingHelp"), type: "info" },
+    D("spotify", 4),
+    { key: "spotify", section: 4, label: t("spotify.title"), type: "spotify" },
 
     // ── Controller ───────────────────────────────────────────────
-    { key: "gamepad_platform",       section: 3, label: t("settings.gamepadPlatform"),     type: "cycle",  options: ["xbox","ps","switch"] },
-    { key: "gamepad_auto_detect",    section: 3, label: t("settings.gamepadAutoDetect"),    type: "toggle" },
-    { key: "haptic_feedback",        section: 3, label: t("settings.hapticFeedback"),       type: "toggle" },
-    { key: "fse_return_shortcut",     section: 3, label: t("settings.fseReturnShortcut"),    type: "cycle",  options: FSE_RETURN_SHORTCUT_OPTIONS },
-    { key: "gamepad_icons_colored",     section: 3, label: t("settings.gamepadIconsColored"),    type: "toggle" },
-    { key: "gamepad_icons_filled",      section: 3, label: t("settings.gamepadIconsFilled"),     type: "toggle" },
-    { key: "gamepad_icons_theme_color", section: 3, label: t("settings.gamepadIconsThemeColor"), type: "toggle" },
-    { key: "gamepad_btn_size",          section: 3, label: t("settings.gamepadBtnSize"),          type: "cycle",  options: ["small", "medium", "large"] },
-    { key: "gamepad_icon_preview",      section: 3, label: t("settings.gamepadIconPreview"),     type: "icon_preview" },
-    { key: "controller_test",           section: 3, label: t("settings.controllerTest"),         type: "controller_test" },
+    { key: "gamepad_platform",       section: 5, label: t("settings.gamepadPlatform"),     type: "cycle",  options: ["xbox","ps","switch"] },
+    { key: "gamepad_auto_detect",    section: 5, label: t("settings.gamepadAutoDetect"),    type: "toggle" },
+    { key: "haptic_feedback",        section: 5, label: t("settings.hapticFeedback"),       type: "toggle" },
+    { key: "fse_return_shortcut",     section: 5, label: t("settings.fseReturnShortcut"),    type: "cycle",  options: FSE_RETURN_SHORTCUT_OPTIONS },
+    { key: "gamepad_icons_colored",     section: 5, label: t("settings.gamepadIconsColored"),    type: "toggle" },
+    { key: "gamepad_icons_filled",      section: 5, label: t("settings.gamepadIconsFilled"),     type: "toggle" },
+    { key: "gamepad_icons_theme_color", section: 5, label: t("settings.gamepadIconsThemeColor"), type: "toggle" },
+    { key: "gamepad_btn_size",          section: 5, label: t("settings.gamepadBtnSize"),          type: "cycle",  options: ["small", "medium", "large"] },
+    { key: "gamepad_icon_preview",      section: 5, label: t("settings.gamepadIconPreview"),     type: "icon_preview" },
+    { key: "controller_test",           section: 5, label: t("settings.controllerTest"),         type: "controller_test" },
 
     // ── Data ─────────────────────────────────────────────────────
-    { key: "device_storage", section: 4, label: t("settings.deviceStorage"), type: "storage_info" },
-    { key: "clear_recents", section: 4, label: t("settings.clearRecents"), type: "action" },
-    { key: "clear_cache",   section: 4, label: t("settings.clearCache"),   type: "action" },
-    { key: "rerun_onboarding", section: 4, label: t("settings.rerunOnboarding"), type: "action" },
-    { key: "factory_reset", section: 4, label: t("settings.factoryReset"), type: "action" },
+    { key: "device_storage", section: 6, label: t("settings.deviceStorage"), type: "storage_info" },
+    { key: "clear_recents", section: 6, label: t("settings.clearRecents"), type: "action" },
+    { key: "clear_cache",   section: 6, label: t("settings.clearCache"),   type: "action" },
+    { key: "rerun_onboarding", section: 6, label: t("settings.rerunOnboarding"), type: "action" },
+    { key: "factory_reset", section: 6, label: t("settings.factoryReset"), type: "action" },
 
     // ── About ─────────────────────────────────────────────────────
-    { key: "version",      section: 5, label: t("settings.version", { version: APP_VERSION }), type: "info" },
-    { key: "update_channel", section: 5, label: t("settings.updateChannel"), type: "cycle", options: ["stable","prerelease"] },
-    { key: "auto_update_check", section: 5, label: t("update.autoCheck"), type: "toggle" },
-    { key: "check_updates",section: 5, label: t("settings.checkUpdates"), type: "update" },
+    { key: "version",      section: 7, label: t("settings.version", { version: APP_VERSION }), type: "info" },
+    { key: "update_channel", section: 7, label: t("settings.updateChannel"), type: "cycle", options: ["stable","prerelease"] },
+    { key: "auto_update_check", section: 7, label: t("update.autoCheck"), type: "toggle" },
+    { key: "check_updates",section: 7, label: t("settings.checkUpdates"), type: "update" },
 
-    D("community", 5),
-    { key: "coffee",  section: 5, label: t("settings.coffee"),  type: "link" },
-    { key: "github",  section: 5, label: t("settings.github"),  type: "link" },
-    { key: "discord", section: 5, label: t("settings.discord"), type: "link" },
-    { key: "privacy", section: 5, label: t("settings.privacy"), type: "link" },
+    D("community", 7),
+    { key: "coffee",  section: 7, label: t("settings.coffee"),  type: "link" },
+    { key: "github",  section: 7, label: t("settings.github"),  type: "link" },
+    { key: "discord", section: 7, label: t("settings.discord"), type: "link" },
+    { key: "privacy", section: 7, label: t("settings.privacy"), type: "link" },
 
-    D("credits", 5),
-    { key: "credit-upstream", section: 5, label: "Windows launcher foundation", author: "LiftOff / PixelateWizard", license: "GPL-3.0", url: "https://github.com/PixelateWizard/LiftOff", type: "attribution" },
-    { key: "credit0", section: 5, label: "i18n, SGDB art, custom sources, controller glyphs, themes & settings", author: "moi952", license: "GitHub", url: "https://github.com/moi952", type: "attribution" },
-    { key: "credit1", section: 5, label: "Mysterious Magical Bell Flourish", author: "DanaiOuranos",  license: "CC0",        url: "https://freesound.org/s/848847/",                       type: "attribution" },
-    { key: "credit2", section: 5, label: "achievement-sparkle",              author: "DriftSpeira",   license: "Creative Commons 0", url: "https://freesound.org/s/715067/",  type: "attribution" },
-    { key: "credit3", section: 5, label: "fantasy world UI sound",           author: "114802300",     license: "Creative Commons 0", url: "https://freesound.org/s/841346/",  type: "attribution" },
-    { key: "credit4", section: 5, label: "Simple or Cute UI / UX / Interface Pause sound", author: "Feraly_", license: "Creative Commons 0", url: "https://freesound.org/s/836452/", type: "attribution" },
-    { key: "credit5", section: 5, label: "Universal UI Soundpack",           author: "Nathan Gibson", license: "CC BY 4.0",  url: "https://cyrex-studios.itch.io/universal-ui-soundpack", type: "attribution" },
-    { key: "credit6", section: 5, label: "Night Stock Videos by Vecteezy",   author: "Vecteezy",      license: "Vecteezy Free License", url: "https://www.vecteezy.com/free-videos/night", type: "attribution" },
-    { key: "credit7", section: 5, label: "Rainy street and pixel night videos", author: "Vecteezy", license: "Vecteezy Free License", url: "https://www.vecteezy.com/free-videos/rain", type: "attribution" },
+    D("credits", 7),
+    { key: "credit-upstream", section: 7, label: "Windows launcher foundation", author: "LiftOff / PixelateWizard", license: "GPL-3.0", url: "https://github.com/PixelateWizard/LiftOff", type: "attribution" },
+    { key: "credit0", section: 7, label: "i18n, SGDB art, custom sources, controller glyphs, themes & settings", author: "moi952", license: "GitHub", url: "https://github.com/moi952", type: "attribution" },
+    { key: "credit1", section: 7, label: "Mysterious Magical Bell Flourish", author: "DanaiOuranos",  license: "CC0",        url: "https://freesound.org/s/848847/",                       type: "attribution" },
+    { key: "credit2", section: 7, label: "achievement-sparkle",              author: "DriftSpeira",   license: "Creative Commons 0", url: "https://freesound.org/s/715067/",  type: "attribution" },
+    { key: "credit3", section: 7, label: "fantasy world UI sound",           author: "114802300",     license: "Creative Commons 0", url: "https://freesound.org/s/841346/",  type: "attribution" },
+    { key: "credit4", section: 7, label: "Simple or Cute UI / UX / Interface Pause sound", author: "Feraly_", license: "Creative Commons 0", url: "https://freesound.org/s/836452/", type: "attribution" },
+    { key: "credit5", section: 7, label: "Universal UI Soundpack",           author: "Nathan Gibson", license: "CC BY 4.0",  url: "https://cyrex-studios.itch.io/universal-ui-soundpack", type: "attribution" },
+    { key: "credit6", section: 7, label: "Night Stock Videos by Vecteezy",   author: "Vecteezy",      license: "Vecteezy Free License", url: "https://www.vecteezy.com/free-videos/night", type: "attribution" },
+    { key: "credit7", section: 7, label: "Rainy street and pixel night videos", author: "Vecteezy", license: "Vecteezy Free License", url: "https://www.vecteezy.com/free-videos/rain", type: "attribution" },
   ];
 
   // Insert theme-specific items after stars_enabled (only visible for that theme)
@@ -303,7 +314,8 @@ export function buildSettingsItems(t: TFunction, activeTheme: string): SettingsI
   // Crete uses fixed Android navigation chrome. Keep preferences for the other
   // themes, but do not offer controls which cannot affect this presentation.
   if (activeTheme === "crete") {
-    const unsupported = new Set(["stars_enabled", "wide_topbar", "wide_bottombar", "bottombar_mode", "bottombar_idle_collapse", "bottombar_peek_on_track", "bottombar_alignment", "tabbar_with_background", "nav_bumpers_pos", "tabbar_show_buttons", "tabbar_label_case", "tabbar_text_tabs", "tabbar_icon_mode", "discord"]);
+    // Leftovers from the upstream launcher that change nothing in Crete (audit, 13 Nov).
+    const unsupported = new Set(["theme", "accent", "surface_style", "stars_enabled", "lofi_scene", "onyx_top_light", "onyx_flat_settings", "show_hero_cover", "show_home_pinned", "wide_topbar", "wide_bottombar", "bottombar_mode", "bottombar_idle_collapse", "bottombar_peek_on_track", "bottombar_alignment", "tabbar_with_background", "nav_bumpers_pos", "tabbar_show_buttons", "tabbar_label_case", "tabbar_text_tabs", "tabbar_icon_mode", "gamepad_icons_colored", "gamepad_icons_filled", "gamepad_icons_theme_color", "gamepad_btn_size", "gamepad_icon_preview", "coffee", "discord", "privacy", "div_community"]);
     for (let i = items.length - 1; i >= 0; i--) {
       const item = items[i];
       if (unsupported.has(item.key)) items.splice(i, 1);
@@ -1131,6 +1143,7 @@ export function SettingsScreen({
     if (item.type === "action")
       return (
         <div key={item.key} data-settings-row="" className={focused ? "focused" : ""} ref={rowRef} style={rowStyle} onClick={() => {
+          if (item.key.startsWith("open_")) window.dispatchEvent(new CustomEvent("crete-open-panel", { detail: item.key }));
           if (item.key === "clear_recents") onClearRecents();
           if (item.key === "clear_cache")   handleClearCache();
           if (item.key === "reset_scale")   updateSetting("ui_scale", autoScale);

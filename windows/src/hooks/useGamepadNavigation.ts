@@ -1430,6 +1430,7 @@ export function useGamepadNavigation(
           haptic("confirm");
         }
         else if (item.type === "action") {
+          if (item.key.startsWith("open_")) window.dispatchEvent(new CustomEvent("crete-open-panel", { detail: item.key }));
           if (item.key === "clear_recents") handleClearRecents();
           if (item.key === "clear_cache")   handleClearCache();
           if (item.key === "reset_scale")   updateSetting("ui_scale", autoScaleRef.current);

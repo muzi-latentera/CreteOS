@@ -51,6 +51,7 @@ use windows::{
 
 mod fse_watcher;
 mod game_saves;
+mod performance;
 mod lofi_media;
 mod steam_appinfo;
 mod storage_info;
@@ -10240,6 +10241,25 @@ fn shell_execute(verb: &str, file: &str, directory: Option<&str>) -> Result<(), 
     if code <= 32 { Err(code) } else { Ok(()) }
 }
 
+/// As `shell_execute`, with arguments and a hidden window (used for one
+/// elevated helper command).
+fn shell_execute_args(verb: &str, file: &str, parameters: &str) -> Result<(), isize> {
+    let wide = |value: &str| -> Vec<u16> { std::ffi::OsStr::new(value).encode_wide().chain(std::iter::once(0)).collect() };
+    let (verb, file, parameters) = (wide(verb), wide(file), wide(parameters));
+    let result = unsafe {
+        ShellExecuteW(
+            None,
+            windows::core::PCWSTR(verb.as_ptr()),
+            windows::core::PCWSTR(file.as_ptr()),
+            windows::core::PCWSTR(parameters.as_ptr()),
+            windows::core::PCWSTR::null(),
+            windows::Win32::UI::WindowsAndMessaging::SW_HIDE,
+        )
+    };
+    let code = result.0 as isize;
+    if code <= 32 { Err(code) } else { Ok(()) }
+}
+
 fn shell_execute_message(code: isize, what: &str) -> String {
     match code {
         // SE_ERR_ACCESSDENIED, which is also what a cancelled UAC prompt returns.
@@ -10638,6 +10658,12 @@ async fn launch_app(
             return;
         }
         if found != 0 {
+            if watch_is_game {
+                // Lets per-game power presets bind to the process OneXConsole sees.
+                let mut pid = 0u32;
+                unsafe { GetWindowThreadProcessId(windows::Win32::Foundation::HWND(found as _), Some(&mut pid)); }
+                if let Some(exe) = process_exe_path(pid) { performance::remember_game_process(&watch_path, &exe); }
+            }
             if game_saves::eligible(if watch_is_game { "game" } else { "app" }, &watch_source, &watch_path) {
                 game_saves::watch_exit(found, watch_name.clone());
             }
@@ -10754,6 +10780,12 @@ pub fn run() {
             stream_wifi::get_stream_wifi_preferences,
             stream_audio::get_stream_audio_devices,
             game_saves::compare_game_saves,
+            game_saves::get_save_overview,
+            performance::get_performance_status,
+            performance::get_game_performance,
+            performance::set_game_performance,
+            performance::set_fan_curve,
+            performance::apply_power_settings,
             game_saves::manage_game_save,
             game_saves::check_game_saves,
             launch_display::get_local_display_modes,

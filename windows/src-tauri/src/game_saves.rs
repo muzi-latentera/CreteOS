@@ -597,6 +597,30 @@ pub async fn manage_game_save(request: SaveAction) -> Result<Value, String> {
     }).await.map_err(|error| error.to_string())?
 }
 
+// ---------------------------------------------------------------- Settings overview
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveOverview { remote: Option<String>, folder: Option<String>, synchronize: bool, events: Vec<(String, SaveEvent)>, error: Option<String> }
+
+/// Settings → Game saves: where this PC's backups go and what happened lately.
+#[tauri::command]
+pub async fn get_save_overview() -> SaveOverview {
+    tauri::async_runtime::spawn_blocking(|| {
+        let mut events: Vec<(String, SaveEvent)> = std::fs::read(status_path()).ok()
+            .and_then(|bytes| serde_json::from_slice::<BTreeMap<String, SaveEvent>>(&bytes).ok()).unwrap_or_default().into_iter().collect();
+        events.sort_by(|a, b| b.1.when.cmp(&a.1.when));
+        events.truncate(30);
+        match read(&["config", "show", "--api"], 8) {
+            Ok(config) => SaveOverview {
+                remote: config["cloud"]["remote"]["Custom"]["id"].as_str().map(str::to_owned),
+                folder: config["cloud"]["path"].as_str().map(str::to_owned),
+                synchronize: config["cloud"]["synchronize"] == true, events, error: None },
+            Err(error) => SaveOverview { remote: None, folder: None, synchronize: false, events, error: Some(error) },
+        }
+    }).await.unwrap_or(SaveOverview { remote: None, folder: None, synchronize: false, events: vec![], error: Some("Save tools are unavailable.".into()) })
+}
+
 // ---------------------------------------------------------------- Pre-launch check
 
 #[derive(serde::Serialize)]

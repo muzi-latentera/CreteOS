@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS, HOME_PINNED_SHELF_ENABLED } from "../constants";
 import type { SettingsCycleItem } from "../types";
-import { buildSettingsItems, getSectionNavigableItems, getSettingCycleOptions, moveSettingsAccountActionFocus } from "./settings";
+import { buildSettingsItems, getSectionNavigableItems, getSettingCycleOptions, moveSettingsAccountActionFocus , SETTINGS_SECTIONS } from "./settings";
 
 const pinnedPositionItem: SettingsCycleItem = {
   key: "home_pinned_pos",
@@ -65,7 +65,7 @@ describe("Data settings navigation", () => {
     const t = (key: string) => key;
     const items = buildSettingsItems(t as never, "default");
     expect(items.some((item) => item.key === "factory_reset" && item.type === "action")).toBe(true);
-    expect(getSectionNavigableItems(4, items, DEFAULT_SETTINGS).some((item) => item.key === "factory_reset")).toBe(true);
+    expect(getSectionNavigableItems(SETTINGS_SECTIONS.findIndex(section => section.key === "data"), items, DEFAULT_SETTINGS).some((item) => item.key === "factory_reset")).toBe(true);
   });
 });
 
@@ -141,7 +141,7 @@ describe("Controller settings navigation", () => {
     expect(items.some((item) => item.key === "gamepad_icon_preview" && item.type === "icon_preview")).toBe(true);
     expect(items.some((item) => item.key === "controller_test" && item.type === "controller_test")).toBe(true);
 
-    const navigable = getSectionNavigableItems(3, items, DEFAULT_SETTINGS);
+    const navigable = getSectionNavigableItems(SETTINGS_SECTIONS.findIndex(section => section.key === "controller"), items, DEFAULT_SETTINGS);
     expect(navigable.some((item) => item.key === "gamepad_icon_preview")).toBe(true);
     expect(navigable.some((item) => item.key === "controller_test")).toBe(true);
   });
@@ -172,5 +172,21 @@ describe("Crete settings cleanup", () => {
     expect(items.some(item => item.key === "discord")).toBe(false);
     expect(items.some(item => item.key === "credit-upstream")).toBe(true);
     expect(buildSettingsItems(((key: string) => key) as never, "space").some(item => item.key === "discord")).toBe(true);
+  });
+});
+
+describe("Crete settings clean-up", () => {
+  it("hides upstream leftovers and offers the Performance and Game saves pages", () => {
+    const t = (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key;
+    const items = buildSettingsItems(t as never, "crete");
+    for (const key of ["theme", "accent", "surface_style", "show_home_pinned", "gamepad_btn_size", "gamepad_icon_preview", "coffee", "discord", "privacy"]) {
+      expect(items.some((item) => item.key === key), key).toBe(false);
+    }
+    const performance = SETTINGS_SECTIONS.findIndex(section => section.key === "performance");
+    const saves = SETTINGS_SECTIONS.findIndex(section => section.key === "saves");
+    expect(getSectionNavigableItems(performance, items, DEFAULT_SETTINGS).some((item) => item.key === "open_performance")).toBe(true);
+    expect(getSectionNavigableItems(saves, items, DEFAULT_SETTINGS).some((item) => item.key === "open_saves")).toBe(true);
+    expect(items.some((item) => item.key === "controller_test")).toBe(true);
+    expect(items.some((item) => item.key === "sfx_enabled")).toBe(true);
   });
 });

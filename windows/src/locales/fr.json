@@ -273,6 +273,8 @@
     "sections": {
       "appearance": "Affichage et accueil",
       "library": "Bibliothèque et comptes",
+      "performance": "Performances",
+      "saves": "Sauvegardes de jeu",
       "behavior": "Démarrage et streaming",
       "controller": "Manette",
       "data": "Stockage et dépannage",
@@ -445,6 +447,8 @@
     "discord": "LiftOff community",
     "privacy": "Politique de confidentialité",
     "dividers": {
+      "power": "Alimentation et ventilateurs",
+      "saves": "Sauvegardes",
       "display": "AFFICHAGE",
       "library": "BIBLIOTHÈQUE",
       "behavior": "COMPORTEMENT",

@@ -273,6 +273,8 @@
     "sections": {
       "appearance": "Pantalla e Inicio",
       "library": "Biblioteca y cuentas",
+      "performance": "Rendimiento",
+      "saves": "Partidas guardadas",
       "behavior": "Inicio y streaming",
       "controller": "Mando",
       "data": "Almacenamiento y diagnóstico",
@@ -445,6 +447,8 @@
     "discord": "LiftOff community",
     "privacy": "Política de privacidad",
     "dividers": {
+      "power": "Energía y ventiladores",
+      "saves": "Copias",
       "display": "PANTALLA",
       "library": "BIBLIOTECA",
       "behavior": "COMPORTAMIENTO",
