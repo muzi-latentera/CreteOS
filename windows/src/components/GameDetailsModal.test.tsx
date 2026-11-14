@@ -21,6 +21,8 @@ vi.mock("../hooks/useDeckCompat", () => ({
   useDeckCompat: () => hookState.deckCompat,
 }));
 vi.mock("./ui/StoreBadge", () => ({ StoreBadge: () => null }));
+const invokeMock = vi.hoisted(() => vi.fn((..._args: unknown[]) => Promise.resolve()));
+vi.mock("@tauri-apps/api/core", async (original) => ({ ...(await original<object>()), invoke: invokeMock }));
 
 const labels: Record<string, string> = {
   "install.install": "Install",
@@ -152,6 +154,16 @@ describe("Game Details modal", () => {
     expect(callback).toBeDefined();
     act(() => callback?.(now));
   }
+
+  it("opens the store's own install step for an Epic game and says where to finish", async () => {
+    invokeMock.mockClear();
+    act(() => root.render(<GameDetailsModal {...baseProps()} app={{ id: "epic:sugar", name: "Sugar", source: "epic", installed: false, store_id: "Sugar" }}
+      canXboxInstall={false} />));
+    const install = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Install");
+    await act(async () => { install?.click(); });
+    expect(invokeMock).toHaveBeenCalledWith("store_install_game", { source: "epic", storeId: "Sugar" });
+    expect(container.querySelector('[role="status"]')?.textContent).toContain("Finish the install in Epic Games Launcher");
+  });
 
   it("allows confirmation when size and free space are known and sufficient", () => {
     const onXboxInstall = vi.fn();

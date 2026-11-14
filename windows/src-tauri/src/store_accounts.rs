@@ -402,6 +402,57 @@ pub fn store_open_library(app: tauri::AppHandle, source: String, store_id: Optio
     app.opener().open_url(uri, None::<&str>).map_err(|_| "Could not open the store client. Install Epic Games Launcher or GOG Galaxy first, then try again.".into())
 }
 
+/// The store link that opens this game's own install step: Epic's install
+/// dialog for the exact catalog item, or the game's page in GOG Galaxy.
+fn install_uri(store: Store, store_id: &str, games: &[OwnedGame]) -> Result<String, String> {
+    if !safe_id(store_id) { return Err("This game has no store ID".into()); }
+    if store == Store::Gog {
+        if !store_id.chars().all(|c| c.is_ascii_digit()) { return Err("This game has no GOG ID".into()); }
+        return Ok(format!("goggalaxy://openGameView/{store_id}"));
+    }
+    Ok(match games.iter().find(|game| game.id.eq_ignore_ascii_case(store_id) && !game.namespace.is_empty() && !game.catalog_id.is_empty()) {
+        Some(game) => format!("com.epicgames.launcher://apps/{}?action=install", urlencoding::encode(&format!("{}:{}:{}", game.namespace, game.catalog_id, game.id))),
+        None => "com.epicgames.launcher://library".into(),
+    })
+}
+
+static INSTALL_WATCHES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// Watch for the store client to finish installing, then tell the library.
+/// Installs can take hours on a slow connection, so this waits up to six.
+fn watch_install(app: tauri::AppHandle, store: Store, store_id: String) {
+    let key = format!("{}:{}", store.name(), store_id.to_ascii_lowercase());
+    {
+        let Ok(mut watches) = INSTALL_WATCHES.lock() else { return; };
+        if watches.contains(&key) { return; }
+        watches.push(key.clone());
+    }
+    std::thread::spawn(move || {
+        let installed = (0..6 * 3600 / 3).any(|attempt| {
+            if attempt > 0 { std::thread::sleep(Duration::from_secs(3)); }
+            if store == Store::Epic { super::epic_game_installed(&store_id) } else { super::gog_game_installed(&store_id) }
+        });
+        if let Ok(mut watches) = INSTALL_WATCHES.lock() { watches.retain(|watch| *watch != key); }
+        if installed {
+            let _ = app.emit("store-install-finished", json!({ "source": store.name(), "storeId": store_id }));
+        }
+    });
+}
+
+#[tauri::command]
+pub fn store_install_game(app: tauri::AppHandle, source: String, store_id: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let store = Store::parse(&source)?;
+    let games = load(store).map(|library| library.games).unwrap_or_default();
+    let uri = install_uri(store, &store_id, &games)?;
+    app.opener().open_url(uri, None::<&str>).map_err(|_| {
+        if store == Store::Epic { "Could not open Epic Games Launcher. Install it first, then try again.".to_string() }
+        else { "Could not open GOG Galaxy. Install it first, then try again.".to_string() }
+    })?;
+    watch_install(app, store, store_id);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn store_account_connect(app: tauri::AppHandle, source: String) -> Result<Status, String> {
     let store = Store::parse(&source)?;
@@ -467,6 +518,14 @@ pub fn store_account_cancel(app: tauri::AppHandle, source: String) -> Result<(),
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn install_links_open_the_games_own_install_step() {
+        let games = vec![OwnedGame { id: "Sugar".into(), name: "Sugar".into(), namespace: "ns".into(), catalog_id: "cat".into(), cover: None }];
+        assert_eq!(install_uri(Store::Epic, "sugar", &games).unwrap(), "com.epicgames.launcher://apps/ns%3Acat%3ASugar?action=install");
+        assert_eq!(install_uri(Store::Epic, "Unknown", &games).unwrap(), "com.epicgames.launcher://library");
+        assert_eq!(install_uri(Store::Gog, "1207658924", &[]).unwrap(), "goggalaxy://openGameView/1207658924");
+        assert!(install_uri(Store::Gog, "abc", &[]).is_err());
+        assert!(install_uri(Store::Epic, "a/b", &games).is_err());
+    }
     #[test] fn gog_pagination_reads_every_page_and_propagates_failures() {
         let mut pages = Vec::new();
         let games = gog_pages(|page| { pages.push(page); Ok(json!({"totalPages":3,"products":[{"id":page,"title":format!("Game {page}")}]})) }).unwrap();

@@ -829,6 +829,10 @@ export default function App() {
       }));
       // Automatic owned-library updates (for example at start-up) refresh quietly;
       // the blocking "Refreshing library" panel is for refreshes the user asked for.
+      // Epic Games Launcher or GOG Galaxy finished an install started from CreteOS.
+      unsubs.push(await listen("store-install-finished", () => {
+        if (!disposed) refreshLibrary({ background: true });
+      }));
       unsubs.push(await listen("steam-owned-refresh", () => {
         if (!disposed) {
           refreshSteamStatus();

@@ -258,6 +258,7 @@ export function GameDetailsModal({
   const isXbox = source === "xbox";
   const storeAccountGame = source === "epic" || source === "gog";
   const [storeClientError, setStoreClientError] = useState("");
+  const [storeInstallNote, setStoreInstallNote] = useState("");
   const storeClientLabel = t("install.install");
   const steamAppId = app.steam_appid != null ? String(app.steam_appid) : undefined;
   const numericSteamAppId = steamAppId && /^\d+$/.test(steamAppId)
@@ -451,7 +452,14 @@ export function GameDetailsModal({
     }
     if (storeAccountGame) {
       setStoreClientError("");
-      void invoke("store_open_library", { source, storeId: app.store_id ?? null }).catch(error => setStoreClientError(String(error)));
+      setStoreInstallNote("");
+      const client = source === "epic" ? "Epic Games Launcher" : "GOG Galaxy";
+      const request = app.store_id
+        ? invoke("store_install_game", { source, storeId: app.store_id })
+        : invoke("store_open_library", { source, storeId: null });
+      void request
+        .then(() => setStoreInstallNote(`Finish the install in ${client}. ${app.name} appears here as installed when it's done.`))
+        .catch(error => setStoreClientError(String(error)));
       return;
     }
     if (canInstall) {
@@ -1333,6 +1341,7 @@ export function GameDetailsModal({
               )}
             </div>
             {storeClientError && <p role="alert" className="crete-launch-error">{storeClientError}</p>}
+            {!storeClientError && storeInstallNote && !installed && <p role="status" className="crete-launch-note">{storeInstallNote}</p>}
             {streaming.error && <p role="alert" className={resolvedTheme === "crete" ? "crete-launch-error" : undefined}>{streaming.error}</p>}
             {installing && (
               <div style={{ width: controlsRevealed ? 170 : 220, display: "flex", flexDirection: "column", gap: 5 }}>

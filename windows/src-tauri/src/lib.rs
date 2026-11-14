@@ -7915,6 +7915,61 @@ struct EpicManifest {
     main_game_app_name: Option<String>,
     #[serde(rename = "bIsApplication")]
     is_application: Option<bool>,
+    /// Epic writes the manifest when a download starts; this stays true until it finishes.
+    #[serde(rename = "bIsIncompleteInstall")]
+    incomplete: Option<bool>,
+}
+
+fn epic_manifest_dir() -> PathBuf {
+    let program_data = std::env::var("PROGRAMDATA").unwrap_or_else(|_| "C:\\ProgramData".to_string());
+    Path::new(&program_data).join("Epic").join("EpicGamesLauncher").join("Data").join("Manifests")
+}
+
+/// True when `data` is Epic's manifest for `app_name`, the install has finished
+/// and its program exists.
+fn epic_manifest_installs(data: &str, app_name: &str, exists: impl Fn(&Path) -> bool) -> bool {
+    let Ok(manifest) = serde_json::from_str::<EpicManifest>(data) else { return false; };
+    if manifest.incomplete == Some(true) || !manifest.app_name.as_deref().is_some_and(|name| name.eq_ignore_ascii_case(app_name)) {
+        return false;
+    }
+    let (Some(install), Some(exe)) = (manifest.install_location, manifest.launch_executable) else { return false; };
+    if install.is_empty() || exe.is_empty() { return false; }
+    let exe = Path::new(&exe);
+    exists(&if exe.is_absolute() { exe.to_path_buf() } else { Path::new(&install).join(exe) })
+}
+
+pub(crate) fn epic_game_installed(app_name: &str) -> bool {
+    std::fs::read_dir(epic_manifest_dir()).into_iter().flatten().flatten()
+        .filter(|entry| entry.path().extension().is_some_and(|ext| ext.eq_ignore_ascii_case("item")))
+        .filter_map(|entry| std::fs::read_to_string(entry.path()).ok())
+        .any(|data| epic_manifest_installs(&data, app_name, |path| path.exists()))
+}
+
+/// GOG Galaxy registers a game under GOG.com\Games\<product id> once it is installed.
+pub(crate) fn gog_game_installed(product_id: &str) -> bool {
+    use windows::Win32::System::Registry::HKEY_LOCAL_MACHINE;
+    ["SOFTWARE\\WOW6432Node\\GOG.com\\Games", "SOFTWARE\\GOG.com\\Games"].iter().any(|root| {
+        registry_string_value(HKEY_LOCAL_MACHINE, &format!("{root}\\{product_id}"), Some("path"))
+            .is_some_and(|path| Path::new(path.trim_end_matches('\0')).exists())
+    })
+}
+
+#[cfg(test)]
+mod epic_manifest_tests {
+    use super::epic_manifest_installs;
+    use std::path::Path;
+
+    #[test]
+    fn only_finished_installs_with_their_program_count() {
+        let done = r#"{"AppName":"Fortnite","InstallLocation":"C:\\Games\\Fortnite","LaunchExecutable":"bin\\game.exe","bIsIncompleteInstall":false}"#;
+        let partial = r#"{"AppName":"Fortnite","InstallLocation":"C:\\Games\\Fortnite","LaunchExecutable":"bin\\game.exe","bIsIncompleteInstall":true}"#;
+        let found = |path: &Path| path == Path::new("C:\\Games\\Fortnite\\bin\\game.exe");
+        assert!(epic_manifest_installs(done, "fortnite", found));
+        assert!(!epic_manifest_installs(partial, "Fortnite", found));
+        assert!(!epic_manifest_installs(done, "Fortnite", |_| false));
+        assert!(!epic_manifest_installs(done, "Other", found));
+        assert!(!epic_manifest_installs("not json", "Fortnite", found));
+    }
 }
 
 fn scan_epic_games(
@@ -7963,7 +8018,7 @@ fn scan_epic_games(
         if name.is_empty() || install.is_empty() || exe_rel.is_empty() || app_id.is_empty() {
             continue;
         }
-        if manifest.is_application == Some(false) {
+        if manifest.is_application == Some(false) || manifest.incomplete == Some(true) {
             continue;
         }
         if let Some(main) = &manifest.main_game_app_name {
@@ -10948,6 +11003,7 @@ pub fn run() {
             store_accounts::store_account_disconnect,
             store_accounts::store_account_cancel,
             store_accounts::store_open_library,
+            store_accounts::store_install_game,
             steam_logout,
             fetch_steam_owned_games,
             xbox_account_status,
