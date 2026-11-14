@@ -167,3 +167,13 @@ Checkpoint archive `CreteOS-G1-profile-backup-20261114-005428.zip`:
 - **Open:** safety-net versions for Steam, Epic and Xbox games without store cloud saves (roadmap batch 2 item 7) need Ludusavi's per-game cloud flags. Not started.
 - **Rollback copies.** Tonight's installs had left 19 copies (2.7 GB). The install helper now keeps the five newest timestamped copies and sends older ones to the Recycle Bin. Named copies from earlier work are untouched. 10 copies remain (1.3 GB).
 - 183 Rust and 300 frontend tests passed. Installs at 02:52 (`B38F18AE…80BB`) and 03:00 (`891487B8…EA02`).
+- Checkpoint `CreteOS-Recovery-20261114-LaunchRobustness`:
+  - manifest `2840ca3e…cd02`, 168 files verified on the SanDisk;
+  - profile archive `55579675…a05e`, executable `891487b8…ea02` (source `99bb0be`), bundle `bc387fa`;
+  - pushed.
+
+## Controller search from the Library toolbar (source `a1584af`)
+
+- Choosing the Library's search icon with the controller now opens the search with its own on-screen keyboard. Before, it opened a plain text box that a controller couldn't type into. A mouse or touch click still opens the inline box.
+- **Verified on the G1** (install 03:08, `FD8EBEFD…4964`): Up to the toolbar, Right to the search icon, A → "Search games & apps" with the letter keyboard.
+- **For the owner to decide:** that keyboard shows a row of button hints (A Type, X Delete, Y Space, B Results). The owner said no button legends; it was left unchanged for now.
