@@ -303,6 +303,7 @@ struct SaveSources {
     versions: Vec<BackupVersion>,
     cloud_status: String,
     cloud_mapping: Option<String>,
+    cloud_detail: Option<String>,
     last_event: Option<SaveEvent>,
 }
 
@@ -315,6 +316,8 @@ pub struct SaveComparison {
     cloud: Option<i64>,
     scan_ok: bool,
     cloud_status: String,
+    /// Why Google Drive could not be read (rclone's own reason), when it could not.
+    cloud_detail: Option<String>,
     /// `match`, `differ`, `unknown` or `none`.
     verdict: &'static str,
     message: String,
@@ -343,7 +346,9 @@ fn compare(sources: SaveSources, device: &str) -> SaveComparison {
     versions.sort_by_key(|version| std::cmp::Reverse(time(&version.when)));
     let cloud = sources.cloud_mapping.as_deref().and_then(|mapping| mapping.lines()
         .filter_map(|line| time(line.trim().strip_prefix("when:")?)).max());
+    let mut cloud_detail = sources.cloud_detail.filter(|detail| !detail.is_empty());
     let cloud_status = if sources.cloud_status == "ok" && cloud.is_none() {
+        cloud_detail.get_or_insert_with(|| "Google Drive's backup list could not be read.".into());
         "unavailable".into()
     } else { sources.cloud_status };
     let same = sources.local_change.as_deref() == Some("Same");
@@ -367,9 +372,26 @@ fn compare(sources: SaveSources, device: &str) -> SaveComparison {
     let mut message = message.replace("{device}", device);
     if let Some(first) = message.get(0..1) { message = first.to_uppercase() + &message[1..]; }
     SaveComparison { known: sources.known, active: sources.active, versions, cloud, scan_ok: sources.scan_ok, cloud_status,
-        verdict, message, last_event: sources.last_event }
+        cloud_detail, verdict, message, last_event: sources.last_event }
 }
 
+/// Plain-language reason for a failed rclone Drive call (shown in Manage saves).
+fn drive_reason(stderr: &str) -> String {
+    let text = stderr.to_lowercase();
+    let has = |keys: &[&str]| keys.iter().any(|key| text.contains(key));
+    if has(&["ratelimit", "rate limit", "rate_limit", "quota", "429", "too many requests", "resource_exhausted", "usagelimits"]) {
+        return "Google is limiting rclone's shared Google app right now. Your own Google client ID fixes this (see the setup guide).".into();
+    }
+    if text.contains("invalid_grant") || (text.contains("token") && has(&["expired", "revoked"])) {
+        return "Google Drive sign-in has expired. Reconnect rclone to Google Drive.".into();
+    }
+    if has(&["no such host", "dial tcp", "network is unreachable", "connection refused", "i/o timeout"]) {
+        return "No network connection to Google Drive.".into();
+    }
+    let line = stderr.lines().filter(|line| line.contains("ERROR") || line.contains("\"message\"")).last()
+        .map(str::trim).unwrap_or("rclone could not read Google Drive.");
+    line.chars().rev().take(240).collect::<Vec<_>>().into_iter().rev().collect()
+}
 fn game_folder(title: &str) -> String {
     title.chars().enumerate().map(|(i, c)| {
         if c.is_control() || "<>:\"/\\|?*".contains(c) || c == '.' && (i == 0 || i + 1 == title.chars().count()) { '_' } else { c }
@@ -405,7 +427,7 @@ fn local_sources(name: &str) -> Result<SaveSources, String> {
     let folder = history["games"][title]["backupPath"].as_str()
         .and_then(|path| Path::new(path).file_name()?.to_str()).map(str::to_owned).unwrap_or_else(|| game_folder(title));
     let mut sources = SaveSources { known: true, scan_ok: scan.is_ok(), active, local_change, versions,
-        cloud_status: "unavailable".into(), cloud_mapping: None, last_event: last_event(title) };
+        cloud_status: "unavailable".into(), cloud_mapping: None, cloud_detail: None, last_event: last_event(title) };
     if let Ok(config) = config {
         if config["cloud"]["synchronize"] != true { sources.cloud_status = "off".into(); }
         else if let (Some(remote), Some(path)) = (config["cloud"]["remote"]["Custom"]["id"].as_str(), config["cloud"]["path"].as_str()) {
@@ -417,15 +439,18 @@ fn local_sources(name: &str) -> Result<SaveSources, String> {
                     let mut cmd = Command::new(tools()?.join("rclone.exe"));
                     cmd.stdin(Stdio::null()).args(["cat", &format!("{remote}:{path}/{folder}/mapping.yaml"),
                         "--retries", "1", "--low-level-retries", "2", "--timeout", "7s"]);
-                    let Ok(result) = super::streaming::bounded_output_timeout(cmd, None, 11) else { continue; };
+                    let Ok(result) = super::streaming::bounded_output_timeout(cmd, None, 11) else { sources.cloud_detail = Some("Google Drive did not answer in time.".into()); continue; };
                     match result.status.code() {
                         Some(0) => {
                             sources.cloud_status = "ok".into();
                             sources.cloud_mapping = String::from_utf8(result.stdout).ok();
+                            sources.cloud_detail = None;
                             break;
                         }
                         Some(3 | 4) => { sources.cloud_status = "missing".into(); break; }
-                        _ => {}
+                        _ => {
+                            sources.cloud_detail = Some(drive_reason(&String::from_utf8_lossy(&result.stderr)));
+                        }
                     }
                 }
             }
@@ -656,11 +681,33 @@ mod tests {
     }
 
     #[test]
+    fn drive_failures_get_a_plain_reason() {
+        use super::drive_reason;
+        assert!(drive_reason("ERROR : googleapi: Error 403: Quota exceeded for quota metric 'Queries', rateLimitExceeded").contains("limiting rclone's shared"));
+        assert!(drive_reason("\"reason\": \"RATE_LIMIT_EXCEEDED\"").contains("limiting"));
+        assert!(drive_reason("oauth2: cannot fetch token: 400 Bad Request Response: {\"error\": \"invalid_grant\"}").contains("sign-in has expired"));
+        assert!(drive_reason("dial tcp: lookup www.googleapis.com: no such host").contains("No network"));
+        assert_eq!(drive_reason("plain failure"), "rclone could not read Google Drive.");
+    }
+
+    #[test]
+    fn reads_drive_time_from_a_real_ludusavi_mapping() {
+        // Shape of Bosgame's Drive mapping.yaml for Mouse, 14 Nov 2026.
+        let mapping = "---\nname: \"Mouse: P.I. For Hire\"\ndrives:\n  drive-0: \"\"\nbackups:\n  - name: backup-20261113T001942Z\n    when: \"2026-11-13T00:19:42.142036945Z\"\n    os: linux\n    files:\n      /mnt/x/profile.rsf:\n        hash: f9706f27\n        size: 126\n    registry:\n      hash: ~\n    children: []\n";
+        let version = BackupVersion { name: "backup-20261113T001942Z".into(), when: "2026-11-13T00:19:42.142036945Z".into(), locked: false, comment: None };
+        let result = compare(SaveSources { known: true, scan_ok: true, active: Some(1_792_795_839), local_change: Some("Same".into()),
+            versions: vec![version], cloud_status: "ok".into(), cloud_mapping: Some(mapping.into()), ..Default::default() }, "Bosgame");
+        assert!(result.cloud.is_some(), "Drive time must be read from mapping.yaml");
+        assert_eq!(result.cloud_status, "ok");
+        assert_eq!(result.verdict, "match");
+    }
+
+    #[test]
     fn comparison_labels_are_explicit() {
         let version = |when: &str| BackupVersion { name: when.into(), when: when.into(), locked: false, comment: None };
         let matched = compare(SaveSources { known: true, scan_ok: true, active: Some(1_700_000_000), local_change: Some("Same".into()),
             versions: vec![version("2023-11-14T22:20:00Z"), version("bad")], cloud_status: "ok".into(),
-            cloud_mapping: Some("  when: \"2023-11-14T22:20:00Z\"".into()), last_event: None }, "Bosgame");
+            cloud_mapping: Some("  when: \"2023-11-14T22:20:00Z\"".into()), cloud_detail: None, last_event: None }, "Bosgame");
         let local_only = compare(SaveSources { known: true, scan_ok: true, active: Some(1_700_000_000), local_change: Some("Same".into()),
             versions: vec![version("2023-11-14T22:20:00Z")], cloud_status: "missing".into(), ..Default::default() }, "Bosgame");
         assert_eq!(local_only.message, "The active save matches the latest backup on Bosgame.");

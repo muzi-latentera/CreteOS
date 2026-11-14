@@ -197,11 +197,11 @@ def compare(game):
             scan_ok = True
         except (RuntimeError, subprocess.TimeoutExpired, ValueError):
             latest, scan_ok, entry = None, False, {}
-        cloud_status, cloud_mapping = cloud.result()
+        cloud_status, cloud_mapping, cloud_detail = cloud.result()
     if config.get("synchronize") is not True:
-        cloud_status, cloud_mapping = "off", None
+        cloud_status, cloud_mapping, cloud_detail = "off", None, ""
     return {"scanOk": scan_ok, "known": True, "active": latest, "localChange": entry.get("change"),
-            "versions": backup.get("backups", []), "cloudStatus": cloud_status, "cloudMapping": cloud_mapping,
+            "versions": backup.get("backups", []), "cloudStatus": cloud_status, "cloudMapping": cloud_mapping, "cloudDetail": cloud_detail,
             "lastEvent": last_event(title)}
 
 
@@ -212,23 +212,39 @@ def game_folder(title):
 
 def read_cloud(remote, path, folder):
     if not remote or not path or not folder or folder in (".", "..") or "/" in folder or "\\" in folder:
-        return "unavailable", None
+        return "unavailable", None, "Ludusavi has no Google Drive folder configured."
     # rclone's shared Google client hits its quota now and then (13-14 Nov), so a
     # failed read is retried once before Drive is reported unreachable.
-    status = "unavailable"
+    detail = ""
     for attempt in range(2):
         if attempt:
             time.sleep(1.5)
         try:
-            data = run("rclone", "cat", f"{remote}:{path}/{folder}/mapping.yaml",
-                       "--retries", "1", "--low-level-retries", "2", "--timeout", "7s")
-            return "ok", data.decode()
-        except RuntimeError as error:
-            if error.args[0] in (3, 4):
-                return "missing", None
-        except (OSError, subprocess.TimeoutExpired):
-            pass
-    return status, None
+            result = subprocess.run([str(HOME / ".local/bin/rclone"), "cat", f"{remote}:{path}/{folder}/mapping.yaml",
+                                     "--retries", "1", "--low-level-retries", "2", "--timeout", "7s"],
+                                    capture_output=True, stdin=subprocess.DEVNULL, timeout=12)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            detail = type(error).__name__
+            continue
+        if result.returncode == 0:
+            return "ok", result.stdout.decode(errors="replace"), ""
+        if result.returncode in (3, 4):
+            return "missing", None, ""
+        detail = drive_reason(result.stderr.decode(errors="replace"), result.returncode)
+    return "unavailable", None, detail
+
+
+def drive_reason(stderr, code):
+    """Plain-language reason for a failed rclone Drive call (shown in Manage saves)."""
+    text = stderr.lower()
+    if any(key in text for key in ("ratelimit", "rate limit", "rate_limit", "quota", "429", "too many requests", "resource_exhausted", "usagelimits")):
+        return "Google is limiting rclone's shared Google app right now. Your own Google client ID fixes this (see the setup guide)."
+    if "invalid_grant" in text or ("token" in text and ("expired" in text or "revoked" in text)):
+        return "Google Drive sign-in has expired. Reconnect rclone to Google Drive."
+    if any(key in text for key in ("no such host", "dial tcp", "network is unreachable", "connection refused", "i/o timeout")):
+        return "No network connection to Google Drive."
+    lines = [line for line in stderr.splitlines() if "ERROR" in line or '"message"' in line]
+    return (lines[-1].strip() if lines else f"rclone exit {code}")[-240:]
 
 
 # ------------------------------------------------------------------ Explicit actions

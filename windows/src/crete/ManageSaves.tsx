@@ -13,6 +13,7 @@ export interface SaveComparison {
   cloud: number | null;
   scanOk: boolean;
   cloudStatus: string;
+  cloudDetail?: string | null;
   verdict?: "match" | "differ" | "unknown" | "none";
   message: string;
   lastEvent?: SaveEvent | null;
@@ -151,6 +152,7 @@ export function ManageSaves({ app, onClose, control }: { app: App; onClose: () =
             <dt>{text("Versions kept")}</dt>
             <dd>{versions.length}</dd>
           </dl>}
+          {result && !result.cloud && result.cloudStatus === "unavailable" && result.cloudDetail && <p className="crete-save-hint" data-cloud-detail="">{text("Google Drive")}: {result.cloudDetail}</p>}
           {result?.lastEvent && <p className="crete-save-event"><IoTimeOutline aria-hidden="true" /> {text("Last backup activity")}: {stamp(result.lastEvent.when)} · {text(result.lastEvent.message)}{CLOUD[result.lastEvent.cloud] ? ` ${text(CLOUD[result.lastEvent.cloud])}` : ""}</p>}
           {result && result.verdict !== "none" && <p className="crete-save-hint">{text("Dates show when save files were last modified and when each backup was created. A later backup date does not mean newer game progress.")}</p>}
           {!result && !checking && !error && <p>{text(remote ? "Lutris backs up saves on Bosgame after the game closes." : "CreteOS backs up saves after the game closes.")}</p>}

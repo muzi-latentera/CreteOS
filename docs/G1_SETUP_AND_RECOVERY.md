@@ -10,6 +10,15 @@ Verified private archive CreteOS-G1-profile-backup-20261113-234129.zip, SHA-256 
 
 ## Game save recovery
 
+- **Your own Google client ID for rclone (owner task, needed during 2026).** rclone's shared Google app is being retired, and it rate-limits now and then. Manage saves then shows "Google is limiting rclone's shared Google app". Google requires your own sign-in for this, so CreteOS cannot do it for you.
+  1. In the Google Cloud console, create a project (for example "CreteOS saves") and enable the **Google Drive API**.
+  2. Configure the OAuth consent screen as **External**, add yourself as a user, and set it to **In production**. A "Testing" app's sign-in expires after 7 days.
+  3. Under Credentials, create an **OAuth client ID** of type **Desktop app**, and note the client ID and secret.
+  4. On the G1, using the bundled rclone in `%LOCALAPPDATA%\CreteOS\tools\game-saves-0.31.0-1.76.0`, run:
+     - `rclone.exe config update ludusavi-drive client_id <ID> client_secret <SECRET>`
+     - `rclone.exe config reconnect ludusavi-drive:` (this opens a browser for you to sign in)
+  5. On Bosgame, run `~/.local/bin/rclone config update ludusavi-drive client_id <ID> client_secret <SECRET>`, then `~/.local/bin/rclone config reconnect ludusavi-drive:`. When it asks for a token, run `rclone.exe authorize "drive" "<ID>" "<SECRET>"` on the G1 and paste the result back.
+  6. Check: Manage saves on a Bosgame game and a Windows game should show a Google Drive backup date. The rclone notice about the shared client should no longer appear.
 - On a new Windows device, open Save backups once to unpack the included tools under `%LOCALAPPDATA%\CreteOS\tools\game-saves-0.31.0-1.76.0`. Authorize the same Google account using the included rclone, then select that remote in Ludusavi. The current Windows backup location on Drive is `ludusavi-backup-G1-Windows`. Bosgame keeps its existing `ludusavi-backup` location. Keep the two repositories independent so Wine and Windows copies of a title cannot replace each other's history. Google authorization is per device.
 - Install the game, close it, and back up any live progress. Copy the other device's game backup into an empty staging directory, such as with rclone `copy` or a transfer over SSH. Point Ludusavi's **Restore** tab at that directory. For Windows and Wine, add a restore redirect from the archived Wine save directory to the game's Windows save directory. Preview the paths and file changes, choose a version, and confirm. Use another retained version if necessary. For Windows to Wine, use the inverse direction after confirming the destination prefix and path. Native Linux ports, different editions and different game versions can use incompatible saves.
 - If a title has no detected saves, check the Ludusavi manifest title and the game's save directory. Add a custom entry for that game when needed. Streaming from Bosgame uses its existing files regardless of which device runs Moonlight.

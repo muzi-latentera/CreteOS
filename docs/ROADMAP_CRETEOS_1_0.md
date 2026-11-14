@@ -41,6 +41,21 @@ Evidence for every item is in [the full audit](AUDIT_2026-11-13_SAVES_AND_EXPERI
 - **Launch options stay available while play options load.** Manage game no longer leaves the focus on Play.
 - **Less GPU work:** Crete no longer blurs the live screen behind panels, bars and dialogs, and the Home backdrop blur runs at quarter size. Game cards are memoised.
 
+## Owner's overnight brief (14 Nov, 00:30)
+
+Work through every batch on your own. The bar: someone docks this to a TV, picks up a controller and uses it like a PlayStation. The device must:
+- stream Moonlight from Bosgame
+- stream GeForce NOW and Amazon Luna perfectly
+- play local games, with seamless loading, opening and exiting
+- back up saves
+- show achievements
+- install games from Steam, Epic and GOG when signed in
+- control per-game TDP and fan profiles
+- offer a Game Bar widget
+- keep Settings clean, with unused options removed
+
+The aim is our own Winhanced. Each batch ends with tests, an install, an on-device check, a commit, a push and a SanDisk pack.
+
 ## Batch 2: smooth and trustworthy
 
 1. **Instant start.** Show the saved library straight away and rescan in the background. The 13 Nov start-up showed a 27 s splash; the Steam scan alone took 20.7 s.
@@ -102,6 +117,7 @@ Options the device can't use are hidden, not greyed out.
 - Refresh rate and resolution (existing `launch_display.rs`).
 - Frame limit through RTSS or AMD.
 - Battery charge limit where the hardware supports it.
+- **Fan profiles** (owner request, 14 Nov): quiet, balanced and performance curves, plus custom ones, per game. They go through OneXConsole's own fan settings on the G1, never raw embedded-controller writes, unless the protocol is verified on the device and the owner agrees.
 - Later: dynamic power that holds a target frame rate, and a Device Control switch that hands the hardware back to OneXConsole.
 
 ## Batch 5: overlay over games
