@@ -23,7 +23,7 @@
     "verifying": "Vérification de la fenêtre active...",
     "focused": "Lancé",
     "runningUnfocused": "Lancé, mais il est peut-être derrière CreteOS. Ouvrez le sélecteur d'applications pour le trouver.",
-    "unconfirmed": "Impossible de confirmer le démarrage du jeu. Vérifiez si Steam affiche une invite, ou réessayez.",
+    "unconfirmed": "Le jeu n’est pas encore apparu. Vérifiez si {{client}} affiche une invite. CreteOS continue de le surveiller.",
     "unconfirmedApp": "Impossible de confirmer le démarrage de l’application. Réessayez, ou fermez.",
     "gotIt": "Compris / B",
     "tryFocusAgain": "Essayer de focaliser",

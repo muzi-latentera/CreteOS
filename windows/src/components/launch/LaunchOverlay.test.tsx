@@ -83,6 +83,19 @@ describe("Steam launch confirmation", () => {
     expect(rumble).not.toHaveBeenCalled();
   });
 
+  it("stops the launch watch when closed before the game is confirmed", () => {
+    act(() => root.unmount());
+    expect(invoke).toHaveBeenCalledWith("cancel_launch_watch");
+    root = createRoot(container);
+  });
+
+  it("keeps the quiet late watch when an unconfirmed launch is dismissed", async () => {
+    await emit("launch-unconfirmed");
+    act(() => root.unmount());
+    expect(invoke).not.toHaveBeenCalledWith("cancel_launch_watch");
+    root = createRoot(container);
+  });
+
   it("celebrates a confirmed game and dismisses", async () => {
     invoke.mockResolvedValueOnce({ focused: true, running: true });
     await emit("launch-success");

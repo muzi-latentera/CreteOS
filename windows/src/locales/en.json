@@ -23,7 +23,7 @@
     "verifying": "Checking window focus...",
     "focused": "Launched",
     "runningUnfocused": "Launched, but it may be behind CreteOS. Open the app switcher to find it.",
-    "unconfirmed": "Could not confirm the game started. Check Steam for a prompt or try again.",
+    "unconfirmed": "The game hasn't appeared yet. Check {{client}} for a prompt. CreteOS keeps watching for it.",
     "unconfirmedApp": "Could not confirm the app started. Try again, or dismiss.",
     "failed": "Failed to launch",
     "gotIt": "Got it / B",

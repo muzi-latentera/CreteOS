@@ -7,6 +7,12 @@ import type { AccentColors, App } from "../../types";
 import { isHttpLaunchPath } from "../../utils/appDetails";
 import { getBestGamepad, readGpState, shouldHandleDirectionRepeat, rumble, type GpState } from "../../utils/gamepad";
 
+/** The program that may be showing a prompt while a game starts. */
+export const launcherName = (source?: string) => ({
+  steam: "Steam", epic: "Epic Games Launcher", gog: "GOG Galaxy", xbox: "the Xbox app",
+  battlenet: "Battle.net", ea: "the EA app", ubisoft: "Ubisoft Connect",
+} as Record<string, string>)[source ?? ""] ?? "the game's launcher";
+
 type LaunchStatus = "launching" | "verifying" | "focused" | "running_unfocused" | "unconfirmed" | "failed";
 type FocusedAction = "focus" | "dismiss";
 type SteamLaunchPhase = "starting_steam" | "contacting_steam" | "syncing_cloud" | "updating_game" | "starting_game" | "waiting_for_steam" | "waiting_for_window";
@@ -246,6 +252,9 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
 
     return () => {
       mounted.current = false;
+      // Closed before the game was confirmed: stop watching, so it is never
+      // pulled to the front later. "Unconfirmed" keeps a quiet late watch.
+      if (statusRef.current === "launching") void Promise.resolve(invoke("cancel_launch_watch")).catch(() => {});
       if (!handedOff) void Promise.resolve(invoke("set_launch_cover", { active: false })).then(() => {
         if (!minimal && statusRef.current === "focused") return invoke("try_focus_launched_app", { name: launchTarget.name, launchPath: launchTarget.launch_path, source: launchTarget.source, appType: launchTarget.app_type });
       }).catch(() => {});
@@ -290,7 +299,7 @@ export function LaunchOverlay({ app, gameArt, customArt, heroArt, accent, onDone
         : status === "running_unfocused"
           ? t("launch.runningUnfocused")
           : status === "unconfirmed"
-            ? (app?.app_type === "game" ? t("launch.unconfirmed") : t("launch.unconfirmedApp"))
+            ? (app?.app_type === "game" ? t("launch.unconfirmed", { client: launcherName(app?.source) }) : t("launch.unconfirmedApp"))
             : launchError || t("launch.failed");
   const buttonStyle = (action: FocusedAction) => ({
     padding: "8px 22px", borderRadius: 10, cursor: "pointer",

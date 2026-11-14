@@ -10375,6 +10375,43 @@ fn shell_execute_message(code: isize, what: &str) -> String {
     }
 }
 
+/// After a game misses its confirmation limit, how long CreteOS keeps
+/// watching quietly for its window.
+const LATE_LAUNCH_WATCH_SECS: u64 = 600;
+
+/// How long a launch has to show its window before the player is told it
+/// could not be confirmed. Store launchers start, sign in and update first.
+fn launch_confirm_secs(path: &str, is_steam: bool, is_game: bool) -> u64 {
+    let lower = path.to_ascii_lowercase();
+    if is_steam { 90 }
+    else if !is_game { 15 }
+    else if lower.starts_with("shell:appsfolder\\") { 60 }
+    else if lower.contains("://") { 120 }
+    else { 45 }
+}
+
+#[cfg(test)]
+mod launch_confirm_tests {
+    use super::launch_confirm_secs;
+
+    #[test]
+    fn store_launchers_get_longer_than_direct_programs() {
+        assert_eq!(launch_confirm_secs("steam://rungameid/1", true, true), 90);
+        assert_eq!(launch_confirm_secs("com.epicgames.launcher://apps/x?action=launch", false, true), 120);
+        assert_eq!(launch_confirm_secs("goggalaxy://openGameView/1", false, true), 120);
+        assert_eq!(launch_confirm_secs("shell:AppsFolder\\Game_8wekyb3d8bbwe!App", false, true), 60);
+        assert_eq!(launch_confirm_secs("C:\\Games\\Hades\\Hades.exe", false, true), 45);
+        assert_eq!(launch_confirm_secs("C:\\Tools\\app.exe", false, false), 15);
+    }
+}
+
+/// Pressing B before a launch is confirmed stops its watcher, so the game is
+/// never pulled to the front afterwards. The game itself is left alone.
+#[tauri::command]
+fn cancel_launch_watch() {
+    LAUNCH_WATCH_GENERATION.fetch_add(1, Ordering::SeqCst);
+}
+
 #[tauri::command]
 async fn launch_app(
     path: String,
@@ -10664,10 +10701,9 @@ async fn launch_app(
         // launching popup or client, not the game.
         // Cloud sync, updates and first-run setup can outlast the old 15-second
         // window. Keep watching Steam without re-dispatching a duplicate launch.
-        let timeout_secs = if is_steam_launch { 90 } else { 15 };
+        let timeout_secs = launch_confirm_secs(&watch_path, is_steam_launch, watch_is_game);
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs);
         let started = std::time::Instant::now();
-        let mut found: isize = 0;
         let mut ready_candidate: Option<(isize, Instant)> = None;
         let game_window_ready = |hwnd, since: Instant| {
             let age = since.elapsed();
@@ -10676,9 +10712,11 @@ async fn launch_app(
                 || fse_watcher::target_covers_main(windows::Win32::Foundation::HWND(our_hwnd as _), windows::Win32::Foundation::HWND(hwnd as _)))
         };
 
-        loop {
+        // Returns the confirmed window, or 0 at the deadline or when this launch
+        // was cancelled or replaced.
+        let mut search = |deadline: Instant| -> isize { loop {
             if LAUNCH_WATCH_GENERATION.load(Ordering::SeqCst) != watch_generation {
-                return;
+                return 0;
             }
             if is_steam_launch && !asobi_was_open {
                 let next_phase = steam_log_watcher
@@ -10710,8 +10748,8 @@ async fn launch_app(
                 if score >= 45 {
                     let ready = ready_candidate.get_or_insert((hwnd, Instant::now()));
                     if ready.0 != hwnd { *ready = (hwnd, Instant::now()); }
-                    if game_window_ready(hwnd, ready.1) { found = hwnd; break; }
-                    if Instant::now() >= deadline { break; }
+                    if game_window_ready(hwnd, ready.1) { return hwnd; }
+                    if Instant::now() >= deadline { return 0; }
                     std::thread::sleep(Duration::from_millis(250));
                     continue;
                 }
@@ -10723,8 +10761,8 @@ async fn launch_app(
                 if hwnd != 0 {
                     let ready = ready_candidate.get_or_insert((hwnd, Instant::now()));
                     if ready.0 != hwnd { *ready = (hwnd, Instant::now()); }
-                    if !watch_is_game || game_window_ready(hwnd, ready.1) { found = hwnd; break; }
-                    if Instant::now() >= deadline { break; }
+                    if !watch_is_game || game_window_ready(hwnd, ready.1) { return hwnd; }
+                    if Instant::now() >= deadline { return 0; }
                     std::thread::sleep(Duration::from_millis(250));
                     continue;
                 }
@@ -10743,8 +10781,8 @@ async fn launch_app(
                         {
                             let ready = ready_candidate.get_or_insert((foreground_value, Instant::now()));
                             if ready.0 != foreground_value { *ready = (foreground_value, Instant::now()); }
-                            if !watch_is_game || game_window_ready(foreground_value, ready.1) { found = foreground_value; break; }
-                            if Instant::now() >= deadline { break; }
+                            if !watch_is_game || game_window_ready(foreground_value, ready.1) { return foreground_value; }
+                            if Instant::now() >= deadline { return 0; }
                             std::thread::sleep(Duration::from_millis(250));
                             continue;
                         }
@@ -10754,9 +10792,20 @@ async fn launch_app(
 
             ready_candidate = None;
             if std::time::Instant::now() >= deadline {
-                break;
+                return 0;
             }
             std::thread::sleep(std::time::Duration::from_millis(250));
+        } };
+
+        let mut found = search(deadline);
+        let mut late = false;
+        if found == 0 && watch_is_game && LAUNCH_WATCH_GENERATION.load(Ordering::SeqCst) == watch_generation {
+            // A cold or updating launcher can outlast any fixed limit. Say so
+            // now, but keep watching quietly so a late start still gets its
+            // exit and save watchers. A cancelled launch stops this at once.
+            let _ = handle.emit("launch-unconfirmed", &watch_path);
+            found = search(Instant::now() + Duration::from_secs(LATE_LAUNCH_WATCH_SECS));
+            late = true;
         }
 
         if LAUNCH_WATCH_GENERATION.load(Ordering::SeqCst) != watch_generation {
@@ -10800,21 +10849,25 @@ async fn launch_app(
                     fse_watcher::start_gpu_release_watch(handle.clone(), our_hwnd, Some(found));
                 }
             }
-            unsafe {
-                let hwnd = windows::Win32::Foundation::HWND(found as _);
-                if GetForegroundWindow() != hwnd {
-                    let _ = SetForegroundWindow(hwnd);
-                    let _ = ShowWindow(hwnd, SW_SHOW);
+            // A late game brings itself forward; never pull it over whatever
+            // the player moved on to.
+            if !late {
+                unsafe {
+                    let hwnd = windows::Win32::Foundation::HWND(found as _);
+                    if GetForegroundWindow() != hwnd {
+                        let _ = SetForegroundWindow(hwnd);
+                        let _ = ShowWindow(hwnd, SW_SHOW);
+                    }
                 }
             }
         }
 
-        // Dispatch acceptance is not evidence that Steam started the game.
-        // App shortcuts also wait for a matching window; timeout stays unconfirmed.
-        if found == 0 && (is_steam_launch || !watch_is_game) {
-            let _ = handle.emit("launch-unconfirmed", &watch_path);
-        } else {
+        // Dispatch acceptance is not evidence that the game started.
+        if found != 0 {
             let _ = handle.emit("launch-success", &watch_path);
+        } else if !late {
+            // Apps; a game's timeout was already reported before the late watch.
+            let _ = handle.emit("launch-unconfirmed", &watch_path);
         }
     });
 
@@ -11009,6 +11062,7 @@ pub fn run() {
             store_accounts::store_account_cancel,
             store_accounts::store_open_library,
             store_accounts::store_install_game,
+            cancel_launch_watch,
             steam_logout,
             fetch_steam_owned_games,
             xbox_account_status,

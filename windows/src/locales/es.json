@@ -23,7 +23,7 @@
     "verifying": "Comprobando el foco de la ventana...",
     "focused": "Iniciado",
     "runningUnfocused": "Iniciado, pero puede estar detrás de CreteOS. Abre el selector de aplicaciones para encontrarlo.",
-    "unconfirmed": "No se pudo confirmar que el juego arrancara. Revisa si Steam muestra un aviso o inténtalo de nuevo.",
+    "unconfirmed": "El juego aún no ha aparecido. Revisa si {{client}} muestra un aviso. CreteOS sigue pendiente.",
     "unconfirmedApp": "No se pudo confirmar que la app arrancara. Inténtalo de nuevo o cierra.",
     "failed": "Error al iniciar",
     "gotIt": "Entendido / B",
