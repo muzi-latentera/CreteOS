@@ -52,6 +52,7 @@ use windows::{
 mod fse_watcher;
 mod game_saves;
 mod performance;
+mod watchdog;
 mod lofi_media;
 mod steam_appinfo;
 mod storage_info;
@@ -5151,8 +5152,14 @@ fn clear_custom_art(id: String) -> Result<(), String> {
     Ok(())
 }
 
+// Network work runs off the main thread: a blocking 15 s request there froze
+// the whole window (audit, 13 Nov).
 #[tauri::command]
-fn search_sgdb_games(query: String) -> Vec<SgdbGameHit> {
+async fn search_sgdb_games(query: String) -> Vec<SgdbGameHit> {
+    tauri::async_runtime::spawn_blocking(move || search_sgdb_games_blocking(query)).await.unwrap_or_default()
+}
+
+fn search_sgdb_games_blocking(query: String) -> Vec<SgdbGameHit> {
     let trimmed = query.trim();
     if trimmed.is_empty() {
         return vec![];
@@ -5184,17 +5191,21 @@ fn search_sgdb_games(query: String) -> Vec<SgdbGameHit> {
 
 #[cfg(test)]
 mod sgdb_game_search_tests {
-    use super::search_sgdb_games;
+    use super::search_sgdb_games_blocking;
 
     #[test]
     fn blank_queries_return_without_results() {
-        assert!(search_sgdb_games(String::new()).is_empty());
-        assert!(search_sgdb_games("   \t".to_string()).is_empty());
+        assert!(search_sgdb_games_blocking(String::new()).is_empty());
+        assert!(search_sgdb_games_blocking("   \t".to_string()).is_empty());
     }
 }
 
 #[tauri::command]
-fn search_sgdb_art(
+async fn search_sgdb_art(game_name: String, art_type: String, game_id: Option<u64>) -> Vec<SgdbArtResult> {
+    tauri::async_runtime::spawn_blocking(move || search_sgdb_art_blocking(game_name, art_type, game_id)).await.unwrap_or_default()
+}
+
+fn search_sgdb_art_blocking(
     game_name: String,
     art_type: String,
     game_id: Option<u64>,
@@ -5322,7 +5333,11 @@ fn search_sgdb_art(
 }
 
 #[tauri::command]
-fn download_sgdb_art(game_name: String, url: String, art_type: String) -> Option<String> {
+async fn download_sgdb_art(game_name: String, url: String, art_type: String) -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || download_sgdb_art_blocking(game_name, url, art_type)).await.ok().flatten()
+}
+
+fn download_sgdb_art_blocking(game_name: String, url: String, art_type: String) -> Option<String> {
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
         .build()
@@ -11021,6 +11036,7 @@ pub fn run() {
             let window = app.get_webview_window("main").unwrap();
             let hwnd = window.hwnd().unwrap();
             OUR_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
+            watchdog::start(app.handle().clone(), hwnd.0 as isize);
             // Only the managed main window may define our identity. The foreground
             // window at cold boot can belong to the FSE shell or another process.
             fse_watcher::log_main_window_identity(app.handle());
