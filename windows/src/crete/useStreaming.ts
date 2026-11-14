@@ -130,9 +130,15 @@ export function useStreaming(app: App, enabled: boolean) {
       await withStreamCover(app, "moonlight", () => invoke("launch_moonlight", { appName, displayKey: display.displayKey, profile, steamId, gameId: app.id, gameName: app.name, lutrisId: app.source === "lutris" ? app.store_id : null, audio }), () => setConfigure(false), "settings");
     } catch (reason) { setConfigure(true); setError(streamErrorMessage(reason)); }
   };
+  // Only offered when the host reported it is already streaming another game.
+  const hostBusy = !!error && /already streaming another game/i.test(error);
+  const endHostStream = async () => {
+    try { await invoke("end_host_stream", { host: display.profile.host }); setError(null); }
+    catch (reason) { setError(String(reason)); }
+  };
   const pair = async (pin: number) => {
     setError(null);
     try { await invoke("pair_moondeck", { host: display.profile.host, pin }); } catch (reason) { setError(String(reason)); }
   };
-  return { asobiGames, asobiConfigure, setAsobiConfigure, asobiError, startAsobi, isLutris: app.source === "lutris", pcGame, gameUrl, clients, error, hostError: host.error, apps, moonlightGame, provider: defaultProvider(app, moonlightGame, online ? gameUrl : undefined), display, configure, setConfigure, geforceConfigure, setGeforceConfigure, geforceDisplay, geforceStream, checking, refreshing: host.refreshing, refresh, launch, stream, buddy, buddyError: null, pair, steamId: launchId, hostGames, hostInstalled, inventoryError: lutrisError || (app.source === "lutris" ? lutrisGame?.reason || (lutrisGame && !lutrisGame.shortcutId ? "This game needs its CreteOS host shortcut configured." : null) : null), localInstalled: !!app.installed, online };
+  return { hostBusy, endHostStream, asobiGames, asobiConfigure, setAsobiConfigure, asobiError, startAsobi, isLutris: app.source === "lutris", pcGame, gameUrl, clients, error, hostError: host.error, apps, moonlightGame, provider: defaultProvider(app, moonlightGame, online ? gameUrl : undefined), display, configure, setConfigure, geforceConfigure, setGeforceConfigure, geforceDisplay, geforceStream, checking, refreshing: host.refreshing, refresh, launch, stream, buddy, buddyError: null, pair, steamId: launchId, hostGames, hostInstalled, inventoryError: lutrisError || (app.source === "lutris" ? lutrisGame?.reason || (lutrisGame && !lutrisGame.shortcutId ? "This game needs its CreteOS host shortcut configured." : null) : null), localInstalled: !!app.installed, online };
 }

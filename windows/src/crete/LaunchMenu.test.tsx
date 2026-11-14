@@ -191,6 +191,19 @@ it("Luna connection settings never expose or start a host stream",async()=>{
   expect(document.body.textContent).not.toContain("Stream options");
 });
 
+it("ends a busy host's stream only after a second, confirming press",async()=>{
+  const endHostStream=vi.fn(async()=>{});
+  await render({error:"Bosgame is already streaming another game.",hostBusy:true,endHostStream});
+  const button=()=>Array.from(document.querySelectorAll("button")).find(b=>/session|end it|Ending/.test(b.textContent??""));
+  expect(button()?.textContent).toBe("End Bosgame session");
+  await click(button()!);
+  expect(endHostStream).not.toHaveBeenCalled();
+  expect(document.body.textContent).toContain("Unsaved progress there may be lost");
+  expect(button()?.textContent).toBe("Yes, end it");
+  await click(button()!);
+  expect(endHostStream).toHaveBeenCalledOnce();
+});
+
 it("restores the Play action after a launch error and returns focus on cancel",async()=>{
   const restore=vi.fn();
   const s=await render({error:"Bosgame could not verify Steam."},false,restore);

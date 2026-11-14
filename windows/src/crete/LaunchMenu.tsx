@@ -45,6 +45,8 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
   const [audio, setAudio] = useState<StreamAudioChoice>({ input: null, output: null });
   const [localMode, setLocalMode] = useState<LocalDisplayMode | null>(null);
   const [tools, setTools] = useState(false);
+  const [endStep, setEndStep] = useState<"idle" | "confirm" | "ending">("idle");
+  useEffect(() => { if (!s.hostBusy) setEndStep("idle"); }, [s.hostBusy]);
   const [savesOpen, setSavesOpen] = useState(false);
   const [perfOpen, setPerfOpen] = useState(false);
   const savesControl = useRef<ManageSavesControl | null>(null);
@@ -372,6 +374,14 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
           {gfn && soundOptions()}
           {!gfn && s.hostError && <p role="status">{text(s.hostError)}</p>}{s.error && <p role="alert">{s.error}</p>}
           {s.error && s.localInstalled && localEnabled && <button type="button" onClick={() => { close(); local(); }}>{text("Play locally")}</button>}
+          {!gfn && s.hostBusy && <>
+            {endStep === "confirm" && <p role="status">{`Ending the stream closes whatever is playing on ${profile.host}. Unsaved progress there may be lost.`}</p>}
+            <button type="button" disabled={endStep === "ending"} onClick={() => {
+              if (endStep === "idle") { setEndStep("confirm"); return; }
+              setEndStep("ending");
+              void s.endHostStream().finally(() => setEndStep("idle"));
+            }}>{endStep === "idle" ? `End ${profile.host} session` : endStep === "confirm" ? "Yes, end it" : "Ending…"}</button>
+          </>}
         </>}
         {!s.online && <p role="status">{text("No network connection. Installed local games are available offline.")}</p>}
       </div>

@@ -370,6 +370,20 @@ pub fn watch_exit(client: &Buddy, id: &str, already_running: bool, current: impl
         false
 }
 
+/// Ends the stream the host is running for another game. Only ever called
+/// after the player confirmed it in CreteOS (audit §4.6).
+#[tauri::command]
+pub async fn end_host_stream(host: String) -> Result<(), String> {
+    super::streaming::validate_host(&host)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let buddy = Buddy::new(&host, None)?;
+        let status = buddy.status()?;
+        if status["paired"] != true { return Err("Pair CreteOS with MoonDeck Buddy first.".into()); }
+        if request_end_stream(&host, None, &|_| {}, &|| true) { Ok(()) }
+        else { Err(format!("{host} did not end its stream. Quit the game on {host}, then try again.")) }
+    }).await.map_err(|_| "Could not reach MoonDeck Buddy.".to_string())?
+}
+
 pub fn prepare(client: &Buddy, steam_id: &str) -> Result<(), String> {
     let buddy = client.status()?;
     if buddy["paired"] != true { return Err("Pair CreteOS with MoonDeck Buddy first".into()); }
