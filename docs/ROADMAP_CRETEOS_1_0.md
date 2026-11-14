@@ -58,6 +58,21 @@ The aim is our own Winhanced. Each batch ends with tests, an install, an on-devi
 
 ## Batch 2: smooth and trustworthy
 
+**Progress, 14 Nov (overnight).** Details are in `docs/journal/2026-11-14-batch2-instant-start-pending-sync.md`.
+
+| Item | Status |
+|---|---|
+| 1. Instant start | Done (Home in 3 s from the snapshot) |
+| 2. Launch and return without flashes | Partly done: the loading screen shows Steam's phase; a crash dialog now returns to CreteOS. The flash traces with video are still to do. |
+| 3. Scrolling | Measured on the G1: 17.4 → 1.0 ms per press; stalls over 40 ms 13 → 4. Off-screen covers skip paint. Virtualisation is not needed yet. |
+| 4. Steam installs | Done |
+| 5. Launch robustness | Done: per-store limits, quiet late watch, B cancels the watch, working directory and UAC errors, Resume re-attaches, "End Bosgame session". Hung-window detection is still open. |
+| 6. Settings that never reset | Done |
+| 7. Manage saves | Done: longer Drive read, device names, status line on the game page. Safety-net versions for store-cloud games are still open. |
+| 8. Small input fixes | Done: stick hysteresis, Start closes the quick menu, held buttons ignored. The on-screen keyboard is still open. |
+
+Also done: a main-thread watchdog with self-relaunch, one CreteOS at a time, Epic and GOG install links with finish tracking, and per-game power and fan profiles (batch 4).
+
 1. **Instant start.** Show the saved library straight away and rescan in the background. The 13 Nov start-up showed a 27 s splash; the Steam scan alone took 20.7 s.
 2. **Launch and return without flashes.**
    - Record traces with `fse.log` plus screen video for local Steam, a direct .exe, Moonlight and GeForce NOW.
