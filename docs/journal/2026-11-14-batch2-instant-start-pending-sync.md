@@ -117,3 +117,15 @@ Checkpoint archive `CreteOS-G1-profile-backup-20261114-005428.zip`:
 - On device, ABZU (Epic) → Install: CreteOS showed the note, and Epic's log recorded `FAppInstallUriHandler` with `…:Curry?action=install`.
   - Epic's install dialog was left open, unconfirmed; access to control Epic was declined, so it could not be closed.
   - Nothing was installed, so the finish watcher and library refresh were not exercised end to end. GOG was not exercised.
+
+## Library navigation lag (source `fdaa7d3`)
+
+- **Measured first**, with the built-in input recorder (`CreteOS-Bootstrap\diagnostics\input-request.json`).
+  - Run: Library → 26 × Down → 25 × Up → wheel down and up 30 ticks, on the G1.
+  - Each press spent 17.4 ms in the controller handler before the Library view saw it.
+  - Cause: the legacy handler re-sorts all ~550 games on every press with `localeCompare(…, undefined, {sensitivity})`, which builds a new collator per comparison. App's filtered list did the same.
+- **Fix.**
+  - A shared `Intl.Collator` (`utils/compareText.ts`); a test confirms identical ordering.
+  - Library grid cards use `content-visibility: auto`, so off-screen covers skip layout and paint.
+- **Same run, after:** 1.0 ms per press; frame stalls over 40 ms went from 13 (worst 139 ms) to 4 (worst 49 ms); long tasks from 3 (up to 107 ms) to 0.
+- Install at 02:16: `4B44A337…1092`. The recording request was removed afterwards.
