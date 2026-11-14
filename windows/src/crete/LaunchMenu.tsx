@@ -181,7 +181,9 @@ export function LaunchMenu({ streaming: s, open, setOpen, local, localLabel, loc
       if (choicesRef.current && event.key === "Home") { event.preventDefault(); event.stopImmediatePropagation(); focus(controls()[0]); }
       else if (choicesRef.current && event.key === "End") { event.preventDefault(); event.stopImmediatePropagation(); const list = controls(); focus(list[list.length - 1]); }
       else if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); if (choicesRef.current) closeChoices(); else close(); }
-      else if ((event.key === "Enter" || event.key === " ") && choicesRef.current && event.target instanceof HTMLButtonElement) { event.preventDefault(); event.stopImmediatePropagation(); event.target.click(); }
+      // Enter works like A on any focused button here, so a keyboard behaves like the controller.
+      else if ((event.key === "Enter" || event.key === " ") && event.target instanceof HTMLButtonElement
+        && (choicesRef.current || root.current?.contains(event.target) || panelRoot.current?.contains(event.target))) { event.preventDefault(); event.stopImmediatePropagation(); if (!event.repeat) event.target.click(); }
       else if ((event.key === "Enter" || event.key === " ") && event.target instanceof HTMLSelectElement) { event.preventDefault(); event.stopImmediatePropagation(); openChoices(event.target); }
       else if (["ArrowUp", "ArrowDown"].includes(event.key)) {
         event.preventDefault(); event.stopImmediatePropagation(); navigate(event.key === "ArrowUp" ? "up" : "down");

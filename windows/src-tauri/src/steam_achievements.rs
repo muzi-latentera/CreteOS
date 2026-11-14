@@ -76,11 +76,14 @@ fn combine(app_id: &str, schema: &Map<String, Value>, user: Option<&Map<String, 
         for (bit, item) in bits {
             let Ok(bit) = bit.parse::<u32>() else { continue; };
             let unlocked = bit < 64 && mask >> bit & 1 == 1;
-            let hidden = item["hidden"].as_i64().unwrap_or(0) != 0 || item["hidden"].as_str() == Some("1");
+            // Steam stores hidden and the icons inside `display`; older schemas beside it.
+            let field = |key: &str| if item["display"][key].is_null() { item[key].clone() } else { item["display"][key].clone() };
+            let hidden_value = field("hidden");
+            let hidden = hidden_value.as_i64().unwrap_or(0) != 0 || hidden_value.as_str() == Some("1");
             let id = item["name"].as_str().unwrap_or_default().to_owned();
             let name = english(&item["display"]["name"]).unwrap_or_else(|| id.clone());
             let description = english(&item["display"]["desc"]).unwrap_or_default();
-            let icon = item[if unlocked { "icon" } else { "icon_gray" }].as_str().filter(|icon| !icon.is_empty())
+            let icon = field(if unlocked { "icon" } else { "icon_gray" }).as_str().filter(|icon| !icon.is_empty())
                 .map(|icon| format!("https://cdn.cloudflare.steamstatic.com/steamcommunity/public/images/apps/{app_id}/{icon}"));
             achievements.push(Achievement {
                 id,
@@ -135,6 +138,17 @@ mod tests {
     fn kv_int(out: &mut Vec<u8>, name: &str, value: i32) { out.push(2); out.extend(name.as_bytes()); out.push(0); out.extend(value.to_le_bytes()); }
     fn kv_open(out: &mut Vec<u8>, name: &str) { out.push(0); out.extend(name.as_bytes()); out.push(0); }
 
+    /// Reads this device's real Steam cache: `cargo test --lib real_steam_cache -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "needs a Steam install with Elden Ring's stats"]
+    fn real_steam_cache() {
+        let dir = stats_dir().expect("Steam path");
+        let schema = read_kv(&dir.join("UserGameStatsSchema_1245620.bin")).expect("schema");
+        let user = user_file(&dir, "1245620").and_then(|path| read_kv(&path));
+        let progress = combine("1245620", &schema, user.as_ref());
+        println!("{:?} {:?} first={}", progress.earned, progress.total, serde_json::to_string(&progress.achievements[0]).unwrap());
+    }
+
     #[test]
     fn reads_steam_binary_keyvalues() {
         let mut data = Vec::new();
@@ -159,8 +173,9 @@ mod tests {
     #[test]
     fn combines_schema_and_unlocks_with_hidden_ones_kept_secret() {
         let schema: Map<String, Value> = serde_json::from_value(serde_json::json!({"1245620": {"stats": {"1": {"bits": {
-            "0": {"name": "ACH00", "display": {"name": {"english": "Elden Ring"}, "desc": {"english": "Obtained all achievements"}}, "hidden": 0, "icon": "a.jpg", "icon_gray": "b.jpg"},
-            "1": {"name": "ACH01", "display": {"name": {"english": "Elden Lord"}, "desc": {"english": "Ending"}}, "hidden": 1, "icon": "c.jpg", "icon_gray": "d.jpg"},
+            // Real layout (Elden Ring, 14 Nov): hidden and icons inside `display`.
+            "0": {"name": "ACH00", "display": {"name": {"english": "Elden Ring"}, "desc": {"english": "Obtained all achievements"}, "hidden": 0, "icon": "a.jpg", "icon_gray": "b.jpg"}},
+            "1": {"name": "ACH01", "display": {"name": {"english": "Elden Lord"}, "desc": {"english": "Ending"}, "hidden": 1, "icon": "c.jpg", "icon_gray": "d.jpg"}},
             "2": {"name": "ACH02", "display": {"name": {"english": "Age of Stars"}, "desc": {"english": "Other ending"}}, "hidden": 1}
         }}}}})).unwrap();
         let user: Map<String, Value> = serde_json::from_value(serde_json::json!({"cache": {"1": {"data": 0b100, "AchievementTimes": {"2": 1646841301}}}})).unwrap();
