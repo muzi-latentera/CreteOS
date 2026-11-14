@@ -3,7 +3,7 @@ import { useCreteText } from "../crete/text";
 import { sourceLabel } from "../crete/model";
 import { CreteDetailsInfo } from "../crete/CreteDetailsInfo";
 import { LaunchMenu } from "../crete/LaunchMenu";
-import { hasLocalSaveBackup } from "../crete/gameSaves";
+import { canManageSaves } from "../crete/gameSaves";
 import { LaunchLoading } from "../crete/LaunchLoading";
 import { useStreaming } from "../crete/useStreaming";
 import { useReviewVideos, reviewChoices } from "../crete/useReviewVideos";
@@ -144,7 +144,7 @@ export function saveStatusText(status: SaveStatus) {
   const when = new Date(status.when);
   const stamp = Number.isNaN(when.getTime()) ? "" : when.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   const what = /restored/i.test(status.message) ? "Restored" : /no save files/i.test(status.message) ? "No save files found" : /error/i.test(status.message) ? "Backup failed" : "Backed up";
-  const cloud = ({ synced: "On Google Drive", uploaded: "On Google Drive", downloaded: "On Google Drive", conflict: "Google Drive differs", unavailable: "Google Drive not reached" } as Record<string, string>)[status.cloud];
+  const cloud = ({ synced: "On Google Drive", uploaded: "On Google Drive", downloaded: "On Google Drive", conflict: "Google Drive differs", unavailable: "Google Drive not reached", store: "Safety copy on this PC" } as Record<string, string>)[status.cloud];
   return [stamp ? `${what} ${stamp}` : what, cloud].filter(Boolean).join(" · ");
 }
 
@@ -1274,7 +1274,7 @@ export function GameDetailsModal({
                   swallowLaunchBack.current = true;
                   setFocusedIndex(0);
                 }} copies={actions.filter(action => action.key.startsWith("copy-"))} local={handleLocalAction} localLabel={installed ? "Local" : installing ? "Cancel installation" : storeAccountGame ? storeClientLabel : "Install locally"}
-                saveGame={app.source === "lutris" || (installed && hasLocalSaveBackup(app)) ? app : undefined}
+                saveGame={app.source === "lutris" || (installed && canManageSaves(app)) ? app : undefined}
                 performanceGame={installed && app.app_type === "game" && !["cloud", "lutris", "playstation"].includes(app.source ?? "") ? app : undefined}
                 manageLabel={hasStoreContent && activeTab === "manage" ? "Game information" : "Manage game"}
                 localEnabled={installed || canInstall || canXboxInstall || storeAccountGame || installing} manage={() => {

@@ -218,6 +218,7 @@ fn cloud_message(state: &str) -> &'static str {
         "downloaded" => "Downloaded newer versions from Google Drive.",
         "conflict" => "Google Drive and this device each have versions the other lacks. Nothing was overwritten.",
         "off" => "Google Drive sync is off.",
+        "store" => "The store's cloud keeps the main copy; this is a safety copy on this PC.",
         _ => "Google Drive could not be reached. CreteOS will try again after the next backup.",
     }
 }
@@ -281,11 +282,15 @@ fn last_event(title: &str) -> Option<SaveEvent> {
 
 // ---------------------------------------------------------------- Automatic backup
 
-fn backup(name: &str) -> Result<String, String> {
+/// Versions kept for a store game's local safety net.
+const SAFETY_NET_VERSIONS: &str = "3";
+
+fn backup(name: &str, drive: bool) -> Result<String, String> {
     let _guard = BACKUP_LOCK.lock().map_err(|_| "Save backup unavailable")?;
     let Some(title) = title(name)? else { return Ok("No matching Ludusavi title".into()); };
     // Never let an unanswerable cloud prompt stop the local copy.
-    let data = query(&["backup", "--api", "--force", "--ask-downgrade", "--no-cloud-sync", "--full-limit", "10", "--", &title])?;
+    let limit = if drive { "10" } else { SAFETY_NET_VERSIONS };
+    let data = query(&["backup", "--api", "--force", "--ask-downgrade", "--no-cloud-sync", "--full-limit", limit, "--", &title])?;
     if has_errors(&data) {
         record(&title, "The automatic backup reported an error.", "unavailable");
         return Err("Ludusavi reported a backup error.".into());
@@ -295,13 +300,38 @@ fn backup(name: &str) -> Result<String, String> {
         return Ok("No matching save files found".into());
     }
     let changed = data["overall"]["changedGames"]["same"].as_u64().unwrap_or(0) == 0;
-    let cloud = sync_cloud(&title);
+    // A store game's own cloud keeps the main copy; the safety net stays on this PC.
+    let cloud = if drive { sync_cloud(&title) } else { "store" };
     let message = if changed { "Backed up after the game closed." } else { "Save unchanged since the last backup." };
     record(&title, message, cloud);
-    Ok(format!("{message} {}", cloud_message(cloud)))
+    Ok(if drive { format!("{message} {}", cloud_message(cloud)) } else { format!("{message} Local safety copy only.") })
 }
 
-pub fn watch_exit(hwnd: isize, name: String) {
+/// Steam, Epic, Xbox and other store games sync saves through their store's
+/// cloud. CreteOS keeps a few local versions as a safety net against a
+/// corrupted or overwritten save, and never uploads them to Google Drive.
+pub fn safety_net(app_type: &str, source: &str, path: &str) -> bool {
+    app_type == "game" && matches!(source, "steam" | "epic" | "xbox" | "battlenet" | "ea" | "ubisoft" | "amazon")
+        && !path.starts_with("http://") && !path.starts_with("https://")
+}
+
+#[cfg(test)]
+mod safety_net_tests {
+    #[test]
+    fn store_games_get_a_local_safety_net_and_others_do_not() {
+        assert!(super::safety_net("game", "steam", "steam://rungameid/1145360"));
+        assert!(super::safety_net("game", "epic", "com.epicgames.launcher://apps/x?action=launch"));
+        assert!(super::safety_net("game", "xbox", "shell:AppsFolder\\Game!App"));
+        assert!(!super::safety_net("app", "steam", "steam://rungameid/1"));
+        assert!(!super::safety_net("game", "cloud", "https://luna.amazon.co.uk/play"));
+        assert!(!super::safety_net("game", "lutris", "lutris:1"));
+        // Direct programs and GOG already get the full Google Drive backup instead.
+        assert!(!super::safety_net("game", "gog", "goggalaxy://openGameView/1"));
+        assert!(super::eligible("game", "gog", "goggalaxy://openGameView/1"));
+    }
+}
+
+pub fn watch_exit(hwnd: isize, name: String, drive: bool) {
     let mut pid = 0;
     unsafe { GetWindowThreadProcessId(windows::Win32::Foundation::HWND(hwnd as _), Some(&mut pid)); }
     let Ok(process) = (unsafe { OpenProcess(PROCESS_SYNCHRONIZE, false, pid) }) else { return; };
@@ -314,7 +344,7 @@ pub fn watch_exit(hwnd: isize, name: String) {
             status == WAIT_OBJECT_0
         };
         if !exited { return; }
-        let message = backup(&name).unwrap_or_else(|error| error);
+        let message = backup(&name, drive).unwrap_or_else(|error| error);
         let path = super::liftoff_dir().join("game-save-backup.log");
         if let Ok(mut log) = std::fs::OpenOptions::new().append(true).create(true).open(path) {
             let _ = writeln!(log, "{} {name:?}: {message}", now());
@@ -434,7 +464,7 @@ fn versions_of(history: &Value, title: &str) -> Vec<BackupVersion> {
         .filter_map(|backup| serde_json::from_value(backup.clone()).ok()).collect()
 }
 
-fn local_sources(name: &str) -> Result<SaveSources, String> {
+fn local_sources(name: &str, drive: bool) -> Result<SaveSources, String> {
     let _guard = BACKUP_LOCK.try_lock().map_err(|_| "A backup is in progress. Check again in a moment.")?;
     let found = read(&["find", "--backup", "--normalized", "--api", "--", name], 8)?;
     let Some(title) = found["games"].as_object().and_then(|games| games.keys().next()) else {
@@ -459,6 +489,7 @@ fn local_sources(name: &str) -> Result<SaveSources, String> {
         .and_then(|path| Path::new(path).file_name()?.to_str()).map(str::to_owned).unwrap_or_else(|| game_folder(title));
     let mut sources = SaveSources { known: true, scan_ok: scan.is_ok(), active, local_change, versions,
         cloud_status: "unavailable".into(), cloud_mapping: None, cloud_detail: None, last_event: last_event(title) };
+    if !drive { sources.cloud_status = "store".into(); return Ok(sources); }
     if let Ok(config) = config {
         if config["cloud"]["synchronize"] != true { sources.cloud_status = "off".into(); }
         else if let (Some(remote), Some(path)) = (config["cloud"]["remote"]["Custom"]["id"].as_str(), config["cloud"]["path"].as_str()) {
@@ -508,7 +539,8 @@ fn lutris_request(id: &str, action: Option<&str>, version: Option<&str>) -> Resu
 pub async fn compare_game_saves(id: String, name: String, app_type: String, source: String, path: String) -> Result<SaveComparison, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let sources = if source == "lutris" { serde_json::from_value(lutris_request(&id, None, None)?).map_err(|_| "Invalid Bosgame save report.")? }
-            else if eligible(&app_type, &source, &path) { local_sources(&name)? }
+            else if eligible(&app_type, &source, &path) { local_sources(&name, true)? }
+            else if safety_net(&app_type, &source, &path) { local_sources(&name, false)? }
             else { return Err("Save checks are unavailable for this game.".into()); };
         Ok(compare(sources, if source == "lutris" { "Bosgame" } else { "this PC" }))
     }).await.map_err(|error| error.to_string())?
@@ -547,7 +579,9 @@ fn read_status(args: &[&str]) -> Result<bool, String> {
     Ok(super::streaming::bounded_output_timeout(cmd, None, 15)?.status.success())
 }
 
-fn manage_local(request: &SaveAction) -> Result<Value, String> {
+fn manage_local(request: &SaveAction, drive: bool) -> Result<Value, String> {
+    // Store games keep their main copy in the store's cloud; nothing goes to Drive.
+    let sync = |title: &str| if drive { sync_cloud(title) } else { "store" };
     let _guard = BACKUP_LOCK.try_lock().map_err(|_| "A backup is in progress. Try again in a moment.")?;
     let Some(title) = quick_title(&request.name)? else { return Err("Ludusavi has no save locations for this game.".into()); };
     let ensure_closed = || {
@@ -559,18 +593,19 @@ fn manage_local(request: &SaveAction) -> Result<Value, String> {
     };
     match request.action.as_str() {
         "sync" => {
-            let cloud = sync_cloud(&title);
+            let cloud = sync(&title);
             return Ok(serde_json::json!({"message": cloud_message(cloud), "cloud": cloud}));
         }
         "backup" => {
             ensure_closed()?;
-            let result = query(&["backup", "--api", "--force", "--no-cloud-sync", "--full-limit", "10", "--", &title])?;
+            let limit = if drive { "10" } else { SAFETY_NET_VERSIONS };
+            let result = query(&["backup", "--api", "--force", "--no-cloud-sync", "--full-limit", limit, "--", &title])?;
             if has_errors(&result) { return Err("Ludusavi reported a backup error.".into()); }
             if result["overall"]["processedGames"].as_u64().unwrap_or(0) == 0 {
                 return Err("No save files were found for this game on this PC.".into());
             }
             let unchanged = result["overall"]["changedGames"]["same"].as_u64().unwrap_or(0) > 0;
-            let cloud = sync_cloud(&title);
+            let cloud = sync(&title);
             let message = if unchanged { "The save has not changed since the latest backup." } else { "Backed up on this PC." };
             record(&title, message, cloud);
             return Ok(serde_json::json!({"message": message, "cloud": cloud, "cloudMessage": cloud_message(cloud)}));
@@ -607,7 +642,7 @@ fn manage_local(request: &SaveAction) -> Result<Value, String> {
     if has_errors(&restored) {
         return Err("The restore did not finish. Your previous save is kept as “Before restore”.".into());
     }
-    let cloud = sync_cloud(&title);
+    let cloud = sync(&title);
     record(&title, "Restored an earlier version.", cloud);
     Ok(serde_json::json!({"message": "Version restored on this PC. Your previous save is kept as “Before restore”.", "cloud": cloud}))
 }
@@ -621,7 +656,9 @@ pub async fn manage_game_save(request: SaveAction) -> Result<Value, String> {
         if request.source == "lutris" {
             lutris_request(&request.id, Some(&request.action), request.version.as_deref())
         } else if eligible(&request.app_type, &request.source, &request.path) {
-            manage_local(&request)
+            manage_local(&request, true)
+        } else if safety_net(&request.app_type, &request.source, &request.path) {
+            manage_local(&request, false)
         } else {
             Err("Save actions are unavailable for this game.".into())
         }

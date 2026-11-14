@@ -8989,6 +8989,12 @@ struct RunningEntry {
     id: String,
     focused: bool,
     confidence: String,
+    /// Windows reports the game's window as not responding (audit §4.5).
+    hung: bool,
+}
+
+fn window_hung(hwnd: isize) -> bool {
+    unsafe { windows::Win32::UI::WindowsAndMessaging::IsHungAppWindow(windows::Win32::Foundation::HWND(hwnd as _)).as_bool() }
 }
 
 #[derive(Serialize)]
@@ -10190,6 +10196,7 @@ fn get_running_launched() -> Vec<RunningEntry> {
         let mut focused = false;
         let mut confidence = "low".to_string();
         let mut is_running = false;
+        let mut hung = false;
 
         if let Some(process_id) = pid {
             if process_exe_path(process_id).is_some() {
@@ -10198,6 +10205,7 @@ fn get_running_launched() -> Vec<RunningEntry> {
                 focused = windows
                     .iter()
                     .any(|w| w.pid == process_id && w.hwnd == foreground_hwnd);
+                hung = windows.iter().any(|w| w.pid == process_id && window_hung(w.hwnd));
             }
         } else {
             let mut best_score = 0u32;
@@ -10209,6 +10217,9 @@ fn get_running_launched() -> Vec<RunningEntry> {
                 best_score = best_score.max(score);
                 if window.hwnd == foreground_hwnd {
                     focused = true;
+                }
+                if window_hung(window.hwnd) {
+                    hung = true;
                 }
             }
             if best_score > 0 {
@@ -10233,6 +10244,7 @@ fn get_running_launched() -> Vec<RunningEntry> {
                 id,
                 focused,
                 confidence,
+                hung,
             });
         } else {
             let grace = if pid.is_none() { 180 } else { 60 };
@@ -10839,8 +10851,11 @@ async fn launch_app(
                 unsafe { GetWindowThreadProcessId(windows::Win32::Foundation::HWND(found as _), Some(&mut pid)); }
                 if let Some(exe) = process_exe_path(pid) { performance::remember_game_process(&watch_path, &exe); }
             }
-            if game_saves::eligible(if watch_is_game { "game" } else { "app" }, &watch_source, &watch_path) {
-                game_saves::watch_exit(found, watch_name.clone());
+            let kind = if watch_is_game { "game" } else { "app" };
+            if game_saves::eligible(kind, &watch_source, &watch_path) {
+                game_saves::watch_exit(found, watch_name.clone(), true);
+            } else if game_saves::safety_net(kind, &watch_source, &watch_path) {
+                game_saves::watch_exit(found, watch_name.clone(), false);
             }
             if audio.is_some() || wifi.is_some() || display.is_some() {
                 // Hold overrides against the matched game/app window, not a launcher proxy.

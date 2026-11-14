@@ -147,8 +147,13 @@ export function ManageSaves({ app, onClose, control }: { app: App; onClose: () =
             <dd>{result.active ? stamp(result.active) : result.scanOk ? text("No save file found") : text("Couldn’t check")}</dd>
             <dt>{text("Latest backup created")}</dt>
             <dd>{versions.length ? stamp(versions[0].when) : text("No backup yet")}</dd>
-            <dt>{text("Google Drive backup created")}</dt>
-            <dd>{text(drive)}</dd>
+            {result.cloudStatus === "store" ? <>
+              <dt>{text("Cloud save")}</dt>
+              <dd>{text(`Kept by ${app.source === "epic" ? "Epic" : app.source === "xbox" ? "Xbox" : app.source === "steam" ? "Steam" : "the store"}`)}</dd>
+            </> : <>
+              <dt>{text("Google Drive backup created")}</dt>
+              <dd>{text(drive)}</dd>
+            </>}
             <dt>{text("Versions kept")}</dt>
             <dd>{versions.length}</dd>
           </dl>}
@@ -161,7 +166,7 @@ export function ManageSaves({ app, onClose, control }: { app: App; onClose: () =
           {error && <p role="alert">{text(error)}</p>}
           <div className="crete-save-actions">
             <button type="button" aria-disabled={!!busy || !versions.length} disabled={!versions.length} onClick={guard(() => setView("versions"))}><IoSaveOutline aria-hidden="true" /> {text("Restore a version")}</button>
-            {result && result.cloudStatus !== "off" && <button type="button" aria-disabled={!!busy} onClick={guard(() => void act("sync", "Syncing with Google Drive…"))}><IoCloudOfflineOutline aria-hidden="true" /> {text("Sync with Google Drive")}</button>}
+            {result && result.cloudStatus !== "off" && result.cloudStatus !== "store" && <button type="button" aria-disabled={!!busy} onClick={guard(() => void act("sync", "Syncing with Google Drive…"))}><IoCloudOfflineOutline aria-hidden="true" /> {text("Sync with Google Drive")}</button>}
             <button type="button" aria-disabled={!!busy || checking} onClick={guard(() => { if (!checking) { setNotice(""); void check(); } })}>{text("Check again")}</button>
           </div>
         </>}

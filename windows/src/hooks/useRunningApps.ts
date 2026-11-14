@@ -7,11 +7,14 @@ interface RunningEntry {
   id: string;
   focused: boolean;
   confidence: string;
+  hung?: boolean;
 }
 
 export interface RunningAppsData {
   runningIds: Set<string>;
   isRunning: (id?: string | null) => boolean;
+  /** Windows reports the game as not responding. */
+  isHung: (id?: string | null) => boolean;
   refreshRunning: () => void;
   gracefulClose: (app: App) => Promise<void>;
   forceClose: (app: App) => Promise<void>;
@@ -21,6 +24,7 @@ const CLOSE_RECHECK_DELAY_MS = 4000;
 
 export function useRunningApps(appPaused: boolean, reclaimOnExit = true): RunningAppsData {
   const [runningIds, setRunningIds] = useState<Set<string>>(new Set());
+  const hungIds = useRef<Set<string>>(new Set());
   const prevRunning = useRef<Set<string>>(new Set());
   const inFlight = useRef(false);
   const reclaiming = useRef(false);
@@ -62,6 +66,7 @@ export function useRunningApps(appPaused: boolean, reclaimOnExit = true): Runnin
     invoke<RunningEntry[]>("get_running_launched")
       .then(async (list) => {
         const next = new Set(list.map((entry) => entry.id));
+        hungIds.current = new Set(list.filter((entry) => entry.hung).map((entry) => entry.id));
         const someExited = [...prevRunning.current].some((id) => !next.has(id));
         prevRunning.current = next;
 
@@ -88,6 +93,7 @@ export function useRunningApps(appPaused: boolean, reclaimOnExit = true): Runnin
   }, [appPaused, refreshRunning]);
 
   const isRunning = useCallback((id?: string | null) => !!id && runningIds.has(id), [runningIds]);
+  const isHung = useCallback((id?: string | null) => !!id && hungIds.current.has(id), []);
 
   const gracefulClose = useCallback(async (app: App) => {
     await invoke("close_launched", {
@@ -107,5 +113,5 @@ export function useRunningApps(appPaused: boolean, reclaimOnExit = true): Runnin
     window.setTimeout(refreshRunning, 600);
   }, [refreshRunning]);
 
-  return { runningIds, isRunning, refreshRunning, gracefulClose, forceClose };
+  return { runningIds, isRunning, isHung, refreshRunning, gracefulClose, forceClose };
 }

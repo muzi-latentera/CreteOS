@@ -893,7 +893,7 @@ export default function App() {
   }, [steamStatus.connected, refreshLibraryFromSources]);
   const requestClose = (app) => {
     if (!app) return;
-    setCloseRequest({ app, force: false });
+    setCloseRequest({ app, force: isHung(app.id) });
   };
 
   const resolvedTheme = normalizeThemeKey(settings.theme);
@@ -1258,7 +1258,7 @@ export default function App() {
     audioProfileRef.current = resolveAudioProfile(resolvedTheme, surfaceStyle);
   }, [resolvedTheme, surfaceStyle]);
   const appPaused = !!launchingApp || !windowFocused || fseSessionActive;
-  const { runningIds, isRunning, refreshRunning, gracefulClose, forceClose } = useRunningApps(appPaused);
+  const { runningIds, isRunning, isHung, refreshRunning, gracefulClose, forceClose } = useRunningApps(appPaused);
   runningIdsRef.current = runningIds;
   const lookupBarApp = useCallback(
     (id) => allAppsRef.current.find((a) => a.id === id) ?? appsRef.current.find((a) => a.id === id),
@@ -3494,7 +3494,7 @@ export default function App() {
           onCloseGame={() => {
             const app = detailsApp;
             closeDetailsModal(false);
-            setCloseRequest({ app, force: false });
+            setCloseRequest({ app, force: isHung(app.id) });
           }}
           onInstall={() => startSteamInstall(detailsApp)}
           onXboxInstall={() => startXboxInstall(detailsApp)}
@@ -3616,7 +3616,7 @@ export default function App() {
           onCloseApp={isRunning(detailsApp.id) ? () => {
             const app = detailsApp;
             closeDetailsModal(false);
-            setCloseRequest({ app, force: false });
+            setCloseRequest({ app, force: isHung(app.id) });
           } : undefined}
         />
       )}
