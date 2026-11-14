@@ -52,3 +52,44 @@ Pending vault sync. This was autonomous overnight work at the owner's request; s
   - **Owner action:** create your own Google client ID. The steps are in the guide under Game save recovery.
 - `creteos-saves` was redeployed on Bosgame (`0a337921…417c`).
 - **One hang observed:** the first start after the 00:41 install stopped responding, with almost no CPU and missing art, while clicks were made 4 s after launch. It did not reproduce in five more starts or in the same click sequence. Cause unknown. A watchdog is on the roadmap (batch 7).
+
+Checkpoint archive `CreteOS-G1-profile-backup-20261114-005428.zip`:
+- SHA-256 `8f1010709f6504928b3d3383e07e094f90dc6e9f25e38403524a2eeb8475d5e2`, 1,656 payloads.
+- Pack `CreteOS-Recovery-20261114-Batch2InstantStart`: 168 files verified on the SanDisk, with source bundle `ed19c87`.
+- Pushed.
+
+## Power and fan profiles, Settings clean-up, Sleep (source `1c8b25a`, `d1b00f8`)
+
+- **OneXConsole investigation** (read-only).
+  - It sets TDP with RyzenAdj through its own re-applying service.
+  - Per-game presets live in `%APPDATA%\gamerzone\db\core.db`:
+    - `game_setting_preset`: `tdp`/`tdpPlugin`/`tdpPluginSep`, `fanTakeEffect`/`fanMode`, and the `rtssTakeEffect`/`rtssFrameValue` frame cap.
+    - `game_setting_preset_process`: the binding to a process name.
+  - Fan modes, from its own code: 0 automatic, 1 curve `setting.fanPreset1`, 2 curve `fanPreset2`. Each curve is five points (°C, duty).
+  - Bindings live in memory and reload only after edits in OneXConsole's own window, so CreteOS's changes apply when OneXConsole restarts.
+  - It runs elevated from the `\OneXConsole` scheduled task.
+- **`performance.rs`.**
+  - Reads and writes those tables through Windows' `winsqlite3` (no new crate).
+  - Copies the default preset for new games and validates 4–30 W, fan 0–2, and an off or 20–240 FPS cap.
+  - Takes a dated database copy in `%LOCALAPPDATA%\CreteOS\onexconsole-backups` before every write (20 kept), then runs `quick_check`.
+  - CreteOS records each game's executable when its window is matched (`game_processes.json`). For a game never launched from CreteOS, the install folder's executables are offered.
+  - "Apply now" restarts OneXConsole with one UAC prompt.
+- **UI.**
+  - Each installed local game's options gain **Performance**: power on battery and on charger, fan, frame limit.
+  - Settings gains a **Performance** page (fan curve A/B editor, default power, per-game list) and a **Game saves** page (Drive folder and account, recent activity).
+  - Both pages are controller-driven through the new `useDialogNav`.
+- **Settings clean-up (Crete).**
+  - Hidden: theme, accent and surface pickers; stars, lofi and onyx options; the hero-cover option; the duplicate pinned toggle; controller icon styling and preview; the coffee, Discord and privacy links.
+  - Sections are now: Display & Home, Library & accounts, Performance, Game saves, Startup & streaming, Controller, Storage & troubleshooting, About & updates. French and Spanish keys were added.
+- **Power menu.** Adds **Sleep** (no confirmation, `SetSuspendState` with SeShutdownPrivilege; the G1 supports only Modern Standby) and **Hibernate** (`shutdown /h`). Neither was exercised: there was nobody to wake the device.
+
+**Verification**
+- TypeScript passed. 294 frontend and 179 Rust tests passed, including fixture-database tests for preset create, update and remove, and validation.
+- On the G1, through the UI: an Elden Ring profile (10 W battery, 18 W charger, fan curve A, 30 FPS) was written to OneXConsole's database.
+  - Database copy before the change: `core-20261114-011404.db`.
+  - `integrity_check ok`; the program was remembered as `eldenring`.
+  - The profile was then removed through the same screen, and the database rows matched their original state.
+- The Settings pages render real values (6/18 W default, curve A 35–85 %, Drive folder `ludusavi-backup-G1-Windows`). Keyboard and mouse navigation and Escape work.
+- The Power menu shows Sleep and Hibernate.
+- Installs at 01:25 (`968D093A…462E`) and 01:38 (`0FF15D50…296E`).
+- **Hang repeated once (01:09):** clicks right after the first start of a newly installed exe. It was not reproduced in four controlled attempts. Still open.
