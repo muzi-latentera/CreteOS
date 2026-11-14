@@ -78,7 +78,9 @@ export function CreteLibraryView(p: CreteLibraryProps) {
   const activateToolbar = (i: number) => {
     if (i < filterCount) { if (!appsMode) setAvailability(AVAILABILITY[i]); setSelectedId(null); }
     else if (i === filterCount) showPopup("sources");
-    else if (i === filterCount + 1) setSearching(value => !value);
+    // The controller gets the search with its own on-screen keyboard; a mouse or
+    // touch click on the icon (onClick below) opens the inline text box.
+    else if (i === filterCount + 1) p.onSearch();
     else if (!appsMode && i === filterCount + 2) showPopup("sort");
     else p.onManageLibrary();
   };
