@@ -410,16 +410,21 @@ fn local_sources(name: &str) -> Result<SaveSources, String> {
         if config["cloud"]["synchronize"] != true { sources.cloud_status = "off".into(); }
         else if let (Some(remote), Some(path)) = (config["cloud"]["remote"]["Custom"]["id"].as_str(), config["cloud"]["path"].as_str()) {
             if !path.is_empty() && !folder.is_empty() && folder != "." && folder != ".." {
-                let mut cmd = Command::new(tools()?.join("rclone.exe"));
-                cmd.stdin(Stdio::null()).args(["cat", &format!("{remote}:{path}/{folder}/mapping.yaml"),
-                    "--retries", "1", "--low-level-retries", "2", "--timeout", "7s"]);
-                if let Ok(result) = super::streaming::bounded_output_timeout(cmd, None, 11) {
+                // rclone's shared Google client hits its quota now and then, so a
+                // failed read is retried once before Drive is reported unreachable.
+                for attempt in 0..2 {
+                    if attempt > 0 { std::thread::sleep(std::time::Duration::from_millis(1500)); }
+                    let mut cmd = Command::new(tools()?.join("rclone.exe"));
+                    cmd.stdin(Stdio::null()).args(["cat", &format!("{remote}:{path}/{folder}/mapping.yaml"),
+                        "--retries", "1", "--low-level-retries", "2", "--timeout", "7s"]);
+                    let Ok(result) = super::streaming::bounded_output_timeout(cmd, None, 11) else { continue; };
                     match result.status.code() {
                         Some(0) => {
                             sources.cloud_status = "ok".into();
                             sources.cloud_mapping = String::from_utf8(result.stdout).ok();
+                            break;
                         }
-                        Some(3 | 4) => sources.cloud_status = "missing".into(),
+                        Some(3 | 4) => { sources.cloud_status = "missing".into(); break; }
                         _ => {}
                     }
                 }

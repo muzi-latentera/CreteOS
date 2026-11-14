@@ -826,10 +826,12 @@ export default function App() {
       unsubs.push(await listen("steam-account-changed", (event) => {
         if (!disposed) setSteamStatus(event.payload || { connected: false, owned_count: 0 });
       }));
+      // Automatic owned-library updates (for example at start-up) refresh quietly;
+      // the blocking "Refreshing library" panel is for refreshes the user asked for.
       unsubs.push(await listen("steam-owned-refresh", () => {
         if (!disposed) {
           refreshSteamStatus();
-          refreshLibrary();
+          refreshLibrary({ background: true });
         }
       }));
       unsubs.push(await listen("xbox-login-success", (event) => {
@@ -858,7 +860,7 @@ export default function App() {
         if (disposed) return;
         refreshXboxStatus();
         setTemporaryXboxRefreshStatus("done");
-        refreshLibrary();
+        refreshLibrary({ background: true });
       }));
       unsubs.push(await listen("xbox-refresh-error", () => {
         if (disposed) return;

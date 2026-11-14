@@ -213,14 +213,22 @@ def game_folder(title):
 def read_cloud(remote, path, folder):
     if not remote or not path or not folder or folder in (".", "..") or "/" in folder or "\\" in folder:
         return "unavailable", None
-    try:
-        data = run("rclone", "cat", f"{remote}:{path}/{folder}/mapping.yaml",
-                   "--retries", "1", "--low-level-retries", "2", "--timeout", "7s")
-        return "ok", data.decode()
-    except RuntimeError as error:
-        return ("missing" if error.args[0] in (3, 4) else "unavailable"), None
-    except (OSError, subprocess.TimeoutExpired):
-        return "unavailable", None
+    # rclone's shared Google client hits its quota now and then (13-14 Nov), so a
+    # failed read is retried once before Drive is reported unreachable.
+    status = "unavailable"
+    for attempt in range(2):
+        if attempt:
+            time.sleep(1.5)
+        try:
+            data = run("rclone", "cat", f"{remote}:{path}/{folder}/mapping.yaml",
+                       "--retries", "1", "--low-level-retries", "2", "--timeout", "7s")
+            return "ok", data.decode()
+        except RuntimeError as error:
+            if error.args[0] in (3, 4):
+                return "missing", None
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    return status, None
 
 
 # ------------------------------------------------------------------ Explicit actions
