@@ -129,3 +129,12 @@ Checkpoint archive `CreteOS-G1-profile-backup-20261114-005428.zip`:
   - Library grid cards use `content-visibility: auto`, so off-screen covers skip layout and paint.
 - **Same run, after:** 1.0 ms per press; frame stalls over 40 ms went from 13 (worst 139 ms) to 4 (worst 49 ms); long tasks from 3 (up to 107 ms) to 0.
 - Install at 02:16: `4B44A337…1092`. The recording request was removed afterwards.
+- Home was measured the same way (50 presses along and between rails): 0.1 ms per press, with no stalls over 40 ms and no long tasks.
+
+## One CreteOS at a time
+
+- **Found while testing:** `fse.log` showed a second CreteOS process start at 02:07:41, when CreteOS was opened again while it was already running.
+  - There was no single-instance guard, so every extra launch (Start menu, AnyFSE, shortcut) started a second full copy on the same WebView2 profile.
+  - This may be related to the unexplained start-up hangs, but that is not proven.
+- **Fix:** `single_instance.rs` holds the `Local\CreteOS-single-instance` mutex. A second launch focuses the running window and exits. Maintenance flags such as `--verify-bundled-assets` are unaffected.
+- **Verified:** install at 02:24 (`F58F361F…336F`). Launching the exe again left only pid 26136. The watchdog relaunch was not exercised; it starts the new copy 2 s after the old one exits, when the mutex is already free.

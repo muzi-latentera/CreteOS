@@ -53,6 +53,7 @@ mod fse_watcher;
 mod game_saves;
 mod performance;
 mod watchdog;
+mod single_instance;
 mod lofi_media;
 mod steam_appinfo;
 mod storage_info;
@@ -10870,6 +10871,10 @@ pub fn run() {
             Ok(assets) => println!("{}", serde_json::json!({"verified":true,"sourceCommit":env!("CRETE_SOURCE_COMMIT"),"assets":assets})),
             Err(error) => { println!("{}", serde_json::json!({"verified":false,"error":error})); std::process::exit(2); }
         }
+        return;
+    }
+    if !single_instance::claim() {
+        single_instance::focus_existing();
         return;
     }
     apply_pending_factory_reset();
