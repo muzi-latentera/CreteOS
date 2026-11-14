@@ -12,6 +12,7 @@ import { launchApp, type LocalLaunchOptions } from "./useLaunchApp";
 import { getBestGamepad, getActiveGamepad, readGpState, detectPlatform, rumble, type HapticPattern } from "../utils/gamepad";
 import { getLibraryEntryFocusSection } from "../utils/libraryFocus";
 import { moveGridFocus, type GridDirection } from "../utils/gridNavigation";
+import { compareText } from "../utils/compareText";
 import { buildSettingsItems, getSectionNavigableItems, getSettingCycleOptions, moveSettingsAccountActionFocus, SETTINGS_SECTIONS } from "../views/settings";
 import {
   ACCENTS as DEFAULT_ACCENTS,
@@ -976,13 +977,9 @@ export function useGamepadNavigation(
     const recentRank = new Map(rec.map((entry, recIndex) => [entry.id, rec.length - recIndex]));
     const sortGamesForView = (items: App[]) => items.sort((a, b) => {
       const sort = gamesSortRef.current;
-      if (sort === "az") return (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
-      if (sort === "store") {
-        const byStore = (a.source || "").localeCompare(b.source || "", undefined, { sensitivity: "base" });
-        return byStore || (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
-      }
-      return (recentRank.get(b.id) || 0) - (recentRank.get(a.id) || 0)
-        || (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
+      if (sort === "az") return compareText(a.name, b.name);
+      if (sort === "store") return compareText(a.source, b.source) || compareText(a.name, b.name);
+      return (recentRank.get(b.id) || 0) - (recentRank.get(a.id) || 0) || compareText(a.name, b.name);
     });
     let fApps = allApps.filter(a => {
       if (currentTab === "Home" || currentTab === "All") return true;

@@ -8,6 +8,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } fr
 import { useControllerCursor } from "./hooks/useControllerCursor";
 import { useStreamLibraryRefresh } from "./hooks/useStreamLibraryRefresh";
 import { inputTrace } from "./utils/inputDiagnostics";
+import { compareText } from "./utils/compareText";
 import { useTranslation } from "react-i18next";
 import i18n from "./i18n";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
@@ -2356,16 +2357,10 @@ export default function App() {
   });
   const recentRank = useMemo(() => new Map(recent.map((entry, index) => [entry.id, recent.length - index])), [recent]);
   const sortGamesForView = (items) => [...items].sort((a, b) => {
-    if (gamesSort === "az") {
-      return (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
-    }
-    if (gamesSort === "store") {
-      const byStore = gamePlatform(a).localeCompare(gamePlatform(b), undefined, { sensitivity: "base" });
-      return byStore || (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
-    }
+    if (gamesSort === "az") return compareText(a.name, b.name);
+    if (gamesSort === "store") return compareText(gamePlatform(a), gamePlatform(b)) || compareText(a.name, b.name);
     const rank = app => Math.max(0, ...gameCopies(app).map(copy => recentRank.get(copy.id) || 0));
-    return rank(b) - rank(a)
-      || (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
+    return rank(b) - rank(a) || compareText(a.name, b.name);
   });
 
   const [availabilityVersion, setAvailabilityVersion] = useState(0);
