@@ -11069,6 +11069,7 @@ pub fn run() {
             store_accounts::store_install_game,
             cancel_launch_watch,
             moondeck::end_host_stream,
+            game_saves::get_save_status,
             steam_logout,
             fetch_steam_owned_games,
             xbox_account_status,

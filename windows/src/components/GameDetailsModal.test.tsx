@@ -165,6 +165,15 @@ describe("Game Details modal", () => {
     expect(container.querySelector('[role="status"]')?.textContent).toContain("Finish the install in Epic Games Launcher");
   });
 
+  it("summarises the last save backup in one line", async () => {
+    const { saveStatusText } = await import("./GameDetailsModal");
+    const text = saveStatusText({ when: "2026-11-14T02:10:00Z", message: "Backed up after the game closed.", cloud: "synced" });
+    expect(text.startsWith("Backed up ")).toBe(true);
+    expect(text.endsWith(" · On Google Drive")).toBe(true);
+    expect(saveStatusText({ when: "bad", message: "The automatic backup reported an error.", cloud: "unavailable" })).toBe("Backup failed · Google Drive not reached");
+    expect(saveStatusText({ when: "bad", message: "Restored an earlier version.", cloud: "off" })).toBe("Restored");
+  });
+
   it("allows confirmation when size and free space are known and sufficient", () => {
     const onXboxInstall = vi.fn();
     const dialog = render({

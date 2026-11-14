@@ -137,6 +137,17 @@ function formatRelativeTime(value: number, never: string) {
   return never;
 }
 
+interface SaveStatus { when: string; message: string; cloud: string }
+
+/** "Backed up 14 Nov, 02:10 · On Google Drive" from the last recorded save event. */
+export function saveStatusText(status: SaveStatus) {
+  const when = new Date(status.when);
+  const stamp = Number.isNaN(when.getTime()) ? "" : when.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const what = /restored/i.test(status.message) ? "Restored" : /no save files/i.test(status.message) ? "No save files found" : /error/i.test(status.message) ? "Backup failed" : "Backed up";
+  const cloud = ({ synced: "On Google Drive", uploaded: "On Google Drive", downloaded: "On Google Drive", conflict: "Google Drive differs", unavailable: "Google Drive not reached" } as Record<string, string>)[status.cloud];
+  return [stamp ? `${what} ${stamp}` : what, cloud].filter(Boolean).join(" · ");
+}
+
 function formatPlaytime(minutes: number) {
   if (minutes < 60) return `${Math.max(1, Math.round(minutes))}m`;
   const hours = Math.floor(minutes / 60);
@@ -259,6 +270,14 @@ export function GameDetailsModal({
   const storeAccountGame = source === "epic" || source === "gog";
   const [storeClientError, setStoreClientError] = useState("");
   const [storeInstallNote, setStoreInstallNote] = useState("");
+  const [saveStatus, setSaveStatus] = useState<SaveStatus | null>(null);
+  useEffect(() => {
+    let active = true;
+    setSaveStatus(null);
+    if (installed && app.app_type !== "app" && !["cloud", "lutris", "playstation"].includes(app.source ?? ""))
+      void Promise.resolve(invoke<SaveStatus | null>("get_save_status", { name: app.name })).then(status => { if (active && status) setSaveStatus(status); }).catch(() => {});
+    return () => { active = false; };
+  }, [app.id, app.name, app.source, app.app_type, installed]);
   const storeClientLabel = t("install.install");
   const steamAppId = app.steam_appid != null ? String(app.steam_appid) : undefined;
   const numericSteamAppId = steamAppId && /^\d+$/.test(steamAppId)
@@ -908,6 +927,7 @@ export function GameDetailsModal({
       value: sizeBytes === "loading" ? t("common.loading", { defaultValue: "Loading..." }) : formatBytes(sizeBytes),
     }] : []),
     ...(!installed && downloadBytes != null ? [{ label: t("details.downloadSize"), value: formatBytes(downloadBytes) }] : []),
+    ...(saveStatus ? [{ label: "Saves", value: saveStatusText(saveStatus) }] : []),
   ];
 
   const actionGrid = (

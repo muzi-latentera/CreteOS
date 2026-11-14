@@ -226,7 +226,38 @@ fn cloud_message(state: &str) -> &'static str {
 
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-struct SaveEvent { when: String, message: String, cloud: String }
+pub struct SaveEvent { when: String, message: String, cloud: String }
+
+/// The game page's "Saves" line. Recorded titles are Ludusavi's, so fall back
+/// to a match that ignores case and punctuation ("ELDEN RING™" = "Elden Ring").
+#[tauri::command]
+pub fn get_save_status(name: String) -> Option<SaveEvent> {
+    let events: BTreeMap<String, SaveEvent> = serde_json::from_slice(&std::fs::read(status_path()).ok()?).ok()?;
+    find_event(&events, &name)
+}
+
+fn find_event(events: &BTreeMap<String, SaveEvent>, name: &str) -> Option<SaveEvent> {
+    let key = |text: &str| text.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect::<String>();
+    let wanted = key(name);
+    events.get(name).or_else(|| (!wanted.is_empty()).then(|| events.iter().find(|(title, _)| key(title) == wanted).map(|(_, event)| event)).flatten()).cloned()
+}
+
+#[cfg(test)]
+mod save_status_tests {
+    use super::{find_event, SaveEvent};
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn finds_a_game_by_exact_or_loose_title() {
+        let event = |message: &str| SaveEvent { when: "2026-11-14T02:10:00Z".into(), message: message.into(), cloud: "synced".into() };
+        let events = BTreeMap::from([("ELDEN RING".to_string(), event("a")), ("Hades II".to_string(), event("b"))]);
+        assert_eq!(find_event(&events, "ELDEN RING").map(|e| e.message), Some("a".into()));
+        assert_eq!(find_event(&events, "Elden Ring™").map(|e| e.message), Some("a".into()));
+        assert_eq!(find_event(&events, "Hades: II").map(|e| e.message), Some("b".into()));
+        assert!(find_event(&events, "Hades").is_none());
+        assert!(find_event(&events, "™").is_none());
+    }
+}
 
 fn now() -> String { chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now()).to_rfc3339() }
 
