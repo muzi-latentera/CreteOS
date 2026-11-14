@@ -10,6 +10,11 @@ Evidence for every item is in [the full audit](AUDIT_2026-11-13_SAVES_AND_EXPERI
 
 ## Ground rules
 
+- **Working autonomously (owner, 14 Nov).** When the owner says to keep working (overnight, or while they're out), work through this roadmap without stopping.
+  - Don't end the session to report or to ask. Make the executive decision, record it in the journal and tell the owner afterwards.
+  - Stop only for things that need the owner's hands or approval: installing tools, system or security settings, sign-ins, permanent deletion. Note these and carry on with other items.
+  - The goal: the owner comes back and simply plays.
+
 - **Look:** Crete stays. New screens use the existing Crete tokens (colours, radii, dialog styles). Do not borrow Winhanced's visual design, code or artwork; rebuild the features in our own way.
 - **Smoothness budget:**
   - Controller response feels immediate: no dead windows on opening (fixed for modals in batch 1).
