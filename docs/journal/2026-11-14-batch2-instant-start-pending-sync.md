@@ -157,3 +157,13 @@ Checkpoint archive `CreteOS-G1-profile-backup-20261114-005428.zip`:
 - 181 Rust and 299 frontend tests passed. New tests cover the per-type limits, cancel versus late-watch on close, and the two-press end-session button.
 - Installs at 02:32 (`40E60616…4903`), 02:37 (`3522F009…225B`) and 02:45 (`E1792882…4078`). Each was responding after start.
 - **Not exercised on the device:** a real game launch, Resume, and ending a Bosgame stream. It was 2–3 am with nobody present, and game audio could wake the household.
+
+## Crash return, save status line, install clean-up (source `f5eed28`, `99bb0be`)
+
+- **Crash return.** When a game window vanishes and Windows Error Reporting, Unreal's `CrashReportClient` or Unity's crash handler is in front, CreteOS now treats it as a game exit and comes back. Before, it counted as the player switching apps (audit §4.5). Hung windows still aren't detected.
+- **Saves line.** The game page's Progress section shows "Saves: Backed up 14 Nov, 02:10 · On Google Drive" from `game-saves-status.json` (`get_save_status`; titles match ignoring case and punctuation).
+  - It only appears for games CreteOS backs up: direct programs and GOG. Steam, Epic and Xbox rely on their store's cloud saves.
+  - No backup has been recorded on this G1 yet, so on the device the line correctly stays hidden. It was not seen with real data.
+- **Open:** safety-net versions for Steam, Epic and Xbox games without store cloud saves (roadmap batch 2 item 7) need Ludusavi's per-game cloud flags. Not started.
+- **Rollback copies.** Tonight's installs had left 19 copies (2.7 GB). The install helper now keeps the five newest timestamped copies and sends older ones to the Recycle Bin. Named copies from earlier work are untouched. 10 copies remain (1.3 GB).
+- 183 Rust and 300 frontend tests passed. Installs at 02:52 (`B38F18AE…80BB`) and 03:00 (`891487B8…EA02`).
