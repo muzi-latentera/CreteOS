@@ -9,6 +9,7 @@ import { useControllerCursor } from "./hooks/useControllerCursor";
 import { useStreamLibraryRefresh } from "./hooks/useStreamLibraryRefresh";
 import { inputTrace } from "./utils/inputDiagnostics";
 import { compareText } from "./utils/compareText";
+import { ErrorBoundary, SectionCrashCard } from "./components/ErrorBoundary";
 import { useTranslation } from "react-i18next";
 import i18n from "./i18n";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
@@ -3458,6 +3459,7 @@ export default function App() {
         />
       )}
       {detailsApp && detailsApp.app_type === "game" && (
+        <ErrorBoundary key={detailsApp.id} area="game-details" fallback={() => <SectionCrashCard title={detailsApp.name || "This game"} onClose={() => closeDetailsModal()} />}>
         <GameDetailsModal
           app={detailsApp}
           onSwitchEdition={setResolvedDetailsApp}
@@ -3564,6 +3566,7 @@ export default function App() {
           storeMetaEnabled={settings.fetch_store_metadata !== false}
           t={t}
         />
+        </ErrorBoundary>
       )}
       {detailsApp && detailsApp.app_type !== "game" && (
         <AppDetailsModal

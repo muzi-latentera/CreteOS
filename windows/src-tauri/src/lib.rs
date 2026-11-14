@@ -10410,6 +10410,22 @@ mod launch_confirm_tests {
     }
 }
 
+/// Screen failures caught by the frontend's error boundaries, kept to 256 KB
+/// in `logs\frontend-errors.log` for troubleshooting.
+#[tauri::command]
+fn record_frontend_error(area: String, message: String, stack: String) {
+    use std::io::Write;
+    let dir = liftoff_dir().join("logs");
+    if std::fs::create_dir_all(&dir).is_err() { return; }
+    let path = dir.join("frontend-errors.log");
+    let full = std::fs::metadata(&path).is_ok_and(|m| m.len() > 256 * 1024);
+    let clip = |text: &str, max: usize| text.chars().take(max).collect::<String>();
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).write(true).append(!full).truncate(full).open(path) {
+        let stamp = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now()).to_rfc3339();
+        let _ = writeln!(file, "{stamp} [{}] {}\n{}\n", clip(&area, 40), clip(&message, 2000), clip(&stack, 8000));
+    }
+}
+
 /// Pressing B before a launch is confirmed stops its watcher, so the game is
 /// never pulled to the front afterwards. The game itself is left alone.
 #[tauri::command]
@@ -11068,6 +11084,7 @@ pub fn run() {
             store_accounts::store_open_library,
             store_accounts::store_install_game,
             cancel_launch_watch,
+            record_frontend_error,
             moondeck::end_host_stream,
             game_saves::get_save_status,
             steam_logout,
