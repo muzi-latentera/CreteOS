@@ -93,3 +93,27 @@ Checkpoint archive `CreteOS-G1-profile-backup-20261114-005428.zip`:
 - The Power menu shows Sleep and Hibernate.
 - Installs at 01:25 (`968D093A…462E`) and 01:38 (`0FF15D50…296E`).
 - **Hang repeated once (01:09):** clicks right after the first start of a newly installed exe. It was not reproduced in four controlled attempts. Still open.
+- Checkpoint `CreteOS-Recovery-20261114-PowerProfiles`:
+  - manifest `23200cce…f946`, 168 files verified on the SanDisk;
+  - profile archive `1d25effa…a1f2`, source bundle `e75919e`;
+  - pushed.
+
+## Watchdog, Epic and GOG installs (source `40b71e7`, `f2e5a0e`)
+
+- **Watchdog.**
+  - A background thread pings the main thread every 2 s, starting 15 s after launch.
+  - After 25 missed pings (50 s) while CreteOS is the foreground window, it writes `watchdog.log` and relaunches CreteOS, at most three times in ten minutes (`watchdog-relaunches.txt`).
+  - Time asleep or behind a game never counts.
+- SteamGridDB art searches and downloads moved off the command thread, so a slow art lookup can't hold up the app.
+- **Epic and GOG Install.**
+  - Install now opens Epic's own install dialog for the exact catalog item (`apps/<namespace>:<catalog>:<app>?action=install`), replacing the generic library page.
+  - GOG opens the game's Galaxy page, as before.
+  - CreteOS shows "Finish the install in … ABZU appears here as installed when it's done." Then it watches, for up to six hours, for Epic's finished manifest or GOG's `GOG.com\Games\<id>` registry entry, and refreshes the library when one appears.
+  - An Epic manifest still marked `bIsIncompleteInstall` no longer counts as installed.
+
+**Verification**
+- 180 Rust and 295 frontend tests passed. New tests cover the relaunch limit, the Epic manifest check, the install links, and the details-page Install call.
+- Installs at 01:52 (`278C6752…9924`) and 02:01 (`000B83A1…A73D`). Both were responding after start, and no watchdog log was written.
+- On device, ABZU (Epic) → Install: CreteOS showed the note, and Epic's log recorded `FAppInstallUriHandler` with `…:Curry?action=install`.
+  - Epic's install dialog was left open, unconfirmed; access to control Epic was declined, so it could not be closed.
+  - Nothing was installed, so the finish watcher and library refresh were not exercised end to end. GOG was not exercised.
